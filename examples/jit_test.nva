@@ -1,0 +1,10 @@
+// Simple JIT test - pure arithmetic and control flow
+x = 10
+y = 20
+z = x + y * 2
+
+if (z > 40) {
+    result = 1
+} else {
+    result = 0
+}
