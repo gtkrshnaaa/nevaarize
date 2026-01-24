@@ -12,7 +12,9 @@ namespace nevaarize {
 
 JIT::JIT() 
     : stackSize(0)
-    , nextStackSlot(0) {
+    , nextStackSlot(0)
+    , currentAST(nullptr)
+    , inFunctionCall(false) {
     execMem = std::make_unique<ExecutableMemory>(16384);
     std::memset(regInUse, 0, sizeof(regInUse));
     
@@ -390,6 +392,19 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return operand;
         }
         
+        case NodeType::CALL: {
+            // Handle function call as expression
+            if (node.left == INVALID_NODE) return X64Reg::RAX;
+            const ASTNode& callee = ast.get(node.left);
+            if (callee.type == NodeType::IDENTIFIER) {
+                const std::string& funcName = callee.name;
+                if (userFunctions.count(funcName)) {
+                    return compileUserCall(ast, idx, funcName);
+                }
+            }
+            return X64Reg::RAX;
+        }
+        
         default:
             return X64Reg::RAX;
     }
@@ -590,6 +605,8 @@ int64_t JIT::execute(CompiledFunc fn) {
 CompiledFunc JIT::compile(const AST& ast) {
     codegen = CodeGenerator();
     variables.clear();
+    userFunctions.clear();
+    currentAST = &ast;
     stackSize = 0;
     nextStackSlot = 0;
     std::memset(regInUse, 0, sizeof(regInUse));
@@ -665,6 +682,10 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             
         case NodeType::RETURN_STMT:
             compileReturn(ast, idx);
+            break;
+            
+        case NodeType::FUNC_DECL:
+            compileFuncDecl(ast, idx);
             break;
             
         default:
@@ -890,8 +911,10 @@ void JIT::compileReturn(const AST& ast, NodeIndex idx) {
         buf.emit8(0xC0);
     }
     
-    // Emit epilogue and return
-    emitEpilogue();
+    // Only emit epilogue if not in inline function call
+    if (!inFunctionCall) {
+        emitEpilogue();
+    }
 }
 
 // Emit code to print an integer to stdout using syscall
@@ -1225,6 +1248,66 @@ void JIT::emitPrintIntNoNewline(X64Reg valueReg) {
     buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x20);
 }
 
+// Register a user-defined function
+void JIT::compileFuncDecl(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    
+    // Store function info for later use
+    FuncInfo info;
+    info.bodyIndex = node.right;  // Function body
+    info.paramNames = node.paramNames;
+    userFunctions[node.name] = info;
+}
+
+// Compile a user function call - inline the function body
+X64Reg JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& funcName) {
+    const ASTNode& node = ast.get(idx);
+    auto it = userFunctions.find(funcName);
+    if (it == userFunctions.end()) {
+        return X64Reg::RAX;
+    }
+    
+    const FuncInfo& funcInfo = it->second;
+    
+    // Save current variables state
+    auto savedVars = variables;
+    
+    // Bind arguments to parameter names
+    for (size_t i = 0; i < funcInfo.paramNames.size() && i < node.children.size(); ++i) {
+        X64Reg argReg = compileExpr(ast, node.children[i]);
+        
+        // Store argument in parameter variable
+        VarLocation loc;
+        loc.stackOffset = allocateStackSlot();
+        loc.isRegister = false;
+        variables[funcInfo.paramNames[i]] = loc;
+        
+        CodeBuffer& buf = codegen.getCode();
+        bool regHigh = static_cast<uint8_t>(argReg) >= 8;
+        buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(argReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(loc.stackOffset));
+        
+        freeReg(argReg);
+    }
+    
+    // Set flag before compiling function body
+    bool savedInFunctionCall = inFunctionCall;
+    inFunctionCall = true;
+    
+    // Compile the function body
+    if (funcInfo.bodyIndex != INVALID_NODE) {
+        compileStatement(ast, funcInfo.bodyIndex);
+    }
+    
+    // Restore state
+    inFunctionCall = savedInFunctionCall;
+    variables = savedVars;
+    
+    return X64Reg::RAX;  // Return value is in RAX from return statement
+}
+
 // Compile function call
 void JIT::compileCall(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
@@ -1286,8 +1369,11 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
             }
             ++argIndex;
         }
+    } else if (userFunctions.count(funcName)) {
+        // User-defined function call
+        compileUserCall(ast, idx, funcName);
     }
-    // TODO: Handle other built-in functions and user-defined functions
+    // Other built-in functions can be added here
 }
 
 } // namespace nevaarize

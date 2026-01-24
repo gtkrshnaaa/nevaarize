@@ -72,6 +72,15 @@ private:
     std::unordered_map<std::string, VarLocation> variables;
     int32_t stackSize;
     int32_t nextStackSlot;
+    
+    // User function storage
+    struct FuncInfo {
+        NodeIndex bodyIndex;
+        std::vector<std::string> paramNames;
+    };
+    std::unordered_map<std::string, FuncInfo> userFunctions;
+    const AST* currentAST;
+    bool inFunctionCall;
 
     // Code generation helpers
     void emitPrologue();
@@ -92,6 +101,8 @@ private:
     void compileFor(const AST& ast, NodeIndex idx);
     void compileReturn(const AST& ast, NodeIndex idx);
     void compileCall(const AST& ast, NodeIndex idx);
+    void compileFuncDecl(const AST& ast, NodeIndex idx);
+    X64Reg compileUserCall(const AST& ast, NodeIndex idx, const std::string& funcName);
     
     // Native function call emission
     void emitPrintInt(X64Reg valueReg);
