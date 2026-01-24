@@ -18,8 +18,8 @@ namespace ai_internal {
 
 std::vector<float> toFloatVector(const Value& val) {
     std::vector<float> result;
-    if (val.isArray()) {
-        const auto& arr = val.asArray();
+    if (val.isArray() && val.arrayVal) {
+        const auto& arr = *val.arrayVal;
         result.reserve(arr.size());
         for (const auto& v : arr) {
             result.push_back(static_cast<float>(v.asDouble()));
@@ -745,8 +745,8 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
     // ========================================
     
     funcs["Shape"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty() || !args[0].isArray()) return Value::fromInt(0);
-        return Value::fromInt(static_cast<int64_t>(args[0].asArray().size()));
+        if (args.empty() || !args[0].isArray() || !args[0].arrayVal) return Value::fromInt(0);
+        return Value::fromInt(static_cast<int64_t>(args[0].arrayVal->size()));
     };
     
     funcs["Flatten"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
@@ -754,8 +754,8 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
         
         std::vector<Value> result;
         std::function<void(const Value&)> flatten = [&](const Value& v) {
-            if (v.isArray()) {
-                for (const auto& elem : v.asArray()) {
+            if (v.isArray() && v.arrayVal) {
+                for (const auto& elem : *v.arrayVal) {
                     flatten(elem);
                 }
             } else {

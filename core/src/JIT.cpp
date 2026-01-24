@@ -10,6 +10,7 @@
 #include "SIMD.hpp"
 #include "VectorOps.hpp"
 #include "Tensor.hpp"
+#include "../../stdlib/include/AI.hpp"
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -1010,6 +1011,8 @@ void Evaluator::execImportStdlib(const ASTNode& node) {
             return Value::fromString(line);
         };
         registerModule(alias, ioFuncs);
+    } else if (libName == "ai") {
+        registerModule(alias, stdlib::getAILibrary());
     }
 }
 
