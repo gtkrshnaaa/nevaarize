@@ -868,10 +868,11 @@ tr:hover td {
     
     pre {
         padding: var(--space-md);
-        margin-left: calc(-1 * var(--space-md));
-        margin-right: calc(-1 * var(--space-md));
-        border-radius: 0;
+        margin-left: 0;
+        margin-right: 0;
+        border-radius: 8px;
         font-size: 0.8rem;
+        overflow-x: auto;
     }
     
     pre::before {
@@ -943,8 +944,8 @@ tr:hover td {
     }
     
     pre {
-        margin-left: calc(-1 * var(--space-sm));
-        margin-right: calc(-1 * var(--space-sm));
+        margin-left: 0;
+        margin-right: 0;
         padding: var(--space-sm);
     }
     
