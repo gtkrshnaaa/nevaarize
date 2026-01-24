@@ -7,6 +7,8 @@
 #include "JIT.hpp"
 #include "NativeJIT.hpp"
 #include "TrueJIT.hpp"
+#include "SIMD.hpp"
+#include "VectorOps.hpp"
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -246,6 +248,72 @@ void Evaluator::setupStandardLibrary() {
         
         std::vector<Value> output;
         output.push_back(Value::fromInt(result));
+        output.push_back(Value::fromFloat(opsPerSec));
+        return Value::fromArray(std::move(output));
+    });
+
+    // SIMD Info - detect CPU SIMD capabilities
+    registerNative("simdInfo", [](Evaluator&, const std::vector<Value>&) -> Value {
+        SIMDLevel level = detectSIMD();
+        StructInstance info;
+        info.typeName = "SIMDInfo";
+        info.fields["level"] = Value::fromString(simdLevelToString(level));
+        info.fields["hasAVX2"] = Value::fromBool(hasSIMD(SIMDLevel::AVX2));
+        info.fields["hasAVX512"] = Value::fromBool(hasSIMD(SIMDLevel::AVX512));
+        return Value::fromStruct(info);
+    });
+
+    // SIMD Sum Loop - TRUE SIMD vectorized sum
+    registerNative("simdSumLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty() || !args[0].isNumber()) return Value::nil();
+        int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        int64_t result = simdSumLoop(n);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        double seconds = std::chrono::duration<double>(end - start).count();
+        double opsPerSec = static_cast<double>(n) / seconds;
+        
+        std::vector<Value> output;
+        output.push_back(Value::fromInt(result));
+        output.push_back(Value::fromFloat(opsPerSec));
+        return Value::fromArray(std::move(output));
+    });
+
+    // SIMD Vector Dot Product benchmark
+    registerNative("simdDotProduct", [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty() || !args[0].isNumber()) return Value::nil();
+        size_t n = static_cast<size_t>(args[0].isInt() ? args[0].intVal : args[0].floatVal);
+        
+        // Allocate aligned vectors
+        float* a = static_cast<float*>(simdAlloc(n * sizeof(float)));
+        float* b = static_cast<float*>(simdAlloc(n * sizeof(float)));
+        
+        if (!a || !b) {
+            simdFree(a);
+            simdFree(b);
+            return Value::nil();
+        }
+        
+        // Initialize with test data
+        for (size_t i = 0; i < n; ++i) {
+            a[i] = 1.0f;
+            b[i] = 2.0f;
+        }
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        float result = vecDot_f32(a, b, n);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        simdFree(a);
+        simdFree(b);
+        
+        double seconds = std::chrono::duration<double>(end - start).count();
+        double opsPerSec = static_cast<double>(n) / seconds;
+        
+        std::vector<Value> output;
+        output.push_back(Value::fromFloat(static_cast<double>(result)));
         output.push_back(Value::fromFloat(opsPerSec));
         return Value::fromArray(std::move(output));
     });

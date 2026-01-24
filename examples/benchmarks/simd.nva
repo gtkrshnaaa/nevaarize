@@ -1,0 +1,52 @@
+// SIMD Benchmark
+// Demonstrates AVX2 SIMD vectorization
+
+print("=== SIMD BENCHMARK ===")
+print("Testing AVX2 SIMD vectorization")
+print("")
+
+// Check SIMD capabilities
+info = simdInfo()
+print("SIMD Level:", info.level)
+print("Has AVX2:", info.hasAVX2)
+print("Has AVX-512:", info.hasAVX512)
+print("")
+
+// SIMD Sum Loop benchmark
+iterations = 500000000
+
+print("=== SIMD Sum Loop (", iterations, "iterations) ===")
+result = simdSumLoop(iterations)
+sum = result[0]
+opsPerSec = result[1]
+
+print("Sum:", sum)
+print("Operations per second:", int(opsPerSec))
+
+if (opsPerSec > 1000000000) {
+    print("Performance:", int(opsPerSec / 1000000000), "BILLION ops/sec")
+} elif (opsPerSec > 1000000) {
+    print("Performance:", int(opsPerSec / 1000000), "M ops/sec")
+}
+
+print("")
+
+// SIMD Dot Product benchmark
+vecSize = 10000000
+print("=== SIMD Dot Product (", vecSize, "elements) ===")
+
+dotResult = simdDotProduct(vecSize)
+dotValue = dotResult[0]
+dotOps = dotResult[1]
+
+print("Dot product result:", dotValue)
+print("Operations per second:", int(dotOps))
+
+if (dotOps > 1000000000) {
+    print("Performance:", int(dotOps / 1000000000), "BILLION ops/sec")
+} elif (dotOps > 1000000) {
+    print("Performance:", int(dotOps / 1000000), "M ops/sec")
+}
+
+print("")
+print("=== SIMD enables 4-8x speedup on vector operations ===")
