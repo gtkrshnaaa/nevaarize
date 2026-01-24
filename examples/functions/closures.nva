@@ -1,0 +1,38 @@
+// Functions: Closures
+// Demonstrates lexical scoping and closure capture
+
+func makeCounter() {
+    count = 0
+    
+    func increment() {
+        count = count + 1
+        return count
+    }
+    
+    return increment
+}
+
+// Create two independent counters
+counter1 = makeCounter()
+counter2 = makeCounter()
+
+print("Counter 1:", counter1())  // 1
+print("Counter 1:", counter1())  // 2
+print("Counter 1:", counter1())  // 3
+
+print("Counter 2:", counter2())  // 1
+print("Counter 2:", counter2())  // 2
+
+// Closure with parameters
+func makeMultiplier(factor) {
+    func multiply(x) {
+        return x * factor
+    }
+    return multiply
+}
+
+double = makeMultiplier(2)
+triple = makeMultiplier(3)
+
+print("Double 5:", double(5))    // 10
+print("Triple 5:", triple(5))    // 15

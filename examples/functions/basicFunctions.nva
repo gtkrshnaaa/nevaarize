@@ -1,0 +1,42 @@
+// Functions: Basics
+// Demonstrates function declarations and calls with JIT inline caching
+
+func add(a, b) {
+    return a + b
+}
+
+func multiply(x, y) {
+    return x * y
+}
+
+func greet(name) {
+    return "Hello, " + name + "!"
+}
+
+// Function with no return (returns nil)
+func logMessage(msg) {
+    print("[LOG]", msg)
+}
+
+// Test functions
+result1 = add(10, 20)
+print("10 + 20 =", result1)
+
+result2 = multiply(5, 7)
+print("5 * 7 =", result2)
+
+greeting = greet("Nevaarize")
+print(greeting)
+
+logMessage("Function calls are JIT-optimized")
+
+// Recursive function
+func factorial(n) {
+    if (n <= 1) {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+fact5 = factorial(5)
+print("5! =", fact5)
