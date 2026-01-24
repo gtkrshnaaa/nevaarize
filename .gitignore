@@ -1,0 +1,25 @@
+# Build artifacts
+build/
+bin/
+*.o
+*.a
+*.so
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test outputs
+tests/output/
+*.log
+
+# Documentation generated files (keep index.html)
+docs/*.html
+!docs/index.html
