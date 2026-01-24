@@ -1254,7 +1254,7 @@ void JIT::compileFuncDecl(const AST& ast, NodeIndex idx) {
     
     // Store function info for later use
     FuncInfo info;
-    info.bodyIndex = node.right;  // Function body
+    info.bodyIndex = node.left;  // Function body is in LEFT field (per Parser.cpp)
     info.paramNames = node.paramNames;
     userFunctions[node.name] = info;
 }
