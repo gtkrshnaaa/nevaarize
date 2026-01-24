@@ -1,0 +1,11 @@
+// Main Program with Nested Imports
+// Demonstrates nested module import system
+
+import "nested/importer.nva" as importer
+
+print("=== Nested Module Demo ===")
+
+data = [10, 20, 30, 40, 50]
+result = importer.processData(data)
+
+print("\nFinal result:", result)

@@ -1,0 +1,22 @@
+// Utility Module
+// Provides helper functions for main program
+
+func square(x) {
+    return x * x
+}
+
+func cube(x) {
+    return x * x * x
+}
+
+func greet(name) {
+    return "Hello, " + name + "!"
+}
+
+func sum(arr) {
+    total = 0
+    for (val in arr) {
+        total = total + val
+    }
+    return total
+}
