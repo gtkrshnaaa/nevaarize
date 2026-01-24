@@ -25,9 +25,19 @@
     --color-accent-hover: #999999;
     
     /* Typography */
-    --font-serif: 'Merriweather', 'Georgia', serif;
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-heading: 'Unbounded', 'Space Grotesk', sans-serif;
+    --font-body: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    
+    /* Syntax Highlighting (White & Gray) */
+    --syntax-default: #e8e8e8;
+    --syntax-keyword: #ffffff;
+    --syntax-string: #b0b0b0;
+    --syntax-number: #d0d0d0;
+    --syntax-comment: #5a5a5a;
+    --syntax-function: #f0f0f0;
+    --syntax-operator: #c0c0c0;
+    --syntax-punctuation: #909090;
     
     /* Spacing */
     --space-xs: 0.25rem;
@@ -68,9 +78,9 @@ html {
 }
 
 body {
-    font-family: var(--font-serif);
-    font-size: 1.125rem;
-    line-height: 1.8;
+    font-family: var(--font-body);
+    font-size: 1.0625rem;
+    line-height: 1.75;
     color: var(--color-gray-200);
     background-color: var(--color-black);
     min-height: 100vh;
@@ -86,11 +96,11 @@ body {
    ============================================ */
 
 h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-sans);
-    font-weight: 600;
-    line-height: 1.3;
+    font-family: var(--font-heading);
+    font-weight: 500;
+    line-height: 1.2;
     color: var(--color-white);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
 }
 
 h1 {
@@ -208,7 +218,7 @@ pre code {
     border: none;
     font-size: 0.875rem;
     line-height: 1.6;
-    color: var(--color-gray-200);
+    color: var(--syntax-default);
 }
 
 /* Code block label */
@@ -218,23 +228,25 @@ pre::before {
     top: 0;
     right: 0;
     padding: var(--space-xs) var(--space-md);
-    font-family: var(--font-sans);
-    font-size: 0.75rem;
+    font-family: var(--font-body);
+    font-size: 0.7rem;
     color: var(--color-gray-500);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     background-color: var(--color-gray-900);
     border-radius: 0 8px 0 8px;
     border-left: 1px solid var(--color-gray-800);
     border-bottom: 1px solid var(--color-gray-800);
 }
 
-/* Syntax highlighting (simple) */
-.token-keyword { color: #c9c9c9; }
-.token-string { color: #a8a8a8; }
-.token-number { color: #b8b8b8; }
-.token-comment { color: #666666; font-style: italic; }
-.token-function { color: #e0e0e0; }
+/* Syntax highlighting (White & Gray theme) */
+.token-keyword { color: var(--syntax-keyword); font-weight: 500; }
+.token-string { color: var(--syntax-string); }
+.token-number { color: var(--syntax-number); }
+.token-comment { color: var(--syntax-comment); font-style: italic; }
+.token-function { color: var(--syntax-function); }
+.token-operator { color: var(--syntax-operator); }
+.token-punctuation { color: var(--syntax-punctuation); }
 
 /* ============================================
    LAYOUT
@@ -260,19 +272,19 @@ pre::before {
 }
 
 .sidebar-logo {
-    font-family: var(--font-sans);
-    font-size: 1.5rem;
-    font-weight: 700;
+    font-family: var(--font-heading);
+    font-size: 1.4rem;
+    font-weight: 600;
     color: var(--color-white);
     text-decoration: none;
     display: block;
     margin-bottom: var(--space-2xl);
-    letter-spacing: -0.03em;
+    letter-spacing: -0.02em;
 }
 
 .sidebar-logo span {
     color: var(--color-gray-500);
-    font-weight: 400;
+    font-weight: 300;
 }
 
 /* Navigation */
@@ -281,11 +293,11 @@ pre::before {
 }
 
 .nav-section-title {
-    font-family: var(--font-sans);
-    font-size: 0.75rem;
+    font-family: var(--font-body);
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     color: var(--color-gray-500);
     margin-bottom: var(--space-md);
 }
@@ -305,7 +317,7 @@ pre::before {
     padding: var(--space-sm) var(--space-md);
     color: var(--color-gray-400);
     text-decoration: none;
-    font-family: var(--font-sans);
+    font-family: var(--font-body);
     font-size: 0.9rem;
     border-radius: 6px;
     transition: all var(--transition-fast);
@@ -342,10 +354,10 @@ pre::before {
 }
 
 .chapter-number {
-    font-family: var(--font-sans);
-    font-size: 0.875rem;
+    font-family: var(--font-body);
+    font-size: 0.8rem;
     text-transform: uppercase;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.2em;
     color: var(--color-gray-500);
     margin-bottom: var(--space-md);
     display: block;
@@ -353,16 +365,17 @@ pre::before {
 
 .chapter-title {
     font-size: 2.75rem;
+    font-weight: 600;
     border: none;
     padding: 0;
     margin: 0;
 }
 
 .chapter-subtitle {
-    font-family: var(--font-serif);
-    font-size: 1.25rem;
+    font-family: var(--font-body);
+    font-size: 1.15rem;
     color: var(--color-gray-400);
-    font-style: italic;
+    font-weight: 400;
     margin-top: var(--space-lg);
 }
 
@@ -380,11 +393,11 @@ pre::before {
 }
 
 .callout-title {
-    font-family: var(--font-sans);
-    font-size: 0.875rem;
-    font-weight: 600;
+    font-family: var(--font-heading);
+    font-size: 0.8rem;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     color: var(--color-gray-400);
     margin-bottom: var(--space-sm);
 }
@@ -416,8 +429,8 @@ th, td {
 }
 
 th {
-    font-family: var(--font-sans);
-    font-weight: 600;
+    font-family: var(--font-heading);
+    font-weight: 500;
     color: var(--color-white);
     background-color: var(--color-gray-900);
 }
@@ -436,7 +449,7 @@ tr:hover td {
 }
 
 .page-nav-link {
-    font-family: var(--font-sans);
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--color-gray-400);
     text-decoration: none;
@@ -468,7 +481,7 @@ tr:hover td {
     padding: var(--space-3xl) 0;
     margin-top: var(--space-4xl);
     border-top: 1px solid var(--color-gray-800);
-    font-family: var(--font-sans);
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--color-gray-600);
 }
@@ -485,18 +498,19 @@ tr:hover td {
 }
 
 .hero-title {
-    font-size: 4rem;
-    font-weight: 700;
-    letter-spacing: -0.04em;
+    font-size: 4.5rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
     margin-bottom: var(--space-lg);
     border: none;
     padding: 0;
 }
 
 .hero-tagline {
-    font-size: 1.5rem;
+    font-family: var(--font-body);
+    font-size: 1.35rem;
     color: var(--color-gray-400);
-    font-style: italic;
+    font-weight: 400;
     margin-bottom: var(--space-2xl);
 }
 
@@ -515,7 +529,7 @@ tr:hover td {
 }
 
 .btn {
-    font-family: var(--font-sans);
+    font-family: var(--font-body);
     font-size: 0.9rem;
     font-weight: 500;
     padding: var(--space-md) var(--space-xl);
@@ -569,9 +583,9 @@ tr:hover td {
 }
 
 .feature-title {
-    font-family: var(--font-sans);
-    font-size: 1.125rem;
-    font-weight: 600;
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 500;
     color: var(--color-white);
     margin-bottom: var(--space-sm);
 }
