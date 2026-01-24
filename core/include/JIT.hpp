@@ -89,6 +89,7 @@ private:
     void compileBlock(const AST& ast, NodeIndex idx);
     void compileIf(const AST& ast, NodeIndex idx);
     void compileWhile(const AST& ast, NodeIndex idx);
+    void compileFor(const AST& ast, NodeIndex idx);
     void compileReturn(const AST& ast, NodeIndex idx);
     void compileCall(const AST& ast, NodeIndex idx);
     

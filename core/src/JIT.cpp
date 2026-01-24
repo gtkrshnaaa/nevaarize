@@ -671,7 +671,7 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             break;
             
         case NodeType::FOR_STMT:
-            // For now, skip complex for loops - they need Range handling
+            compileFor(ast, idx);
             break;
             
         case NodeType::RETURN_STMT:
@@ -779,6 +779,101 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     size_t loopEnd = buf.getOffset();
     int32_t jzOffset = static_cast<int32_t>(loopEnd - (jzPatch + 4));
     buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+}
+
+// Compile for loop (supports Range iteration)
+void JIT::compileFor(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Get iterator variable name
+    const std::string& iterName = node.name;
+    
+    // Get the iterable (should be a Range call)
+    if (node.left == INVALID_NODE) return;
+    const ASTNode& iterable = ast.get(node.left);
+    
+    // Check if it's a Range call
+    int64_t rangeStart = 0;
+    int64_t rangeEnd = 0;
+    
+    if (iterable.type == NodeType::CALL && iterable.left != INVALID_NODE) {
+        const ASTNode& callee = ast.get(iterable.left);
+        if (callee.type == NodeType::IDENTIFIER && callee.name == "Range") {
+            // Get Range arguments
+            if (iterable.children.size() >= 2) {
+                const ASTNode& startNode = ast.get(iterable.children[0]);
+                const ASTNode& endNode = ast.get(iterable.children[1]);
+                
+                if (startNode.type == NodeType::LITERAL_INT) {
+                    rangeStart = std::get<int64_t>(startNode.literal.data);
+                }
+                if (endNode.type == NodeType::LITERAL_INT) {
+                    rangeEnd = std::get<int64_t>(endNode.literal.data);
+                }
+            }
+        }
+    }
+    
+    // Allocate stack slot for iterator
+    VarLocation iterLoc;
+    iterLoc.stackOffset = allocateStackSlot();
+    iterLoc.isRegister = false;
+    variables[iterName] = iterLoc;
+    
+    // Initialize iterator: mov [rbp+offset], rangeStart
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+    buf.emit32(static_cast<uint32_t>(rangeStart));
+    
+    // Store end value in a register (rcx)
+    buf.emit8(0x48);
+    buf.emit8(0xB9);
+    buf.emit64(static_cast<uint64_t>(rangeEnd));
+    
+    // loop_start:
+    size_t loopStart = buf.getOffset();
+    
+    // cmp [rbp+offset], rcx
+    buf.emit8(0x48);
+    buf.emit8(0x39);
+    buf.emit8(0x8D);
+    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+    
+    // jge loop_end
+    buf.emit8(0x0F);
+    buf.emit8(0x8D);
+    size_t jgePatch = buf.getOffset();
+    buf.emit32(0);
+    
+    // Save rcx before body (it might be clobbered)
+    buf.emit8(0x51); // push rcx
+    
+    // Compile loop body
+    if (node.right != INVALID_NODE) {
+        compileStatement(ast, node.right);
+    }
+    
+    // Restore rcx
+    buf.emit8(0x59); // pop rcx
+    
+    // Increment iterator: inc [rbp+offset]
+    buf.emit8(0x48);
+    buf.emit8(0xFF);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+    
+    // jmp loop_start
+    buf.emit8(0xE9);
+    int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
+    buf.emit32(static_cast<uint32_t>(jumpBack));
+    
+    // loop_end: patch the jge
+    size_t loopEnd = buf.getOffset();
+    int32_t jgeOffset = static_cast<int32_t>(loopEnd - (jgePatch + 4));
+    buf.patch32(jgePatch, static_cast<uint32_t>(jgeOffset));
 }
 
 // Compile return statement
