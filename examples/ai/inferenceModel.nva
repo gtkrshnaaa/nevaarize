@@ -6,8 +6,8 @@ import stdlib ai as ai
 print("=== Model Inference Demo ===")
 print("")
 
-// Load the trained model
-model = ai.loadModel("models/demo.nmod")
+// Load the trained model (path relative to this script)
+model = ai.loadModel("demo.nmod")
 
 if (model < 0) {
     print("Error: Could not load model. Train first with trainModel.nva")

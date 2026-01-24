@@ -70,14 +70,14 @@ for (i in Range(0, 3)) {
     print("Input:", testSamples[i], "-> Class:", predicted)
 }
 
-// Save the model
+// Save the model (path relative to this script)
 print("")
 print("=== Saving Model ===")
-saved = ai.saveModel(model, "models/demo.nmod")
+saved = ai.saveModel(model, "demo.nmod")
 if (saved) {
-    print("Model saved successfully to models/demo.nmod")
+    print("Model saved successfully to demo.nmod")
 } else {
-    print("Note: Create 'models' directory to save the model")
+    print("Error: Failed to save model")
 }
 
 print("")

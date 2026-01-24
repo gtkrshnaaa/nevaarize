@@ -7,8 +7,8 @@ import stdlib http as http
 print("=== Model API Server ===")
 print("")
 
-// Load the trained model
-model = ai.loadModel("models/demo.nmod")
+// Load the trained model (path relative to this script)
+model = ai.loadModel("demo.nmod")
 
 if (model < 0) {
     print("Error: Could not load model.")
