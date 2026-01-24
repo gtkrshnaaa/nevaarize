@@ -10,6 +10,7 @@
 #include "Lexer.hpp"
 #include "Parser.hpp"
 #include "JIT.hpp"
+#include "TrueJIT.hpp"
 #include "Model.hpp"
 #include <iostream>
 #include <fstream>
@@ -203,6 +204,7 @@ void printUsage(const char* program) {
     std::cout << "Options:" << std::endl;
     std::cout << "  -h, --help     Show this help message" << std::endl;
     std::cout << "  -v, --version  Show version information" << std::endl;
+    std::cout << "  --jit          Run with native JIT compilation (experimental)" << std::endl;
     std::cout << std::endl;
     std::cout << "Model Commands:" << std::endl;
     std::cout << "  model train    Train a model from script and save to .nmod" << std::endl;
@@ -218,6 +220,60 @@ void printVersion() {
     std::cout << "Nevaarize v0.1.0" << std::endl;
     std::cout << "Native JIT Compiler for the Nevaarize Programming Language" << std::endl;
     std::cout << "Built with C++23, Zero External Dependencies" << std::endl;
+}
+
+/**
+ * Run a script with native JIT compilation.
+ */
+int runScriptJIT(const std::string& scriptPath) {
+    std::string source;
+    try {
+        source = readFile(scriptPath);
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    Lexer lexer(source);
+    auto tokens = lexer.tokenize();
+
+    if (!lexer.errors().empty()) {
+        for (const auto& err : lexer.errors()) {
+            std::cerr << "Lexer error: " << err << std::endl;
+        }
+        return 1;
+    }
+
+    Parser parser(tokens);
+    parser.parse();
+
+    if (parser.hasErrors()) {
+        for (const auto& err : parser.errors()) {
+            std::cerr << "Parser error: " << err << std::endl;
+        }
+        return 1;
+    }
+
+    try {
+        auto ast = std::make_shared<AST>(std::move(parser.getAST()));
+        
+        std::cout << "[JIT] Compiling to native x86-64 machine code..." << std::endl;
+        
+        TrueJIT jit;
+        auto compiledFn = jit.compileProgram(*ast);
+        
+        std::cout << "[JIT] Executing compiled code..." << std::endl;
+        
+        int64_t result = jit.execute(compiledFn);
+        
+        std::cout << "[JIT] Execution complete. Result: " << result << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "JIT Error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    return 0;
 }
 
 } // namespace nevaarize
@@ -393,6 +449,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    bool useJIT = false;
+    
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         
@@ -405,6 +463,11 @@ int main(int argc, char* argv[]) {
             printVersion();
             return 0;
         }
+        
+        if (arg == "--jit") {
+            useJIT = true;
+            continue;
+        }
 
         if (arg[0] == '-') {
             std::cerr << "Unknown option: " << arg << std::endl;
@@ -415,11 +478,13 @@ int main(int argc, char* argv[]) {
         scriptPath = arg;
     }
 
-    Evaluator evaluator;
-
     if (scriptPath.empty()) {
+        Evaluator evaluator;
         return runREPL(evaluator);
+    } else if (useJIT) {
+        return runScriptJIT(scriptPath);
     } else {
+        Evaluator evaluator;
         return runScript(scriptPath, evaluator);
     }
 }
