@@ -103,6 +103,11 @@ public:
      */
     std::shared_ptr<Environment> getGlobalEnv() { return globalEnv; }
 
+    /**
+     * Get the current source file path (for relative path resolution).
+     */
+    std::filesystem::path getCurrentFilePath() const { return currentFilePath; }
+
 private:
     std::shared_ptr<const AST> ast;
     std::shared_ptr<Environment> globalEnv;
