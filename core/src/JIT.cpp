@@ -6,7 +6,7 @@
 
 #include "JIT.hpp"
 #include "NativeJIT.hpp"
-#include "TrueJIT.hpp"
+#include "Compiler.hpp"
 #include "SIMD.hpp"
 #include "VectorOps.hpp"
 #include "Tensor.hpp"
@@ -230,7 +230,7 @@ void Evaluator::setupStandardLibrary() {
         forNode.name = "i";
         
         // We'll compile directly
-        TrueJIT jit;
+        Compiler jit;
         
         auto startTime = std::chrono::high_resolution_clock::now();
         
