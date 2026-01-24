@@ -1,0 +1,26 @@
+// Variables and Types
+// Demonstrates dynamic typing with JIT specialization
+
+// Integer
+x = 42
+print("Integer:", x, "Type:", type(x))
+
+// Float
+y = 3.14159
+print("Float:", y, "Type:", type(y))
+
+// String
+name = "Nevaarize"
+print("String:", name, "Type:", type(name))
+
+// Boolean
+flag = true
+print("Boolean:", flag, "Type:", type(flag))
+
+// Type promotion in arithmetic
+result = x + y
+print("Mixed arithmetic:", x, "+", y, "=", result)
+
+// String concatenation
+greeting = "Hello, " + name
+print(greeting)
