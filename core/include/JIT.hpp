@@ -95,7 +95,11 @@ private:
     
     // Native function call emission
     void emitPrintInt(X64Reg valueReg);
+    void emitPrintIntNoNewline(X64Reg valueReg);
     void emitPrintString(const std::string& str);
+    void emitPrintStringNoNewline(const std::string& str);
+    void emitPrintSpace();
+    void emitPrintNewline();
 
     // Register allocation state
     bool regInUse[16];

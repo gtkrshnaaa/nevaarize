@@ -426,18 +426,7 @@ void JIT::compileBlock(const AST& ast, NodeIndex idx) {
     const ASTNode& block = ast.get(idx);
     
     for (NodeIndex stmtIdx : block.children) {
-        const ASTNode& stmt = ast.get(stmtIdx);
-        
-        switch (stmt.type) {
-            case NodeType::VAR_ASSIGN:
-                compileAssignment(ast, stmtIdx);
-                break;
-            case NodeType::EXPR_STMT:
-                freeReg(compileExpr(ast, stmt.left));
-                break;
-            default:
-                break;
-        }
+        compileStatement(ast, stmtIdx);
     }
 }
 
@@ -1135,6 +1124,107 @@ void JIT::emitPrintString(const std::string& str) {
     buf.emit32(static_cast<uint32_t>(paddedLen));
 }
 
+// Emit code to print a string WITHOUT newline
+void JIT::emitPrintStringNoNewline(const std::string& str) {
+    CodeBuffer& buf = codegen.getCode();
+    
+    size_t len = str.length();
+    if (len == 0) return;
+    
+    size_t paddedLen = ((len) + 15) & ~15;
+    
+    buf.emit8(0x48); buf.emit8(0x81); buf.emit8(0xEC);
+    buf.emit32(static_cast<uint32_t>(paddedLen));
+    
+    for (size_t i = 0; i < len; ++i) {
+        buf.emit8(0xC6);
+        if (i < 128) {
+            buf.emit8(0x44); buf.emit8(0x24); buf.emit8(static_cast<uint8_t>(i));
+        } else {
+            buf.emit8(0x84); buf.emit8(0x24); buf.emit32(static_cast<uint32_t>(i));
+        }
+        buf.emit8(static_cast<uint8_t>(str[i]));
+    }
+    
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC0); buf.emit32(1);
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC7); buf.emit32(1);
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE6);
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC2);
+    buf.emit32(static_cast<uint32_t>(len));
+    buf.emit8(0x0F); buf.emit8(0x05);
+    buf.emit8(0x48); buf.emit8(0x81); buf.emit8(0xC4);
+    buf.emit32(static_cast<uint32_t>(paddedLen));
+}
+
+// Emit code to print a single space
+void JIT::emitPrintSpace() {
+    CodeBuffer& buf = codegen.getCode();
+    
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xEC); buf.emit8(0x10);
+    buf.emit8(0xC6); buf.emit8(0x04); buf.emit8(0x24); buf.emit8(' ');
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC0); buf.emit32(1);
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC7); buf.emit32(1);
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE6);
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC2); buf.emit32(1);
+    buf.emit8(0x0F); buf.emit8(0x05);
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x10);
+}
+
+// Emit code to print a newline
+void JIT::emitPrintNewline() {
+    CodeBuffer& buf = codegen.getCode();
+    
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xEC); buf.emit8(0x10);
+    buf.emit8(0xC6); buf.emit8(0x04); buf.emit8(0x24); buf.emit8('\n');
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC0); buf.emit32(1);
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC7); buf.emit32(1);
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE6);
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC2); buf.emit32(1);
+    buf.emit8(0x0F); buf.emit8(0x05);
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x10);
+}
+
+// Emit integer print WITHOUT newline
+void JIT::emitPrintIntNoNewline(X64Reg valueReg) {
+    CodeBuffer& buf = codegen.getCode();
+    
+    if (valueReg != X64Reg::RDI) {
+        bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
+        buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0xC7 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
+    }
+    
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xEC); buf.emit8(0x20);
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xF8);
+    buf.emit8(0x49); buf.emit8(0x89); buf.emit8(0xE2);
+    buf.emit8(0x49); buf.emit8(0x83); buf.emit8(0xC2); buf.emit8(0x1E);
+    buf.emit8(0x4D); buf.emit8(0x31); buf.emit8(0xDB);
+    buf.emit8(0x48); buf.emit8(0x85); buf.emit8(0xC0);
+    buf.emit8(0x79); buf.emit8(0x03);
+    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0xD8);
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC1); buf.emit32(10);
+    
+    size_t loopStart = buf.getOffset();
+    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xD2);
+    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0xF1);
+    buf.emit8(0x80); buf.emit8(0xC2); buf.emit8(0x30);
+    buf.emit8(0x49); buf.emit8(0xFF); buf.emit8(0xCA);
+    buf.emit8(0x41); buf.emit8(0x88); buf.emit8(0x12);
+    buf.emit8(0x49); buf.emit8(0xFF); buf.emit8(0xC3);
+    buf.emit8(0x48); buf.emit8(0x85); buf.emit8(0xC0);
+    buf.emit8(0x75);
+    int8_t jumpBack = static_cast<int8_t>(loopStart - (buf.getOffset() + 1));
+    buf.emit8(static_cast<uint8_t>(jumpBack));
+    
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC0); buf.emit32(1);
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC7); buf.emit32(1);
+    buf.emit8(0x4C); buf.emit8(0x89); buf.emit8(0xD6);
+    buf.emit8(0x4C); buf.emit8(0x89); buf.emit8(0xDA);
+    buf.emit8(0x0F); buf.emit8(0x05);
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x20);
+}
+
 // Compile function call
 void JIT::compileCall(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
@@ -1149,20 +1239,52 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
     
     // Handle built-in print function
     if (funcName == "print") {
+        size_t argCount = node.children.size();
+        size_t argIndex = 0;
+        
         // Compile each argument and print it
         for (NodeIndex argIdx : node.children) {
             const ASTNode& argNode = ast.get(argIdx);
+            bool isLastArg = (argIndex == argCount - 1);
             
             // Check if argument is a string literal
             if (argNode.type == NodeType::LITERAL_STRING) {
-                const std::string& strVal = std::get<std::string>(argNode.literal.data);
-                emitPrintString(strVal);
+                std::string strVal = std::get<std::string>(argNode.literal.data);
+                
+                // Process escape sequences
+                std::string processed;
+                for (size_t i = 0; i < strVal.length(); ++i) {
+                    if (strVal[i] == '\\' && i + 1 < strVal.length()) {
+                        char next = strVal[i + 1];
+                        if (next == 'n') { processed += '\n'; ++i; }
+                        else if (next == 't') { processed += '\t'; ++i; }
+                        else if (next == 'r') { processed += '\r'; ++i; }
+                        else if (next == '\\') { processed += '\\'; ++i; }
+                        else if (next == '"') { processed += '"'; ++i; }
+                        else processed += strVal[i];
+                    } else {
+                        processed += strVal[i];
+                    }
+                }
+                
+                if (isLastArg) {
+                    emitPrintString(processed);
+                } else {
+                    emitPrintStringNoNewline(processed);
+                    emitPrintSpace();
+                }
             } else {
                 // Treat as integer expression
                 X64Reg argReg = compileExpr(ast, argIdx);
-                emitPrintInt(argReg);
+                if (isLastArg) {
+                    emitPrintInt(argReg);
+                } else {
+                    emitPrintIntNoNewline(argReg);
+                    emitPrintSpace();
+                }
                 freeReg(argReg);
             }
+            ++argIndex;
         }
     }
     // TODO: Handle other built-in functions and user-defined functions
