@@ -1,0 +1,12 @@
+// High performance benchmark  
+// 100 million iterations
+
+sum = 0
+i = 0
+
+while (i < 100000000) {
+    sum = sum + i
+    i = i + 1
+}
+
+print(sum)

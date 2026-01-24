@@ -962,6 +962,84 @@ void JIT::emitPrintInt(X64Reg valueReg) {
     buf.emit8(0x20);
 }
 
+// Emit code to print a string to stdout using syscall
+void JIT::emitPrintString(const std::string& str) {
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Store string on stack
+    size_t len = str.length();
+    size_t paddedLen = ((len + 1) + 15) & ~15; // Align to 16 bytes
+    
+    // sub rsp, paddedLen
+    buf.emit8(0x48);
+    buf.emit8(0x81);
+    buf.emit8(0xEC);
+    buf.emit32(static_cast<uint32_t>(paddedLen));
+    
+    // Copy string bytes to stack
+    for (size_t i = 0; i < len; ++i) {
+        // mov byte [rsp + i], char
+        buf.emit8(0xC6);
+        if (i < 128) {
+            buf.emit8(0x44);
+            buf.emit8(0x24);
+            buf.emit8(static_cast<uint8_t>(i));
+        } else {
+            buf.emit8(0x84);
+            buf.emit8(0x24);
+            buf.emit32(static_cast<uint32_t>(i));
+        }
+        buf.emit8(static_cast<uint8_t>(str[i]));
+    }
+    
+    // Add newline at end
+    buf.emit8(0xC6);
+    if (len < 128) {
+        buf.emit8(0x44);
+        buf.emit8(0x24);
+        buf.emit8(static_cast<uint8_t>(len));
+    } else {
+        buf.emit8(0x84);
+        buf.emit8(0x24);
+        buf.emit32(static_cast<uint32_t>(len));
+    }
+    buf.emit8(0x0A); // newline
+    
+    // syscall write(1, rsp, len+1)
+    // mov rax, 1
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC0);
+    buf.emit32(1);
+    
+    // mov rdi, 1
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC7);
+    buf.emit32(1);
+    
+    // mov rsi, rsp
+    buf.emit8(0x48);
+    buf.emit8(0x89);
+    buf.emit8(0xE6);
+    
+    // mov rdx, len+1
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC2);
+    buf.emit32(static_cast<uint32_t>(len + 1));
+    
+    // syscall
+    buf.emit8(0x0F);
+    buf.emit8(0x05);
+    
+    // add rsp, paddedLen
+    buf.emit8(0x48);
+    buf.emit8(0x81);
+    buf.emit8(0xC4);
+    buf.emit32(static_cast<uint32_t>(paddedLen));
+}
+
 // Compile function call
 void JIT::compileCall(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
@@ -978,9 +1056,18 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
     if (funcName == "print") {
         // Compile each argument and print it
         for (NodeIndex argIdx : node.children) {
-            X64Reg argReg = compileExpr(ast, argIdx);
-            emitPrintInt(argReg);
-            freeReg(argReg);
+            const ASTNode& argNode = ast.get(argIdx);
+            
+            // Check if argument is a string literal
+            if (argNode.type == NodeType::LITERAL_STRING) {
+                const std::string& strVal = std::get<std::string>(argNode.literal.data);
+                emitPrintString(strVal);
+            } else {
+                // Treat as integer expression
+                X64Reg argReg = compileExpr(ast, argIdx);
+                emitPrintInt(argReg);
+                freeReg(argReg);
+            }
         }
     }
     // TODO: Handle other built-in functions and user-defined functions
