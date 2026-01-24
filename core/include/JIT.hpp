@@ -1,145 +1,102 @@
 /**
- * JIT.hpp - Nevaarize JIT Compiler Interface
+ * JIT.hpp - Nevaarize Native Compiler
  *
- * Main JIT compilation pipeline coordinating lexer, parser,
- * IR generation, optimization, and native code generation.
+ * Compiles Nevaarize AST directly to x86-64 machine code.
+ * This is the default execution engine for Nevaarize.
  */
 
 #ifndef NEVAARIZE_JIT_HPP
 #define NEVAARIZE_JIT_HPP
 
-#include "Lexer.hpp"
-#include "Parser.hpp"
 #include "AST.hpp"
-#include "IR.hpp"
 #include "CodeGen.hpp"
-#include "Runtime.hpp"
 #include "Value.hpp"
-#include <string>
 #include <memory>
 #include <unordered_map>
-#include <filesystem>
 
 namespace nevaarize {
 
 /**
- * Compilation result from JIT.
+ * Compiled function type.
  */
-struct CompileResult {
-    bool success;
-    std::string error;
-    void* code;
-    size_t codeSize;
+using CompiledFunc = int64_t (*)();
 
-    CompileResult() : success(false), code(nullptr), codeSize(0) {}
+/**
+ * Variable location in compiled code.
+ */
+struct VarLocation {
+    int32_t stackOffset;
+    bool isRegister;
+    X64Reg reg;
 };
 
 /**
- * JIT compiler for Nevaarize.
- * Handles the complete compilation pipeline.
+ * Native Compiler for Nevaarize.
+ * Compiles AST directly to executable x86-64 machine code.
  */
-class JITCompiler {
+class JIT {
 public:
-    JITCompiler();
-    ~JITCompiler();
+    JIT();
+    ~JIT();
 
     /**
-     * Compile source code to native machine code.
+     * Compile a full program to native code.
+     * This is the main entry point for compilation.
      */
-    CompileResult compile(const std::string& source);
+    CompiledFunc compile(const AST& ast);
 
     /**
-     * Compile a single function from IR.
+     * Compile a for loop to native code.
      */
-    CompileResult compileFunction(const IRFunction& func);
+    CompiledFunc compileForLoop(const AST& ast, NodeIndex forNode,
+                                 int64_t start, int64_t end);
 
     /**
-     * Execute compiled code.
+     * Compile an expression to native code.
      */
-    Value execute(void* code);
+    CompiledFunc compileExpression(const AST& ast, NodeIndex exprNode);
 
     /**
-     * Get the evaluator for tree-walk interpretation.
+     * Execute compiled code and return result.
      */
-    RuntimeContext& getRuntime() { return runtime; }
+    int64_t execute(CompiledFunc fn);
+
+    /**
+     * Check if a loop can be compiled directly.
+     */
+    bool canCompileLoop(const AST& ast, NodeIndex forNode);
 
 private:
-    RuntimeContext runtime;
-    std::vector<std::unique_ptr<ExecutableMemory>> compiledCode;
-    std::unordered_map<std::string, void*> compiledFunctions;
-};
+    std::unique_ptr<ExecutableMemory> execMem;
+    CodeGenerator codegen;
+    std::unordered_map<std::string, VarLocation> variables;
+    int32_t stackSize;
+    int32_t nextStackSlot;
 
-/**
- * Evaluator for tree-walk interpretation.
- * Used as fallback and for debugging.
- */
-class Evaluator {
-public:
-    Evaluator();
+    // Code generation helpers
+    void emitPrologue();
+    void emitEpilogue();
+    X64Reg allocateReg();
+    void freeReg(X64Reg reg);
+    int32_t allocateStackSlot();
 
-    /**
-     * Execute an AST.
-     */
-    Value execute(std::shared_ptr<const AST> tree);
+    // AST compilation - expressions
+    X64Reg compileExpr(const AST& ast, NodeIndex idx);
+    
+    // AST compilation - statements
+    void compileStatement(const AST& ast, NodeIndex idx);
+    void compileAssignment(const AST& ast, NodeIndex idx);
+    void compileBlock(const AST& ast, NodeIndex idx);
+    void compileIf(const AST& ast, NodeIndex idx);
+    void compileWhile(const AST& ast, NodeIndex idx);
+    void compileReturn(const AST& ast, NodeIndex idx);
+    void compileCall(const AST& ast, NodeIndex idx);
+    
+    // Native function call emission
+    void emitPrintInt(X64Reg valueReg);
 
-    /**
-     * Execute an AST with source file path for import resolution.
-     */
-    Value execute(std::shared_ptr<const AST> tree, const std::filesystem::path& filePath);
-
-    /**
-     * Register a native function.
-     */
-    void registerNative(const std::string& name, NativeFunction fn);
-
-    /**
-     * Register a module with functions.
-     */
-    void registerModule(const std::string& alias,
-                        const std::unordered_map<std::string, NativeFunction>& functions);
-
-    /**
-     * Get the global environment.
-     */
-    std::shared_ptr<Environment> getGlobalEnv() { return globalEnv; }
-
-    /**
-     * Get the current source file path (for relative path resolution).
-     */
-    std::filesystem::path getCurrentFilePath() const { return currentFilePath; }
-
-private:
-    std::shared_ptr<const AST> ast;
-    std::shared_ptr<Environment> globalEnv;
-    std::shared_ptr<Environment> environment;
-    std::unordered_map<std::string, StructDef> structs;
-    std::unordered_map<std::string, std::shared_ptr<Environment>> modules;
-    std::filesystem::path currentFilePath;
-
-    void setupStandardLibrary();
-    Value evaluate(NodeIndex idx);
-    Value evalLiteral(const ASTNode& node);
-    Value evalIdentifier(const ASTNode& node);
-    Value evalBinaryOp(const ASTNode& node);
-    Value evalUnaryOp(const ASTNode& node);
-    Value evalCall(const ASTNode& node);
-    Value evalMemberAccess(const ASTNode& node);
-    Value evalIndexAccess(const ASTNode& node);
-    Value evalArrayLiteral(const ASTNode& node);
-    Value evalAwait(const ASTNode& node);
-    void execBlock(const ASTNode& node);
-    void execVarAssign(const ASTNode& node);
-    void execMemberAssign(const ASTNode& node);
-    void execIndexAssign(const ASTNode& node);
-    void execIf(const ASTNode& node);
-    void execFor(const ASTNode& node);
-    void execWhile(const ASTNode& node);
-    void execReturn(const ASTNode& node);
-    void execFuncDecl(const ASTNode& node);
-    void execStructDecl(const ASTNode& node);
-    void execImportStdlib(const ASTNode& node);
-    void execImportFile(const ASTNode& node);
-    Value callFunction(const Value& callee, const std::vector<Value>& args, int line, int column);
+    // Register allocation state
+    bool regInUse[16];
 };
 
 } // namespace nevaarize

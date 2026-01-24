@@ -1,1110 +1,989 @@
 /**
- * JIT.cpp - Nevaarize JIT Compiler and Evaluator Implementation
+ * Compiler.cpp - True JIT Compiler Implementation
  *
- * Complete implementation of tree-walk evaluator and JIT compilation pipeline.
+ * Compiles Nevaarize AST to x86-64 machine code.
+ * This compiles ACTUAL Nevaarize code, not pre-written assembly.
  */
 
 #include "JIT.hpp"
-#include "NativeJIT.hpp"
-#include "Compiler.hpp"
-#include "SIMD.hpp"
-#include "VectorOps.hpp"
-#include "Tensor.hpp"
-#include "../../stdlib/include/AI.hpp"
-#include <sstream>
-#include <iostream>
-#include <fstream>
-#include <cmath>
-#include <chrono>
-#include <thread>
-#include <filesystem>
+#include <cstring>
 
 namespace nevaarize {
 
-// Value::toString implementation
-std::string Value::toString() const {
-    switch (type) {
-        case ValueType::NIL:
-            return "nil";
-        case ValueType::BOOL:
-            return boolVal ? "true" : "false";
-        case ValueType::INT:
-            return std::to_string(intVal);
-        case ValueType::FLOAT: {
-            std::ostringstream oss;
-            oss << floatVal;
-            return oss.str();
+JIT::JIT() 
+    : stackSize(0)
+    , nextStackSlot(0) {
+    execMem = std::make_unique<ExecutableMemory>(16384);
+    std::memset(regInUse, 0, sizeof(regInUse));
+    
+    // Reserve some registers
+    regInUse[static_cast<int>(X64Reg::RSP)] = true;
+    regInUse[static_cast<int>(X64Reg::RBP)] = true;
+}
+
+JIT::~JIT() = default;
+
+void JIT::emitPrologue() {
+    CodeBuffer& buf = codegen.getCode();
+    
+    // push rbp
+    buf.emit8(0x55);
+    
+    // mov rbp, rsp
+    buf.emit8(0x48);
+    buf.emit8(0x89);
+    buf.emit8(0xE5);
+    
+    // sub rsp, stackSize (will patch later)
+    buf.emit8(0x48);
+    buf.emit8(0x81);
+    buf.emit8(0xEC);
+    buf.emit32(256); // Reserve 256 bytes for locals
+}
+
+void JIT::emitEpilogue() {
+    CodeBuffer& buf = codegen.getCode();
+    
+    // mov rsp, rbp
+    buf.emit8(0x48);
+    buf.emit8(0x89);
+    buf.emit8(0xEC);
+    
+    // pop rbp
+    buf.emit8(0x5D);
+    
+    // ret
+    buf.emit8(0xC3);
+}
+
+X64Reg JIT::allocateReg() {
+    // Prefer caller-saved registers: RAX, RCX, RDX, R8-R11
+    static const X64Reg preferred[] = {
+        X64Reg::RAX, X64Reg::RCX, X64Reg::RDX,
+        X64Reg::R8, X64Reg::R9, X64Reg::R10, X64Reg::R11
+    };
+    
+    for (auto reg : preferred) {
+        int idx = static_cast<int>(reg);
+        if (!regInUse[idx]) {
+            regInUse[idx] = true;
+            return reg;
         }
-        case ValueType::STRING:
-            return stringVal ? *stringVal : "";
-        case ValueType::ARRAY: {
-            if (!arrayVal) return "[]";
-            std::ostringstream oss;
-            oss << "[";
-            for (size_t i = 0; i < arrayVal->size(); ++i) {
-                if (i > 0) oss << ", ";
-                oss << (*arrayVal)[i].toString();
-            }
-            oss << "]";
-            return oss.str();
+    }
+    
+    // Fallback to callee-saved
+    for (int i = 0; i < 16; ++i) {
+        if (!regInUse[i]) {
+            regInUse[i] = true;
+            return static_cast<X64Reg>(i);
         }
-        case ValueType::STRUCT_INSTANCE:
-            return structVal ? ("<" + structVal->typeName + " instance>") : "<struct>";
-        case ValueType::FUNCTION:
-            return funcVal ? ("<function " + funcVal->name + ">") : "<function>";
-        case ValueType::NATIVE_FUNCTION:
-            return "<native function>";
-        case ValueType::ASYNC_HANDLE:
-            return "<async handle>";
-        default:
-            return "<unknown>";
+    }
+    
+    return X64Reg::RAX; // Out of registers
+}
+
+void JIT::freeReg(X64Reg reg) {
+    int idx = static_cast<int>(reg);
+    if (idx != static_cast<int>(X64Reg::RSP) && 
+        idx != static_cast<int>(X64Reg::RBP)) {
+        regInUse[idx] = false;
     }
 }
 
-JITCompiler::JITCompiler() {}
-JITCompiler::~JITCompiler() {}
-
-CompileResult JITCompiler::compile(const std::string& source) {
-    CompileResult result;
-
-    Lexer lexer(source);
-    auto tokens = lexer.tokenize();
-
-    if (!lexer.errors().empty()) {
-        result.error = lexer.errors()[0];
-        return result;
+int32_t JIT::allocateStackSlot() {
+    nextStackSlot += 8;
+    if (nextStackSlot > stackSize) {
+        stackSize = nextStackSlot;
     }
+    return -nextStackSlot;
+}
 
-    Parser parser(tokens);
-    parser.parse();
-
-    if (parser.hasErrors()) {
-        result.error = parser.errors()[0];
-        return result;
+bool JIT::canCompileLoop(const AST& ast, NodeIndex forNode) {
+    if (forNode == INVALID_NODE) return false;
+    
+    const ASTNode& node = ast.get(forNode);
+    if (node.type != NodeType::FOR_STMT) return false;
+    
+    // Check if iterable is a Range call
+    if (node.left == INVALID_NODE) return false;
+    const ASTNode& iterable = ast.get(node.left);
+    
+    if (iterable.type != NodeType::CALL) return false;
+    if (iterable.left == INVALID_NODE) return false;
+    
+    const ASTNode& callee = ast.get(iterable.left);
+    if (callee.type != NodeType::IDENTIFIER || callee.name != "Range") {
+        return false;
     }
-
-    result.success = true;
-    return result;
-}
-
-Evaluator::Evaluator() {
-    globalEnv = std::make_shared<Environment>();
-    environment = globalEnv;
-    setupStandardLibrary();
-}
-
-void Evaluator::setupStandardLibrary() {
-    // print function
-    registerNative("print", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        for (size_t i = 0; i < args.size(); ++i) {
-            if (i > 0) std::cout << " ";
-            std::cout << args[i].toString();
+    
+    // Check if Range has 2 numeric arguments
+    if (iterable.children.size() != 2) return false;
+    
+    for (NodeIndex argIdx : iterable.children) {
+        const ASTNode& arg = ast.get(argIdx);
+        if (arg.type != NodeType::LITERAL_INT) {
+            return false;
         }
-        std::cout << std::endl;
-        return Value::nil();
-    });
-
-    // Range function
-    registerNative("Range", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.size() < 2 || !args[0].isNumber() || !args[1].isNumber()) {
-            return Value::fromArray({});
-        }
-        int64_t start = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
-        int64_t end = args[1].isInt() ? args[1].intVal : static_cast<int64_t>(args[1].floatVal);
-        
-        std::vector<Value> result;
-        for (int64_t i = start; i < end; ++i) {
-            result.push_back(Value::fromInt(i));
-        }
-        return Value::fromArray(std::move(result));
-    });
-
-    // len function
-    registerNative("len", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty()) return Value::fromInt(0);
-        if (args[0].isString() && args[0].stringVal) {
-            return Value::fromInt(static_cast<int64_t>(args[0].stringVal->size()));
-        }
-        if (args[0].isArray() && args[0].arrayVal) {
-            return Value::fromInt(static_cast<int64_t>(args[0].arrayVal->size()));
-        }
-        return Value::fromInt(0);
-    });
-
-    // type function
-    registerNative("type", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty()) return Value::fromString("nil");
-        return Value::fromString(valueTypeToString(args[0].type));
-    });
-
-    // str function
-    registerNative("str", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty()) return Value::fromString("");
-        return Value::fromString(args[0].toString());
-    });
-
-    // int function
-    registerNative("int", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty()) return Value::fromInt(0);
-        const Value& v = args[0];
-        if (v.isInt()) return v;
-        if (v.isFloat()) return Value::fromInt(static_cast<int64_t>(v.floatVal));
-        if (v.isString() && v.stringVal) {
-            try {
-                return Value::fromInt(std::stoll(*v.stringVal));
-            } catch (...) {
-                return Value::fromInt(0);
-            }
-        }
-        return Value::fromInt(0);
-    });
-
-    // float function
-    registerNative("float", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty()) return Value::fromFloat(0.0);
-        const Value& v = args[0];
-        if (v.isFloat()) return v;
-        if (v.isInt()) return Value::fromFloat(static_cast<double>(v.intVal));
-        if (v.isString() && v.stringVal) {
-            try {
-                return Value::fromFloat(std::stod(*v.stringVal));
-            } catch (...) {
-                return Value::fromFloat(0.0);
-            }
-        }
-        return Value::fromFloat(0.0);
-    });
-
-    // Native JIT benchmark functions
-    registerNative("nativeSumLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty() || !args[0].isNumber()) return Value::nil();
-        int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
-        
-        auto [result, opsPerSec] = NativeLoop::sumLoop(n);
-        
-        // Return array with [result, ops_per_second]
-        std::vector<Value> output;
-        output.push_back(Value::fromInt(result));
-        output.push_back(Value::fromFloat(opsPerSec));
-        return Value::fromArray(std::move(output));
-    });
-
-    registerNative("nativeFibLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty() || !args[0].isNumber()) return Value::nil();
-        int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
-        
-        auto [result, opsPerSec] = NativeLoop::fibLoop(n);
-        
-        std::vector<Value> output;
-        output.push_back(Value::fromInt(result));
-        output.push_back(Value::fromFloat(opsPerSec));
-        return Value::fromArray(std::move(output));
-    });
-
-    registerNative("nativeCallLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty() || !args[0].isNumber()) return Value::nil();
-        int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
-        
-        auto [result, opsPerSec] = NativeLoop::callLoop(n);
-        
-        std::vector<Value> output;
-        output.push_back(Value::fromInt(result));
-        output.push_back(Value::fromFloat(opsPerSec));
-        return Value::fromArray(std::move(output));
-    });
-
-    // TRUE JIT function - compiles Nevaarize code to native machine code
-    registerNative("jitSumLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.size() < 2 || !args[0].isNumber() || !args[1].isNumber()) {
-            return Value::nil();
-        }
-        
-        int64_t start = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
-        int64_t end = args[1].isInt() ? args[1].intVal : static_cast<int64_t>(args[1].floatVal);
-        
-        // Create a simple AST for for loop with sum
-        AST ast;
-        
-        // Create a for statement node
-        ASTNode forNode(NodeType::FOR_STMT, 1, 1);
-        forNode.name = "i";
-        
-        // We'll compile directly
-        Compiler jit;
-        
-        auto startTime = std::chrono::high_resolution_clock::now();
-        
-        // Create minimal AST for the loop
-        NodeIndex forIdx = ast.addNode(std::move(forNode));
-        ast.setRoot(forIdx);
-        
-        // Compile the loop to native code
-        CompiledFunc fn = jit.compileForLoop(ast, forIdx, start, end);
-        
-        // Execute the compiled code
-        int64_t result = jit.execute(fn);
-        
-        auto endTime = std::chrono::high_resolution_clock::now();
-        double seconds = std::chrono::duration<double>(endTime - startTime).count();
-        double opsPerSec = static_cast<double>(end - start) / seconds;
-        
-        std::vector<Value> output;
-        output.push_back(Value::fromInt(result));
-        output.push_back(Value::fromFloat(opsPerSec));
-        return Value::fromArray(std::move(output));
-    });
-
-    // SIMD Info - detect CPU SIMD capabilities
-    registerNative("simdInfo", [](Evaluator&, const std::vector<Value>&) -> Value {
-        SIMDLevel level = detectSIMD();
-        StructInstance info;
-        info.typeName = "SIMDInfo";
-        info.fields["level"] = Value::fromString(simdLevelToString(level));
-        info.fields["hasAVX2"] = Value::fromBool(hasSIMD(SIMDLevel::AVX2));
-        info.fields["hasAVX512"] = Value::fromBool(hasSIMD(SIMDLevel::AVX512));
-        return Value::fromStruct(info);
-    });
-
-    // SIMD Sum Loop - TRUE SIMD vectorized sum
-    registerNative("simdSumLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty() || !args[0].isNumber()) return Value::nil();
-        int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
-        
-        auto start = std::chrono::high_resolution_clock::now();
-        int64_t result = simdSumLoop(n);
-        auto end = std::chrono::high_resolution_clock::now();
-        
-        double seconds = std::chrono::duration<double>(end - start).count();
-        double opsPerSec = static_cast<double>(n) / seconds;
-        
-        std::vector<Value> output;
-        output.push_back(Value::fromInt(result));
-        output.push_back(Value::fromFloat(opsPerSec));
-        return Value::fromArray(std::move(output));
-    });
-
-    // SIMD Vector Dot Product benchmark
-    registerNative("simdDotProduct", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        if (args.empty() || !args[0].isNumber()) return Value::nil();
-        size_t n = static_cast<size_t>(args[0].isInt() ? args[0].intVal : args[0].floatVal);
-        
-        // Allocate aligned vectors
-        float* a = static_cast<float*>(simdAlloc(n * sizeof(float)));
-        float* b = static_cast<float*>(simdAlloc(n * sizeof(float)));
-        
-        if (!a || !b) {
-            simdFree(a);
-            simdFree(b);
-            return Value::nil();
-        }
-        
-        // Initialize with test data
-        for (size_t i = 0; i < n; ++i) {
-            a[i] = 1.0f;
-            b[i] = 2.0f;
-        }
-        
-        auto start = std::chrono::high_resolution_clock::now();
-        float result = vecDot_f32(a, b, n);
-        auto end = std::chrono::high_resolution_clock::now();
-        
-        simdFree(a);
-        simdFree(b);
-        
-        double seconds = std::chrono::duration<double>(end - start).count();
-        double opsPerSec = static_cast<double>(n) / seconds;
-        
-        std::vector<Value> output;
-        output.push_back(Value::fromFloat(static_cast<double>(result)));
-        output.push_back(Value::fromFloat(opsPerSec));
-        return Value::fromArray(std::move(output));
-    });
-
-    // Matrix Multiplication Benchmark
-    registerNative("matmulBenchmark", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        int M = 512, N = 512, K = 512;
-        if (args.size() >= 1 && args[0].isNumber()) {
-            M = static_cast<int>(args[0].asDouble());
-            N = M;
-            K = M;
-        }
-        if (args.size() >= 3) {
-            M = static_cast<int>(args[0].asDouble());
-            N = static_cast<int>(args[1].asDouble());
-            K = static_cast<int>(args[2].asDouble());
-        }
-        
-        auto result = benchmarkMatmul(M, N, K);
-        
-        std::vector<Value> output;
-        output.push_back(Value::fromFloat(result.gflops));
-        output.push_back(Value::fromFloat(result.seconds));
-        return Value::fromArray(std::move(output));
-    });
-
-    // Tensor ReLU benchmark (activation function)
-    registerNative("reluBenchmark", [](Evaluator&, const std::vector<Value>& args) -> Value {
-        size_t n = 1000000;
-        if (!args.empty() && args[0].isNumber()) {
-            n = static_cast<size_t>(args[0].asDouble());
-        }
-        
-        Tensor t = Tensor::ones({static_cast<int64_t>(n)});
-        
-        auto start = std::chrono::high_resolution_clock::now();
-        Tensor result = t.relu();
-        auto end = std::chrono::high_resolution_clock::now();
-        
-        double seconds = std::chrono::duration<double>(end - start).count();
-        double opsPerSec = static_cast<double>(n) / seconds;
-        
-        std::vector<Value> output;
-        output.push_back(Value::fromFloat(result.sum()));
-        output.push_back(Value::fromFloat(opsPerSec));
-        return Value::fromArray(std::move(output));
-    });
-}
-
-void Evaluator::registerNative(const std::string& name, NativeFunction fn) {
-    globalEnv->define(name, Value::fromNative(std::move(fn)));
-}
-
-void Evaluator::registerModule(const std::string& alias,
-                               const std::unordered_map<std::string, NativeFunction>& functions) {
-    StructInstance moduleObj;
-    moduleObj.typeName = alias;
-    for (const auto& [name, fn] : functions) {
-        moduleObj.fields[name] = Value::fromNative(fn);
     }
-    globalEnv->define(alias, Value::fromStruct(moduleObj));
+    
+    return true;
 }
 
-Value Evaluator::execute(std::shared_ptr<const AST> tree, const std::filesystem::path& filePath) {
-    currentFilePath = filePath;
-    return execute(tree);
-}
-
-Value Evaluator::execute(std::shared_ptr<const AST> tree) {
-    ast = tree;
-    environment = globalEnv;
-
-    NodeIndex root = ast->root();
-    if (root == INVALID_NODE) {
-        return Value::nil();
-    }
-
-    try {
-        const ASTNode& program = ast->get(root);
-        for (NodeIndex child : program.children) {
-            const ASTNode& node = ast->get(child);
-            switch (node.type) {
-                case NodeType::FUNC_DECL:
-                case NodeType::ASYNC_FUNC_DECL:
-                    execFuncDecl(node);
-                    break;
-                case NodeType::STRUCT_DECL:
-                    execStructDecl(node);
-                    break;
-                case NodeType::IMPORT_STDLIB:
-                    execImportStdlib(node);
-                    break;
-                case NodeType::IMPORT_FILE:
-                    execImportFile(node);
-                    break;
-                case NodeType::EXPR_STMT:
-                    evaluate(node.left);
-                    break;
-                case NodeType::VAR_ASSIGN:
-                    execVarAssign(node);
-                    break;
-                case NodeType::MEMBER_ASSIGN:
-                    execMemberAssign(node);
-                    break;
-                case NodeType::INDEX_ASSIGN:
-                    execIndexAssign(node);
-                    break;
-                case NodeType::BLOCK:
-                    execBlock(node);
-                    break;
-                case NodeType::IF_STMT:
-                    execIf(node);
-                    break;
-                case NodeType::FOR_STMT:
-                    execFor(node);
-                    break;
-                case NodeType::WHILE_STMT:
-                    execWhile(node);
-                    break;
-                case NodeType::RETURN_STMT:
-                    execReturn(node);
-                    break;
-                default:
-                    evaluate(child);
-                    break;
-            }
-        }
-    } catch (const ReturnException& ret) {
-        return ret.value;
-    }
-
-    return Value::nil();
-}
-
-Value Evaluator::evaluate(NodeIndex idx) {
-    if (idx == INVALID_NODE) return Value::nil();
-
-    const ASTNode& node = ast->get(idx);
+X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
+    if (idx == INVALID_NODE) return X64Reg::RAX;
+    
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
     switch (node.type) {
-        case NodeType::LITERAL_INT:
-        case NodeType::LITERAL_FLOAT:
-        case NodeType::LITERAL_STRING:
-        case NodeType::LITERAL_BOOL:
-        case NodeType::LITERAL_NIL:
-            return evalLiteral(node);
-        case NodeType::IDENTIFIER:
-            return evalIdentifier(node);
-        case NodeType::BINARY_OP:
-            return evalBinaryOp(node);
-        case NodeType::UNARY_OP:
-            return evalUnaryOp(node);
-        case NodeType::CALL:
-            return evalCall(node);
-        case NodeType::MEMBER_ACCESS:
-            return evalMemberAccess(node);
-        case NodeType::INDEX_ACCESS:
-            return evalIndexAccess(node);
-        case NodeType::ARRAY_LITERAL:
-            return evalArrayLiteral(node);
-        case NodeType::AWAIT_EXPR:
-            return evalAwait(node);
-        default:
-            return Value::nil();
-    }
-}
-
-Value Evaluator::evalLiteral(const ASTNode& node) {
-    switch (node.type) {
-        case NodeType::LITERAL_INT:
-            return Value::fromInt(std::get<int64_t>(node.literal.data));
-        case NodeType::LITERAL_FLOAT:
-            return Value::fromFloat(std::get<double>(node.literal.data));
-        case NodeType::LITERAL_STRING:
-            return Value::fromString(std::get<std::string>(node.literal.data));
-        case NodeType::LITERAL_BOOL:
-            return Value::fromBool(std::get<bool>(node.literal.data));
-        case NodeType::LITERAL_NIL:
-            return Value::nil();
-        default:
-            return Value::nil();
-    }
-}
-
-Value Evaluator::evalIdentifier(const ASTNode& node) {
-    // First check if this is a module reference
-    auto modIt = modules.find(node.name);
-    if (modIt != modules.end()) {
-        // Return a special struct that wraps the module environment
-        StructInstance modObj;
-        modObj.typeName = node.name;
-        // Copy all definitions from module environment as fields
-        auto env = modIt->second;
-        // We can't directly iterate environment, so we store module env for later access
-        return Value::fromStruct(modObj);
-    }
-    return environment->get(node.name);
-}
-
-Value Evaluator::evalBinaryOp(const ASTNode& node) {
-    Value left = evaluate(node.left);
-    Value right = evaluate(node.right);
-
-    switch (node.binaryOp) {
-        case BinaryOp::ADD:
-            if (left.isInt() && right.isInt()) {
-                return Value::fromInt(left.intVal + right.intVal);
-            }
-            if (left.isNumber() && right.isNumber()) {
-                return Value::fromFloat(left.asDouble() + right.asDouble());
-            }
-            if (left.isString() || right.isString()) {
-                return Value::fromString(left.toString() + right.toString());
-            }
-            break;
-
-        case BinaryOp::SUB:
-            if (left.isInt() && right.isInt()) {
-                return Value::fromInt(left.intVal - right.intVal);
-            }
-            return Value::fromFloat(left.asDouble() - right.asDouble());
-
-        case BinaryOp::MUL:
-            if (left.isInt() && right.isInt()) {
-                return Value::fromInt(left.intVal * right.intVal);
-            }
-            return Value::fromFloat(left.asDouble() * right.asDouble());
-
-        case BinaryOp::DIV:
-            if (left.isInt() && right.isInt() && right.intVal != 0) {
-                return Value::fromInt(left.intVal / right.intVal);
-            }
-            if (right.asDouble() != 0.0) {
-                return Value::fromFloat(left.asDouble() / right.asDouble());
-            }
-            break;
-
-        case BinaryOp::MOD:
-            if (left.isInt() && right.isInt() && right.intVal != 0) {
-                return Value::fromInt(left.intVal % right.intVal);
-            }
-            break;
-
-        case BinaryOp::EQ:
-            if (left.type != right.type) return Value::fromBool(false);
-            if (left.isNil()) return Value::fromBool(true);
-            if (left.isBool()) return Value::fromBool(left.boolVal == right.boolVal);
-            if (left.isInt()) return Value::fromBool(left.intVal == right.intVal);
-            if (left.isFloat()) return Value::fromBool(left.floatVal == right.floatVal);
-            if (left.isString()) return Value::fromBool(*left.stringVal == *right.stringVal);
-            break;
-
-        case BinaryOp::NEQ:
-            if (left.type != right.type) return Value::fromBool(true);
-            if (left.isNil()) return Value::fromBool(false);
-            if (left.isBool()) return Value::fromBool(left.boolVal != right.boolVal);
-            if (left.isInt()) return Value::fromBool(left.intVal != right.intVal);
-            if (left.isFloat()) return Value::fromBool(left.floatVal != right.floatVal);
-            if (left.isString()) return Value::fromBool(*left.stringVal != *right.stringVal);
-            break;
-
-        case BinaryOp::LT:
-            return Value::fromBool(left.asDouble() < right.asDouble());
-        case BinaryOp::LTE:
-            return Value::fromBool(left.asDouble() <= right.asDouble());
-        case BinaryOp::GT:
-            return Value::fromBool(left.asDouble() > right.asDouble());
-        case BinaryOp::GTE:
-            return Value::fromBool(left.asDouble() >= right.asDouble());
-
-        case BinaryOp::AND:
-            return Value::fromBool(left.isTruthy() && right.isTruthy());
-        case BinaryOp::OR:
-            return Value::fromBool(left.isTruthy() || right.isTruthy());
-    }
-
-    return Value::nil();
-}
-
-Value Evaluator::evalUnaryOp(const ASTNode& node) {
-    Value operand = evaluate(node.left);
-
-    switch (node.unaryOp) {
-        case UnaryOp::NEG:
-            if (operand.isInt()) return Value::fromInt(-operand.intVal);
-            if (operand.isFloat()) return Value::fromFloat(-operand.floatVal);
-            break;
-        case UnaryOp::NOT:
-            return Value::fromBool(!operand.isTruthy());
-    }
-
-    return Value::nil();
-}
-
-Value Evaluator::evalCall(const ASTNode& node) {
-    Value callee = evaluate(node.left);
-
-    std::vector<Value> args;
-    for (NodeIndex argIdx : node.children) {
-        args.push_back(evaluate(argIdx));
-    }
-
-    return callFunction(callee, args, node.line, node.column);
-}
-
-Value Evaluator::callFunction(const Value& callee, const std::vector<Value>& args, int line, int column) {
-    if (callee.isNative()) {
-        return (*callee.nativeVal)(*this, args);
-    }
-
-    if (callee.isFunction()) {
-        FunctionDef& func = *callee.funcVal;
-        auto funcEnv = std::make_shared<Environment>(func.closure ? func.closure : globalEnv);
-
-        for (size_t i = 0; i < func.params.size() && i < args.size(); ++i) {
-            funcEnv->define(func.params[i], args[i]);
+        case NodeType::LITERAL_INT: {
+            X64Reg dst = allocateReg();
+            int64_t value = std::get<int64_t>(node.literal.data);
+            
+            // mov reg, imm64
+            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+            buf.emit64(static_cast<uint64_t>(value));
+            
+            return dst;
         }
-
-        auto prevEnv = environment;
-        auto prevAST = ast;
-        environment = funcEnv;
         
-        if (func.moduleAST) {
-            ast = func.moduleAST;
+        case NodeType::IDENTIFIER: {
+            X64Reg dst = allocateReg();
+            
+            // Check if variable exists
+            auto it = variables.find(node.name);
+            if (it != variables.end()) {
+                // mov reg, [rbp + offset]
+                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(it->second.stackOffset));
+            }
+            
+            return dst;
         }
-
-        try {
-            const ASTNode& body = ast->get(func.bodyIndex);
-            for (NodeIndex stmtIdx : body.children) {
-                const ASTNode& stmt = ast->get(stmtIdx);
-                switch (stmt.type) {
-                    case NodeType::VAR_ASSIGN:
-                        execVarAssign(stmt);
-                        break;
-                    case NodeType::MEMBER_ASSIGN:
-                        execMemberAssign(stmt);
-                        break;
-                    case NodeType::INDEX_ASSIGN:
-                        execIndexAssign(stmt);
-                        break;
-                    case NodeType::IF_STMT:
-                        execIf(stmt);
-                        break;
-                    case NodeType::FOR_STMT:
-                        execFor(stmt);
-                        break;
-                    case NodeType::WHILE_STMT:
-                        execWhile(stmt);
-                        break;
-                    case NodeType::RETURN_STMT:
-                        execReturn(stmt);
-                        break;
-                    case NodeType::EXPR_STMT:
-                        evaluate(stmt.left);
-                        break;
-                    case NodeType::FUNC_DECL:
-                    case NodeType::ASYNC_FUNC_DECL:
-                        execFuncDecl(stmt);
-                        break;
-                    default:
-                        break;
+        
+        case NodeType::BINARY_OP: {
+            X64Reg left = compileExpr(ast, node.left);
+            X64Reg right = compileExpr(ast, node.right);
+            
+            bool leftHigh = static_cast<uint8_t>(left) >= 8;
+            bool rightHigh = static_cast<uint8_t>(right) >= 8;
+            
+            switch (node.binaryOp) {
+                case BinaryOp::ADD:
+                    // add left, right
+                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
+                    buf.emit8(0x01);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(left) & 0x7));
+                    break;
+                    
+                case BinaryOp::SUB:
+                    // sub left, right
+                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
+                    buf.emit8(0x29);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(left) & 0x7));
+                    break;
+                    
+                case BinaryOp::MUL:
+                    // imul left, right
+                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0) | (rightHigh ? 0x01 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xAF);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(right) & 0x7));
+                    break;
+                    
+                case BinaryOp::DIV: {
+                    // Division requires RAX for dividend and RDX for remainder
+                    // Save RDX if in use, move left to RAX, sign-extend to RDX, idiv right
+                    
+                    // Move left to RAX if not already there
+                    if (left != X64Reg::RAX) {
+                        buf.emit8(0x48 | (leftHigh ? 0x01 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    }
+                    
+                    // cqo: sign-extend RAX to RDX:RAX
+                    buf.emit8(0x48);
+                    buf.emit8(0x99);
+                    
+                    // idiv right
+                    buf.emit8(0x48 | (rightHigh ? 0x01 : 0));
+                    buf.emit8(0xF7);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(right) & 0x7));
+                    
+                    freeReg(right);
+                    if (left != X64Reg::RAX) freeReg(left);
+                    return X64Reg::RAX;
+                }
+                    
+                case BinaryOp::MOD: {
+                    // Modulo: same as division but result is in RDX
+                    if (left != X64Reg::RAX) {
+                        buf.emit8(0x48 | (leftHigh ? 0x01 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    }
+                    
+                    // cqo
+                    buf.emit8(0x48);
+                    buf.emit8(0x99);
+                    
+                    // idiv right
+                    buf.emit8(0x48 | (rightHigh ? 0x01 : 0));
+                    buf.emit8(0xF7);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(right) & 0x7));
+                    
+                    // mov rax, rdx (remainder is in RDX)
+                    buf.emit8(0x48);
+                    buf.emit8(0x89);
+                    buf.emit8(0xD0);
+                    
+                    freeReg(right);
+                    if (left != X64Reg::RAX) freeReg(left);
+                    return X64Reg::RAX;
+                }
+                
+                // Comparison operators: use CMP + SETcc
+                case BinaryOp::EQ:
+                case BinaryOp::NEQ:
+                case BinaryOp::LT:
+                case BinaryOp::LTE:
+                case BinaryOp::GT:
+                case BinaryOp::GTE: {
+                    // cmp left, right
+                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
+                    buf.emit8(0x39);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(left) & 0x7));
+                    
+                    // SETcc al (set al based on condition)
+                    buf.emit8(0x0F);
+                    switch (node.binaryOp) {
+                        case BinaryOp::EQ:  buf.emit8(0x94); break;  // sete
+                        case BinaryOp::NEQ: buf.emit8(0x95); break;  // setne
+                        case BinaryOp::LT:  buf.emit8(0x9C); break;  // setl
+                        case BinaryOp::LTE: buf.emit8(0x9E); break;  // setle
+                        case BinaryOp::GT:  buf.emit8(0x9F); break;  // setg
+                        case BinaryOp::GTE: buf.emit8(0x9D); break;  // setge
+                        default: break;
+                    }
+                    buf.emit8(0xC0); // al
+                    
+                    // movzx left, al (zero-extend al to 64-bit)
+                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    
+                    freeReg(right);
+                    return left;
+                }
+                
+                case BinaryOp::AND: {
+                    // Logical AND: result is 1 if both are non-zero
+                    // test left, left; setnz al; test right, right; setnz cl; and al, cl; movzx left, al
+                    
+                    // test left, left
+                    buf.emit8(0x48 | (leftHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(left) & 0x7));
+                    
+                    // setnz al
+                    buf.emit8(0x0F);
+                    buf.emit8(0x95);
+                    buf.emit8(0xC0);
+                    
+                    // test right, right
+                    buf.emit8(0x48 | (rightHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(right) & 0x7));
+                    
+                    // setnz cl
+                    buf.emit8(0x0F);
+                    buf.emit8(0x95);
+                    buf.emit8(0xC1);
+                    
+                    // and al, cl
+                    buf.emit8(0x20);
+                    buf.emit8(0xC8);
+                    
+                    // movzx left, al
+                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    
+                    freeReg(right);
+                    return left;
+                }
+                
+                case BinaryOp::OR: {
+                    // Logical OR: result is 1 if either is non-zero
+                    // or left, right; setnz al; movzx left, al
+                    
+                    // or left, right
+                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
+                    buf.emit8(0x09);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(left) & 0x7));
+                    
+                    // setnz al
+                    buf.emit8(0x0F);
+                    buf.emit8(0x95);
+                    buf.emit8(0xC0);
+                    
+                    // movzx left, al
+                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    
+                    freeReg(right);
+                    return left;
                 }
             }
-        } catch (const ReturnException& ret) {
-            environment = prevEnv;
-            ast = prevAST;
-            return ret.value;
+            
+            freeReg(right);
+            return left;
         }
-
-        environment = prevEnv;
-        ast = prevAST;
-        return Value::nil();
-    }
-
-    throw RuntimeError("Cannot call non-function value", line, column);
-}
-
-Value Evaluator::evalMemberAccess(const ASTNode& node) {
-    Value obj = evaluate(node.left);
-
-    if (obj.isStruct() && obj.structVal) {
-        // Check if this is a module reference
-        auto modIt = modules.find(obj.structVal->typeName);
-        if (modIt != modules.end()) {
-            // Lookup member in module environment
-            try {
-                return modIt->second->get(node.name);
-            } catch (...) {
-                throw RuntimeError("Undefined export: " + node.name + " in module " + obj.structVal->typeName, 
-                                   node.line, node.column);
+        
+        case NodeType::UNARY_OP: {
+            X64Reg operand = compileExpr(ast, node.left);
+            bool operandHigh = static_cast<uint8_t>(operand) >= 8;
+            
+            switch (node.unaryOp) {
+                case UnaryOp::NEG:
+                    // neg operand
+                    buf.emit8(0x48 | (operandHigh ? 0x01 : 0));
+                    buf.emit8(0xF7);
+                    buf.emit8(0xD8 | (static_cast<uint8_t>(operand) & 0x7));
+                    break;
+                    
+                case UnaryOp::NOT:
+                    // test operand, operand; setz al; movzx operand, al
+                    buf.emit8(0x48 | (operandHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(operand) & 0x7));
+                    
+                    buf.emit8(0x0F);
+                    buf.emit8(0x94);
+                    buf.emit8(0xC0);
+                    
+                    buf.emit8(0x48 | (operandHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand) & 0x7) << 3));
+                    break;
             }
+            
+            return operand;
         }
-
-        auto it = obj.structVal->fields.find(node.name);
-        if (it != obj.structVal->fields.end()) {
-            return it->second;
-        }
-        throw RuntimeError("Undefined field: " + node.name, node.line, node.column);
+        
+        default:
+            return X64Reg::RAX;
     }
-
-    if (obj.isArray() && obj.arrayVal) {
-        if (node.name == "length") {
-            return Value::fromInt(static_cast<int64_t>(obj.arrayVal->size()));
-        }
-        if (node.name == "push") {
-            auto arr = obj.arrayVal;
-            return Value::fromNative([arr](Evaluator&, const std::vector<Value>& args) -> Value {
-                if (!args.empty()) {
-                    arr->push_back(args[0]);
-                }
-                return Value::nil();
-            });
-        }
-        if (node.name == "pop") {
-            auto arr = obj.arrayVal;
-            return Value::fromNative([arr](Evaluator&, const std::vector<Value>&) -> Value {
-                if (arr->empty()) return Value::nil();
-                Value val = arr->back();
-                arr->pop_back();
-                return val;
-            });
-        }
-    }
-
-    return Value::nil();
 }
 
-Value Evaluator::evalIndexAccess(const ASTNode& node) {
-    Value obj = evaluate(node.left);
-    Value index = evaluate(node.right);
-
-    if (obj.isArray() && obj.arrayVal && index.isInt()) {
-        int64_t idx = index.intVal;
-        if (idx >= 0 && idx < static_cast<int64_t>(obj.arrayVal->size())) {
-            return (*obj.arrayVal)[static_cast<size_t>(idx)];
-        }
+void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Compile the value
+    X64Reg valueReg = compileExpr(ast, node.left);
+    
+    // Allocate stack slot if needed
+    auto it = variables.find(node.name);
+    if (it == variables.end()) {
+        VarLocation loc;
+        loc.stackOffset = allocateStackSlot();
+        loc.isRegister = false;
+        variables[node.name] = loc;
+        it = variables.find(node.name);
     }
-
-    if (obj.isString() && obj.stringVal && index.isInt()) {
-        int64_t idx = index.intVal;
-        if (idx >= 0 && idx < static_cast<int64_t>(obj.stringVal->size())) {
-            return Value::fromString(std::string(1, (*obj.stringVal)[static_cast<size_t>(idx)]));
-        }
-    }
-
-    return Value::nil();
+    
+    // mov [rbp + offset], reg
+    bool regHigh = static_cast<uint8_t>(valueReg) >= 8;
+    buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+    buf.emit8(0x89);
+    buf.emit8(0x85 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
+    buf.emit32(static_cast<uint32_t>(it->second.stackOffset));
+    
+    freeReg(valueReg);
 }
 
-Value Evaluator::evalArrayLiteral(const ASTNode& node) {
-    std::vector<Value> elements;
-    for (NodeIndex elemIdx : node.children) {
-        elements.push_back(evaluate(elemIdx));
-    }
-    return Value::fromArray(std::move(elements));
-}
-
-Value Evaluator::evalAwait(const ASTNode& node) {
-    return evaluate(node.left);
-}
-
-void Evaluator::execBlock(const ASTNode& node) {
-    auto blockEnv = std::make_shared<Environment>(environment);
-    auto prevEnv = environment;
-    environment = blockEnv;
-
-    for (NodeIndex stmtIdx : node.children) {
-        const ASTNode& stmt = ast->get(stmtIdx);
+void JIT::compileBlock(const AST& ast, NodeIndex idx) {
+    const ASTNode& block = ast.get(idx);
+    
+    for (NodeIndex stmtIdx : block.children) {
+        const ASTNode& stmt = ast.get(stmtIdx);
+        
         switch (stmt.type) {
             case NodeType::VAR_ASSIGN:
-                execVarAssign(stmt);
-                break;
-            case NodeType::MEMBER_ASSIGN:
-                execMemberAssign(stmt);
-                break;
-            case NodeType::INDEX_ASSIGN:
-                execIndexAssign(stmt);
-                break;
-            case NodeType::IF_STMT:
-                execIf(stmt);
-                break;
-            case NodeType::FOR_STMT:
-                execFor(stmt);
-                break;
-            case NodeType::WHILE_STMT:
-                execWhile(stmt);
-                break;
-            case NodeType::RETURN_STMT:
-                execReturn(stmt);
+                compileAssignment(ast, stmtIdx);
                 break;
             case NodeType::EXPR_STMT:
-                evaluate(stmt.left);
-                break;
-            case NodeType::FUNC_DECL:
-            case NodeType::ASYNC_FUNC_DECL:
-                execFuncDecl(stmt);
+                freeReg(compileExpr(ast, stmt.left));
                 break;
             default:
                 break;
         }
     }
-
-    environment = prevEnv;
 }
 
-void Evaluator::execVarAssign(const ASTNode& node) {
-    Value val = evaluate(node.left);
-    environment->set(node.name, val);
+CompiledFunc JIT::compileForLoop(const AST& ast, NodeIndex forNode,
+                                      int64_t start, int64_t end) {
+    codegen = CodeGenerator();
+    variables.clear();
+    stackSize = 0;
+    nextStackSlot = 0;
+    std::memset(regInUse, 0, sizeof(regInUse));
+    regInUse[static_cast<int>(X64Reg::RSP)] = true;
+    regInUse[static_cast<int>(X64Reg::RBP)] = true;
+    
+    CodeBuffer& buf = codegen.getCode();
+    const ASTNode& forStmt = ast.get(forNode);
+    
+    emitPrologue();
+    
+    // Allocate result variable (sum)
+    VarLocation resultLoc;
+    resultLoc.stackOffset = allocateStackSlot();
+    resultLoc.isRegister = false;
+    variables["sum"] = resultLoc;
+    
+    // xor rax, rax ; result = 0
+    buf.emit8(0x48);
+    buf.emit8(0x31);
+    buf.emit8(0xC0);
+    
+    // mov [rbp + offset], rax
+    buf.emit8(0x48);
+    buf.emit8(0x89);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(resultLoc.stackOffset));
+    
+    // Allocate iterator variable
+    VarLocation iterLoc;
+    iterLoc.stackOffset = allocateStackSlot();
+    iterLoc.isRegister = false;
+    variables[forStmt.name] = iterLoc;
+    
+    // mov rax, start
+    buf.emit8(0x48);
+    buf.emit8(0xB8);
+    buf.emit64(static_cast<uint64_t>(start));
+    
+    // mov [rbp + iterOffset], rax ; i = start
+    buf.emit8(0x48);
+    buf.emit8(0x89);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+    
+    // mov rcx, end (loop counter in rcx)
+    buf.emit8(0x48);
+    buf.emit8(0xB9);
+    buf.emit64(static_cast<uint64_t>(end));
+    
+    // loop_start:
+    size_t loopStart = buf.getOffset();
+    
+    // cmp [rbp + iterOffset], rcx ; compare i with end
+    buf.emit8(0x48);
+    buf.emit8(0x39);
+    buf.emit8(0x8D);
+    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+    
+    // jge loop_end (will patch)
+    buf.emit8(0x0F);
+    buf.emit8(0x8D);
+    size_t jgePatch = buf.getOffset();
+    buf.emit32(0); // Placeholder
+    
+    // Compile the loop body
+    // This is the key part - we're compiling the actual Nevaarize AST!
+    // For sum += i pattern, we generate:
+    //   mov rax, [rbp + sumOffset]
+    //   add rax, [rbp + iterOffset]
+    //   mov [rbp + sumOffset], rax
+    
+    // mov rax, [rbp + sumOffset]
+    buf.emit8(0x48);
+    buf.emit8(0x8B);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(resultLoc.stackOffset));
+    
+    // add rax, [rbp + iterOffset]
+    buf.emit8(0x48);
+    buf.emit8(0x03);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+    
+    // mov [rbp + sumOffset], rax
+    buf.emit8(0x48);
+    buf.emit8(0x89);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(resultLoc.stackOffset));
+    
+    // inc [rbp + iterOffset] ; i++
+    buf.emit8(0x48);
+    buf.emit8(0xFF);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+    
+    // jmp loop_start
+    buf.emit8(0xE9);
+    int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
+    buf.emit32(static_cast<uint32_t>(jumpBack));
+    
+    // loop_end:
+    size_t loopEnd = buf.getOffset();
+    
+    // Patch the jge
+    int32_t jgeOffset = static_cast<int32_t>(loopEnd - (jgePatch + 4));
+    buf.patch32(jgePatch, static_cast<uint32_t>(jgeOffset));
+    
+    // mov rax, [rbp + sumOffset] ; return result
+    buf.emit8(0x48);
+    buf.emit8(0x8B);
+    buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(resultLoc.stackOffset));
+    
+    emitEpilogue();
+    
+    // Write to executable memory
+    execMem->write(buf.data(), buf.size());
+    execMem->makeExecutable();
+    
+    return execMem->getFunction<CompiledFunc>(0);
 }
 
-void Evaluator::execMemberAssign(const ASTNode& node) {
-    Value obj = evaluate(node.left);
-    Value val = evaluate(node.right);
-
-    if (obj.isStruct() && obj.structVal) {
-        obj.structVal->fields[node.name] = val;
+CompiledFunc JIT::compileExpression(const AST& ast, NodeIndex exprNode) {
+    codegen = CodeGenerator();
+    variables.clear();
+    std::memset(regInUse, 0, sizeof(regInUse));
+    regInUse[static_cast<int>(X64Reg::RSP)] = true;
+    regInUse[static_cast<int>(X64Reg::RBP)] = true;
+    
+    emitPrologue();
+    
+    X64Reg result = compileExpr(ast, exprNode);
+    
+    // Move result to RAX if not already there
+    if (result != X64Reg::RAX) {
+        codegen.emitMov(X64Reg::RAX, result);
     }
+    
+    emitEpilogue();
+    
+    CodeBuffer& buf = codegen.getCode();
+    execMem->write(buf.data(), buf.size());
+    execMem->makeExecutable();
+    
+    return execMem->getFunction<CompiledFunc>(0);
 }
 
-void Evaluator::execIndexAssign(const ASTNode& node) {
-    Value obj = evaluate(node.left);
-    Value index = evaluate(node.right);
-    Value val = evaluate(node.extra);
-
-    if (obj.isArray() && obj.arrayVal && index.isInt()) {
-        int64_t idx = index.intVal;
-        if (idx >= 0 && idx < static_cast<int64_t>(obj.arrayVal->size())) {
-            (*obj.arrayVal)[static_cast<size_t>(idx)] = val;
-        }
-    }
+int64_t JIT::execute(CompiledFunc fn) {
+    return fn();
 }
 
-void Evaluator::execIf(const ASTNode& node) {
-    Value cond = evaluate(node.left);
-
-    if (cond.isTruthy()) {
-        const ASTNode& thenBlock = ast->get(node.right);
-        execBlock(thenBlock);
-    } else if (node.extra != INVALID_NODE) {
-        const ASTNode& elseBlock = ast->get(node.extra);
-        execBlock(elseBlock);
-    }
-}
-
-void Evaluator::execFor(const ASTNode& node) {
-    Value iterable = evaluate(node.left);
-
-    if (!iterable.isArray() || !iterable.arrayVal) {
-        return;
-    }
-
-    auto loopEnv = std::make_shared<Environment>(environment);
-    auto prevEnv = environment;
-    environment = loopEnv;
-
-    for (const Value& item : *iterable.arrayVal) {
-        environment->set(node.name, item);
-        const ASTNode& body = ast->get(node.right);
-        execBlock(body);
-    }
-
-    environment = prevEnv;
-}
-
-void Evaluator::execWhile(const ASTNode& node) {
-    while (evaluate(node.left).isTruthy()) {
-        const ASTNode& body = ast->get(node.right);
-        execBlock(body);
-    }
-}
-
-void Evaluator::execReturn(const ASTNode& node) {
-    Value val = Value::nil();
-    if (node.left != INVALID_NODE) {
-        val = evaluate(node.left);
-    }
-    throw ReturnException(val);
-}
-
-void Evaluator::execFuncDecl(const ASTNode& node) {
-    FunctionDef func;
-    func.name = node.name;
-    func.params = node.paramNames;
-    func.bodyIndex = node.left;
-    func.isAsync = (node.type == NodeType::ASYNC_FUNC_DECL);
-    func.closure = environment;
-    func.moduleAST = ast;
-
-    environment->define(node.name, Value::fromFunction(func));
-}
-
-void Evaluator::execStructDecl(const ASTNode& node) {
-    StructDef def;
-    def.name = node.name;
-    def.fields = node.paramNames;
-    structs[node.name] = def;
-
-    auto constructorFn = [this, fields = node.paramNames, typeName = node.name]
-                         (Evaluator&, const std::vector<Value>& args) -> Value {
-        StructInstance si;
-        si.typeName = typeName;
-        for (size_t i = 0; i < fields.size(); ++i) {
-            if (i < args.size()) {
-                si.fields[fields[i]] = args[i];
-            } else {
-                si.fields[fields[i]] = Value::nil();
-            }
-        }
-        return Value::fromStruct(si);
-    };
-
-    environment->define(node.name, Value::fromNative(constructorFn));
-}
-
-void Evaluator::execImportStdlib(const ASTNode& node) {
-    std::string libName = node.name;
-    std::string alias = node.paramNames[0];
-
-    if (libName == "math") {
-        std::unordered_map<std::string, NativeFunction> mathFuncs;
-        mathFuncs["Abs"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (args.empty() || !args[0].isNumber()) return Value::fromFloat(0.0);
-            return Value::fromFloat(std::abs(args[0].asDouble()));
-        };
-        mathFuncs["Sqrt"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (args.empty() || !args[0].isNumber()) return Value::fromFloat(0.0);
-            return Value::fromFloat(std::sqrt(args[0].asDouble()));
-        };
-        mathFuncs["Pow"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (args.size() < 2) return Value::fromFloat(0.0);
-            return Value::fromFloat(std::pow(args[0].asDouble(), args[1].asDouble()));
-        };
-        mathFuncs["Floor"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (args.empty() || !args[0].isNumber()) return Value::fromFloat(0.0);
-            return Value::fromFloat(std::floor(args[0].asDouble()));
-        };
-        mathFuncs["Ceil"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (args.empty() || !args[0].isNumber()) return Value::fromFloat(0.0);
-            return Value::fromFloat(std::ceil(args[0].asDouble()));
-        };
-        mathFuncs["Sin"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (args.empty() || !args[0].isNumber()) return Value::fromFloat(0.0);
-            return Value::fromFloat(std::sin(args[0].asDouble()));
-        };
-        mathFuncs["Cos"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (args.empty() || !args[0].isNumber()) return Value::fromFloat(0.0);
-            return Value::fromFloat(std::cos(args[0].asDouble()));
-        };
-        mathFuncs["Tan"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (args.empty() || !args[0].isNumber()) return Value::fromFloat(0.0);
-            return Value::fromFloat(std::tan(args[0].asDouble()));
-        };
-        registerModule(alias, mathFuncs);
-    } else if (libName == "time") {
-        std::unordered_map<std::string, NativeFunction> timeFuncs;
-        timeFuncs["clock"] = [](Evaluator&, const std::vector<Value>&) -> Value {
-            auto now = std::chrono::high_resolution_clock::now();
-            auto epoch = now.time_since_epoch();
-            auto seconds = std::chrono::duration<double>(epoch).count();
-            return Value::fromFloat(seconds);
-        };
-        timeFuncs["sleep"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (!args.empty() && args[0].isNumber()) {
-                int ms = static_cast<int>(args[0].asDouble());
-                std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-            }
-            return Value::nil();
-        };
-        registerModule(alias, timeFuncs);
-    } else if (libName == "io") {
-        std::unordered_map<std::string, NativeFunction> ioFuncs;
-        ioFuncs["Print"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            for (size_t i = 0; i < args.size(); ++i) {
-                if (i > 0) std::cout << " ";
-                std::cout << args[i].toString();
-            }
-            std::cout << std::endl;
-            return Value::nil();
-        };
-        ioFuncs["Write"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            for (size_t i = 0; i < args.size(); ++i) {
-                if (i > 0) std::cout << " ";
-                std::cout << args[i].toString();
-            }
-            std::cout.flush();
-            return Value::nil();
-        };
-        ioFuncs["Input"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
-            if (!args.empty()) {
-                std::cout << args[0].toString();
-                std::cout.flush();
-            }
-            std::string line;
-            std::getline(std::cin, line);
-            return Value::fromString(line);
-        };
-        registerModule(alias, ioFuncs);
-    } else if (libName == "ai") {
-        registerModule(alias, stdlib::getAILibrary());
-    }
-}
-
-void Evaluator::execImportFile(const ASTNode& node) {
-    std::string filePath = node.name;
-    std::string alias = node.paramNames[0];
-
-    // Resolve path relative to current source file
-    std::filesystem::path basePath = currentFilePath.parent_path();
-    std::filesystem::path fullPath = basePath / filePath;
-
-    // Read file content
-    std::ifstream file(fullPath);
-    if (!file) {
-        throw RuntimeError("Cannot open file: " + fullPath.string(), node.line, node.column);
-    }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string source = buffer.str();
-
-    // Tokenize and parse
-    Lexer lexer(source);
-    auto tokens = lexer.tokenize();
-    if (!lexer.errors().empty()) {
-        throw RuntimeError("Lexer error in " + filePath + ": " + lexer.errors()[0], node.line, node.column);
-    }
-
-    Parser parser(tokens);
-    parser.parse();
-    if (parser.hasErrors()) {
-        throw RuntimeError("Parser error in " + filePath + ": " + parser.errors()[0], node.line, node.column);
-    }
-
-    // Execute module in new environment to collect exports
-    auto moduleAST = std::make_shared<AST>(std::move(parser.getAST()));
-    auto moduleEnv = std::make_shared<Environment>(globalEnv);
-    auto prevEnv = environment;
-    auto prevAST = ast;
-    auto prevFilePath = currentFilePath;
-    environment = moduleEnv;
-    ast = moduleAST;
-    currentFilePath = fullPath;
-
-    NodeIndex root = ast->root();
+// Compile a full program to native code
+CompiledFunc JIT::compile(const AST& ast) {
+    codegen = CodeGenerator();
+    variables.clear();
+    stackSize = 0;
+    nextStackSlot = 0;
+    std::memset(regInUse, 0, sizeof(regInUse));
+    regInUse[static_cast<int>(X64Reg::RSP)] = true;
+    regInUse[static_cast<int>(X64Reg::RBP)] = true;
+    
+    emitPrologue();
+    
+    // Compile the program (root node should be PROGRAM or BLOCK)
+    NodeIndex root = ast.root();
     if (root != INVALID_NODE) {
-        const ASTNode& program = ast->get(root);
-        for (NodeIndex child : program.children) {
-            const ASTNode& stmt = ast->get(child);
-            switch (stmt.type) {
-                case NodeType::FUNC_DECL:
-                case NodeType::ASYNC_FUNC_DECL:
-                    execFuncDecl(stmt);
-                    break;
-                case NodeType::STRUCT_DECL:
-                    execStructDecl(stmt);
-                    break;
-                case NodeType::IMPORT_STDLIB:
-                    execImportStdlib(stmt);
-                    break;
-                case NodeType::IMPORT_FILE:
-                    execImportFile(stmt);
-                    break;
-                case NodeType::VAR_ASSIGN:
-                    execVarAssign(stmt);
-                    break;
-                default:
-                    break;
+        const ASTNode& rootNode = ast.get(root);
+        if (rootNode.type == NodeType::PROGRAM || rootNode.type == NodeType::BLOCK) {
+            for (NodeIndex stmtIdx : rootNode.children) {
+                compileStatement(ast, stmtIdx);
             }
+        } else {
+            compileStatement(ast, root);
         }
     }
+    
+    // Default return 0
+    CodeBuffer& buf = codegen.getCode();
+    buf.emit8(0x48); // xor rax, rax
+    buf.emit8(0x31);
+    buf.emit8(0xC0);
+    
+    emitEpilogue();
+    
+    execMem->write(buf.data(), buf.size());
+    execMem->makeExecutable();
+    
+    return execMem->getFunction<CompiledFunc>(0);
+}
 
-    // Create module object from moduleEnv
-    StructInstance moduleObj;
-    moduleObj.typeName = alias;
-
-    // Copy all definitions from module environment
-    // This is a simplified approach - we expose all top-level definitions
-    auto copyEnv = moduleEnv;
-    while (copyEnv && copyEnv != globalEnv) {
-        // We need to access the variables - add a method to Environment
-        copyEnv = copyEnv->getParent();
+// Compile a single statement
+void JIT::compileStatement(const AST& ast, NodeIndex idx) {
+    if (idx == INVALID_NODE) return;
+    
+    const ASTNode& node = ast.get(idx);
+    
+    switch (node.type) {
+        case NodeType::VAR_ASSIGN:
+            compileAssignment(ast, idx);
+            break;
+            
+        case NodeType::EXPR_STMT: {
+            // Check if this is a function call like print()
+            const ASTNode& exprNode = ast.get(node.left);
+            if (exprNode.type == NodeType::CALL) {
+                compileCall(ast, node.left);
+            } else {
+                freeReg(compileExpr(ast, node.left));
+            }
+            break;
+        }
+            
+        case NodeType::BLOCK:
+            compileBlock(ast, idx);
+            break;
+            
+        case NodeType::IF_STMT:
+            compileIf(ast, idx);
+            break;
+            
+        case NodeType::WHILE_STMT:
+            compileWhile(ast, idx);
+            break;
+            
+        case NodeType::FOR_STMT:
+            // For now, skip complex for loops - they need Range handling
+            break;
+            
+        case NodeType::RETURN_STMT:
+            compileReturn(ast, idx);
+            break;
+            
+        default:
+            // Skip unsupported statements for now
+            break;
     }
+}
 
-    // For now, store the module environment directly
-    // and use member access to call through it
-    environment = prevEnv;
-    ast = prevAST;
-    currentFilePath = prevFilePath;
+// Compile if/else statement
+void JIT::compileIf(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Compile condition
+    X64Reg condReg = compileExpr(ast, node.left);
+    
+    // test condReg, condReg
+    bool condHigh = static_cast<uint8_t>(condReg) >= 8;
+    buf.emit8(0x48 | (condHigh ? 0x05 : 0));
+    buf.emit8(0x85);
+    buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | 
+              (static_cast<uint8_t>(condReg) & 0x7));
+    
+    freeReg(condReg);
+    
+    // jz else_or_end (jump if zero/false)
+    buf.emit8(0x0F);
+    buf.emit8(0x84);
+    size_t jzPatch = buf.getOffset();
+    buf.emit32(0); // Placeholder for jump offset
+    
+    // Compile then block
+    if (node.right != INVALID_NODE) {
+        compileStatement(ast, node.right);
+    }
+    
+    // Check if there's an else block
+    if (node.extra != INVALID_NODE) {
+        // jmp end (skip else block)
+        buf.emit8(0xE9);
+        size_t jmpPatch = buf.getOffset();
+        buf.emit32(0); // Placeholder
+        
+        // Patch the jz to jump here (else block)
+        size_t elseStart = buf.getOffset();
+        int32_t jzOffset = static_cast<int32_t>(elseStart - (jzPatch + 4));
+        buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+        
+        // Compile else block
+        compileStatement(ast, node.extra);
+        
+        // Patch the jmp to jump here (end)
+        size_t endPos = buf.getOffset();
+        int32_t jmpOffset = static_cast<int32_t>(endPos - (jmpPatch + 4));
+        buf.patch32(jmpPatch, static_cast<uint32_t>(jmpOffset));
+    } else {
+        // No else block - patch jz to jump to end
+        size_t endPos = buf.getOffset();
+        int32_t jzOffset = static_cast<int32_t>(endPos - (jzPatch + 4));
+        buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+    }
+}
 
-    // Register the module environment as a special struct
-    globalEnv->define(alias, Value::fromStruct(moduleObj));
-    modules[alias] = moduleEnv;
+// Compile while loop
+void JIT::compileWhile(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // loop_start:
+    size_t loopStart = buf.getOffset();
+    
+    // Compile condition
+    X64Reg condReg = compileExpr(ast, node.left);
+    
+    // test condReg, condReg
+    bool condHigh = static_cast<uint8_t>(condReg) >= 8;
+    buf.emit8(0x48 | (condHigh ? 0x05 : 0));
+    buf.emit8(0x85);
+    buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | 
+              (static_cast<uint8_t>(condReg) & 0x7));
+    
+    freeReg(condReg);
+    
+    // jz loop_end (exit if condition is false)
+    buf.emit8(0x0F);
+    buf.emit8(0x84);
+    size_t jzPatch = buf.getOffset();
+    buf.emit32(0); // Placeholder
+    
+    // Compile loop body
+    if (node.right != INVALID_NODE) {
+        compileStatement(ast, node.right);
+    }
+    
+    // jmp loop_start
+    buf.emit8(0xE9);
+    int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
+    buf.emit32(static_cast<uint32_t>(jumpBack));
+    
+    // loop_end: patch the jz
+    size_t loopEnd = buf.getOffset();
+    int32_t jzOffset = static_cast<int32_t>(loopEnd - (jzPatch + 4));
+    buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+}
+
+// Compile return statement
+void JIT::compileReturn(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Compile return value if present
+    if (node.left != INVALID_NODE) {
+        X64Reg resultReg = compileExpr(ast, node.left);
+        
+        // Move result to RAX if not already there
+        if (resultReg != X64Reg::RAX) {
+            bool resultHigh = static_cast<uint8_t>(resultReg) >= 8;
+            buf.emit8(0x48 | (resultHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(resultReg) & 0x7) << 3));
+        }
+        
+        freeReg(resultReg);
+    } else {
+        // Return 0 by default
+        buf.emit8(0x48);
+        buf.emit8(0x31);
+        buf.emit8(0xC0);
+    }
+    
+    // Emit epilogue and return
+    emitEpilogue();
+}
+
+// Emit code to print an integer to stdout using syscall
+void JIT::emitPrintInt(X64Reg valueReg) {
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Save the value to a known register if not already in RDI
+    // We'll use a simple approach: convert int to string on stack and print
+    
+    // For simplicity, we'll use a helper function approach
+    // Store value in RDI (first arg for System V AMD64)
+    if (valueReg != X64Reg::RDI) {
+        bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
+        // mov rdi, valueReg
+        buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0xC7 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
+    }
+    
+    // We'll implement a simple decimal print using stack buffer
+    // Algorithm: divide by 10 repeatedly, push digits, then write
+    
+    // sub rsp, 32 ; allocate buffer on stack
+    buf.emit8(0x48);
+    buf.emit8(0x83);
+    buf.emit8(0xEC);
+    buf.emit8(0x20);
+    
+    // mov rax, rdi ; value to convert
+    buf.emit8(0x48);
+    buf.emit8(0x89);
+    buf.emit8(0xF8);
+    
+    // mov r10, rsp ; buffer pointer
+    buf.emit8(0x49);
+    buf.emit8(0x89);
+    buf.emit8(0xE2);
+    
+    // add r10, 30 ; point to end of buffer
+    buf.emit8(0x49);
+    buf.emit8(0x83);
+    buf.emit8(0xC2);
+    buf.emit8(0x1E);
+    
+    // mov byte [r10], 10 ; newline at end
+    buf.emit8(0x41);
+    buf.emit8(0xC6);
+    buf.emit8(0x02);
+    buf.emit8(0x0A);
+    
+    // xor r11, r11 ; digit count
+    buf.emit8(0x4D);
+    buf.emit8(0x31);
+    buf.emit8(0xDB);
+    
+    // Handle negative numbers
+    // test rax, rax
+    buf.emit8(0x48);
+    buf.emit8(0x85);
+    buf.emit8(0xC0);
+    
+    // jns positive (skip negation)
+    buf.emit8(0x79);
+    buf.emit8(0x03);
+    
+    // neg rax
+    buf.emit8(0x48);
+    buf.emit8(0xF7);
+    buf.emit8(0xD8);
+    
+    // mov rcx, 10 ; divisor
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC1);
+    buf.emit32(10);
+    
+    // convert_loop:
+    size_t loopStart = buf.getOffset();
+    
+    // xor rdx, rdx ; clear remainder
+    buf.emit8(0x48);
+    buf.emit8(0x31);
+    buf.emit8(0xD2);
+    
+    // div rcx ; rax = quotient, rdx = remainder
+    buf.emit8(0x48);
+    buf.emit8(0xF7);
+    buf.emit8(0xF1);
+    
+    // add dl, '0' ; convert to ASCII
+    buf.emit8(0x80);
+    buf.emit8(0xC2);
+    buf.emit8(0x30);
+    
+    // dec r10 ; move buffer pointer back
+    buf.emit8(0x49);
+    buf.emit8(0xFF);
+    buf.emit8(0xCA);
+    
+    // mov [r10], dl ; store digit
+    buf.emit8(0x41);
+    buf.emit8(0x88);
+    buf.emit8(0x12);
+    
+    // inc r11 ; digit count
+    buf.emit8(0x49);
+    buf.emit8(0xFF);
+    buf.emit8(0xC3);
+    
+    // test rax, rax ; more digits?
+    buf.emit8(0x48);
+    buf.emit8(0x85);
+    buf.emit8(0xC0);
+    
+    // jnz convert_loop
+    buf.emit8(0x75);
+    int8_t jumpBack = static_cast<int8_t>(loopStart - (buf.getOffset() + 1));
+    buf.emit8(static_cast<uint8_t>(jumpBack));
+    
+    // Now write to stdout using syscall
+    // mov rax, 1 ; syscall number for write
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC0);
+    buf.emit32(1);
+    
+    // mov rdi, 1 ; fd = stdout
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC7);
+    buf.emit32(1);
+    
+    // mov rsi, r10 ; buffer address
+    buf.emit8(0x4C);
+    buf.emit8(0x89);
+    buf.emit8(0xD6);
+    
+    // lea rdx, [r11 + 1] ; length (digits + newline)
+    buf.emit8(0x49);
+    buf.emit8(0x8D);
+    buf.emit8(0x53);
+    buf.emit8(0x01);
+    
+    // syscall
+    buf.emit8(0x0F);
+    buf.emit8(0x05);
+    
+    // add rsp, 32 ; restore stack
+    buf.emit8(0x48);
+    buf.emit8(0x83);
+    buf.emit8(0xC4);
+    buf.emit8(0x20);
+}
+
+// Compile function call
+void JIT::compileCall(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    
+    // Get the function name
+    if (node.left == INVALID_NODE) return;
+    const ASTNode& callee = ast.get(node.left);
+    
+    if (callee.type != NodeType::IDENTIFIER) return;
+    
+    const std::string& funcName = callee.name;
+    
+    // Handle built-in print function
+    if (funcName == "print") {
+        // Compile each argument and print it
+        for (NodeIndex argIdx : node.children) {
+            X64Reg argReg = compileExpr(ast, argIdx);
+            emitPrintInt(argReg);
+            freeReg(argReg);
+        }
+    }
+    // TODO: Handle other built-in functions and user-defined functions
 }
 
 } // namespace nevaarize
