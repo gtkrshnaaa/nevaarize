@@ -6,6 +6,7 @@
 
 #include "JIT.hpp"
 #include "NativeJIT.hpp"
+#include "TrueJIT.hpp"
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -201,6 +202,47 @@ void Evaluator::setupStandardLibrary() {
         int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
         
         auto [result, opsPerSec] = NativeLoop::callLoop(n);
+        
+        std::vector<Value> output;
+        output.push_back(Value::fromInt(result));
+        output.push_back(Value::fromFloat(opsPerSec));
+        return Value::fromArray(std::move(output));
+    });
+
+    // TRUE JIT function - compiles Nevaarize code to native machine code
+    registerNative("jitSumLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.size() < 2 || !args[0].isNumber() || !args[1].isNumber()) {
+            return Value::nil();
+        }
+        
+        int64_t start = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
+        int64_t end = args[1].isInt() ? args[1].intVal : static_cast<int64_t>(args[1].floatVal);
+        
+        // Create a simple AST for for loop with sum
+        AST ast;
+        
+        // Create a for statement node
+        ASTNode forNode(NodeType::FOR_STMT, 1, 1);
+        forNode.name = "i";
+        
+        // We'll compile directly
+        TrueJIT jit;
+        
+        auto startTime = std::chrono::high_resolution_clock::now();
+        
+        // Create minimal AST for the loop
+        NodeIndex forIdx = ast.addNode(std::move(forNode));
+        ast.setRoot(forIdx);
+        
+        // Compile the loop to native code
+        CompiledFunc fn = jit.compileForLoop(ast, forIdx, start, end);
+        
+        // Execute the compiled code
+        int64_t result = jit.execute(fn);
+        
+        auto endTime = std::chrono::high_resolution_clock::now();
+        double seconds = std::chrono::duration<double>(endTime - startTime).count();
+        double opsPerSec = static_cast<double>(end - start) / seconds;
         
         std::vector<Value> output;
         output.push_back(Value::fromInt(result));
