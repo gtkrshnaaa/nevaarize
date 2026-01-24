@@ -1,0 +1,38 @@
+// Control Flow: Conditions
+// Demonstrates if/elif/else statements
+
+x = 15
+
+if (x > 20) {
+    print("x is large")
+} elif (x > 10) {
+    print("x is medium")
+} else {
+    print("x is small")
+}
+
+// Nested conditions
+age = 25
+hasLicense = true
+
+if (age >= 18) {
+    if (hasLicense) {
+        print("Can drive")
+    } else {
+        print("Need license")
+    }
+} else {
+    print("Too young to drive")
+}
+
+// Logical operators
+a = 5
+b = 10
+
+if (a > 0 and b > 0) {
+    print("Both positive")
+}
+
+if (a > 100 or b > 5) {
+    print("At least one condition met")
+}
