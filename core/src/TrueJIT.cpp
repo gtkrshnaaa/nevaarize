@@ -199,12 +199,195 @@ X64Reg TrueJIT::compileExpr(const AST& ast, NodeIndex idx) {
                               (static_cast<uint8_t>(right) & 0x7));
                     break;
                     
-                default:
-                    break;
+                case BinaryOp::DIV: {
+                    // Division requires RAX for dividend and RDX for remainder
+                    // Save RDX if in use, move left to RAX, sign-extend to RDX, idiv right
+                    
+                    // Move left to RAX if not already there
+                    if (left != X64Reg::RAX) {
+                        buf.emit8(0x48 | (leftHigh ? 0x01 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    }
+                    
+                    // cqo: sign-extend RAX to RDX:RAX
+                    buf.emit8(0x48);
+                    buf.emit8(0x99);
+                    
+                    // idiv right
+                    buf.emit8(0x48 | (rightHigh ? 0x01 : 0));
+                    buf.emit8(0xF7);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(right) & 0x7));
+                    
+                    freeReg(right);
+                    if (left != X64Reg::RAX) freeReg(left);
+                    return X64Reg::RAX;
+                }
+                    
+                case BinaryOp::MOD: {
+                    // Modulo: same as division but result is in RDX
+                    if (left != X64Reg::RAX) {
+                        buf.emit8(0x48 | (leftHigh ? 0x01 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    }
+                    
+                    // cqo
+                    buf.emit8(0x48);
+                    buf.emit8(0x99);
+                    
+                    // idiv right
+                    buf.emit8(0x48 | (rightHigh ? 0x01 : 0));
+                    buf.emit8(0xF7);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(right) & 0x7));
+                    
+                    // mov rax, rdx (remainder is in RDX)
+                    buf.emit8(0x48);
+                    buf.emit8(0x89);
+                    buf.emit8(0xD0);
+                    
+                    freeReg(right);
+                    if (left != X64Reg::RAX) freeReg(left);
+                    return X64Reg::RAX;
+                }
+                
+                // Comparison operators: use CMP + SETcc
+                case BinaryOp::EQ:
+                case BinaryOp::NEQ:
+                case BinaryOp::LT:
+                case BinaryOp::LTE:
+                case BinaryOp::GT:
+                case BinaryOp::GTE: {
+                    // cmp left, right
+                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
+                    buf.emit8(0x39);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(left) & 0x7));
+                    
+                    // SETcc al (set al based on condition)
+                    buf.emit8(0x0F);
+                    switch (node.binaryOp) {
+                        case BinaryOp::EQ:  buf.emit8(0x94); break;  // sete
+                        case BinaryOp::NEQ: buf.emit8(0x95); break;  // setne
+                        case BinaryOp::LT:  buf.emit8(0x9C); break;  // setl
+                        case BinaryOp::LTE: buf.emit8(0x9E); break;  // setle
+                        case BinaryOp::GT:  buf.emit8(0x9F); break;  // setg
+                        case BinaryOp::GTE: buf.emit8(0x9D); break;  // setge
+                        default: break;
+                    }
+                    buf.emit8(0xC0); // al
+                    
+                    // movzx left, al (zero-extend al to 64-bit)
+                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    
+                    freeReg(right);
+                    return left;
+                }
+                
+                case BinaryOp::AND: {
+                    // Logical AND: result is 1 if both are non-zero
+                    // test left, left; setnz al; test right, right; setnz cl; and al, cl; movzx left, al
+                    
+                    // test left, left
+                    buf.emit8(0x48 | (leftHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(left) & 0x7));
+                    
+                    // setnz al
+                    buf.emit8(0x0F);
+                    buf.emit8(0x95);
+                    buf.emit8(0xC0);
+                    
+                    // test right, right
+                    buf.emit8(0x48 | (rightHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(right) & 0x7));
+                    
+                    // setnz cl
+                    buf.emit8(0x0F);
+                    buf.emit8(0x95);
+                    buf.emit8(0xC1);
+                    
+                    // and al, cl
+                    buf.emit8(0x20);
+                    buf.emit8(0xC8);
+                    
+                    // movzx left, al
+                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    
+                    freeReg(right);
+                    return left;
+                }
+                
+                case BinaryOp::OR: {
+                    // Logical OR: result is 1 if either is non-zero
+                    // or left, right; setnz al; movzx left, al
+                    
+                    // or left, right
+                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
+                    buf.emit8(0x09);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(left) & 0x7));
+                    
+                    // setnz al
+                    buf.emit8(0x0F);
+                    buf.emit8(0x95);
+                    buf.emit8(0xC0);
+                    
+                    // movzx left, al
+                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
+                    
+                    freeReg(right);
+                    return left;
+                }
             }
             
             freeReg(right);
             return left;
+        }
+        
+        case NodeType::UNARY_OP: {
+            X64Reg operand = compileExpr(ast, node.left);
+            bool operandHigh = static_cast<uint8_t>(operand) >= 8;
+            
+            switch (node.unaryOp) {
+                case UnaryOp::NEG:
+                    // neg operand
+                    buf.emit8(0x48 | (operandHigh ? 0x01 : 0));
+                    buf.emit8(0xF7);
+                    buf.emit8(0xD8 | (static_cast<uint8_t>(operand) & 0x7));
+                    break;
+                    
+                case UnaryOp::NOT:
+                    // test operand, operand; setz al; movzx operand, al
+                    buf.emit8(0x48 | (operandHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(operand) & 0x7));
+                    
+                    buf.emit8(0x0F);
+                    buf.emit8(0x94);
+                    buf.emit8(0xC0);
+                    
+                    buf.emit8(0x48 | (operandHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand) & 0x7) << 3));
+                    break;
+            }
+            
+            return operand;
         }
         
         default:
@@ -412,6 +595,212 @@ CompiledFunc TrueJIT::compileExpression(const AST& ast, NodeIndex exprNode) {
 
 int64_t TrueJIT::execute(CompiledFunc fn) {
     return fn();
+}
+
+// Compile a full program to native code
+CompiledFunc TrueJIT::compileProgram(const AST& ast) {
+    codegen = CodeGenerator();
+    variables.clear();
+    stackSize = 0;
+    nextStackSlot = 0;
+    std::memset(regInUse, 0, sizeof(regInUse));
+    regInUse[static_cast<int>(X64Reg::RSP)] = true;
+    regInUse[static_cast<int>(X64Reg::RBP)] = true;
+    
+    emitPrologue();
+    
+    // Compile the program (root node should be PROGRAM or BLOCK)
+    NodeIndex root = ast.root();
+    if (root != INVALID_NODE) {
+        const ASTNode& rootNode = ast.get(root);
+        if (rootNode.type == NodeType::PROGRAM || rootNode.type == NodeType::BLOCK) {
+            for (NodeIndex stmtIdx : rootNode.children) {
+                compileStatement(ast, stmtIdx);
+            }
+        } else {
+            compileStatement(ast, root);
+        }
+    }
+    
+    // Default return 0
+    CodeBuffer& buf = codegen.getCode();
+    buf.emit8(0x48); // xor rax, rax
+    buf.emit8(0x31);
+    buf.emit8(0xC0);
+    
+    emitEpilogue();
+    
+    execMem->write(buf.data(), buf.size());
+    execMem->makeExecutable();
+    
+    return execMem->getFunction<CompiledFunc>(0);
+}
+
+// Compile a single statement
+void TrueJIT::compileStatement(const AST& ast, NodeIndex idx) {
+    if (idx == INVALID_NODE) return;
+    
+    const ASTNode& node = ast.get(idx);
+    
+    switch (node.type) {
+        case NodeType::VAR_ASSIGN:
+            compileAssignment(ast, idx);
+            break;
+            
+        case NodeType::EXPR_STMT:
+            freeReg(compileExpr(ast, node.left));
+            break;
+            
+        case NodeType::BLOCK:
+            compileBlock(ast, idx);
+            break;
+            
+        case NodeType::IF_STMT:
+            compileIf(ast, idx);
+            break;
+            
+        case NodeType::WHILE_STMT:
+            compileWhile(ast, idx);
+            break;
+            
+        case NodeType::FOR_STMT:
+            // For now, skip complex for loops - they need Range handling
+            break;
+            
+        case NodeType::RETURN_STMT:
+            compileReturn(ast, idx);
+            break;
+            
+        default:
+            // Skip unsupported statements for now
+            break;
+    }
+}
+
+// Compile if/else statement
+void TrueJIT::compileIf(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Compile condition
+    X64Reg condReg = compileExpr(ast, node.left);
+    
+    // test condReg, condReg
+    bool condHigh = static_cast<uint8_t>(condReg) >= 8;
+    buf.emit8(0x48 | (condHigh ? 0x05 : 0));
+    buf.emit8(0x85);
+    buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | 
+              (static_cast<uint8_t>(condReg) & 0x7));
+    
+    freeReg(condReg);
+    
+    // jz else_or_end (jump if zero/false)
+    buf.emit8(0x0F);
+    buf.emit8(0x84);
+    size_t jzPatch = buf.getOffset();
+    buf.emit32(0); // Placeholder for jump offset
+    
+    // Compile then block
+    if (node.right != INVALID_NODE) {
+        compileStatement(ast, node.right);
+    }
+    
+    // Check if there's an else block
+    if (node.extra != INVALID_NODE) {
+        // jmp end (skip else block)
+        buf.emit8(0xE9);
+        size_t jmpPatch = buf.getOffset();
+        buf.emit32(0); // Placeholder
+        
+        // Patch the jz to jump here (else block)
+        size_t elseStart = buf.getOffset();
+        int32_t jzOffset = static_cast<int32_t>(elseStart - (jzPatch + 4));
+        buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+        
+        // Compile else block
+        compileStatement(ast, node.extra);
+        
+        // Patch the jmp to jump here (end)
+        size_t endPos = buf.getOffset();
+        int32_t jmpOffset = static_cast<int32_t>(endPos - (jmpPatch + 4));
+        buf.patch32(jmpPatch, static_cast<uint32_t>(jmpOffset));
+    } else {
+        // No else block - patch jz to jump to end
+        size_t endPos = buf.getOffset();
+        int32_t jzOffset = static_cast<int32_t>(endPos - (jzPatch + 4));
+        buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+    }
+}
+
+// Compile while loop
+void TrueJIT::compileWhile(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // loop_start:
+    size_t loopStart = buf.getOffset();
+    
+    // Compile condition
+    X64Reg condReg = compileExpr(ast, node.left);
+    
+    // test condReg, condReg
+    bool condHigh = static_cast<uint8_t>(condReg) >= 8;
+    buf.emit8(0x48 | (condHigh ? 0x05 : 0));
+    buf.emit8(0x85);
+    buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | 
+              (static_cast<uint8_t>(condReg) & 0x7));
+    
+    freeReg(condReg);
+    
+    // jz loop_end (exit if condition is false)
+    buf.emit8(0x0F);
+    buf.emit8(0x84);
+    size_t jzPatch = buf.getOffset();
+    buf.emit32(0); // Placeholder
+    
+    // Compile loop body
+    if (node.right != INVALID_NODE) {
+        compileStatement(ast, node.right);
+    }
+    
+    // jmp loop_start
+    buf.emit8(0xE9);
+    int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
+    buf.emit32(static_cast<uint32_t>(jumpBack));
+    
+    // loop_end: patch the jz
+    size_t loopEnd = buf.getOffset();
+    int32_t jzOffset = static_cast<int32_t>(loopEnd - (jzPatch + 4));
+    buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+}
+
+// Compile return statement
+void TrueJIT::compileReturn(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Compile return value if present
+    if (node.left != INVALID_NODE) {
+        X64Reg resultReg = compileExpr(ast, node.left);
+        
+        // Move result to RAX if not already there
+        if (resultReg != X64Reg::RAX) {
+            bool resultHigh = static_cast<uint8_t>(resultReg) >= 8;
+            buf.emit8(0x48 | (resultHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(resultReg) & 0x7) << 3));
+        }
+        
+        freeReg(resultReg);
+    } else {
+        // Return 0 by default
+        buf.emit8(0x48);
+        buf.emit8(0x31);
+        buf.emit8(0xC0);
+    }
+    
+    // Emit epilogue and return
+    emitEpilogue();
 }
 
 // JITEvaluator implementation
