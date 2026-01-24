@@ -1,0 +1,9 @@
+// Test native print function
+x = 42
+print(x)
+
+y = 100 + 23
+print(y)
+
+z = 10 * 5
+print(z)
