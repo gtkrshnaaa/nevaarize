@@ -10,28 +10,20 @@
      * Initialize mobile menu functionality
      */
     function initMobileMenu() {
-        // Create menu toggle button
-        const menuToggle = document.createElement('button');
-        menuToggle.className = 'menu-toggle';
-        menuToggle.setAttribute('aria-label', 'Toggle navigation menu');
-        menuToggle.innerHTML = '<span class="menu-toggle-icon"></span> Menu';
-        
-        // Create overlay
-        const overlay = document.createElement('div');
-        overlay.className = 'sidebar-overlay';
-        
-        // Get sidebar
+        // Get existing elements
+        const menuToggle = document.getElementById('menuToggle');
+        const overlay = document.getElementById('sidebarOverlay');
         const sidebar = document.querySelector('.sidebar');
         const body = document.body;
         
-        if (!sidebar) return;
-        
-        // Insert elements into DOM
-        body.insertBefore(menuToggle, body.firstChild);
-        body.insertBefore(overlay, sidebar);
+        if (!menuToggle || !sidebar || !overlay) {
+            console.warn('Mobile menu elements not found');
+            return;
+        }
         
         // Toggle menu on button click
         menuToggle.addEventListener('click', function(e) {
+            e.preventDefault();
             e.stopPropagation();
             toggleMenu();
         });
@@ -44,7 +36,6 @@
         // Close menu when clicking a nav link
         sidebar.querySelectorAll('.nav-link').forEach(function(link) {
             link.addEventListener('click', function() {
-                // Small delay to allow navigation
                 setTimeout(closeMenu, 100);
             });
         });
