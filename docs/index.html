@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nevaarize - Native JIT Language for AI</title>
+    <meta name="description" content="Nevaarize is a high-performance programming language with native JIT compilation, designed for AI engineering and model deployment.">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <a href="index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="index.html" class="nav-link active">Introduction</a></li>
+                    <li><a href="pages/installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="pages/quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="pages/basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="pages/functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="pages/controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="pages/datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="pages/modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="pages/async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="pages/jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="pages/simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="pages/stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="pages/examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <!-- Main Content -->
+        <main class="main">
+            <article class="content">
+                <!-- Hero Section -->
+                <header class="hero">
+                    <h1 class="hero-title">Nevaarize</h1>
+                    <p class="hero-tagline">Native JIT Performance, Zero Dependencies</p>
+                    <p class="hero-description">
+                        A modern programming language that compiles directly to x86-64 machine code. 
+                        Designed for AI engineering, model serving, and high-performance computing.
+                    </p>
+                    <div class="hero-buttons">
+                        <a href="pages/quickstart.html" class="btn btn-primary">Get Started</a>
+                        <a href="https://github.com/gtkrshnaaa/nevaarize" class="btn btn-secondary">View on GitHub</a>
+                    </div>
+                </header>
+                
+                <hr>
+                
+                <!-- Features -->
+                <section class="features">
+                    <div class="feature">
+                        <div class="feature-icon">⚡</div>
+                        <h3 class="feature-title">TRUE JIT Compilation</h3>
+                        <p class="feature-description">
+                            Compiles Nevaarize code directly to x86-64 machine code at runtime. 
+                            Achieves 500M+ operations per second.
+                        </p>
+                    </div>
+                    
+                    <div class="feature">
+                        <div class="feature-icon">🎯</div>
+                        <h3 class="feature-title">Zero Dependencies</h3>
+                        <p class="feature-description">
+                            Built entirely with C++23. No LLVM, no external libraries. 
+                            Just pure, self-contained performance.
+                        </p>
+                    </div>
+                    
+                    <div class="feature">
+                        <div class="feature-icon">🧠</div>
+                        <h3 class="feature-title">AI-Ready</h3>
+                        <p class="feature-description">
+                            SIMD-accelerated tensor operations, matrix multiplication, 
+                            and activation functions for ML workloads.
+                        </p>
+                    </div>
+                    
+                    <div class="feature">
+                        <div class="feature-icon">📦</div>
+                        <h3 class="feature-title">Module System</h3>
+                        <p class="feature-description">
+                            Clean import system with stdlib support for math, time, IO, 
+                            and file-based module imports.
+                        </p>
+                    </div>
+                    
+                    <div class="feature">
+                        <div class="feature-icon">🔄</div>
+                        <h3 class="feature-title">Async/Await</h3>
+                        <p class="feature-description">
+                            First-class async support for concurrent operations 
+                            without callback hell.
+                        </p>
+                    </div>
+                    
+                    <div class="feature">
+                        <div class="feature-icon">🎨</div>
+                        <h3 class="feature-title">Clean Syntax</h3>
+                        <p class="feature-description">
+                            Python-inspired syntax that's easy to read and write. 
+                            No semicolons, no curly bracket debates.
+                        </p>
+                    </div>
+                </section>
+                
+                <hr>
+                
+                <!-- Quick Example -->
+                <h2>A Taste of Nevaarize</h2>
+                
+                <pre data-lang="nevaarize"><code>// Hello, Nevaarize!
+print("Hello, World!")
+
+// Define a function
+func fibonacci(n) {
+    if (n <= 1) {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+// Use it
+for (i in Range(1, 10)) {
+    print("fib(", i, ") =", fibonacci(i))
+}</code></pre>
+
+                <h3>Async Operations</h3>
+                
+                <pre data-lang="nevaarize"><code>import stdlib time as t
+
+async func fetchData(url) {
+    print("Fetching:", url)
+    t.sleep(100)  // Simulate network delay
+    return "Data from " + url
+}
+
+// Fetch multiple resources
+result1 = await fetchData("api/users")
+result2 = await fetchData("api/posts")
+
+print("Results:", result1, result2)</code></pre>
+
+                <h3>Native JIT Performance</h3>
+                
+                <pre data-lang="nevaarize"><code>// Benchmark: 500M+ operations per second
+iterations = 100000000
+
+result = nativeSumLoop(iterations)
+sum = result[0]
+opsPerSec = result[1]
+
+print("Sum:", sum)
+print("Performance:", int(opsPerSec / 1000000), "M ops/sec")</code></pre>
+
+                <hr>
+                
+                <h2>Performance</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Benchmark</th>
+                            <th>Performance</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Native JIT Loop</td>
+                            <td>505M ops/sec</td>
+                            <td>Pure x86-64 machine code</td>
+                        </tr>
+                        <tr>
+                            <td>SIMD Sum Loop</td>
+                            <td>4B+ ops/sec</td>
+                            <td>AVX2 vectorization</td>
+                        </tr>
+                        <tr>
+                            <td>Interpreter</td>
+                            <td>3.5M ops/sec</td>
+                            <td>Tree-walk evaluation</td>
+                        </tr>
+                        <tr>
+                            <td>Matrix Multiply</td>
+                            <td>50+ GFLOPS</td>
+                            <td>Cache-blocked SIMD</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <!-- Next Steps -->
+                <nav class="page-nav">
+                    <span></span>
+                    <a href="pages/installation.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Installation →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation · Built with ♥ and zero dependencies</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

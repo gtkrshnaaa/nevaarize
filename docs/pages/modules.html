@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modules - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link active">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 7</span>
+                    <h1 class="chapter-title">Modules</h1>
+                    <p class="chapter-subtitle">Organizing and reusing code</p>
+                </header>
+                
+                <h2>Import Syntax</h2>
+                
+                <p>Nevaarize supports two types of imports:</p>
+                
+                <ol>
+                    <li><strong>Standard Library</strong> — Built-in modules</li>
+                    <li><strong>File Imports</strong> — Your own <code>.nva</code> files</li>
+                </ol>
+                
+                <h2>Standard Library Imports</h2>
+                
+                <p>Import built-in modules with the <code>stdlib</code> keyword:</p>
+                
+                <pre data-lang="nevaarize"><code>// Import syntax: import stdlib [module] as [alias]
+import stdlib math as m
+import stdlib time as t
+import stdlib io as io
+
+// Use imported functions
+print(m.Sqrt(16))     // 4.0
+print(m.Pow(2, 10))   // 1024.0
+print(t.clock())      // current time</code></pre>
+                
+                <h3>Available Standard Libraries</h3>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Description</th>
+                            <th>Key Functions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>math</code></td>
+                            <td>Mathematical operations</td>
+                            <td>Abs, Sqrt, Pow, Sin, Cos, Floor, Ceil</td>
+                        </tr>
+                        <tr>
+                            <td><code>time</code></td>
+                            <td>Time and timing</td>
+                            <td>clock, sleep, timestamp, format</td>
+                        </tr>
+                        <tr>
+                            <td><code>io</code></td>
+                            <td>Input/Output</td>
+                            <td>Print, Input, ReadFile, WriteFile</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h2>File Imports</h2>
+                
+                <p>Import your own <code>.nva</code> files as modules:</p>
+                
+                <pre data-lang="nevaarize"><code>// Import a local file
+import "utils/helpers.nva" as helpers
+import "config.nva" as config
+
+// Use imported functions
+result = helpers.calculate(10)
+print(config.appName)</code></pre>
+                
+                <h3>Creating a Module</h3>
+                
+                <p>Any <code>.nva</code> file can be a module. Here's an example:</p>
+                
+                <p><strong>File: utils/math.nva</strong></p>
+                <pre data-lang="nevaarize"><code>// utils/math.nva - Custom math utilities
+
+// Constants
+PI = 3.14159265359
+
+// Functions that will be available to importers
+func square(x) {
+    return x * x
+}
+
+func cube(x) {
+    return x * x * x
+}
+
+func circleArea(radius) {
+    return PI * radius * radius
+}
+
+func clamp(value, minVal, maxVal) {
+    if (value < minVal) {
+        return minVal
+    }
+    if (value > maxVal) {
+        return maxVal
+    }
+    return value
+}</code></pre>
+                
+                <p><strong>File: main.nva</strong></p>
+                <pre data-lang="nevaarize"><code>// main.nva - Using the module
+import "utils/math.nva" as myMath
+
+print("Square of 5:", myMath.square(5))
+print("Cube of 3:", myMath.cube(3))
+print("Circle area (r=2):", myMath.circleArea(2))
+print("Clamped value:", myMath.clamp(150, 0, 100))</code></pre>
+                
+                <h2>Module Best Practices</h2>
+                
+                <h3>1. One Purpose Per Module</h3>
+                
+                <pre data-lang="nevaarize"><code>// Good: Single responsibility
+// validation.nva - Only validation functions
+func isEmail(s) { ... }
+func isPhone(s) { ... }
+func isRequired(s) { ... }
+
+// Bad: Mixed concerns
+// stuff.nva - Random utilities
+func isEmail(s) { ... }
+func calculateTax(amount) { ... }
+func formatDate(d) { ... }</code></pre>
+                
+                <h3>2. Use Clear Aliases</h3>
+                
+                <pre data-lang="nevaarize"><code>// Good: Descriptive aliases
+import "validators/user.nva" as userValidator
+import "formatters/date.nva" as dateFormatter
+
+// Usage is clear
+userValidator.isValid(user)
+dateFormatter.toISO(date)
+
+// Bad: Unclear aliases
+import "validators/user.nva" as v
+import "formatters/date.nva" as d
+
+// Hard to understand
+v.isValid(user)
+d.toISO(date)</code></pre>
+                
+                <h3>3. Project Structure</h3>
+                
+                <pre><code>myproject/
+├── main.nva              # Entry point
+├── config.nva            # Configuration
+├── modules/
+│   ├── auth.nva          # Authentication
+│   ├── database.nva      # Database operations
+│   └── api.nva           # API handlers
+├── utils/
+│   ├── validation.nva    # Validation helpers
+│   ├── formatting.nva    # String formatting
+│   └── logging.nva       # Logging utilities
+└── tests/
+    └── test_auth.nva     # Tests</code></pre>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="datastructures.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Data Structures</span>
+                        </div>
+                    </a>
+                    <a href="async.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Async/Await →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

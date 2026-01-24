@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Async/Await - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link active">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 8</span>
+                    <h1 class="chapter-title">Async/Await</h1>
+                    <p class="chapter-subtitle">Concurrent programming made simple</p>
+                </header>
+                
+                <h2>Why Async?</h2>
+                
+                <p>Asynchronous programming allows your code to perform multiple operations 
+                concurrently without blocking. This is essential for:</p>
+                
+                <ul>
+                    <li>Network requests (API calls, database queries)</li>
+                    <li>File I/O operations</li>
+                    <li>Timer-based operations</li>
+                    <li>Background processing</li>
+                </ul>
+                
+                <h2>Defining Async Functions</h2>
+                
+                <p>Use the <code>async</code> keyword before <code>func</code>:</p>
+                
+                <pre data-lang="nevaarize"><code>import stdlib time as t
+
+// Define an async function
+async func fetchUserData(userId) {
+    print("Fetching user", userId, "...")
+    t.sleep(100)  // Simulate network delay
+    return "User_" + str(userId)
+}
+
+// Call with await
+user = await fetchUserData(42)
+print("Got:", user)</code></pre>
+                
+                <h2>Await Expression</h2>
+                
+                <p>Use <code>await</code> to wait for an async function to complete:</p>
+                
+                <pre data-lang="nevaarize"><code>import stdlib time as t
+
+async func slowOperation() {
+    t.sleep(200)
+    return "Result after delay"
+}
+
+// Await pauses until the result is ready
+result = await slowOperation()
+print(result)  // "Result after delay"</code></pre>
+                
+                <div class="callout callout-note">
+                    <div class="callout-title">Note</div>
+                    <p>You can only use <code>await</code> at the top level or inside async functions.</p>
+                </div>
+                
+                <h2>Sequential vs Parallel</h2>
+                
+                <h3>Sequential Execution</h3>
+                
+                <pre data-lang="nevaarize"><code>import stdlib time as t
+
+async func fetch(name) {
+    print("Start:", name)
+    t.sleep(100)
+    print("Done:", name)
+    return name + " data"
+}
+
+// These run one after another (sequential)
+startTime = t.clock()
+
+result1 = await fetch("API 1")
+result2 = await fetch("API 2")
+result3 = await fetch("API 3")
+
+elapsed = t.clock() - startTime
+print("Total time:", elapsed, "seconds")
+// Takes ~300ms (100ms × 3)</code></pre>
+                
+                <h2>Practical Example: Data Pipeline</h2>
+                
+                <pre data-lang="nevaarize"><code>import stdlib time as t
+
+// Simulate fetching from different sources
+async func fetchFromDatabase(query) {
+    print("DB: Executing query...")
+    t.sleep(50)
+    return ["row1", "row2", "row3"]
+}
+
+async func fetchFromAPI(endpoint) {
+    print("API: Calling", endpoint)
+    t.sleep(80)
+    return "API response"
+}
+
+async func processData(data) {
+    print("Processing", len(data), "items...")
+    t.sleep(30)
+    return "Processed: " + str(len(data)) + " items"
+}
+
+// Build a data pipeline
+async func runPipeline() {
+    // Step 1: Fetch raw data
+    dbData = await fetchFromDatabase("SELECT * FROM users")
+    print("Got DB data:", dbData)
+    
+    // Step 2: Enhance with API data
+    apiData = await fetchFromAPI("/users/enrich")
+    print("Got API data:", apiData)
+    
+    // Step 3: Process everything
+    result = await processData(dbData)
+    print("Final result:", result)
+    
+    return result
+}
+
+// Run the pipeline
+finalResult = await runPipeline()
+print("")
+print("Pipeline complete:", finalResult)</code></pre>
+                
+                <h2>Error Handling</h2>
+                
+                <pre data-lang="nevaarize"><code>import stdlib time as t
+
+async func riskyOperation(shouldFail) {
+    t.sleep(50)
+    if (shouldFail) {
+        return "ERROR"
+    }
+    return "SUCCESS"
+}
+
+// Check result and handle errors
+result = await riskyOperation(false)
+
+if (result == "ERROR") {
+    print("Operation failed!")
+} else {
+    print("Operation succeeded:", result)
+}</code></pre>
+                
+                <h2>Task Queue Pattern</h2>
+                
+                <pre data-lang="nevaarize"><code>import stdlib time as t
+
+// Task queue processing
+taskQueue = ["Task A", "Task B", "Task C"]
+
+async func processTask(task) {
+    print("Processing:", task)
+    t.sleep(50)
+    return task + " done"
+}
+
+// Process all tasks
+results = []
+for (task in taskQueue) {
+    result = await processTask(task)
+    results.push(result)
+}
+
+print("All tasks complete:")
+for (r in results) {
+    print(" -", r)
+}</code></pre>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="modules.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Modules</span>
+                        </div>
+                    </a>
+                    <a href="jit.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">JIT Compilation →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

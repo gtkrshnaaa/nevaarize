@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Functions - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link active">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 4</span>
+                    <h1 class="chapter-title">Functions</h1>
+                    <p class="chapter-subtitle">Reusable blocks of code</p>
+                </header>
+                
+                <h2>Defining Functions</h2>
+                
+                <p>Use the <code>func</code> keyword to define functions:</p>
+                
+                <pre data-lang="nevaarize"><code>func greet() {
+    print("Hello, World!")
+}
+
+// Call the function
+greet()  // Hello, World!</code></pre>
+                
+                <h2>Parameters</h2>
+                
+                <p>Functions can accept parameters:</p>
+                
+                <pre data-lang="nevaarize"><code>func greetPerson(name) {
+    print("Hello,", name + "!")
+}
+
+greetPerson("Alice")  // Hello, Alice!
+greetPerson("Bob")    // Hello, Bob!</code></pre>
+                
+                <h3>Multiple Parameters</h3>
+                
+                <pre data-lang="nevaarize"><code>func add(a, b) {
+    return a + b
+}
+
+func introduce(name, age, city) {
+    print(name, "is", age, "years old from", city)
+}
+
+result = add(5, 3)
+print(result)  // 8
+
+introduce("Alice", 30, "Jakarta")</code></pre>
+                
+                <h2>Return Values</h2>
+                
+                <p>Use <code>return</code> to return a value from a function:</p>
+                
+                <pre data-lang="nevaarize"><code>func square(x) {
+    return x * x
+}
+
+func max(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+print(square(5))     // 25
+print(max(10, 20))   // 20</code></pre>
+                
+                <div class="callout callout-note">
+                    <div class="callout-title">Note</div>
+                    <p>Functions without an explicit <code>return</code> statement return <code>nil</code>.</p>
+                </div>
+                
+                <h2>Recursion</h2>
+                
+                <p>Functions can call themselves recursively:</p>
+                
+                <pre data-lang="nevaarize"><code>// Classic factorial
+func factorial(n) {
+    if (n <= 1) {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+print(factorial(5))  // 120
+
+// Fibonacci sequence
+func fib(n) {
+    if (n <= 1) {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+for (i in Range(1, 11)) {
+    print("fib(" + str(i) + ") =", fib(i))
+}</code></pre>
+                
+                <h2>Closures</h2>
+                
+                <p>Functions can capture variables from their enclosing scope:</p>
+                
+                <pre data-lang="nevaarize"><code>// Counter using closure
+func makeCounter() {
+    count = 0
+    
+    func increment() {
+        count = count + 1
+        return count
+    }
+    
+    return increment
+}
+
+counter = makeCounter()
+print(counter())  // 1
+print(counter())  // 2
+print(counter())  // 3
+
+// Multiplier factory
+func makeMultiplier(factor) {
+    func multiply(x) {
+        return x * factor
+    }
+    return multiply
+}
+
+double = makeMultiplier(2)
+triple = makeMultiplier(3)
+
+print(double(5))  // 10
+print(triple(5))  // 15</code></pre>
+                
+                <h2>Higher-Order Functions</h2>
+                
+                <p>Functions can be passed as arguments:</p>
+                
+                <pre data-lang="nevaarize"><code>// Apply function to each element
+func forEach(arr, fn) {
+    for (item in arr) {
+        fn(item)
+    }
+}
+
+func printSquare(x) {
+    print(x * x)
+}
+
+numbers = [1, 2, 3, 4, 5]
+forEach(numbers, printSquare)
+// Output: 1, 4, 9, 16, 25</code></pre>
+                
+                <h2>Built-in Functions</h2>
+                
+                <p>Nevaarize provides several built-in functions:</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                            <th>Example</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>print(...)</code></td>
+                            <td>Output to console</td>
+                            <td><code>print("Hello")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>len(x)</code></td>
+                            <td>Length of string/array</td>
+                            <td><code>len([1,2,3])</code> → 3</td>
+                        </tr>
+                        <tr>
+                            <td><code>type(x)</code></td>
+                            <td>Get type name</td>
+                            <td><code>type(42)</code> → "int"</td>
+                        </tr>
+                        <tr>
+                            <td><code>str(x)</code></td>
+                            <td>Convert to string</td>
+                            <td><code>str(42)</code> → "42"</td>
+                        </tr>
+                        <tr>
+                            <td><code>int(x)</code></td>
+                            <td>Convert to integer</td>
+                            <td><code>int("42")</code> → 42</td>
+                        </tr>
+                        <tr>
+                            <td><code>float(x)</code></td>
+                            <td>Convert to float</td>
+                            <td><code>float(42)</code> → 42.0</td>
+                        </tr>
+                        <tr>
+                            <td><code>Range(a, b)</code></td>
+                            <td>Generate integer range</td>
+                            <td><code>Range(0, 5)</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="basics.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Basics</span>
+                        </div>
+                    </a>
+                    <a href="controlflow.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Control Flow →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

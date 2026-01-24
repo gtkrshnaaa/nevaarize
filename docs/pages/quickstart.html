@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Start - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link active">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 2</span>
+                    <h1 class="chapter-title">Quick Start</h1>
+                    <p class="chapter-subtitle">Your first Nevaarize program in 5 minutes</p>
+                </header>
+                
+                <h2>Your First Program</h2>
+                
+                <p>Create a new file called <code>hello.nva</code> with the following content:</p>
+                
+                <pre data-lang="nevaarize"><code>// My first Nevaarize program
+print("Hello, Nevaarize!")
+print("Native JIT Performance")</code></pre>
+                
+                <p>Run it:</p>
+                
+                <pre data-lang="bash"><code>./bin/nevaarize hello.nva</code></pre>
+                
+                <p>You should see:</p>
+                
+                <pre><code>Hello, Nevaarize!
+Native JIT Performance</code></pre>
+                
+                <p>Congratulations! You've just run your first Nevaarize program.</p>
+                
+                <h2>Variables and Types</h2>
+                
+                <p>Nevaarize has dynamic typing with automatic type inference:</p>
+                
+                <pre data-lang="nevaarize"><code>// Numbers
+age = 25
+pi = 3.14159
+
+// Strings
+name = "Nevaarize"
+
+// Booleans
+isAwesome = true
+
+// Print with types
+print("Name:", name, "Type:", type(name))
+print("Age:", age, "Type:", type(age))
+print("Pi:", pi, "Type:", type(pi))
+print("Awesome:", isAwesome, "Type:", type(isAwesome))</code></pre>
+                
+                <h2>Functions</h2>
+                
+                <p>Define functions with the <code>func</code> keyword:</p>
+                
+                <pre data-lang="nevaarize"><code>// Simple function
+func greet(name) {
+    return "Hello, " + name + "!"
+}
+
+// Function with condition
+func max(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+// Use them
+print(greet("World"))
+print("Max of 5 and 3:", max(5, 3))</code></pre>
+                
+                <h2>Control Flow</h2>
+                
+                <p>Standard control structures work as you'd expect:</p>
+                
+                <pre data-lang="nevaarize"><code>// If-elif-else
+score = 85
+
+if (score >= 90) {
+    print("Excellent!")
+} elif (score >= 80) {
+    print("Good job!")
+} elif (score >= 70) {
+    print("Not bad")
+} else {
+    print("Keep practicing")
+}
+
+// For loop with Range
+print("Counting:")
+for (i in Range(1, 6)) {
+    print("  ", i)
+}
+
+// While loop
+count = 3
+while (count > 0) {
+    print("Countdown:", count)
+    count = count - 1
+}
+print("Liftoff!")</code></pre>
+                
+                <h2>Arrays</h2>
+                
+                <p>Arrays are first-class citizens:</p>
+                
+                <pre data-lang="nevaarize"><code>// Create array
+fruits = ["apple", "banana", "cherry"]
+
+// Access elements
+print("First fruit:", fruits[0])
+
+// Loop through
+for (fruit in fruits) {
+    print("I like", fruit)
+}
+
+// Array methods
+fruits.push("durian")
+print("All fruits:", fruits)
+print("Length:", len(fruits))</code></pre>
+                
+                <h2>Structs</h2>
+                
+                <p>Define custom data structures:</p>
+                
+                <pre data-lang="nevaarize"><code>// Define a struct
+struct Person {
+    name,
+    age,
+    city
+}
+
+// Create instance
+alice = Person("Alice", 30, "Jakarta")
+
+// Access fields
+print("Name:", alice.name)
+print("Age:", alice.age)
+print("City:", alice.city)
+
+// Modify fields
+alice.age = 31
+print("After birthday:", alice.age)</code></pre>
+                
+                <h2>Using Standard Library</h2>
+                
+                <p>Import and use standard library modules:</p>
+                
+                <pre data-lang="nevaarize"><code>// Import time module
+import stdlib time as t
+
+// Measure execution time
+startTime = t.clock()
+
+// Do some work
+sum = 0
+for (i in Range(1, 1000001)) {
+    sum = sum + i
+}
+
+endTime = t.clock()
+elapsed = endTime - startTime
+
+print("Sum of 1 to 1,000,000:", sum)
+print("Time:", elapsed, "seconds")</code></pre>
+                
+                <h2>Async Functions</h2>
+                
+                <p>For concurrent operations, use <code>async</code> and <code>await</code>:</p>
+                
+                <pre data-lang="nevaarize"><code>import stdlib time as t
+
+// Define async function
+async func fetchData(source) {
+    print("Fetching from:", source)
+    t.sleep(100)  // Simulate delay
+    return "Data from " + source
+}
+
+// Await results
+result1 = await fetchData("database")
+result2 = await fetchData("api")
+
+print("Result 1:", result1)
+print("Result 2:", result2)</code></pre>
+                
+                <hr>
+                
+                <h2>What's Next?</h2>
+                
+                <p>Now that you've got the basics, explore these topics:</p>
+                
+                <ul>
+                    <li><a href="basics.html">Language Basics</a> — Deep dive into syntax and types</li>
+                    <li><a href="functions.html">Functions</a> — Closures, recursion, and more</li>
+                    <li><a href="modules.html">Modules</a> — Organize your code</li>
+                    <li><a href="jit.html">JIT Compilation</a> — Unlock native performance</li>
+                </ul>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="installation.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Installation</span>
+                        </div>
+                    </a>
+                    <a href="basics.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Basics →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

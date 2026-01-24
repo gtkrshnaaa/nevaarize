@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basics - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link active">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 3</span>
+                    <h1 class="chapter-title">Language Basics</h1>
+                    <p class="chapter-subtitle">Building blocks of Nevaarize</p>
+                </header>
+                
+                <h2>Comments</h2>
+                
+                <p>Nevaarize supports single-line comments with <code>//</code>:</p>
+                
+                <pre data-lang="nevaarize"><code>// This is a comment
+print("Hello")  // Inline comment
+
+// Multi-line comments can span
+// multiple lines like this</code></pre>
+                
+                <h2>Variables</h2>
+                
+                <p>Variables are dynamically typed and don't need explicit declarations:</p>
+                
+                <pre data-lang="nevaarize"><code>// Assign values directly
+name = "Nevaarize"
+version = 1
+pi = 3.14159
+active = true
+
+// Reassign with different types
+value = 42
+value = "now a string"
+value = [1, 2, 3]</code></pre>
+                
+                <div class="callout callout-note">
+                    <div class="callout-title">No-Underscore Policy</div>
+                    <p>Nevaarize enforces a <strong>No-Underscore Policy</strong> for identifiers. 
+                    Use camelCase instead of snake_case.</p>
+                    <pre data-lang="nevaarize"><code>// ✗ Not allowed
+my_variable = 10
+
+// ✓ Use camelCase
+myVariable = 10</code></pre>
+                </div>
+                
+                <h2>Data Types</h2>
+                
+                <p>Nevaarize has the following primitive types:</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th>Example</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>int</code></td>
+                            <td>64-bit integer</td>
+                            <td><code>42</code>, <code>-100</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>float</code></td>
+                            <td>64-bit floating point</td>
+                            <td><code>3.14</code>, <code>-0.5</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>string</code></td>
+                            <td>Text string</td>
+                            <td><code>"hello"</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bool</code></td>
+                            <td>Boolean</td>
+                            <td><code>true</code>, <code>false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>array</code></td>
+                            <td>Dynamic array</td>
+                            <td><code>[1, 2, 3]</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>nil</code></td>
+                            <td>Null value</td>
+                            <td><code>nil</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Type Checking</h3>
+                
+                <pre data-lang="nevaarize"><code>// Check type with type() function
+x = 42
+print(type(x))  // "int"
+
+y = 3.14
+print(type(y))  // "float"
+
+z = "hello"
+print(type(z))  // "string"</code></pre>
+                
+                <h2>Operators</h2>
+                
+                <h3>Arithmetic Operators</h3>
+                
+                <pre data-lang="nevaarize"><code>a = 10
+b = 3
+
+print(a + b)   // 13  (addition)
+print(a - b)   // 7   (subtraction)
+print(a * b)   // 30  (multiplication)
+print(a / b)   // 3   (integer division)
+print(a % b)   // 1   (modulo)</code></pre>
+                
+                <h3>Comparison Operators</h3>
+                
+                <pre data-lang="nevaarize"><code>x = 5
+y = 10
+
+print(x == y)  // false (equal)
+print(x != y)  // true  (not equal)
+print(x < y)   // true  (less than)
+print(x <= y)  // true  (less or equal)
+print(x > y)   // false (greater than)
+print(x >= y)  // false (greater or equal)</code></pre>
+                
+                <h3>Logical Operators</h3>
+                
+                <pre data-lang="nevaarize"><code>a = true
+b = false
+
+print(a and b)  // false
+print(a or b)   // true
+print(not a)    // false</code></pre>
+                
+                <h2>Strings</h2>
+                
+                <p>Strings are enclosed in double quotes:</p>
+                
+                <pre data-lang="nevaarize"><code>// String literals
+greeting = "Hello, World!"
+
+// Concatenation with +
+first = "Hello"
+second = "World"
+combined = first + ", " + second + "!"
+print(combined)  // "Hello, World!"
+
+// String length
+print(len(greeting))  // 13
+
+// Convert to string
+num = 42
+text = str(num)  // "42"</code></pre>
+                
+                <h2>Type Conversion</h2>
+                
+                <pre data-lang="nevaarize"><code>// String to number
+numStr = "42"
+num = int(numStr)
+print(num + 8)  // 50
+
+// Number to float
+intVal = 10
+floatVal = float(intVal)
+print(floatVal)  // 10.0
+
+// Anything to string
+str(42)       // "42"
+str(3.14)     // "3.14"
+str(true)     // "true"
+str([1,2,3])  // "[1, 2, 3]"</code></pre>
+                
+                <h2>Print Function</h2>
+                
+                <p>The <code>print</code> function outputs values to the console:</p>
+                
+                <pre data-lang="nevaarize"><code>// Single value
+print("Hello")
+
+// Multiple values (space-separated)
+print("Name:", "Alice", "Age:", 25)
+
+// Mixed types
+print("Result:", 42, "is", true)</code></pre>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="quickstart.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Quick Start</span>
+                        </div>
+                    </a>
+                    <a href="functions.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Functions →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

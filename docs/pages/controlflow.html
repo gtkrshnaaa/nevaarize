@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Flow - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link active">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 5</span>
+                    <h1 class="chapter-title">Control Flow</h1>
+                    <p class="chapter-subtitle">Conditionals and loops</p>
+                </header>
+                
+                <h2>If Statements</h2>
+                
+                <p>Basic conditional execution with <code>if</code>:</p>
+                
+                <pre data-lang="nevaarize"><code>age = 18
+
+if (age >= 18) {
+    print("You can vote!")
+}</code></pre>
+                
+                <h3>If-Else</h3>
+                
+                <pre data-lang="nevaarize"><code>temperature = 25
+
+if (temperature > 30) {
+    print("It's hot!")
+} else {
+    print("It's comfortable")
+}</code></pre>
+                
+                <h3>If-Elif-Else</h3>
+                
+                <pre data-lang="nevaarize"><code>score = 75
+
+if (score >= 90) {
+    print("Grade: A")
+} elif (score >= 80) {
+    print("Grade: B")
+} elif (score >= 70) {
+    print("Grade: C")
+} elif (score >= 60) {
+    print("Grade: D")
+} else {
+    print("Grade: F")
+}</code></pre>
+                
+                <h3>Nested Conditions</h3>
+                
+                <pre data-lang="nevaarize"><code>hasTicket = true
+age = 12
+
+if (hasTicket) {
+    if (age >= 13) {
+        print("Welcome to the movie!")
+    } else {
+        print("You need parental guidance")
+    }
+} else {
+    print("Please buy a ticket first")
+}</code></pre>
+                
+                <h2>For Loops</h2>
+                
+                <p>Iterate over ranges and collections with <code>for...in</code>:</p>
+                
+                <h3>Range-based Loop</h3>
+                
+                <pre data-lang="nevaarize"><code>// Count from 0 to 4
+for (i in Range(0, 5)) {
+    print("Count:", i)
+}
+
+// Count from 1 to 10
+for (i in Range(1, 11)) {
+    print(i)
+}</code></pre>
+                
+                <h3>Array Iteration</h3>
+                
+                <pre data-lang="nevaarize"><code>fruits = ["apple", "banana", "cherry"]
+
+for (fruit in fruits) {
+    print("I like", fruit)
+}
+
+// With index
+for (i in Range(0, len(fruits))) {
+    print("Index", i, ":", fruits[i])
+}</code></pre>
+                
+                <h3>Nested Loops</h3>
+                
+                <pre data-lang="nevaarize"><code>// Multiplication table
+for (i in Range(1, 4)) {
+    for (j in Range(1, 4)) {
+        print(i, "x", j, "=", i * j)
+    }
+    print("")
+}</code></pre>
+                
+                <h2>While Loops</h2>
+                
+                <p>Loop while a condition is true:</p>
+                
+                <pre data-lang="nevaarize"><code>count = 5
+
+while (count > 0) {
+    print("Countdown:", count)
+    count = count - 1
+}
+print("Liftoff!")</code></pre>
+                
+                <h3>Infinite Loop Pattern</h3>
+                
+                <pre data-lang="nevaarize"><code>// Process until condition met
+attempts = 0
+success = false
+
+while (not success) {
+    attempts = attempts + 1
+    print("Attempt", attempts)
+    
+    if (attempts >= 3) {
+        success = true
+    }
+}
+
+print("Succeeded after", attempts, "attempts")</code></pre>
+                
+                <h2>Truthiness</h2>
+                
+                <p>These values are considered "falsy" in conditions:</p>
+                
+                <ul>
+                    <li><code>false</code></li>
+                    <li><code>nil</code></li>
+                    <li><code>0</code> (integer zero)</li>
+                    <li><code>0.0</code> (float zero)</li>
+                    <li><code>""</code> (empty string)</li>
+                    <li><code>[]</code> (empty array)</li>
+                </ul>
+                
+                <p>Everything else is "truthy":</p>
+                
+                <pre data-lang="nevaarize"><code>// These are truthy
+if (1) { print("1 is truthy") }
+if ("hello") { print("non-empty string is truthy") }
+if ([1, 2]) { print("non-empty array is truthy") }
+
+// These are falsy
+if (not 0) { print("0 is falsy") }
+if (not "") { print("empty string is falsy") }
+if (not []) { print("empty array is falsy") }</code></pre>
+                
+                <h2>Logical Short-Circuit</h2>
+                
+                <pre data-lang="nevaarize"><code>// 'and' short-circuits on first false
+x = false and print("won't print")
+
+// 'or' short-circuits on first true
+y = true or print("won't print either")
+
+// Useful patterns
+name = ""
+displayName = name or "Anonymous"
+print(displayName)  // "Anonymous"</code></pre>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="functions.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Functions</span>
+                        </div>
+                    </a>
+                    <a href="datastructures.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Data Structures →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

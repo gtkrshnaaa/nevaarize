@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installation - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link active">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 1</span>
+                    <h1 class="chapter-title">Installation</h1>
+                    <p class="chapter-subtitle">Setting up Nevaarize on your system</p>
+                </header>
+                
+                <h2>Requirements</h2>
+                
+                <p>Before you begin, ensure you have the following installed:</p>
+                
+                <ul>
+                    <li><strong>C++23 compatible compiler</strong> — GCC 13+ or Clang 16+</li>
+                    <li><strong>Make</strong> — For building the project</li>
+                    <li><strong>Git</strong> — For cloning the repository</li>
+                    <li><strong>Linux x86-64</strong> — Currently the primary supported platform</li>
+                </ul>
+                
+                <div class="callout callout-note">
+                    <div class="callout-title">Note</div>
+                    <p>Nevaarize uses AVX2 SIMD instructions for maximum performance. 
+                    Most CPUs from 2013 onwards support AVX2.</p>
+                </div>
+                
+                <h2>Clone the Repository</h2>
+                
+                <p>First, clone the Nevaarize repository:</p>
+                
+                <pre data-lang="bash"><code>git clone https://github.com/gtkrshnaaa/nevaarize.git
+cd nevaarize</code></pre>
+                
+                <h2>Build from Source</h2>
+                
+                <p>Nevaarize uses a simple Makefile for building. Run:</p>
+                
+                <pre data-lang="bash"><code>make</code></pre>
+                
+                <p>This will compile all source files and create the <code>nevaarize</code> binary 
+                in the <code>bin/</code> directory.</p>
+                
+                <div class="callout callout-tip">
+                    <div class="callout-title">Tip</div>
+                    <p>For a clean rebuild, use <code>make clean && make</code></p>
+                </div>
+                
+                <h2>Verify Installation</h2>
+                
+                <p>Test that the build was successful:</p>
+                
+                <pre data-lang="bash"><code>./bin/nevaarize --version</code></pre>
+                
+                <p>You should see output like:</p>
+                
+                <pre><code>Nevaarize v0.1.0
+Native JIT Compiler for the Nevaarize Programming Language
+Built with C++23, Zero External Dependencies</code></pre>
+                
+                <h2>Run Your First Program</h2>
+                
+                <p>Try running the hello world example:</p>
+                
+                <pre data-lang="bash"><code>./bin/nevaarize examples/basics/helloWorld.nva</code></pre>
+                
+                <p>Output:</p>
+                
+                <pre><code>Hello, World!
+Welcome to Nevaarize - Native JIT Performance</code></pre>
+                
+                <h2>Optional: Add to PATH</h2>
+                
+                <p>For convenience, add Nevaarize to your system PATH:</p>
+                
+                <pre data-lang="bash"><code># Add to ~/.bashrc or ~/.zshrc
+export PATH="$PATH:/path/to/nevaarize/bin"
+
+# Reload your shell
+source ~/.bashrc</code></pre>
+                
+                <p>Now you can run <code>nevaarize</code> from anywhere:</p>
+                
+                <pre data-lang="bash"><code>nevaarize script.nva</code></pre>
+                
+                <h2>Project Structure</h2>
+                
+                <p>Here's an overview of the Nevaarize directory structure:</p>
+                
+                <pre><code>nevaarize/
+├── bin/              # Compiled binary
+├── build/            # Object files
+├── core/             # Core compiler implementation
+│   ├── include/      # Header files
+│   └── src/          # Source files
+├── stdlib/           # Standard library
+│   ├── include/      # Library headers
+│   └── src/          # Library implementations
+├── examples/         # Example programs
+│   ├── basics/       # Basic examples
+│   ├── async/        # Async examples
+│   ├── benchmarks/   # Performance benchmarks
+│   └── ...
+├── docs/             # Documentation (you are here)
+└── Makefile          # Build configuration</code></pre>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="../index.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Introduction</span>
+                        </div>
+                    </a>
+                    <a href="quickstart.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Quick Start →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

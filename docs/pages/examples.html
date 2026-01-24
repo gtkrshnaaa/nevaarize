@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examples - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link active">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Reference</span>
+                    <h1 class="chapter-title">Examples</h1>
+                    <p class="chapter-subtitle">41 working examples to explore</p>
+                </header>
+                
+                <p>Nevaarize ships with 41 working examples covering various topics. 
+                All examples are in the <code>examples/</code> directory.</p>
+                
+                <h2>Basics</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>basics/helloWorld.nva</code></td>
+                            <td>Your first Nevaarize program</td>
+                        </tr>
+                        <tr>
+                            <td><code>basics/variables.nva</code></td>
+                            <td>Variable types and assignment</td>
+                        </tr>
+                        <tr>
+                            <td><code>basics/operators.nva</code></td>
+                            <td>Arithmetic and logical operators</td>
+                        </tr>
+                        <tr>
+                            <td><code>basics/controlFlow.nva</code></td>
+                            <td>If, elif, else statements</td>
+                        </tr>
+                        <tr>
+                            <td><code>basics/loops.nva</code></td>
+                            <td>For and while loops</td>
+                        </tr>
+                        <tr>
+                            <td><code>basics/functions.nva</code></td>
+                            <td>Function definitions and calls</td>
+                        </tr>
+                        <tr>
+                            <td><code>basics/arrays.nva</code></td>
+                            <td>Array operations</td>
+                        </tr>
+                        <tr>
+                            <td><code>basics/structs.nva</code></td>
+                            <td>Custom data types</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Running an Example</h3>
+                
+                <pre data-lang="bash"><code>./bin/nevaarize examples/basics/helloWorld.nva</code></pre>
+                
+                <hr>
+                
+                <h2>Recursion</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>recursion/factorial.nva</code></td>
+                            <td>Classic factorial function</td>
+                        </tr>
+                        <tr>
+                            <td><code>recursion/fibonacci.nva</code></td>
+                            <td>Fibonacci sequence</td>
+                        </tr>
+                        <tr>
+                            <td><code>recursion/sumArray.nva</code></td>
+                            <td>Recursive array sum</td>
+                        </tr>
+                        <tr>
+                            <td><code>recursion/countdown.nva</code></td>
+                            <td>Countdown example</td>
+                        </tr>
+                        <tr>
+                            <td><code>recursion/gcd.nva</code></td>
+                            <td>Greatest common divisor</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <h2>Async</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>async/asyncBasic.nva</code></td>
+                            <td>Basic async/await pattern</td>
+                        </tr>
+                        <tr>
+                            <td><code>async/parallelFetch.nva</code></td>
+                            <td>Parallel data fetching</td>
+                        </tr>
+                        <tr>
+                            <td><code>async/taskQueue.nva</code></td>
+                            <td>Async task queue</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <h2>Benchmarks</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>benchmarks/nativeJIT.nva</code></td>
+                            <td>Native JIT performance (500M+ ops/sec)</td>
+                        </tr>
+                        <tr>
+                            <td><code>benchmarks/trueJIT.nva</code></td>
+                            <td>TRUE JIT compilation demo</td>
+                        </tr>
+                        <tr>
+                            <td><code>benchmarks/simd.nva</code></td>
+                            <td>SIMD vectorization benchmark</td>
+                        </tr>
+                        <tr>
+                            <td><code>benchmarks/aiCore.nva</code></td>
+                            <td>Matrix multiply & AI operations</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Run All Benchmarks</h3>
+                
+                <pre data-lang="bash"><code># Native JIT
+./bin/nevaarize examples/benchmarks/nativeJIT.nva
+
+# SIMD
+./bin/nevaarize examples/benchmarks/simd.nva
+
+# AI Core
+./bin/nevaarize examples/benchmarks/aiCore.nva</code></pre>
+                
+                <hr>
+                
+                <h2>Design Patterns</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>patterns/cache.nva</code></td>
+                            <td>In-memory caching</td>
+                        </tr>
+                        <tr>
+                            <td><code>patterns/crud.nva</code></td>
+                            <td>Create, Read, Update, Delete</td>
+                        </tr>
+                        <tr>
+                            <td><code>patterns/eventEmitter.nva</code></td>
+                            <td>Pub/sub pattern</td>
+                        </tr>
+                        <tr>
+                            <td><code>patterns/stateMachine.nva</code></td>
+                            <td>Finite state machine</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <h2>Modules</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>modules/config.nva</code></td>
+                            <td>Configuration module</td>
+                        </tr>
+                        <tr>
+                            <td><code>modules/logger.nva</code></td>
+                            <td>Logging utilities</td>
+                        </tr>
+                        <tr>
+                            <td><code>modules/validation.nva</code></td>
+                            <td>Input validation</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <h2>Utilities</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>utils/arrays.nva</code></td>
+                            <td>Array helper functions</td>
+                        </tr>
+                        <tr>
+                            <td><code>utils/strings.nva</code></td>
+                            <td>String manipulation</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <h2>Real World</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>realworld/dataPipeline.nva</code></td>
+                            <td>Data processing pipeline</td>
+                        </tr>
+                        <tr>
+                            <td><code>server/modelServer.nva</code></td>
+                            <td>Model serving example</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <h2>Quick Code Samples</h2>
+                
+                <h3>Hello World</h3>
+                
+                <pre data-lang="nevaarize"><code>// examples/basics/helloWorld.nva
+print("Hello, World!")
+print("Welcome to Nevaarize - Native JIT Performance")</code></pre>
+                
+                <h3>Fibonacci</h3>
+                
+                <pre data-lang="nevaarize"><code>// examples/recursion/fibonacci.nva
+func fib(n) {
+    if (n <= 1) {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+for (i in Range(1, 15)) {
+    print("fib(" + str(i) + ") =", fib(i))
+}</code></pre>
+                
+                <h3>State Machine</h3>
+                
+                <pre data-lang="nevaarize"><code>// examples/patterns/stateMachine.nva
+orderState = "pending"
+
+func confirmOrder() {
+    if (orderState == "pending") {
+        orderState = "confirmed"
+        print("Order confirmed!")
+        return true
+    }
+    print("Cannot confirm in state:", orderState)
+    return false
+}
+
+confirmOrder()  // Order confirmed!</code></pre>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="stdlib.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Standard Library</span>
+                        </div>
+                    </a>
+                    <a href="../index.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Back to</span>
+                            <span class="page-nav-title">Home →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Structures - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link active">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 6</span>
+                    <h1 class="chapter-title">Data Structures</h1>
+                    <p class="chapter-subtitle">Arrays and structs</p>
+                </header>
+                
+                <h2>Arrays</h2>
+                
+                <p>Arrays are ordered, dynamic collections:</p>
+                
+                <pre data-lang="nevaarize"><code>// Create arrays
+empty = []
+numbers = [1, 2, 3, 4, 5]
+mixed = [42, "hello", true, 3.14]
+nested = [[1, 2], [3, 4], [5, 6]]</code></pre>
+                
+                <h3>Accessing Elements</h3>
+                
+                <pre data-lang="nevaarize"><code>fruits = ["apple", "banana", "cherry"]
+
+// Index access (0-based)
+print(fruits[0])  // "apple"
+print(fruits[1])  // "banana"
+print(fruits[2])  // "cherry"
+
+// Nested arrays
+matrix = [[1, 2, 3], [4, 5, 6]]
+print(matrix[0][0])  // 1
+print(matrix[1][2])  // 6</code></pre>
+                
+                <h3>Modifying Arrays</h3>
+                
+                <pre data-lang="nevaarize"><code>arr = [1, 2, 3]
+
+// Update element
+arr[0] = 100
+print(arr)  // [100, 2, 3]
+
+// Add element
+arr.push(4)
+print(arr)  // [100, 2, 3, 4]
+
+// Remove last element
+last = arr.pop()
+print(last)  // 4
+print(arr)   // [100, 2, 3]</code></pre>
+                
+                <h3>Array Operations</h3>
+                
+                <pre data-lang="nevaarize"><code>arr = [1, 2, 3, 4, 5]
+
+// Length
+print(len(arr))  // 5
+
+// Iteration
+for (item in arr) {
+    print(item)
+}
+
+// Sum elements
+total = 0
+for (num in arr) {
+    total = total + num
+}
+print("Sum:", total)  // 15</code></pre>
+                
+                <h2>Structs</h2>
+                
+                <p>Structs define custom data types with named fields:</p>
+                
+                <pre data-lang="nevaarize"><code>// Define a struct
+struct Person {
+    name,
+    age,
+    city
+}
+
+// Create instances
+alice = Person("Alice", 30, "Jakarta")
+bob = Person("Bob", 25, "Bandung")
+
+// Access fields
+print(alice.name)  // "Alice"
+print(alice.age)   // 30
+
+// Modify fields
+alice.age = 31
+print(alice.age)   // 31</code></pre>
+                
+                <h3>Structs with Methods</h3>
+                
+                <pre data-lang="nevaarize"><code>struct Rectangle {
+    width,
+    height
+}
+
+// Functions that work with structs
+func area(rect) {
+    return rect.width * rect.height
+}
+
+func perimeter(rect) {
+    return 2 * (rect.width + rect.height)
+}
+
+r = Rectangle(10, 5)
+print("Area:", area(r))           // 50
+print("Perimeter:", perimeter(r)) // 30</code></pre>
+                
+                <h3>Nested Structs</h3>
+                
+                <pre data-lang="nevaarize"><code>struct Address {
+    street,
+    city,
+    country
+}
+
+struct Company {
+    name,
+    address,
+    employees
+}
+
+addr = Address("Jl. Sudirman", "Jakarta", "Indonesia")
+company = Company("TechCorp", addr, 100)
+
+print(company.name)              // "TechCorp"
+print(company.address.city)      // "Jakarta"
+print(company.employees)         // 100</code></pre>
+                
+                <h2>Working with Collections</h2>
+                
+                <h3>Array of Structs</h3>
+                
+                <pre data-lang="nevaarize"><code>struct User {
+    id,
+    name,
+    active
+}
+
+users = [
+    User(1, "Alice", true),
+    User(2, "Bob", true),
+    User(3, "Charlie", false)
+]
+
+// Process users
+for (user in users) {
+    if (user.active) {
+        print("Active user:", user.name)
+    }
+}</code></pre>
+                
+                <h3>Building Data</h3>
+                
+                <pre data-lang="nevaarize"><code>// Build array dynamically
+squares = []
+for (i in Range(1, 6)) {
+    squares.push(i * i)
+}
+print(squares)  // [1, 4, 9, 16, 25]
+
+// Accumulate results
+struct Result {
+    value,
+    squared
+}
+
+results = []
+for (i in Range(1, 4)) {
+    results.push(Result(i, i * i))
+}
+
+for (r in results) {
+    print(r.value, "squared is", r.squared)
+}</code></pre>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="controlflow.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Control Flow</span>
+                        </div>
+                    </a>
+                    <a href="modules.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Modules →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

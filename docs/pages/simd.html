@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIMD & Performance - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link active">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 10</span>
+                    <h1 class="chapter-title">SIMD & Performance</h1>
+                    <p class="chapter-subtitle">Vectorized operations for AI workloads</p>
+                </header>
+                
+                <h2>What is SIMD?</h2>
+                
+                <p><strong>SIMD (Single Instruction, Multiple Data)</strong> allows the CPU to 
+                process multiple data elements in a single instruction. This is the key to 
+                high-performance computing and AI workloads.</p>
+                
+                <pre><code>Without SIMD:  Process 1 number  → 1 operation/cycle
+With AVX2:     Process 8 numbers → 8 operations/cycle
+With AVX-512:  Process 16 numbers → 16 operations/cycle</code></pre>
+                
+                <h2>Check SIMD Support</h2>
+                
+                <pre data-lang="nevaarize"><code>// Check your CPU's SIMD capabilities
+info = simdInfo()
+
+print("SIMD Level:", info.level)
+print("Has AVX2:", info.hasAVX2)
+print("Has AVX-512:", info.hasAVX512)</code></pre>
+                
+                <p>Example output:</p>
+                
+                <pre><code>SIMD Level: AVX2
+Has AVX2: true
+Has AVX-512: false</code></pre>
+                
+                <h2>SIMD Functions</h2>
+                
+                <h3>SIMD Sum Loop</h3>
+                
+                <p>Process 4 integers at once using AVX2:</p>
+                
+                <pre data-lang="nevaarize"><code>// SIMD-accelerated sum loop
+iterations = 500000000
+
+result = simdSumLoop(iterations)
+sum = result[0]
+opsPerSec = result[1]
+
+print("Sum:", sum)
+print("Performance:", int(opsPerSec / 1000000000), "BILLION ops/sec")</code></pre>
+                
+                <h3>SIMD Dot Product</h3>
+                
+                <p>Vector dot product using SIMD instructions:</p>
+                
+                <pre data-lang="nevaarize"><code>// Dot product of two 10M element vectors
+vectorSize = 10000000
+
+result = simdDotProduct(vectorSize)
+dotProduct = result[0]
+opsPerSec = result[1]
+
+print("Dot product:", dotProduct)
+print("Performance:", int(opsPerSec / 1000000000), "BILLION ops/sec")</code></pre>
+                
+                <h2>Matrix Operations</h2>
+                
+                <p>Cache-blocked matrix multiplication with SIMD acceleration:</p>
+                
+                <pre data-lang="nevaarize"><code>// 512×512 matrix multiplication
+result = matmulBenchmark(512)
+gflops = result[0]
+seconds = result[1]
+
+print("Time:", seconds, "seconds")
+print("Performance:", int(gflops), "GFLOPS")</code></pre>
+                
+                <h3>Matrix Multiplication Performance</h3>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Matrix Size</th>
+                            <th>Time</th>
+                            <th>GFLOPS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>256×256</td>
+                            <td>~2ms</td>
+                            <td>~15 GFLOPS</td>
+                        </tr>
+                        <tr>
+                            <td>512×512</td>
+                            <td>~15ms</td>
+                            <td>~18 GFLOPS</td>
+                        </tr>
+                        <tr>
+                            <td>1024×1024</td>
+                            <td>~100ms</td>
+                            <td>~21 GFLOPS</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h2>AI Activation Functions</h2>
+                
+                <p>SIMD-accelerated activation functions for neural networks:</p>
+                
+                <pre data-lang="nevaarize"><code>// ReLU benchmark: max(0, x) for 10M elements
+reluResult = reluBenchmark(10000000)
+sum = reluResult[0]
+opsPerSec = reluResult[1]
+
+print("ReLU result sum:", sum)
+print("Performance:", int(opsPerSec / 1000000000), "BILLION ops/sec")</code></pre>
+                
+                <h2>How It Works</h2>
+                
+                <h3>AVX2 Vector Add</h3>
+                
+                <pre data-lang="cpp"><code>// C++ with AVX2 intrinsics
+void vecAdd_f32(float* dst, const float* a, const float* b, size_t n) {
+    for (size_t i = 0; i + 8 <= n; i += 8) {
+        __m256 va = _mm256_loadu_ps(a + i);  // Load 8 floats
+        __m256 vb = _mm256_loadu_ps(b + i);  // Load 8 floats
+        __m256 vc = _mm256_add_ps(va, vb);   // Add 8 floats
+        _mm256_storeu_ps(dst + i, vc);       // Store 8 floats
+    }
+}</code></pre>
+                
+                <p>One <code>vaddps</code> instruction adds 8 floating-point numbers simultaneously.</p>
+                
+                <h3>Cache Blocking for MatMul</h3>
+                
+                <p>Large matrices don't fit in CPU cache. Cache blocking divides the computation 
+                into smaller tiles that fit in L1 cache:</p>
+                
+                <pre><code>Standard matmul:   Random memory access → Cache misses
+Blocked matmul:    Tile-by-tile → Data stays in cache</code></pre>
+                
+                <h2>Running SIMD Benchmarks</h2>
+                
+                <pre data-lang="bash"><code>./bin/nevaarize examples/benchmarks/simd.nva
+./bin/nevaarize examples/benchmarks/aiCore.nva</code></pre>
+                
+                <p>Expected output:</p>
+                
+                <pre><code>=== SIMD BENCHMARK ===
+Testing AVX2 SIMD vectorization
+
+SIMD Level: AVX2
+Has AVX2: true
+Has AVX-512: false
+
+=== SIMD Sum Loop (500000000 iterations) ===
+Sum: 125000000250000000
+Operations per second: 4200000000
+Performance: 4 BILLION ops/sec
+
+=== SIMD Dot Product (10000000 elements) ===
+Dot product result: 20000000.0
+Operations per second: 2500000000
+Performance: 2 BILLION ops/sec</code></pre>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="jit.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← JIT Compilation</span>
+                        </div>
+                    </a>
+                    <a href="stdlib.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next Chapter</span>
+                            <span class="page-nav-title">Standard Library →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+</body>
+</html>
