@@ -469,7 +469,239 @@ print(encoded)  // [0, 0, 1, 0, 0]</code></pre>
                 
                 <hr>
                 
+                <h2>Model Building</h2>
+                
+                <p>Build neural networks using a sequential API:</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Sequential(layers)</code></td>
+                            <td>Create a sequential neural network model</td>
+                        </tr>
+                        <tr>
+                            <td><code>Layer(type, ...)</code></td>
+                            <td>Define a layer (linear, relu, softmax, etc.)</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Layer Types</h3>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Syntax</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>"linear"</code></td>
+                            <td><code>Layer("linear", inputSize, outputSize)</code></td>
+                            <td>Fully connected layer</td>
+                        </tr>
+                        <tr>
+                            <td><code>"relu"</code></td>
+                            <td><code>Layer("relu")</code></td>
+                            <td>ReLU activation</td>
+                        </tr>
+                        <tr>
+                            <td><code>"sigmoid"</code></td>
+                            <td><code>Layer("sigmoid")</code></td>
+                            <td>Sigmoid activation</td>
+                        </tr>
+                        <tr>
+                            <td><code>"softmax"</code></td>
+                            <td><code>Layer("softmax")</code></td>
+                            <td>Softmax output layer</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <pre data-lang="nevaarize"><code>import stdlib ai as ai
+
+// Create a neural network: 4 inputs -> 8 hidden -> 3 outputs
+model = ai.Sequential([
+    ai.Layer("linear", 4, 8),
+    ai.Layer("relu"),
+    ai.Layer("linear", 8, 3),
+    ai.Layer("softmax")
+])
+
+print("Model created with ID:", model)</code></pre>
+                
+                <hr>
+                
+                <h2>Model Training</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>train(model, xTrain, yTrain, config)</code></td>
+                            <td>Train model and return final loss</td>
+                        </tr>
+                        <tr>
+                            <td><code>predict(model, input)</code></td>
+                            <td>Run inference on input</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Training Config</h3>
+                
+                <p>The config array: <code>[epochs, learningRate, optimizer, loss]</code></p>
+                
+                <ul>
+                    <li><strong>optimizer</strong>: <code>"sgd"</code> or <code>"adam"</code></li>
+                    <li><strong>loss</strong>: <code>"mse"</code> or <code>"crossentropy"</code></li>
+                </ul>
+                
+                <pre data-lang="nevaarize"><code>// Training data
+xTrain = [
+    [0.0, 0.0, 0.0, 0.0],
+    [1.0, 1.0, 1.0, 1.0]
+]
+yTrain = [0, 2]  // Class labels
+
+// Train for 50 epochs with Adam, lr=0.01
+config = [50, 0.01, "adam", "crossentropy"]
+loss = ai.train(model, xTrain, yTrain, config)
+
+print("Final loss:", loss)
+
+// Run prediction
+output = ai.predict(model, [0.5, 0.5, 0.5, 0.5])
+predicted = ai.Argmax(output)
+print("Predicted class:", predicted)</code></pre>
+                
+                <hr>
+                
+                <h2>Model Persistence</h2>
+                
+                <p>Save and load trained models to <code>.nmod</code> files:</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>saveModel(model, path)</code></td>
+                            <td>Save model to file, returns true on success</td>
+                        </tr>
+                        <tr>
+                            <td><code>loadModel(path)</code></td>
+                            <td>Load model from file, returns model ID or -1</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="callout callout-note">
+                    <div class="callout-title">Path Resolution</div>
+                    <p>Paths are resolved <strong>relative to the source file</strong>, not the working directory. 
+                    This matches the behavior of <code>import</code> statements.</p>
+                </div>
+                
+                <pre data-lang="nevaarize"><code>// Save trained model (saved next to this script)
+saved = ai.saveModel(model, "mymodel.nmod")
+if (saved) {
+    print("Model saved successfully!")
+}
+
+// Load model later
+loaded = ai.loadModel("mymodel.nmod")
+if (loaded >= 0) {
+    output = ai.predict(loaded, [1.0, 0.0, 1.0, 0.0])
+    print("Prediction:", ai.Argmax(output))
+}</code></pre>
+                
+                <h3>Complete Training Workflow</h3>
+                
+                <pre data-lang="nevaarize"><code>import stdlib ai as ai
+
+// 1. Define model architecture
+model = ai.Sequential([
+    ai.Layer("linear", 4, 8),
+    ai.Layer("relu"),
+    ai.Layer("linear", 8, 3),
+    ai.Layer("softmax")
+])
+
+// 2. Prepare training data
+xTrain = [
+    [0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 1.0, 1.0],
+    [1.0, 1.0, 0.0, 0.0],
+    [1.0, 1.0, 1.0, 1.0]
+]
+yTrain = [0, 1, 1, 2]
+
+// 3. Train the model
+config = [50, 0.01, "adam", "crossentropy"]
+loss = ai.train(model, xTrain, yTrain, config)
+
+// 4. Test prediction
+output = ai.predict(model, [1.0, 1.0, 1.0, 1.0])
+print("Predicted:", ai.Argmax(output))
+
+// 5. Save for deployment
+ai.saveModel(model, "classifier.nmod")</code></pre>
+                
+                <hr>
+                
+                <h2>Model CLI Commands</h2>
+                
+                <p>Nevaarize provides CLI commands for model training and inference:</p>
+                
+                <h3>Train a Model</h3>
+                
+                <pre data-lang="bash"><code>nevaarize model train script.nva to model.nmod</code></pre>
+                
+                <p>This runs your training script and saves the model. The output path 
+                is resolved relative to the script location.</p>
+                
+                <h3>Run Inference</h3>
+                
+                <pre data-lang="bash"><code># View model info
+nevaarize model run model.nmod
+
+# Run inference with input
+nevaarize model run model.nmod --input "[1.0, 0.0, 1.0, 0.0]"</code></pre>
+                
+                <p>Example output:</p>
+                
+                <pre><code>Loading model: model.nmod
+Model info:
+  Input size: 4
+  Output size: 3
+  Epochs trained: 50
+  Final loss: 0.219
+
+Running inference with input size: 4
+Output: [0.05, 0.65, 0.30]
+Prediction: 1</code></pre>
+                
+                <hr>
+                
                 <h2>Performance</h2>
+
                 
                 <p>All SIMD-accelerated functions use AVX2 instructions:</p>
                 
