@@ -10,6 +10,7 @@
 
 #include "IR.hpp"
 #include <vector>
+#include <memory>
 
 namespace nevaarize {
 
@@ -17,60 +18,32 @@ namespace nevaarize {
  * Optimization level enum.
  */
 enum class OptLevel : uint8_t {
-    O0,
-    O1,
-    O2,
-    O3
+    O0 = 0,  // No optimization
+    O1 = 1,  // Basic optimizations
+    O2 = 2,  // Standard optimizations
+    O3 = 3   // Aggressive optimizations
 };
 
 /**
- * IR optimization pass interface.
+ * Optimization statistics.
+ */
+struct OptStats {
+    int constantsFolded = 0;
+    int deadCodeRemoved = 0;
+    int strengthReduced = 0;
+    int codeMotioned = 0;
+    int passesRun = 0;
+};
+
+/**
+ * Static optimization passes.
  */
 class OptimizationPass {
 public:
-    virtual ~OptimizationPass() = default;
-    virtual void run(IRFunction& func) = 0;
-    virtual const char* name() const = 0;
-};
-
-/**
- * Constant folding optimization.
- * Evaluates constant expressions at compile time.
- */
-class ConstantFoldingPass : public OptimizationPass {
-public:
-    void run(IRFunction& func) override;
-    const char* name() const override { return "ConstantFolding"; }
-};
-
-/**
- * Dead code elimination.
- * Removes unused instructions and unreachable code.
- */
-class DeadCodeEliminationPass : public OptimizationPass {
-public:
-    void run(IRFunction& func) override;
-    const char* name() const override { return "DeadCodeElimination"; }
-};
-
-/**
- * Copy propagation.
- * Replaces uses of copied values with the original.
- */
-class CopyPropagationPass : public OptimizationPass {
-public:
-    void run(IRFunction& func) override;
-    const char* name() const override { return "CopyPropagation"; }
-};
-
-/**
- * Common subexpression elimination.
- * Removes redundant computations.
- */
-class CSEPass : public OptimizationPass {
-public:
-    void run(IRFunction& func) override;
-    const char* name() const override { return "CommonSubexpressionElimination"; }
+    static bool constantFold(IRFunction& func);
+    static bool deadCodeElimination(IRFunction& func);
+    static bool strengthReduction(IRFunction& func);
+    static bool loopInvariantCodeMotion(IRFunction& func);
 };
 
 /**
@@ -78,33 +51,28 @@ public:
  */
 class Optimizer {
 public:
-    explicit Optimizer(OptLevel level = OptLevel::O2);
-
     /**
      * Optimize an IR function.
      */
-    void optimize(IRFunction& func);
+    static void optimize(IRFunction& func, OptLevel level = OptLevel::O2);
 
     /**
      * Optimize all functions in a module.
      */
-    void optimize(IRModule& module);
+    static void optimize(IRModule& module, OptLevel level = OptLevel::O2);
 
     /**
-     * Set optimization level.
+     * Get optimization statistics.
      */
-    void setLevel(OptLevel level);
+    OptStats getStats() const;
 
     /**
-     * Add a custom optimization pass.
+     * Reset statistics.
      */
-    void addPass(std::unique_ptr<OptimizationPass> pass);
+    void resetStats();
 
 private:
-    OptLevel level;
-    std::vector<std::unique_ptr<OptimizationPass>> passes;
-
-    void setupPasses();
+    OptStats stats;
 };
 
 } // namespace nevaarize
