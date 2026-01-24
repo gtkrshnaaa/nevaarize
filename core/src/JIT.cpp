@@ -9,6 +9,7 @@
 #include "TrueJIT.hpp"
 #include "SIMD.hpp"
 #include "VectorOps.hpp"
+#include "Tensor.hpp"
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -314,6 +315,50 @@ void Evaluator::setupStandardLibrary() {
         
         std::vector<Value> output;
         output.push_back(Value::fromFloat(static_cast<double>(result)));
+        output.push_back(Value::fromFloat(opsPerSec));
+        return Value::fromArray(std::move(output));
+    });
+
+    // Matrix Multiplication Benchmark
+    registerNative("matmulBenchmark", [](Evaluator&, const std::vector<Value>& args) -> Value {
+        int M = 512, N = 512, K = 512;
+        if (args.size() >= 1 && args[0].isNumber()) {
+            M = static_cast<int>(args[0].asDouble());
+            N = M;
+            K = M;
+        }
+        if (args.size() >= 3) {
+            M = static_cast<int>(args[0].asDouble());
+            N = static_cast<int>(args[1].asDouble());
+            K = static_cast<int>(args[2].asDouble());
+        }
+        
+        auto result = benchmarkMatmul(M, N, K);
+        
+        std::vector<Value> output;
+        output.push_back(Value::fromFloat(result.gflops));
+        output.push_back(Value::fromFloat(result.seconds));
+        return Value::fromArray(std::move(output));
+    });
+
+    // Tensor ReLU benchmark (activation function)
+    registerNative("reluBenchmark", [](Evaluator&, const std::vector<Value>& args) -> Value {
+        size_t n = 1000000;
+        if (!args.empty() && args[0].isNumber()) {
+            n = static_cast<size_t>(args[0].asDouble());
+        }
+        
+        Tensor t = Tensor::ones({static_cast<int64_t>(n)});
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        Tensor result = t.relu();
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        double seconds = std::chrono::duration<double>(end - start).count();
+        double opsPerSec = static_cast<double>(n) / seconds;
+        
+        std::vector<Value> output;
+        output.push_back(Value::fromFloat(result.sum()));
         output.push_back(Value::fromFloat(opsPerSec));
         return Value::fromArray(std::move(output));
     });

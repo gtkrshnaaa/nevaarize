@@ -1,0 +1,49 @@
+// AI Core Benchmark
+// Matrix multiplication and tensor operations
+
+print("=== AI CORE BENCHMARK ===")
+print("Testing matrix multiplication and activation functions")
+print("")
+
+// SIMD info
+info = simdInfo()
+print("SIMD Level:", info.level)
+print("")
+
+// Matrix Multiplication benchmark
+print("=== Matrix Multiplication (512x512 @ 512x512) ===")
+result = matmulBenchmark(512)
+gflops = result[0]
+seconds = result[1]
+
+print("Time:", seconds, "seconds")
+print("Performance:", int(gflops), "GFLOPS")
+print("")
+
+// Larger matrix
+print("=== Matrix Multiplication (1024x1024 @ 1024x1024) ===")
+result = matmulBenchmark(1024)
+gflops = result[0]
+seconds = result[1]
+
+print("Time:", seconds, "seconds")
+print("Performance:", int(gflops), "GFLOPS")
+print("")
+
+// ReLU activation benchmark
+print("=== ReLU Activation (10M elements) ===")
+reluResult = reluBenchmark(10000000)
+reluSum = reluResult[0]
+reluOps = reluResult[1]
+
+print("Result sum:", reluSum)
+print("Operations per second:", int(reluOps))
+
+if (reluOps > 1000000000) {
+    print("Performance:", int(reluOps / 1000000000), "BILLION ops/sec")
+} elif (reluOps > 1000000) {
+    print("Performance:", int(reluOps / 1000000), "M ops/sec")
+}
+
+print("")
+print("=== AI Core ready for deep learning! ===")
