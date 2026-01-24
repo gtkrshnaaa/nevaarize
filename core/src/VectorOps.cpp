@@ -522,7 +522,6 @@ int64_t simdSumLoop(int64_t n) {
     
     // SIMD sum: process 4 int64_t values at a time
     __m256i vsum = _mm256_setzero_si256();
-    __m256i vone = _mm256_set1_epi64x(1);
     __m256i vfour = _mm256_set1_epi64x(4);
     __m256i vi = _mm256_set_epi64x(4, 3, 2, 1);
     

@@ -89,6 +89,7 @@ bool OptimizationPass::strengthReduction(IRFunction& func) {
 // Loop-Invariant Code Motion: Move invariant code out of loops
 bool OptimizationPass::loopInvariantCodeMotion(IRFunction& func) {
     bool changed = false;
+    (void)func;  // Reserved for future implementation
     
     // Find loop headers
     // Identify invariant instructions (don't depend on loop variables)

@@ -4,69 +4,40 @@
 import stdlib time as t
 
 // Log levels
-LOG_DEBUG = 0
-LOG_INFO = 1
-LOG_WARN = 2
-LOG_ERROR = 3
+LOGDEBUG = 0
+LOGINFO = 1
+LOGWARN = 2
+LOGERROR = 3
 
 // Current log level (can be changed)
-currentLogLevel = LOG_INFO
-
-// Format timestamp
-func getTimestamp() {
-    return t.format(t.timestamp(), "%Y-%m-%d %H:%M:%S")
-}
+currentLogLevel = LOGINFO
 
 // Core log function
 func log(level, levelName, message) {
     if (level >= currentLogLevel) {
-        timestamp = getTimestamp()
+        timestamp = t.format(t.timestamp(), "%Y-%m-%d %H:%M:%S")
         print("[" + timestamp + "] [" + levelName + "] " + message)
     }
 }
 
 // Public logging functions
 func debug(message) {
-    log(LOG_DEBUG, "DEBUG", message)
+    log(LOGDEBUG, "DEBUG", message)
 }
 
 func info(message) {
-    log(LOG_INFO, "INFO", message)
+    log(LOGINFO, "INFO", message)
 }
 
 func warn(message) {
-    log(LOG_WARN, "WARN", message)
+    log(LOGWARN, "WARN", message)
 }
 
 func error(message) {
-    log(LOG_ERROR, "ERROR", message)
+    log(LOGERROR, "ERROR", message)
 }
 
 // Set log level
 func setLogLevel(level) {
     currentLogLevel = level
-}
-
-// Log with context
-func logWithContext(level, levelName, context, message) {
-    if (level >= currentLogLevel) {
-        timestamp = getTimestamp()
-        print("[" + timestamp + "] [" + levelName + "] [" + context + "] " + message)
-    }
-}
-
-func debugCtx(context, message) {
-    logWithContext(LOG_DEBUG, "DEBUG", context, message)
-}
-
-func infoCtx(context, message) {
-    logWithContext(LOG_INFO, "INFO", context, message)
-}
-
-func warnCtx(context, message) {
-    logWithContext(LOG_WARN, "WARN", context, message)
-}
-
-func errorCtx(context, message) {
-    logWithContext(LOG_ERROR, "ERROR", context, message)
 }

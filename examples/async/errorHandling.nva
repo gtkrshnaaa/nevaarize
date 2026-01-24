@@ -9,18 +9,19 @@ async func riskyOperation(shouldFail) {
     
     if (shouldFail) {
         print("Operation failed!")
-        return nil
+        return "ERROR"
     }
     
     return "Success!"
 }
 
 async func safeWrapper(shouldFail) {
-    print("\n=== Attempting operation ===")
+    print("")
+    print("=== Attempting operation ===")
     
     result = await riskyOperation(shouldFail)
     
-    if (result == nil) {
+    if (result == "ERROR") {
         print("Handling failure gracefully")
         return "Fallback value"
     }
@@ -38,4 +39,5 @@ print("Result 1:", result1)
 result2 = await safeWrapper(true)
 print("Result 2:", result2)
 
-print("\nError handling complete!")
+print("")
+print("Error handling complete!")

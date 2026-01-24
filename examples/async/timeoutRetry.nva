@@ -10,7 +10,8 @@ async func slowOperation(delay) {
 }
 
 async func withTimeout(operation, maxDelay) {
-    print("\n=== Operation with timeout ===")
+    print("")
+    print("=== Operation with timeout ===")
     
     start = t.clock()
     result = await operation
@@ -20,14 +21,16 @@ async func withTimeout(operation, maxDelay) {
     
     if (elapsed > maxDelay) {
         print("WARNING: Operation exceeded timeout!")
-        return nil
+        return "TIMEOUT"
     }
     
     return result
 }
 
 async func retryOperation(maxAttempts) {
-    print("\n=== Retry Pattern Demo ===\n")
+    print("")
+    print("=== Retry Pattern Demo ===")
+    print("")
     
     attempts = 0
     
@@ -35,9 +38,9 @@ async func retryOperation(maxAttempts) {
         attempts = attempts + 1
         print("Attempt", attempts, "of", maxAttempts)
         
-        result = await slowOperation(200)
+        result = await slowOperation(100)
         
-        if (result != nil) {
+        if (result != "ERROR") {
             print("Success on attempt", attempts)
             return result
         }
@@ -46,21 +49,22 @@ async func retryOperation(maxAttempts) {
     }
     
     print("Failed after", maxAttempts, "attempts")
-    return nil
+    return "FAILED"
 }
 
 print("=== Async Timeout Demo ===")
 
 // Fast operation (should succeed)
-task1 = slowOperation(300)
+task1 = slowOperation(200)
 result1 = await withTimeout(task1, 500)
 print("Result 1:", result1)
 
 // Slow operation (should timeout)
-task2 = slowOperation(700)
-result2 = await withTimeout(task2, 500)
+task2 = slowOperation(400)
+result2 = await withTimeout(task2, 300)
 print("Result 2:", result2)
 
 // Retry pattern
-result3 = await retryOperation(3)
-print("\nFinal result:", result3)
+result3 = await retryOperation(2)
+print("")
+print("Final result:", result3)
