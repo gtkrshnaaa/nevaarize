@@ -1,0 +1,41 @@
+// Async Error Handling
+// Demonstrates error handling in async functions
+
+import stdlib time as t
+
+async func riskyOperation(shouldFail) {
+    print("Executing risky operation...")
+    t.sleep(200)
+    
+    if (shouldFail) {
+        print("Operation failed!")
+        return nil
+    }
+    
+    return "Success!"
+}
+
+async func safeWrapper(shouldFail) {
+    print("\n=== Attempting operation ===")
+    
+    result = await riskyOperation(shouldFail)
+    
+    if (result == nil) {
+        print("Handling failure gracefully")
+        return "Fallback value"
+    }
+    
+    return result
+}
+
+print("=== Async Error Handling Demo ===")
+
+// Success case
+result1 = await safeWrapper(false)
+print("Result 1:", result1)
+
+// Failure case
+result2 = await safeWrapper(true)
+print("Result 2:", result2)
+
+print("\nError handling complete!")
