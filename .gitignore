@@ -23,3 +23,6 @@ tests/output/
 # Documentation generated files (keep index.html)
 docs/*.html
 !docs/index.html
+
+# Generated model files
+*.nmod
