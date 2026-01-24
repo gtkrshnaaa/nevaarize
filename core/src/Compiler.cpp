@@ -647,9 +647,16 @@ void Compiler::compileStatement(const AST& ast, NodeIndex idx) {
             compileAssignment(ast, idx);
             break;
             
-        case NodeType::EXPR_STMT:
-            freeReg(compileExpr(ast, node.left));
+        case NodeType::EXPR_STMT: {
+            // Check if this is a function call like print()
+            const ASTNode& exprNode = ast.get(node.left);
+            if (exprNode.type == NodeType::CALL) {
+                compileCall(ast, node.left);
+            } else {
+                freeReg(compileExpr(ast, node.left));
+            }
             break;
+        }
             
         case NodeType::BLOCK:
             compileBlock(ast, idx);
@@ -801,6 +808,182 @@ void Compiler::compileReturn(const AST& ast, NodeIndex idx) {
     
     // Emit epilogue and return
     emitEpilogue();
+}
+
+// Emit code to print an integer to stdout using syscall
+void Compiler::emitPrintInt(X64Reg valueReg) {
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Save the value to a known register if not already in RDI
+    // We'll use a simple approach: convert int to string on stack and print
+    
+    // For simplicity, we'll use a helper function approach
+    // Store value in RDI (first arg for System V AMD64)
+    if (valueReg != X64Reg::RDI) {
+        bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
+        // mov rdi, valueReg
+        buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0xC7 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
+    }
+    
+    // We'll implement a simple decimal print using stack buffer
+    // Algorithm: divide by 10 repeatedly, push digits, then write
+    
+    // sub rsp, 32 ; allocate buffer on stack
+    buf.emit8(0x48);
+    buf.emit8(0x83);
+    buf.emit8(0xEC);
+    buf.emit8(0x20);
+    
+    // mov rax, rdi ; value to convert
+    buf.emit8(0x48);
+    buf.emit8(0x89);
+    buf.emit8(0xF8);
+    
+    // mov r10, rsp ; buffer pointer
+    buf.emit8(0x49);
+    buf.emit8(0x89);
+    buf.emit8(0xE2);
+    
+    // add r10, 30 ; point to end of buffer
+    buf.emit8(0x49);
+    buf.emit8(0x83);
+    buf.emit8(0xC2);
+    buf.emit8(0x1E);
+    
+    // mov byte [r10], 10 ; newline at end
+    buf.emit8(0x41);
+    buf.emit8(0xC6);
+    buf.emit8(0x02);
+    buf.emit8(0x0A);
+    
+    // xor r11, r11 ; digit count
+    buf.emit8(0x4D);
+    buf.emit8(0x31);
+    buf.emit8(0xDB);
+    
+    // Handle negative numbers
+    // test rax, rax
+    buf.emit8(0x48);
+    buf.emit8(0x85);
+    buf.emit8(0xC0);
+    
+    // jns positive (skip negation)
+    buf.emit8(0x79);
+    buf.emit8(0x03);
+    
+    // neg rax
+    buf.emit8(0x48);
+    buf.emit8(0xF7);
+    buf.emit8(0xD8);
+    
+    // mov rcx, 10 ; divisor
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC1);
+    buf.emit32(10);
+    
+    // convert_loop:
+    size_t loopStart = buf.getOffset();
+    
+    // xor rdx, rdx ; clear remainder
+    buf.emit8(0x48);
+    buf.emit8(0x31);
+    buf.emit8(0xD2);
+    
+    // div rcx ; rax = quotient, rdx = remainder
+    buf.emit8(0x48);
+    buf.emit8(0xF7);
+    buf.emit8(0xF1);
+    
+    // add dl, '0' ; convert to ASCII
+    buf.emit8(0x80);
+    buf.emit8(0xC2);
+    buf.emit8(0x30);
+    
+    // dec r10 ; move buffer pointer back
+    buf.emit8(0x49);
+    buf.emit8(0xFF);
+    buf.emit8(0xCA);
+    
+    // mov [r10], dl ; store digit
+    buf.emit8(0x41);
+    buf.emit8(0x88);
+    buf.emit8(0x12);
+    
+    // inc r11 ; digit count
+    buf.emit8(0x49);
+    buf.emit8(0xFF);
+    buf.emit8(0xC3);
+    
+    // test rax, rax ; more digits?
+    buf.emit8(0x48);
+    buf.emit8(0x85);
+    buf.emit8(0xC0);
+    
+    // jnz convert_loop
+    buf.emit8(0x75);
+    int8_t jumpBack = static_cast<int8_t>(loopStart - (buf.getOffset() + 1));
+    buf.emit8(static_cast<uint8_t>(jumpBack));
+    
+    // Now write to stdout using syscall
+    // mov rax, 1 ; syscall number for write
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC0);
+    buf.emit32(1);
+    
+    // mov rdi, 1 ; fd = stdout
+    buf.emit8(0x48);
+    buf.emit8(0xC7);
+    buf.emit8(0xC7);
+    buf.emit32(1);
+    
+    // mov rsi, r10 ; buffer address
+    buf.emit8(0x4C);
+    buf.emit8(0x89);
+    buf.emit8(0xD6);
+    
+    // lea rdx, [r11 + 1] ; length (digits + newline)
+    buf.emit8(0x49);
+    buf.emit8(0x8D);
+    buf.emit8(0x53);
+    buf.emit8(0x01);
+    
+    // syscall
+    buf.emit8(0x0F);
+    buf.emit8(0x05);
+    
+    // add rsp, 32 ; restore stack
+    buf.emit8(0x48);
+    buf.emit8(0x83);
+    buf.emit8(0xC4);
+    buf.emit8(0x20);
+}
+
+// Compile function call
+void Compiler::compileCall(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    
+    // Get the function name
+    if (node.left == INVALID_NODE) return;
+    const ASTNode& callee = ast.get(node.left);
+    
+    if (callee.type != NodeType::IDENTIFIER) return;
+    
+    const std::string& funcName = callee.name;
+    
+    // Handle built-in print function
+    if (funcName == "print") {
+        // Compile each argument and print it
+        for (NodeIndex argIdx : node.children) {
+            X64Reg argReg = compileExpr(ast, argIdx);
+            emitPrintInt(argReg);
+            freeReg(argReg);
+        }
+    }
+    // TODO: Handle other built-in functions and user-defined functions
 }
 
 } // namespace nevaarize

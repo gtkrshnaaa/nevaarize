@@ -90,6 +90,10 @@ private:
     void compileIf(const AST& ast, NodeIndex idx);
     void compileWhile(const AST& ast, NodeIndex idx);
     void compileReturn(const AST& ast, NodeIndex idx);
+    void compileCall(const AST& ast, NodeIndex idx);
+    
+    // Native function call emission
+    void emitPrintInt(X64Reg valueReg);
 
     // Register allocation state
     bool regInUse[16];
