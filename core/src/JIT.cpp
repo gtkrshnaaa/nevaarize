@@ -405,6 +405,69 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return X64Reg::RAX;
         }
         
+        case NodeType::ARRAY_LITERAL: {
+            // Store array on stack: allocate space for elements
+            size_t elemCount = node.children.size();
+            size_t arraySize = elemCount * 8; // 8 bytes per element
+            size_t paddedSize = ((arraySize + 15) & ~15);
+            
+            CodeBuffer& buf = codegen.getCode();
+            
+            // sub rsp, paddedSize
+            buf.emit8(0x48);
+            buf.emit8(0x81);
+            buf.emit8(0xEC);
+            buf.emit32(static_cast<uint32_t>(paddedSize));
+            
+            // Store each element
+            for (size_t i = 0; i < elemCount; ++i) {
+                X64Reg elemReg = compileExpr(ast, node.children[i]);
+                
+                // mov [rsp + i*8], elemReg
+                bool regHigh = static_cast<uint8_t>(elemReg) >= 8;
+                buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0x44 | ((static_cast<uint8_t>(elemReg) & 0x7) << 3));
+                buf.emit8(0x24);
+                buf.emit8(static_cast<uint8_t>(i * 8));
+                
+                freeReg(elemReg);
+            }
+            
+            // Return RSP as array pointer
+            X64Reg dst = allocateReg();
+            buf.emit8(0x48);
+            buf.emit8(0x89);
+            buf.emit8(0xE0 | (static_cast<uint8_t>(dst) & 0x7));
+            
+            return dst;
+        }
+        
+        case NodeType::INDEX_ACCESS: {
+            // array[index] - load element from array pointer
+            X64Reg arrReg = compileExpr(ast, node.left);
+            X64Reg idxReg = compileExpr(ast, node.right);
+            
+            CodeBuffer& buf = codegen.getCode();
+            
+            // index * 8 (scale by 8 for 64-bit elements)
+            bool idxHigh = static_cast<uint8_t>(idxReg) >= 8;
+            buf.emit8(0x48 | (idxHigh ? 0x05 : 0));
+            buf.emit8(0xC1);
+            buf.emit8(0xE0 | (static_cast<uint8_t>(idxReg) & 0x7));
+            buf.emit8(0x03); // shl by 3
+            
+            // mov arrReg, [arrReg + idxReg]
+            bool arrHigh = static_cast<uint8_t>(arrReg) >= 8;
+            buf.emit8(0x48 | (arrHigh ? 0x04 : 0) | (idxHigh ? 0x02 : 0));
+            buf.emit8(0x8B);
+            buf.emit8(0x04 | ((static_cast<uint8_t>(arrReg) & 0x7) << 3));
+            buf.emit8(((static_cast<uint8_t>(idxReg) & 0x7) << 3) | (static_cast<uint8_t>(arrReg) & 0x7));
+            
+            freeReg(idxReg);
+            return arrReg;
+        }
+        
         default:
             return X64Reg::RAX;
     }
