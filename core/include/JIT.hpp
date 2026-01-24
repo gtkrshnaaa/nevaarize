@@ -77,6 +77,8 @@ private:
     struct FuncInfo {
         NodeIndex bodyIndex;
         std::vector<std::string> paramNames;
+        size_t compiledOffset;  // Offset in code buffer for compiled function
+        bool isCompiled;
     };
     std::unordered_map<std::string, FuncInfo> userFunctions;
     const AST* currentAST;
