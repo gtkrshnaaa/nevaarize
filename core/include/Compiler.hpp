@@ -1,12 +1,12 @@
 /**
- * TrueJIT.hpp - True JIT Compiler for Nevaarize
+ * Compiler.hpp - Nevaarize Native Compiler
  *
  * Compiles Nevaarize AST directly to x86-64 machine code.
- * This is REAL JIT - not pre-written assembly.
+ * This is the default execution engine for Nevaarize.
  */
 
-#ifndef NEVAARIZE_TRUE_JIT_HPP
-#define NEVAARIZE_TRUE_JIT_HPP
+#ifndef NEVAARIZE_COMPILER_HPP
+#define NEVAARIZE_COMPILER_HPP
 
 #include "AST.hpp"
 #include "CodeGen.hpp"
@@ -31,23 +31,22 @@ struct VarLocation {
 };
 
 /**
- * True JIT Compiler for Nevaarize.
+ * Native Compiler for Nevaarize.
  * Compiles AST directly to executable x86-64 machine code.
  */
-class TrueJIT {
+class Compiler {
 public:
-    TrueJIT();
-    ~TrueJIT();
+    Compiler();
+    ~Compiler();
 
     /**
      * Compile a full program to native code.
-     * This is the main entry point for JIT compilation.
+     * This is the main entry point for compilation.
      */
-    CompiledFunc compileProgram(const AST& ast);
+    CompiledFunc compile(const AST& ast);
 
     /**
      * Compile a for loop to native code.
-     * Returns a function pointer to execute.
      */
     CompiledFunc compileForLoop(const AST& ast, NodeIndex forNode,
                                  int64_t start, int64_t end);
@@ -63,7 +62,7 @@ public:
     int64_t execute(CompiledFunc fn);
 
     /**
-     * Check if a loop can be JIT compiled.
+     * Check if a loop can be compiled directly.
      */
     bool canCompileLoop(const AST& ast, NodeIndex forNode);
 
@@ -96,34 +95,6 @@ private:
     bool regInUse[16];
 };
 
-/**
- * JIT-enabled evaluator that hot-compiles loops.
- */
-class JITEvaluator {
-public:
-    JITEvaluator();
-
-    /**
-     * Execute AST with JIT compilation for hot paths.
-     */
-    Value execute(std::shared_ptr<const AST> ast);
-
-    /**
-     * Get performance statistics.
-     */
-    struct Stats {
-        int64_t interpretedOps;
-        int64_t compiledOps;
-        double compiledPercentage;
-    };
-    Stats getStats() const;
-
-private:
-    TrueJIT jit;
-    int64_t interpretedOps;
-    int64_t compiledOps;
-};
-
 } // namespace nevaarize
 
-#endif // NEVAARIZE_TRUE_JIT_HPP
+#endif // NEVAARIZE_COMPILER_HPP

@@ -1,16 +1,16 @@
 /**
- * TrueJIT.cpp - True JIT Compiler Implementation
+ * Compiler.cpp - True JIT Compiler Implementation
  *
  * Compiles Nevaarize AST to x86-64 machine code.
  * This compiles ACTUAL Nevaarize code, not pre-written assembly.
  */
 
-#include "TrueJIT.hpp"
+#include "Compiler.hpp"
 #include <cstring>
 
 namespace nevaarize {
 
-TrueJIT::TrueJIT() 
+Compiler::Compiler() 
     : stackSize(0)
     , nextStackSlot(0) {
     execMem = std::make_unique<ExecutableMemory>(16384);
@@ -21,9 +21,9 @@ TrueJIT::TrueJIT()
     regInUse[static_cast<int>(X64Reg::RBP)] = true;
 }
 
-TrueJIT::~TrueJIT() = default;
+Compiler::~Compiler() = default;
 
-void TrueJIT::emitPrologue() {
+void Compiler::emitPrologue() {
     CodeBuffer& buf = codegen.getCode();
     
     // push rbp
@@ -41,7 +41,7 @@ void TrueJIT::emitPrologue() {
     buf.emit32(256); // Reserve 256 bytes for locals
 }
 
-void TrueJIT::emitEpilogue() {
+void Compiler::emitEpilogue() {
     CodeBuffer& buf = codegen.getCode();
     
     // mov rsp, rbp
@@ -56,7 +56,7 @@ void TrueJIT::emitEpilogue() {
     buf.emit8(0xC3);
 }
 
-X64Reg TrueJIT::allocateReg() {
+X64Reg Compiler::allocateReg() {
     // Prefer caller-saved registers: RAX, RCX, RDX, R8-R11
     static const X64Reg preferred[] = {
         X64Reg::RAX, X64Reg::RCX, X64Reg::RDX,
@@ -82,7 +82,7 @@ X64Reg TrueJIT::allocateReg() {
     return X64Reg::RAX; // Out of registers
 }
 
-void TrueJIT::freeReg(X64Reg reg) {
+void Compiler::freeReg(X64Reg reg) {
     int idx = static_cast<int>(reg);
     if (idx != static_cast<int>(X64Reg::RSP) && 
         idx != static_cast<int>(X64Reg::RBP)) {
@@ -90,7 +90,7 @@ void TrueJIT::freeReg(X64Reg reg) {
     }
 }
 
-int32_t TrueJIT::allocateStackSlot() {
+int32_t Compiler::allocateStackSlot() {
     nextStackSlot += 8;
     if (nextStackSlot > stackSize) {
         stackSize = nextStackSlot;
@@ -98,7 +98,7 @@ int32_t TrueJIT::allocateStackSlot() {
     return -nextStackSlot;
 }
 
-bool TrueJIT::canCompileLoop(const AST& ast, NodeIndex forNode) {
+bool Compiler::canCompileLoop(const AST& ast, NodeIndex forNode) {
     if (forNode == INVALID_NODE) return false;
     
     const ASTNode& node = ast.get(forNode);
@@ -129,7 +129,7 @@ bool TrueJIT::canCompileLoop(const AST& ast, NodeIndex forNode) {
     return true;
 }
 
-X64Reg TrueJIT::compileExpr(const AST& ast, NodeIndex idx) {
+X64Reg Compiler::compileExpr(const AST& ast, NodeIndex idx) {
     if (idx == INVALID_NODE) return X64Reg::RAX;
     
     const ASTNode& node = ast.get(idx);
@@ -395,7 +395,7 @@ X64Reg TrueJIT::compileExpr(const AST& ast, NodeIndex idx) {
     }
 }
 
-void TrueJIT::compileAssignment(const AST& ast, NodeIndex idx) {
+void Compiler::compileAssignment(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
@@ -422,7 +422,7 @@ void TrueJIT::compileAssignment(const AST& ast, NodeIndex idx) {
     freeReg(valueReg);
 }
 
-void TrueJIT::compileBlock(const AST& ast, NodeIndex idx) {
+void Compiler::compileBlock(const AST& ast, NodeIndex idx) {
     const ASTNode& block = ast.get(idx);
     
     for (NodeIndex stmtIdx : block.children) {
@@ -441,7 +441,7 @@ void TrueJIT::compileBlock(const AST& ast, NodeIndex idx) {
     }
 }
 
-CompiledFunc TrueJIT::compileForLoop(const AST& ast, NodeIndex forNode,
+CompiledFunc Compiler::compileForLoop(const AST& ast, NodeIndex forNode,
                                       int64_t start, int64_t end) {
     codegen = CodeGenerator();
     variables.clear();
@@ -568,7 +568,7 @@ CompiledFunc TrueJIT::compileForLoop(const AST& ast, NodeIndex forNode,
     return execMem->getFunction<CompiledFunc>(0);
 }
 
-CompiledFunc TrueJIT::compileExpression(const AST& ast, NodeIndex exprNode) {
+CompiledFunc Compiler::compileExpression(const AST& ast, NodeIndex exprNode) {
     codegen = CodeGenerator();
     variables.clear();
     std::memset(regInUse, 0, sizeof(regInUse));
@@ -593,12 +593,12 @@ CompiledFunc TrueJIT::compileExpression(const AST& ast, NodeIndex exprNode) {
     return execMem->getFunction<CompiledFunc>(0);
 }
 
-int64_t TrueJIT::execute(CompiledFunc fn) {
+int64_t Compiler::execute(CompiledFunc fn) {
     return fn();
 }
 
 // Compile a full program to native code
-CompiledFunc TrueJIT::compileProgram(const AST& ast) {
+CompiledFunc Compiler::compile(const AST& ast) {
     codegen = CodeGenerator();
     variables.clear();
     stackSize = 0;
@@ -637,7 +637,7 @@ CompiledFunc TrueJIT::compileProgram(const AST& ast) {
 }
 
 // Compile a single statement
-void TrueJIT::compileStatement(const AST& ast, NodeIndex idx) {
+void Compiler::compileStatement(const AST& ast, NodeIndex idx) {
     if (idx == INVALID_NODE) return;
     
     const ASTNode& node = ast.get(idx);
@@ -678,7 +678,7 @@ void TrueJIT::compileStatement(const AST& ast, NodeIndex idx) {
 }
 
 // Compile if/else statement
-void TrueJIT::compileIf(const AST& ast, NodeIndex idx) {
+void Compiler::compileIf(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
@@ -733,7 +733,7 @@ void TrueJIT::compileIf(const AST& ast, NodeIndex idx) {
 }
 
 // Compile while loop
-void TrueJIT::compileWhile(const AST& ast, NodeIndex idx) {
+void Compiler::compileWhile(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
@@ -775,7 +775,7 @@ void TrueJIT::compileWhile(const AST& ast, NodeIndex idx) {
 }
 
 // Compile return statement
-void TrueJIT::compileReturn(const AST& ast, NodeIndex idx) {
+void Compiler::compileReturn(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
@@ -801,21 +801,6 @@ void TrueJIT::compileReturn(const AST& ast, NodeIndex idx) {
     
     // Emit epilogue and return
     emitEpilogue();
-}
-
-// JITEvaluator implementation
-JITEvaluator::JITEvaluator()
-    : interpretedOps(0)
-    , compiledOps(0) {}
-
-JITEvaluator::Stats JITEvaluator::getStats() const {
-    Stats s;
-    s.interpretedOps = interpretedOps;
-    s.compiledOps = compiledOps;
-    s.compiledPercentage = (compiledOps + interpretedOps > 0)
-        ? (100.0 * compiledOps / (compiledOps + interpretedOps))
-        : 0.0;
-    return s;
 }
 
 } // namespace nevaarize
