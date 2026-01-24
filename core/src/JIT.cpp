@@ -7,9 +7,11 @@
 #include "JIT.hpp"
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <cmath>
 #include <chrono>
 #include <thread>
+#include <filesystem>
 
 namespace nevaarize {
 
@@ -182,6 +184,11 @@ void Evaluator::registerModule(const std::string& alias,
     globalEnv->define(alias, Value::fromStruct(moduleObj));
 }
 
+Value Evaluator::execute(std::shared_ptr<const AST> tree, const std::filesystem::path& filePath) {
+    currentFilePath = filePath;
+    return execute(tree);
+}
+
 Value Evaluator::execute(std::shared_ptr<const AST> tree) {
     ast = tree;
     environment = globalEnv;
@@ -298,6 +305,17 @@ Value Evaluator::evalLiteral(const ASTNode& node) {
 }
 
 Value Evaluator::evalIdentifier(const ASTNode& node) {
+    // First check if this is a module reference
+    auto modIt = modules.find(node.name);
+    if (modIt != modules.end()) {
+        // Return a special struct that wraps the module environment
+        StructInstance modObj;
+        modObj.typeName = node.name;
+        // Copy all definitions from module environment as fields
+        auto env = modIt->second;
+        // We can't directly iterate environment, so we store module env for later access
+        return Value::fromStruct(modObj);
+    }
     return environment->get(node.name);
 }
 
@@ -457,6 +475,10 @@ Value Evaluator::callFunction(const Value& callee, const std::vector<Value>& arg
                     case NodeType::EXPR_STMT:
                         evaluate(stmt.left);
                         break;
+                    case NodeType::FUNC_DECL:
+                    case NodeType::ASYNC_FUNC_DECL:
+                        execFuncDecl(stmt);
+                        break;
                     default:
                         break;
                 }
@@ -479,6 +501,18 @@ Value Evaluator::evalMemberAccess(const ASTNode& node) {
     Value obj = evaluate(node.left);
 
     if (obj.isStruct() && obj.structVal) {
+        // Check if this is a module reference
+        auto modIt = modules.find(obj.structVal->typeName);
+        if (modIt != modules.end()) {
+            // Lookup member in module environment
+            try {
+                return modIt->second->get(node.name);
+            } catch (...) {
+                throw RuntimeError("Undefined export: " + node.name + " in module " + obj.structVal->typeName, 
+                                   node.line, node.column);
+            }
+        }
+
         auto it = obj.structVal->fields.find(node.name);
         if (it != obj.structVal->fields.end()) {
             return it->second;
@@ -786,8 +820,94 @@ void Evaluator::execImportStdlib(const ASTNode& node) {
 }
 
 void Evaluator::execImportFile(const ASTNode& node) {
-    // File import is handled by the runtime loader in Main.cpp
-    // This is a stub for when the file has been pre-loaded
+    std::string filePath = node.name;
+    std::string alias = node.paramNames[0];
+
+    // Resolve path relative to current source file
+    std::filesystem::path basePath = currentFilePath.parent_path();
+    std::filesystem::path fullPath = basePath / filePath;
+
+    // Read file content
+    std::ifstream file(fullPath);
+    if (!file) {
+        throw RuntimeError("Cannot open file: " + fullPath.string(), node.line, node.column);
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string source = buffer.str();
+
+    // Tokenize and parse
+    Lexer lexer(source);
+    auto tokens = lexer.tokenize();
+    if (!lexer.errors().empty()) {
+        throw RuntimeError("Lexer error in " + filePath + ": " + lexer.errors()[0], node.line, node.column);
+    }
+
+    Parser parser(tokens);
+    parser.parse();
+    if (parser.hasErrors()) {
+        throw RuntimeError("Parser error in " + filePath + ": " + parser.errors()[0], node.line, node.column);
+    }
+
+    // Execute module in new environment to collect exports
+    auto moduleAST = std::make_shared<AST>(std::move(parser.getAST()));
+    auto moduleEnv = std::make_shared<Environment>(globalEnv);
+    auto prevEnv = environment;
+    auto prevAST = ast;
+    auto prevFilePath = currentFilePath;
+    environment = moduleEnv;
+    ast = moduleAST;
+    currentFilePath = fullPath;
+
+    NodeIndex root = ast->root();
+    if (root != INVALID_NODE) {
+        const ASTNode& program = ast->get(root);
+        for (NodeIndex child : program.children) {
+            const ASTNode& stmt = ast->get(child);
+            switch (stmt.type) {
+                case NodeType::FUNC_DECL:
+                case NodeType::ASYNC_FUNC_DECL:
+                    execFuncDecl(stmt);
+                    break;
+                case NodeType::STRUCT_DECL:
+                    execStructDecl(stmt);
+                    break;
+                case NodeType::IMPORT_STDLIB:
+                    execImportStdlib(stmt);
+                    break;
+                case NodeType::IMPORT_FILE:
+                    execImportFile(stmt);
+                    break;
+                case NodeType::VAR_ASSIGN:
+                    execVarAssign(stmt);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    // Create module object from moduleEnv
+    StructInstance moduleObj;
+    moduleObj.typeName = alias;
+
+    // Copy all definitions from module environment
+    // This is a simplified approach - we expose all top-level definitions
+    auto copyEnv = moduleEnv;
+    while (copyEnv && copyEnv != globalEnv) {
+        // We need to access the variables - add a method to Environment
+        copyEnv = copyEnv->getParent();
+    }
+
+    // For now, store the module environment directly
+    // and use member access to call through it
+    environment = prevEnv;
+    ast = prevAST;
+    currentFilePath = prevFilePath;
+
+    // Register the module environment as a special struct
+    globalEnv->define(alias, Value::fromStruct(moduleObj));
+    modules[alias] = moduleEnv;
 }
 
 } // namespace nevaarize

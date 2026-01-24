@@ -18,6 +18,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <filesystem>
 
 namespace nevaarize {
 
@@ -82,6 +83,11 @@ public:
     Value execute(std::shared_ptr<const AST> tree);
 
     /**
+     * Execute an AST with source file path for import resolution.
+     */
+    Value execute(std::shared_ptr<const AST> tree, const std::filesystem::path& filePath);
+
+    /**
      * Register a native function.
      */
     void registerNative(const std::string& name, NativeFunction fn);
@@ -102,7 +108,8 @@ private:
     std::shared_ptr<Environment> globalEnv;
     std::shared_ptr<Environment> environment;
     std::unordered_map<std::string, StructDef> structs;
-    std::unordered_map<std::string, std::unordered_map<std::string, NativeFunction>> modules;
+    std::unordered_map<std::string, std::shared_ptr<Environment>> modules;
+    std::filesystem::path currentFilePath;
 
     void setupStandardLibrary();
     Value evaluate(NodeIndex idx);

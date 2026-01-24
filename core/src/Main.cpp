@@ -67,7 +67,8 @@ int runScript(const std::string& scriptPath, Evaluator& evaluator) {
 
     try {
         auto ast = std::make_shared<AST>(std::move(parser.getAST()));
-        evaluator.execute(ast);
+        fs::path fullPath = fs::absolute(scriptPath);
+        evaluator.execute(ast, fullPath);
     } catch (const RuntimeError& e) {
         std::cerr << "Runtime error";
         if (e.line > 0) {
