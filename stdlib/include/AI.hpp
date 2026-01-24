@@ -4,15 +4,19 @@
  * Core AI/ML primitives for neural network development.
  * SIMD-accelerated tensor operations, activation functions,
  * loss functions, and optimization utilities.
+ * 
+ * Model training and serving with .nmod format.
  */
 
 #ifndef NEVAARIZE_STDLIB_AI_HPP
 #define NEVAARIZE_STDLIB_AI_HPP
 
 #include "../../core/include/Value.hpp"
+#include "../../core/include/Model.hpp"
 #include <unordered_map>
 #include <vector>
 #include <cstdint>
+#include <memory>
 
 namespace nevaarize {
 namespace stdlib {

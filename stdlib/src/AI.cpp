@@ -780,6 +780,175 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
         return Value::fromArray(std::move(arr));
     };
     
+    // ========================================
+    // MODEL FUNCTIONS
+    // ========================================
+    
+    // Global model storage
+    static std::unordered_map<int, std::shared_ptr<Model>> modelRegistry;
+    static int nextModelId = 1;
+    
+    funcs["Sequential"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        auto model = std::make_shared<Model>();
+        
+        // Parse layers from array
+        if (!args.empty() && args[0].isArray() && args[0].arrayVal) {
+            for (const auto& layerVal : *args[0].arrayVal) {
+                if (layerVal.isArray() && layerVal.arrayVal && !layerVal.arrayVal->empty()) {
+                    const auto& layerDef = *layerVal.arrayVal;
+                    
+                    if (layerDef[0].isString() && layerDef[0].stringVal) {
+                        std::string layerType = *layerDef[0].stringVal;
+                        Layer layer;
+                        layer.type = stringToLayerType(layerType);
+                        
+                        if (layerType == "linear" && layerDef.size() >= 3) {
+                            layer.inputSize = static_cast<size_t>(layerDef[1].asDouble());
+                            layer.outputSize = static_cast<size_t>(layerDef[2].asDouble());
+                        } else if (layerType == "leakyrelu" && layerDef.size() >= 2) {
+                            layer.param = static_cast<float>(layerDef[1].asDouble());
+                        } else if (layerType == "dropout" && layerDef.size() >= 2) {
+                            layer.param = static_cast<float>(layerDef[1].asDouble());
+                        }
+                        
+                        model->addLayer(layer);
+                    }
+                }
+            }
+        }
+        
+        int modelId = nextModelId++;
+        modelRegistry[modelId] = model;
+        
+        return Value::fromInt(modelId);
+    };
+    
+    funcs["Layer"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty()) return Value::fromArray({});
+        
+        std::vector<Value> result;
+        
+        // First arg is layer type string
+        if (args[0].isString() && args[0].stringVal) {
+            result.push_back(args[0]);
+            
+            // Copy additional params
+            for (size_t i = 1; i < args.size(); ++i) {
+                result.push_back(args[i]);
+            }
+        }
+        
+        return Value::fromArray(std::move(result));
+    };
+    
+    funcs["train"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.size() < 4) return Value::nil();
+        
+        int modelId = static_cast<int>(args[0].asDouble());
+        auto it = modelRegistry.find(modelId);
+        if (it == modelRegistry.end()) return Value::nil();
+        
+        auto& model = it->second;
+        
+        // Parse training data
+        std::vector<std::vector<float>> xData;
+        std::vector<int> yData;
+        
+        if (args[1].isArray() && args[1].arrayVal) {
+            for (const auto& sample : *args[1].arrayVal) {
+                xData.push_back(ai_internal::toFloatVector(sample));
+            }
+        }
+        
+        if (args[2].isArray() && args[2].arrayVal) {
+            for (const auto& label : *args[2].arrayVal) {
+                yData.push_back(static_cast<int>(label.asDouble()));
+            }
+        }
+        
+        // Parse config
+        int epochs = 100;
+        float lr = 0.001f;
+        std::string optimizer = "adam";
+        std::string loss = "crossentropy";
+        
+        if (args[3].isArray() && args[3].arrayVal) {
+            const auto& config = *args[3].arrayVal;
+            if (config.size() >= 1) epochs = static_cast<int>(config[0].asDouble());
+            if (config.size() >= 2) lr = static_cast<float>(config[1].asDouble());
+            if (config.size() >= 3 && config[2].isString() && config[2].stringVal) {
+                optimizer = *config[2].stringVal;
+            }
+            if (config.size() >= 4 && config[3].isString() && config[3].stringVal) {
+                loss = *config[3].stringVal;
+            }
+        }
+        
+        // Train
+        model->train(xData, yData, epochs, lr, optimizer, loss, true);
+        
+        return Value::fromFloat(model->getFinalLoss());
+    };
+    
+    funcs["predict"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.size() < 2) return Value::nil();
+        
+        int modelId = static_cast<int>(args[0].asDouble());
+        auto it = modelRegistry.find(modelId);
+        if (it == modelRegistry.end()) return Value::nil();
+        
+        auto input = ai_internal::toFloatVector(args[1]);
+        auto output = it->second->predict(input);
+        
+        return ai_internal::fromFloatVector(output);
+    };
+    
+    funcs["saveModel"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.size() < 2) return Value::fromBool(false);
+        
+        int modelId = static_cast<int>(args[0].asDouble());
+        auto it = modelRegistry.find(modelId);
+        if (it == modelRegistry.end()) return Value::fromBool(false);
+        
+        if (!args[1].isString() || !args[1].stringVal) return Value::fromBool(false);
+        
+        bool success = it->second->save(*args[1].stringVal);
+        return Value::fromBool(success);
+    };
+    
+    funcs["loadModel"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty() || !args[0].isString() || !args[0].stringVal) {
+            return Value::fromInt(-1);
+        }
+        
+        auto model = Model::load(*args[0].stringVal);
+        if (!model) return Value::fromInt(-1);
+        
+        int modelId = nextModelId++;
+        modelRegistry[modelId] = model;
+        
+        return Value::fromInt(modelId);
+    };
+    
+    funcs["getModelInfo"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty()) return Value::nil();
+        
+        int modelId = static_cast<int>(args[0].asDouble());
+        auto it = modelRegistry.find(modelId);
+        if (it == modelRegistry.end()) return Value::nil();
+        
+        auto& model = it->second;
+        
+        std::vector<Value> info;
+        info.push_back(Value::fromInt(static_cast<int64_t>(model->getInputSize())));
+        info.push_back(Value::fromInt(static_cast<int64_t>(model->getOutputSize())));
+        info.push_back(Value::fromInt(model->getEpoch()));
+        info.push_back(Value::fromFloat(model->getFinalLoss()));
+        info.push_back(Value::fromBool(model->isTrained()));
+        
+        return Value::fromArray(std::move(info));
+    };
+    
     return funcs;
 }
 
