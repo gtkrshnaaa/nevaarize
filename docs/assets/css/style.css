@@ -29,15 +29,15 @@
     --font-body: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
     
-    /* Syntax Highlighting (White & Gray) */
-    --syntax-default: #e8e8e8;
-    --syntax-keyword: #ffffff;
-    --syntax-string: #b0b0b0;
-    --syntax-number: #d0d0d0;
-    --syntax-comment: #5a5a5a;
-    --syntax-function: #f0f0f0;
-    --syntax-operator: #c0c0c0;
-    --syntax-punctuation: #909090;
+    /* Syntax Highlighting (Light Gray keywords, White others) */
+    --syntax-default: #ffffff;
+    --syntax-keyword: #a0a0a0;
+    --syntax-string: #ffffff;
+    --syntax-number: #ffffff;
+    --syntax-comment: #888888;
+    --syntax-function: #ffffff;
+    --syntax-operator: #ffffff;
+    --syntax-punctuation: #ffffff;
     
     /* Spacing */
     --space-xs: 0.25rem;
