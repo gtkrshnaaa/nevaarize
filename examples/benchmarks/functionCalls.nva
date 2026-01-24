@@ -1,0 +1,31 @@
+// Benchmark: Function Calls
+// Tests JIT inline caching performance
+
+import stdlib time as t
+
+func add(a, b) {
+    return a + b
+}
+
+func compute(x) {
+    return add(x, 1) + add(x, 2) + add(x, 3)
+}
+
+iterations = 1000000
+
+print("=== Function Call Benchmark ===")
+print("Iterations:", iterations)
+
+start = t.clock()
+
+sum = 0
+for (i in Range(0, iterations)) {
+    sum = sum + compute(i)
+}
+
+end = t.clock()
+elapsed = end - start
+
+print("Sum:", sum)
+print("Time:", elapsed, "seconds")
+print("Calls per second:", int(iterations * 3 / elapsed))
