@@ -1,0 +1,70 @@
+// training_loop.nva - Simple training loop demonstration
+// Demonstrates SGD training with stdlib ai
+
+import stdlib ai as ai
+
+print("=== Training Loop Demo ===")
+print("")
+
+// Simple linear regression: y = 2x + 1
+// We'll learn parameters w and b
+
+// Training data
+xTrain = [1.0, 2.0, 3.0, 4.0, 5.0]
+yTrain = [3.0, 5.0, 7.0, 9.0, 11.0]  // y = 2x + 1
+
+print("Training data:")
+print("  X:", xTrain)
+print("  Y:", yTrain)
+print("")
+
+// Initialize parameters
+w = [0.5]  // weight
+b = [0.0]  // bias
+lr = 0.01
+
+print("Initial parameters:")
+print("  w:", w[0])
+print("  b:", b[0])
+print("")
+
+// Training loop
+epochs = 100
+print("Training for", epochs, "epochs...")
+print("")
+
+for (epoch in Range(0, epochs)) {
+    totalLoss = 0.0
+    
+    for (i in Range(0, 5)) {
+        // Forward pass: pred = w * x + b
+        pred = [w[0] * xTrain[i] + b[0]]
+        target = [yTrain[i]]
+        
+        // Compute loss
+        loss = ai.MSELoss(pred, target)
+        totalLoss = totalLoss + loss
+        
+        // Compute gradients (manual for simplicity)
+        error = pred[0] - target[0]
+        gradW = [2 * error * xTrain[i]]
+        gradB = [2 * error]
+        
+        // Update weights
+        w = ai.SGDUpdate(w, gradW, lr)
+        b = ai.SGDUpdate(b, gradB, lr)
+    }
+    
+    // Print progress
+    if (epoch == 0 or epoch == 9 or epoch == 49 or epoch == 99) {
+        print("Epoch", epoch + 1, "- Loss:", totalLoss / 5, "- w:", w[0], "- b:", b[0])
+    }
+}
+
+print("")
+print("Final parameters:")
+print("  w:", w[0], "(expected: 2.0)")
+print("  b:", b[0], "(expected: 1.0)")
+
+print("")
+print("=== Training complete! ===")

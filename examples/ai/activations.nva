@@ -1,0 +1,49 @@
+// activations.nva - Neural network activation functions demo
+// Demonstrates all activation functions in stdlib ai
+
+import stdlib ai as ai
+
+print("=== Activation Functions Demo ===")
+print("")
+
+// Input data
+x = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0]
+print("Input x:", x)
+print("")
+
+// ReLU
+relu = ai.ReLU(x)
+print("ReLU(x):", relu)
+
+// LeakyReLU
+leaky = ai.LeakyReLU(x, 0.1)
+print("LeakyReLU(x, 0.1):", leaky)
+
+// Sigmoid
+sigmoid = ai.Sigmoid(x)
+print("Sigmoid(x):", sigmoid)
+
+// Tanh
+tanh = ai.Tanh(x)
+print("Tanh(x):", tanh)
+
+// GELU
+gelu = ai.GELU(x)
+print("GELU(x):", gelu)
+
+// SiLU (Swish)
+silu = ai.SiLU(x)
+print("SiLU(x):", silu)
+
+print("")
+print("=== Softmax Demo ===")
+
+logits = [2.0, 1.0, 0.1]
+print("Logits:", logits)
+
+probs = ai.Softmax(logits)
+print("Softmax(logits):", probs)
+print("Sum of probs:", ai.Sum(probs))
+
+print("")
+print("=== Activations complete! ===")

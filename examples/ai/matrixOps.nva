@@ -1,0 +1,55 @@
+// matrix_ops.nva - Matrix operations demo
+// Demonstrates matrix operations with stdlib ai
+
+import stdlib ai as ai
+
+print("=== Matrix Operations Demo ===")
+print("")
+
+// Dot product
+print("--- Dot Product ---")
+a = [1.0, 2.0, 3.0, 4.0]
+b = [0.5, 0.5, 0.5, 0.5]
+
+print("a:", a)
+print("b:", b)
+
+dot = ai.Dot(a, b)
+print("Dot(a, b):", dot)
+
+print("")
+
+// Matrix multiplication
+print("--- Matrix Multiplication ---")
+
+// 2x3 matrix A
+A = [1.0, 2.0, 3.0,
+     4.0, 5.0, 6.0]
+
+// 3x2 matrix B  
+B = [7.0, 8.0,
+     9.0, 10.0,
+     11.0, 12.0]
+
+print("A (2x3):", A)
+print("B (3x2):", B)
+
+// C = A * B -> 2x2
+C = ai.MatMul(A, B, 2, 3, 2)
+print("C = A @ B (2x2):", C)
+
+print("")
+
+// Transpose
+print("--- Transpose ---")
+
+M = [1.0, 2.0, 3.0,
+     4.0, 5.0, 6.0]
+     
+print("M (2x3):", M)
+
+MT = ai.Transpose(M, 2, 3)
+print("M.T (3x2):", MT)
+
+print("")
+print("=== Matrix operations complete! ===")
