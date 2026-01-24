@@ -164,7 +164,36 @@ source ~/.bashrc</code></pre>
 ├── docs/             # Documentation (you are here)
 └── Makefile          # Build configuration</code></pre>
                 
+                <h2>Model Commands</h2>
+                
+                <p>Nevaarize includes CLI commands for AI model training and inference:</p>
+                
+                <h3>Train a Model</h3>
+                
+                <p>Run a training script and save the resulting model:</p>
+                
+                <pre data-lang="bash"><code>./bin/nevaarize model train examples/ai/trainModel.nva to demo.nmod</code></pre>
+                
+                <p>The output path is resolved relative to the training script's location.</p>
+                
+                <h3>Run Model Inference</h3>
+                
+                <p>Load a trained model and run inference:</p>
+                
+                <pre data-lang="bash"><code># View model info
+./bin/nevaarize model run examples/ai/demo.nmod
+
+# Run with input data
+./bin/nevaarize model run examples/ai/demo.nmod --input "[1.0, 0.0, 1.0, 0.0]"</code></pre>
+                
+                <div class="callout callout-tip">
+                    <div class="callout-title">Tip</div>
+                    <p>See the <a href="ai.html">AI Library</a> documentation for the complete 
+                    model training API and examples.</p>
+                </div>
+                
                 <hr>
+
                 
                 <nav class="page-nav">
                     <a href="../index.html" class="page-nav-link">
