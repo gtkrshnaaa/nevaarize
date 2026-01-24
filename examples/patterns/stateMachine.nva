@@ -1,0 +1,71 @@
+// State Machine Pattern
+// Finite state machine for workflow management
+
+print("=== State Machine Example ===")
+print("")
+
+// Current order state
+orderState = "pending"
+orderHistory = []
+
+// State transition functions
+func confirmOrder() {
+    if (orderState == "pending") {
+        print("Transition: pending -> confirmed")
+        orderState = "confirmed"
+        orderHistory.push("confirmed")
+        return true
+    }
+    print("Cannot confirm in state:", orderState)
+    return false
+}
+
+func processOrder() {
+    if (orderState == "confirmed") {
+        print("Transition: confirmed -> processing")
+        orderState = "processing"
+        orderHistory.push("processing")
+        return true
+    }
+    print("Cannot process in state:", orderState)
+    return false
+}
+
+func shipOrder() {
+    if (orderState == "processing") {
+        print("Transition: processing -> shipped")
+        orderState = "shipped"
+        orderHistory.push("shipped")
+        return true
+    }
+    print("Cannot ship in state:", orderState)
+    return false
+}
+
+func deliverOrder() {
+    if (orderState == "shipped") {
+        print("Transition: shipped -> delivered")
+        orderState = "delivered"
+        orderHistory.push("delivered")
+        return true
+    }
+    print("Cannot deliver in state:", orderState)
+    return false
+}
+
+// Demo workflow
+print("Initial state:", orderState)
+print("")
+
+print("--- Processing Order ---")
+confirmOrder()
+processOrder()
+shipOrder()
+deliverOrder()
+
+print("")
+print("Final state:", orderState)
+print("History:", orderHistory)
+
+print("")
+print("=== State Machine Demo Complete ===")

@@ -1,0 +1,69 @@
+// Parallel Data Fetching Example
+// Fetch multiple resources concurrently
+
+import stdlib time as t
+
+print("=== Parallel Data Fetching ===")
+print("")
+
+// Simulate API calls with different response times
+async func fetchUser(userId) {
+    print("Fetching user", userId, "...")
+    t.sleep(50 + userId * 20)
+    user = "User_" + str(userId)
+    print("Got user:", user)
+    return user
+}
+
+async func fetchPosts(userId) {
+    print("Fetching posts for user", userId, "...")
+    t.sleep(80)
+    posts = ["Post1", "Post2", "Post3"]
+    print("Got", len(posts), "posts for user", userId)
+    return posts
+}
+
+async func fetchComments(postId) {
+    print("Fetching comments for post", postId, "...")
+    t.sleep(40)
+    comments = ["Comment1", "Comment2"]
+    print("Got", len(comments), "comments for post", postId)
+    return comments
+}
+
+// Fetch all data for a user profile
+async func fetchUserProfile(userId) {
+    print("")
+    print("--- Fetching profile for user", userId, "---")
+    
+    // Fetch user data
+    user = await fetchUser(userId)
+    
+    // Fetch posts
+    posts = await fetchPosts(userId)
+    
+    // Fetch comments for first post
+    comments = await fetchComments(1)
+    
+    print("Profile complete for", user)
+    return user
+}
+
+// Main execution
+startTime = t.clock()
+
+print("Starting parallel fetch...")
+print("")
+
+// Fetch multiple profiles
+profile1 = await fetchUserProfile(1)
+profile2 = await fetchUserProfile(2)
+profile3 = await fetchUserProfile(3)
+
+endTime = t.clock()
+elapsed = endTime - startTime
+
+print("")
+print("=== Fetch Complete ===")
+print("Fetched profiles:", profile1, profile2, profile3)
+print("Total time:", elapsed, "seconds")

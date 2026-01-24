@@ -1,0 +1,49 @@
+// Event Emitter Pattern
+// Publish-subscribe pattern for event handling
+
+print("=== Event Emitter Example ===")
+print("")
+
+// Event handlers storage
+handlers = []
+handlerEvents = []
+
+// Register event handler
+func on(eventName, handlerName) {
+    handlers.push(handlerName)
+    handlerEvents.push(eventName)
+    print("Registered handler:", handlerName, "for event:", eventName)
+}
+
+// Emit event
+func emit(eventName, data) {
+    print("")
+    print("Emitting:", eventName, "data:", data)
+    
+    count = 0
+    for (i in Range(0, len(handlers))) {
+        if (handlerEvents[i] == eventName) {
+            print("  -> Calling:", handlers[i])
+            count = count + 1
+        }
+    }
+    
+    if (count == 0) {
+        print("  -> No handlers")
+    }
+}
+
+// Demo
+print("--- Registering Handlers ---")
+on("userCreated", "sendWelcomeEmail")
+on("userCreated", "createSettings")
+on("orderPlaced", "sendConfirmation")
+
+print("")
+print("--- Emitting Events ---")
+emit("userCreated", "userId: 123")
+emit("orderPlaced", "orderId: 456")
+emit("unknown", "test")
+
+print("")
+print("=== Event Emitter Complete ===")

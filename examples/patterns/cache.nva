@@ -1,0 +1,51 @@
+// Cache Manager Pattern
+// In-memory caching
+
+print("=== Cache Manager Example ===")
+print("")
+
+// Cache storage
+cacheKeys = []
+cacheValues = []
+
+// Set value in cache
+func cacheSet(key, value) {
+    cacheKeys.push(key)
+    cacheValues.push(value)
+    print("Cache set:", key, "=", value)
+}
+
+// Get value from cache
+func cacheGet(key) {
+    for (i in Range(0, len(cacheKeys))) {
+        if (cacheKeys[i] == key) {
+            print("Cache hit:", key, "=", cacheValues[i])
+            return cacheValues[i]
+        }
+    }
+    print("Cache miss:", key)
+    return ""
+}
+
+// Get cache size
+func cacheSize() {
+    return len(cacheKeys)
+}
+
+// Demo
+print("--- Setting Cache Values ---")
+cacheSet("user:1", "Alice")
+cacheSet("user:2", "Bob")
+cacheSet("config", "dark")
+
+print("")
+print("Cache size:", cacheSize())
+
+print("")
+print("--- Getting Values ---")
+cacheGet("user:1")
+cacheGet("user:2")
+cacheGet("user:3")
+
+print("")
+print("=== Cache Demo Complete ===")

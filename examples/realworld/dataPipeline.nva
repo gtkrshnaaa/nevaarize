@@ -1,0 +1,54 @@
+// Data Processing Pipeline Example
+// Real-world data processing with transformations
+
+print("=== Data Processing Pipeline ===")
+print("")
+
+// Sample data
+names = ["Alice", "Bob", "Charlie", "Diana", "Eve"]
+scores = [85, 72, 91, 68, 95]
+active = [true, true, false, true, true]
+
+// Step 1: Filter active users
+print("Step 1: Filtering active users...")
+activeNames = []
+activeScores = []
+
+for (i in Range(0, len(names))) {
+    if (active[i]) {
+        activeNames.push(names[i])
+        activeScores.push(scores[i])
+    }
+}
+
+print("Active users:", len(activeNames))
+
+// Step 2: Calculate statistics
+print("")
+print("Step 2: Calculating statistics...")
+
+total = 0
+minScore = 100
+maxScore = 0
+
+for (score in activeScores) {
+    total = total + score
+    if (score < minScore) {
+        minScore = score
+    }
+    if (score > maxScore) {
+        maxScore = score
+    }
+}
+
+avgScore = total / len(activeScores)
+
+print("Total:", total)
+print("Average:", avgScore)
+print("Min:", minScore)
+print("Max:", maxScore)
+
+// Step 3: Summary
+print("")
+print("=== Pipeline Complete ===")
+print("Processed", len(activeNames), "users")

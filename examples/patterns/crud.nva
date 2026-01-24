@@ -1,0 +1,35 @@
+// CRUD Operations Pattern
+// Common create, read, update, delete pattern
+
+print("=== CRUD Operations Example ===")
+print("")
+
+// In-memory data store
+users = []
+nextId = 1
+
+// CREATE - Add new user
+func createUser(name, email) {
+    id = nextId
+    nextId = nextId + 1
+    users.push(id)
+    print("Created user:", id, name, email)
+    return id
+}
+
+// READ - Count users
+func countUsers() {
+    return len(users)
+}
+
+// Demo
+print("--- Creating Users ---")
+createUser("Alice", "alice@example.com")
+createUser("Bob", "bob@example.com")
+createUser("Charlie", "charlie@example.com")
+
+print("")
+print("Total users:", countUsers())
+
+print("")
+print("=== CRUD Demo Complete ===")

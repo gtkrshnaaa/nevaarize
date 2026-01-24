@@ -1,0 +1,64 @@
+// Task Queue Example
+// Async task queue for background processing
+
+import stdlib time as t
+
+print("=== Async Task Queue ===")
+print("")
+
+// Task queue (simulated)
+taskQueue = []
+completedTasks = []
+
+// Add task to queue
+func enqueue(taskName, priority) {
+    task = {"name": taskName, "priority": priority, "status": "pending"}
+    taskQueue.push(taskName)
+    print("Enqueued:", taskName, "(priority:", priority, ")")
+    return taskName
+}
+
+// Process task (async simulation)
+async func processTask(taskName) {
+    print("Processing:", taskName)
+    t.sleep(100)
+    print("Completed:", taskName)
+    return taskName + " done"
+}
+
+// Worker function
+async func worker(workerId) {
+    print("Worker", workerId, "started")
+    
+    for (i in Range(0, 3)) {
+        taskName = "Task" + str(workerId) + "_" + str(i)
+        result = await processTask(taskName)
+        print("Worker", workerId, "finished:", result)
+    }
+    
+    print("Worker", workerId, "finished all tasks")
+    return workerId
+}
+
+// Main processing
+print("Starting task processors...")
+print("")
+
+// Add tasks
+enqueue("SendEmail", 1)
+enqueue("GenerateReport", 2)
+enqueue("UpdateCache", 1)
+enqueue("SyncData", 3)
+enqueue("NotifyUsers", 2)
+
+print("")
+print("Running workers...")
+print("")
+
+// Run workers concurrently
+result1 = await worker(1)
+result2 = await worker(2)
+
+print("")
+print("=== All Tasks Complete ===")
+print("Workers completed:", result1, result2)
