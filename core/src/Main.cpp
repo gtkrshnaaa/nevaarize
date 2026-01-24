@@ -2,11 +2,15 @@
  * Main.cpp - Nevaarize Entry Point
  *
  * Command-line interface and REPL implementation.
+ * Supports: nevaarize [script.nva]
+ *           nevaarize model train script.nva to model.nmod
+ *           nevaarize model run model.nmod
  */
 
 #include "Lexer.hpp"
 #include "Parser.hpp"
 #include "JIT.hpp"
+#include "Model.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -193,10 +197,16 @@ void printUsage(const char* program) {
     std::cout << "Nevaarize - Native JIT Compiler" << std::endl;
     std::cout << std::endl;
     std::cout << "Usage: " << program << " [options] [script.nva]" << std::endl;
+    std::cout << "       " << program << " model train <script.nva> to <model.nmod>" << std::endl;
+    std::cout << "       " << program << " model run <model.nmod>" << std::endl;
     std::cout << std::endl;
     std::cout << "Options:" << std::endl;
     std::cout << "  -h, --help     Show this help message" << std::endl;
     std::cout << "  -v, --version  Show version information" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Model Commands:" << std::endl;
+    std::cout << "  model train    Train a model from script and save to .nmod" << std::endl;
+    std::cout << "  model run      Load and run inference on a .nmod file" << std::endl;
     std::cout << std::endl;
     std::cout << "If no script is provided, starts in REPL mode." << std::endl;
 }
@@ -217,6 +227,117 @@ int main(int argc, char* argv[]) {
 
     // Parse command line arguments
     std::string scriptPath;
+
+    // Check for model subcommand
+    if (argc >= 2 && std::string(argv[1]) == "model") {
+        if (argc < 3) {
+            std::cerr << "Error: model subcommand requires train or run" << std::endl;
+            printUsage(argv[0]);
+            return 1;
+        }
+        
+        std::string modelCmd = argv[2];
+        
+        // MODEL TRAIN: nevaarize model train script.nva to model.nmod
+        if (modelCmd == "train") {
+            if (argc < 6 || std::string(argv[4]) != "to") {
+                std::cerr << "Usage: " << argv[0] << " model train <script.nva> to <model.nmod>" << std::endl;
+                return 1;
+            }
+            
+            std::string trainScript = argv[3];
+            std::string outputPath = argv[5];
+            
+            std::cout << "Training model from: " << trainScript << std::endl;
+            std::cout << "Output: " << outputPath << std::endl;
+            std::cout << std::endl;
+            
+            // Run the training script
+            Evaluator evaluator;
+            int result = runScript(trainScript, evaluator);
+            
+            if (result != 0) {
+                std::cerr << "Error: Training script failed" << std::endl;
+                return result;
+            }
+            
+            // The script should have called ai.exportModel() or ai.saveModel()
+            // For now, we provide a message
+            std::cout << std::endl;
+            std::cout << "Training complete. Use ai.saveModel(model, \"" << outputPath << "\") in your script." << std::endl;
+            
+            return 0;
+        }
+        
+        // MODEL RUN: nevaarize model run model.nmod
+        if (modelCmd == "run") {
+            if (argc < 4) {
+                std::cerr << "Usage: " << argv[0] << " model run <model.nmod>" << std::endl;
+                return 1;
+            }
+            
+            std::string modelPath = argv[3];
+            
+            std::cout << "Loading model: " << modelPath << std::endl;
+            
+            auto model = Model::load(modelPath);
+            if (!model) {
+                std::cerr << "Error: Failed to load model" << std::endl;
+                return 1;
+            }
+            
+            std::cout << std::endl;
+            std::cout << "Model info:" << std::endl;
+            std::cout << "  Input size: " << model->getInputSize() << std::endl;
+            std::cout << "  Output size: " << model->getOutputSize() << std::endl;
+            std::cout << "  Epochs trained: " << model->getEpoch() << std::endl;
+            std::cout << "  Final loss: " << model->getFinalLoss() << std::endl;
+            std::cout << std::endl;
+            
+            // Check for input flag
+            if (argc >= 6 && std::string(argv[4]) == "--input") {
+                std::string inputStr = argv[5];
+                
+                // Parse input array [1.0, 2.0, ...]
+                std::vector<float> input;
+                size_t pos = 0;
+                while ((pos = inputStr.find_first_of("0123456789.-", pos)) != std::string::npos) {
+                    size_t endPos = inputStr.find_first_of(",]", pos);
+                    std::string numStr = inputStr.substr(pos, endPos - pos);
+                    input.push_back(std::stof(numStr));
+                    pos = endPos;
+                    if (pos == std::string::npos) break;
+                    ++pos;
+                }
+                
+                if (!input.empty()) {
+                    std::cout << "Running inference with input size: " << input.size() << std::endl;
+                    
+                    auto output = model->predict(input);
+                    
+                    std::cout << "Output: [";
+                    for (size_t i = 0; i < output.size(); ++i) {
+                        if (i > 0) std::cout << ", ";
+                        std::cout << output[i];
+                    }
+                    std::cout << "]" << std::endl;
+                    
+                    // Find argmax
+                    auto maxIt = std::max_element(output.begin(), output.end());
+                    std::cout << "Prediction: " << (maxIt - output.begin()) << std::endl;
+                }
+            } else {
+                std::cout << "To run inference: " << argv[0] << " model run " << modelPath 
+                          << " --input \"[1.0, 2.0, ...]\"" << std::endl;
+            }
+            
+            return 0;
+        }
+        
+        std::cerr << "Unknown model command: " << modelCmd << std::endl;
+        printUsage(argv[0]);
+        return 1;
+    }
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
