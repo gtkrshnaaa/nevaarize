@@ -10,7 +10,7 @@
 #include "Lexer.hpp"
 #include "Parser.hpp"
 #include "JIT.hpp"
-#include "TrueJIT.hpp"
+#include "Compiler.hpp"
 #include "Model.hpp"
 #include <iostream>
 #include <fstream>
@@ -36,9 +36,9 @@ std::string readFile(const std::string& path) {
 }
 
 /**
- * Run a script file with path resolution.
+ * Run a script file with tree-walk interpreter (used for model training).
  */
-int runScript(const std::string& scriptPath, Evaluator& evaluator) {
+int runScriptInterpreter(const std::string& scriptPath, Evaluator& evaluator) {
     std::string source;
     try {
         source = readFile(scriptPath);
@@ -224,7 +224,7 @@ void printVersion() {
 /**
  * Run a script with native JIT compilation.
  */
-int runScriptJIT(const std::string& scriptPath) {
+int runScript(const std::string& scriptPath) {
     std::string source;
     try {
         source = readFile(scriptPath);
@@ -256,8 +256,8 @@ int runScriptJIT(const std::string& scriptPath) {
     try {
         auto ast = std::make_shared<AST>(std::move(parser.getAST()));
         
-        TrueJIT jit;
-        auto compiledFn = jit.compileProgram(*ast);
+        Compiler jit;
+        auto compiledFn = jit.compile(*ast);
         jit.execute(compiledFn);
         
     } catch (const std::exception& e) {
@@ -316,7 +316,7 @@ int main(int argc, char* argv[]) {
                 // which will be resolved relative to script location
                 
                 Evaluator evaluator;
-                int result = runScript(trainScript, evaluator);
+                int result = runScriptInterpreter(trainScript, evaluator);
                 
                 if (result != 0) {
                     std::cerr << "Error: Training script failed" << std::endl;
@@ -468,6 +468,6 @@ int main(int argc, char* argv[]) {
         Evaluator evaluator;
         return runREPL(evaluator);
     } else {
-        return runScriptJIT(scriptPath);
+        return runScript(scriptPath);
     }
 }
