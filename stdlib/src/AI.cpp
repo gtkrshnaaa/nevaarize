@@ -908,7 +908,7 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
         return ai_internal::fromFloatVector(output);
     };
     
-    funcs["saveModel"] = [](Evaluator& eval, const std::vector<Value>& args) -> Value {
+    funcs["saveModel"] = []([[maybe_unused]] Evaluator& eval, const std::vector<Value>& args) -> Value {
         if (args.size() < 2) return Value::fromBool(false);
         
         int modelId = static_cast<int>(args[0].asDouble());
@@ -936,7 +936,7 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
         return Value::fromBool(success);
     };
     
-    funcs["loadModel"] = [](Evaluator& eval, const std::vector<Value>& args) -> Value {
+    funcs["loadModel"] = []([[maybe_unused]] Evaluator& eval, const std::vector<Value>& args) -> Value {
         if (args.empty() || !args[0].isString() || !args[0].stringVal) {
             return Value::fromInt(-1);
         }

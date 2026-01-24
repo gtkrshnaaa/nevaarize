@@ -258,7 +258,6 @@ void Model::backward(const std::vector<float>& target, const std::string& lossTy
     // Backpropagate through layers
     for (int l = static_cast<int>(layers.size()) - 1; l >= 0; --l) {
         auto& layer = layers[l];
-        const auto& actIn = activations[l];
         
         if (layer.type == LayerType::LINEAR) {
             gradients[l] = delta;
