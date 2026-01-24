@@ -917,19 +917,14 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
         
         if (!args[1].isString() || !args[1].stringVal) return Value::fromBool(false);
         
-        // Resolve path relative to current source file
+        // Resolve path relative to current working directory
         std::string pathStr = *args[1].stringVal;
         fs::path savePath;
         
         if (fs::path(pathStr).is_absolute()) {
             savePath = pathStr;
         } else {
-            fs::path currentFile = eval.getCurrentFilePath();
-            if (!currentFile.empty()) {
-                savePath = currentFile.parent_path() / pathStr;
-            } else {
-                savePath = pathStr;
-            }
+            savePath = fs::current_path() / pathStr;
         }
         
         // Create parent directories if needed
@@ -946,19 +941,14 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
             return Value::fromInt(-1);
         }
         
-        // Resolve path relative to current source file
+        // Resolve path relative to current working directory
         std::string pathStr = *args[0].stringVal;
         fs::path loadPath;
         
         if (fs::path(pathStr).is_absolute()) {
             loadPath = pathStr;
         } else {
-            fs::path currentFile = eval.getCurrentFilePath();
-            if (!currentFile.empty()) {
-                loadPath = currentFile.parent_path() / pathStr;
-            } else {
-                loadPath = pathStr;
-            }
+            loadPath = fs::current_path() / pathStr;
         }
         
         if (!fs::exists(loadPath)) {
