@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Library - Nevaarize Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <!-- Mobile Menu Toggle -->
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu">
+        <span class="menu-toggle-icon"></span> Menu
+    </button>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="layout">
+        <nav class="sidebar">
+            <a href="../index.html" class="sidebar-logo">Nevaarize <span>docs</span></a>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-list">
+                    <li><a href="../index.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation.html" class="nav-link">Installation</a></li>
+                    <li><a href="quickstart.html" class="nav-link">Quick Start</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Language Guide</div>
+                <ul class="nav-list">
+                    <li><a href="basics.html" class="nav-link">Basics</a></li>
+                    <li><a href="functions.html" class="nav-link">Functions</a></li>
+                    <li><a href="controlflow.html" class="nav-link">Control Flow</a></li>
+                    <li><a href="datastructures.html" class="nav-link">Data Structures</a></li>
+                    <li><a href="modules.html" class="nav-link">Modules</a></li>
+                    <li><a href="async.html" class="nav-link">Async/Await</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <ul class="nav-list">
+                    <li><a href="jit.html" class="nav-link">JIT Compilation</a></li>
+                    <li><a href="simd.html" class="nav-link">SIMD & Performance</a></li>
+                    <li><a href="stdlib.html" class="nav-link">Standard Library</a></li>
+                    <li><a href="ai.html" class="nav-link active">AI Library</a></li>
+                </ul>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Resources</div>
+                <ul class="nav-list">
+                    <li><a href="examples.html" class="nav-link">Examples</a></li>
+                    <li><a href="https://github.com/gtkrshnaaa/nevaarize" class="nav-link">GitHub ↗</a></li>
+                </ul>
+            </div>
+        </nav>
+        
+        <main class="main">
+            <article class="content">
+                <header class="chapter-header">
+                    <span class="chapter-number">Chapter 12</span>
+                    <h1 class="chapter-title">AI Library</h1>
+                    <p class="chapter-subtitle">The core strength of Nevaarize for AI engineering</p>
+                </header>
+                
+                <p>The <code>stdlib ai</code> module provides 50+ SIMD-accelerated functions for 
+                neural network development, tensor operations, and machine learning workflows.</p>
+                
+                <pre data-lang="nevaarize"><code>import stdlib ai as ai</code></pre>
+                
+                <hr>
+                
+                <h2>Tensor Creation</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                            <th>Example</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Zeros(n)</code></td>
+                            <td>Create array of zeros</td>
+                            <td><code>ai.Zeros(100)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>Ones(n)</code></td>
+                            <td>Create array of ones</td>
+                            <td><code>ai.Ones(100)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>RandN(n)</code></td>
+                            <td>Normal distribution (μ=0, σ=1)</td>
+                            <td><code>ai.RandN(100)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>RandU(n, min, max)</code></td>
+                            <td>Uniform distribution</td>
+                            <td><code>ai.RandU(100, -1, 1)</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Example</h3>
+                
+                <pre data-lang="nevaarize"><code>import stdlib ai as ai
+
+// Create tensors
+zeros = ai.Zeros(10)
+ones = ai.Ones(10)
+normal = ai.RandN(10)
+uniform = ai.RandU(10, -1, 1)
+
+print("Zeros:", zeros)
+print("Normal sample:", normal)</code></pre>
+                
+                <hr>
+                
+                <h2>Element-wise Operations</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Add(a, b)</code></td>
+                            <td>Element-wise addition (SIMD)</td>
+                        </tr>
+                        <tr>
+                            <td><code>Sub(a, b)</code></td>
+                            <td>Element-wise subtraction</td>
+                        </tr>
+                        <tr>
+                            <td><code>Mul(a, b)</code></td>
+                            <td>Element-wise multiplication (SIMD)</td>
+                        </tr>
+                        <tr>
+                            <td><code>Div(a, b)</code></td>
+                            <td>Element-wise division</td>
+                        </tr>
+                        <tr>
+                            <td><code>Scale(a, scalar)</code></td>
+                            <td>Multiply by scalar</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <pre data-lang="nevaarize"><code>a = [1.0, 2.0, 3.0, 4.0]
+b = [0.5, 0.5, 0.5, 0.5]
+
+sum = ai.Add(a, b)      // [1.5, 2.5, 3.5, 4.5]
+prod = ai.Mul(a, b)     // [0.5, 1.0, 1.5, 2.0]
+scaled = ai.Scale(a, 2) // [2.0, 4.0, 6.0, 8.0]</code></pre>
+                
+                <hr>
+                
+                <h2>Reduction Operations</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Sum(a)</code></td>
+                            <td>Sum of elements (SIMD)</td>
+                        </tr>
+                        <tr>
+                            <td><code>Mean(a)</code></td>
+                            <td>Average value</td>
+                        </tr>
+                        <tr>
+                            <td><code>Max(a)</code></td>
+                            <td>Maximum value</td>
+                        </tr>
+                        <tr>
+                            <td><code>Min(a)</code></td>
+                            <td>Minimum value</td>
+                        </tr>
+                        <tr>
+                            <td><code>Argmax(a)</code></td>
+                            <td>Index of maximum</td>
+                        </tr>
+                        <tr>
+                            <td><code>Argmin(a)</code></td>
+                            <td>Index of minimum</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <h2>Matrix Operations</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Dot(a, b)</code></td>
+                            <td>Dot product (SIMD, 4B+ ops/sec)</td>
+                        </tr>
+                        <tr>
+                            <td><code>MatMul(A, B, m, k, n)</code></td>
+                            <td>Matrix multiply (cache-blocked SIMD)</td>
+                        </tr>
+                        <tr>
+                            <td><code>Transpose(M, rows, cols)</code></td>
+                            <td>Matrix transpose</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Matrix Multiplication Example</h3>
+                
+                <pre data-lang="nevaarize"><code>import stdlib ai as ai
+
+// 2x3 matrix A
+A = [1, 2, 3,
+     4, 5, 6]
+
+// 3x2 matrix B
+B = [7, 8,
+     9, 10,
+     11, 12]
+
+// C = A * B (2x2 result)
+C = ai.MatMul(A, B, 2, 3, 2)
+print("Result:", C)  // [58, 64, 139, 154]</code></pre>
+                
+                <hr>
+                
+                <h2>Activation Functions</h2>
+                
+                <p>All activations are applied element-wise:</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Formula</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>ReLU(x)</code></td>
+                            <td>max(0, x) — SIMD accelerated</td>
+                        </tr>
+                        <tr>
+                            <td><code>LeakyReLU(x, α)</code></td>
+                            <td>x if x > 0 else αx</td>
+                        </tr>
+                        <tr>
+                            <td><code>Sigmoid(x)</code></td>
+                            <td>1 / (1 + e⁻ˣ)</td>
+                        </tr>
+                        <tr>
+                            <td><code>Tanh(x)</code></td>
+                            <td>Hyperbolic tangent</td>
+                        </tr>
+                        <tr>
+                            <td><code>Softmax(x)</code></td>
+                            <td>Numerically stable softmax</td>
+                        </tr>
+                        <tr>
+                            <td><code>GELU(x)</code></td>
+                            <td>Gaussian Error Linear Unit</td>
+                        </tr>
+                        <tr>
+                            <td><code>SiLU(x)</code></td>
+                            <td>Swish: x * sigmoid(x)</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <pre data-lang="nevaarize"><code>x = [-2, -1, 0, 1, 2]
+
+relu = ai.ReLU(x)       // [0, 0, 0, 1, 2]
+sigmoid = ai.Sigmoid(x) // [0.12, 0.27, 0.5, 0.73, 0.88]
+softmax = ai.Softmax(x) // Probability distribution</code></pre>
+                
+                <hr>
+                
+                <h2>Loss Functions</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Use Case</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>MSELoss(pred, target)</code></td>
+                            <td>Regression</td>
+                        </tr>
+                        <tr>
+                            <td><code>L1Loss(pred, target)</code></td>
+                            <td>Robust regression</td>
+                        </tr>
+                        <tr>
+                            <td><code>BCELoss(pred, target)</code></td>
+                            <td>Binary classification</td>
+                        </tr>
+                        <tr>
+                            <td><code>CrossEntropyLoss(pred, idx)</code></td>
+                            <td>Multi-class classification</td>
+                        </tr>
+                        <tr>
+                            <td><code>HuberLoss(pred, target, δ)</code></td>
+                            <td>Outlier-robust regression</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <pre data-lang="nevaarize"><code>pred = [0.9, 0.1, 0.0]
+target = [1.0, 0.0, 0.0]
+
+mse = ai.MSELoss(pred, target)
+print("MSE Loss:", mse)
+
+// Cross-entropy for class index 0
+logits = [2.0, 1.0, 0.1]
+ce = ai.CrossEntropyLoss(logits, 0)
+print("CrossEntropy Loss:", ce)</code></pre>
+                
+                <hr>
+                
+                <h2>Neural Network Layers</h2>
+                
+                <h3>Linear Layer</h3>
+                
+                <pre data-lang="nevaarize"><code>// y = Wx + b
+input = [1.0, 2.0, 3.0]          // 3 features
+weights = ai.XavierInit(3, 2)    // 3x2 weights
+bias = ai.Zeros(2)               // 2 biases
+
+output = ai.Linear(input, weights, bias, 2)
+print("Linear output:", output)</code></pre>
+                
+                <h3>Layer Normalization</h3>
+                
+                <pre data-lang="nevaarize"><code>x = [1.0, 2.0, 3.0, 4.0]
+gamma = ai.Ones(4)
+beta = ai.Zeros(4)
+
+normalized = ai.LayerNorm(x, gamma, beta)
+print("LayerNorm:", normalized)</code></pre>
+                
+                <h3>Dropout</h3>
+                
+                <pre data-lang="nevaarize"><code>x = [1.0, 2.0, 3.0, 4.0, 5.0]
+dropped = ai.Dropout(x, 0.5)  // 50% dropout
+print("After dropout:", dropped)</code></pre>
+                
+                <hr>
+                
+                <h2>Optimizers</h2>
+                
+                <h3>SGD Update</h3>
+                
+                <pre data-lang="nevaarize"><code>weight = [1.0, 2.0, 3.0]
+grad = [0.1, 0.2, 0.3]
+lr = 0.01
+
+newWeight = ai.SGDUpdate(weight, grad, lr)
+print("Updated weight:", newWeight)</code></pre>
+                
+                <h3>Adam Update</h3>
+                
+                <pre data-lang="nevaarize"><code>weight = [1.0, 2.0, 3.0]
+grad = [0.1, 0.2, 0.3]
+m = ai.Zeros(3)  // First moment
+v = ai.Zeros(3)  // Second moment
+
+result = ai.AdamUpdate(weight, grad, m, v, 0.001, 0.9, 0.999, 1)
+newWeight = result[0]
+newM = result[1]
+newV = result[2]</code></pre>
+                
+                <h3>Gradient Clipping</h3>
+                
+                <pre data-lang="nevaarize"><code>grad = [10.0, 20.0, 30.0]
+clipped = ai.ClipGradNorm(grad, 1.0)
+print("Clipped grad:", clipped)</code></pre>
+                
+                <hr>
+                
+                <h2>Weight Initialization</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Use Case</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>XavierInit(fanIn, fanOut)</code></td>
+                            <td>Tanh, Sigmoid activations</td>
+                        </tr>
+                        <tr>
+                            <td><code>HeInit(fanIn, fanOut)</code></td>
+                            <td>ReLU activations</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <pre data-lang="nevaarize"><code>// For ReLU network
+w1 = ai.HeInit(784, 256)   // Input to hidden
+w2 = ai.HeInit(256, 10)    // Hidden to output
+
+// For Tanh network
+w = ai.XavierInit(100, 50)</code></pre>
+                
+                <hr>
+                
+                <h2>Utility Functions</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Shape(a)</code></td>
+                            <td>Get array length</td>
+                        </tr>
+                        <tr>
+                            <td><code>Flatten(a)</code></td>
+                            <td>Flatten nested arrays</td>
+                        </tr>
+                        <tr>
+                            <td><code>OneHot(idx, n)</code></td>
+                            <td>One-hot encoding</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <pre data-lang="nevaarize"><code>// One-hot encoding
+label = 2
+numClasses = 5
+encoded = ai.OneHot(label, numClasses)
+print(encoded)  // [0, 0, 1, 0, 0]</code></pre>
+                
+                <hr>
+                
+                <h2>Performance</h2>
+                
+                <p>All SIMD-accelerated functions use AVX2 instructions:</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Operation</th>
+                            <th>Performance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Dot Product</td>
+                            <td>4B+ ops/sec</td>
+                        </tr>
+                        <tr>
+                            <td>Matrix Multiply</td>
+                            <td>50+ GFLOPS</td>
+                        </tr>
+                        <tr>
+                            <td>ReLU</td>
+                            <td>2B+ ops/sec</td>
+                        </tr>
+                        <tr>
+                            <td>Sum/Mean</td>
+                            <td>4B+ ops/sec</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <hr>
+                
+                <nav class="page-nav">
+                    <a href="stdlib.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Previous</span>
+                            <span class="page-nav-title">← Standard Library</span>
+                        </div>
+                    </a>
+                    <a href="examples.html" class="page-nav-link">
+                        <div>
+                            <span class="page-nav-label">Next</span>
+                            <span class="page-nav-title">Examples →</span>
+                        </div>
+                    </a>
+                </nav>
+                
+                <footer class="footer">
+                    <p>Nevaarize Documentation</p>
+                </footer>
+            </article>
+        </main>
+    </div>
+    <script src="../assets/js/menu.js"></script>
+    <script src="../assets/js/highlight.js"></script>
+</body>
+</html>
