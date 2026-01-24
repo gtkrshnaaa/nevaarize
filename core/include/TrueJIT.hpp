@@ -40,6 +40,12 @@ public:
     ~TrueJIT();
 
     /**
+     * Compile a full program to native code.
+     * This is the main entry point for JIT compilation.
+     */
+    CompiledFunc compileProgram(const AST& ast);
+
+    /**
      * Compile a for loop to native code.
      * Returns a function pointer to execute.
      */
@@ -75,11 +81,16 @@ private:
     void freeReg(X64Reg reg);
     int32_t allocateStackSlot();
 
-    // AST compilation
+    // AST compilation - expressions
     X64Reg compileExpr(const AST& ast, NodeIndex idx);
+    
+    // AST compilation - statements
+    void compileStatement(const AST& ast, NodeIndex idx);
     void compileAssignment(const AST& ast, NodeIndex idx);
     void compileBlock(const AST& ast, NodeIndex idx);
     void compileIf(const AST& ast, NodeIndex idx);
+    void compileWhile(const AST& ast, NodeIndex idx);
+    void compileReturn(const AST& ast, NodeIndex idx);
 
     // Register allocation state
     bool regInUse[16];
