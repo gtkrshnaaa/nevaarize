@@ -245,26 +245,45 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             
-            std::string trainScript = argv[3];
-            std::string outputPath = argv[5];
-            
-            std::cout << "Training model from: " << trainScript << std::endl;
-            std::cout << "Output: " << outputPath << std::endl;
-            std::cout << std::endl;
-            
-            // Run the training script
-            Evaluator evaluator;
-            int result = runScript(trainScript, evaluator);
-            
-            if (result != 0) {
-                std::cerr << "Error: Training script failed" << std::endl;
-                return result;
+            try {
+                std::string trainScript = argv[3];
+                std::string outputName = argv[5];
+                
+                // Resolve output path relative to script location
+                fs::path scriptPath = fs::absolute(trainScript);
+                fs::path scriptDir = scriptPath.parent_path();
+                fs::path outputPath = scriptDir / outputName;
+                
+                // Ensure output directory exists
+                if (outputPath.has_parent_path()) {
+                    fs::create_directories(outputPath.parent_path());
+                }
+                
+                std::cout << "Training model from: " << trainScript << std::endl;
+                std::cout << "Output path: " << outputPath.string() << std::endl;
+                std::cout << std::endl;
+                
+                // Set environment variable for script to use
+                // The training script should call ai.saveModel(model, "outputName")
+                // which will be resolved relative to script location
+                
+                Evaluator evaluator;
+                int result = runScript(trainScript, evaluator);
+                
+                if (result != 0) {
+                    std::cerr << "Error: Training script failed" << std::endl;
+                    return result;
+                }
+                
+                std::cout << std::endl;
+                std::cout << "Training complete." << std::endl;
+                std::cout << "Model should be saved to: " << outputPath.string() << std::endl;
+                std::cout << "Use ai.saveModel(model, \"" << outputName << "\") in your script." << std::endl;
+                
+            } catch (const std::exception& e) {
+                std::cerr << "Error during training: " << e.what() << std::endl;
+                return 1;
             }
-            
-            // The script should have called ai.exportModel() or ai.saveModel()
-            // For now, we provide a message
-            std::cout << std::endl;
-            std::cout << "Training complete. Use ai.saveModel(model, \"" << outputPath << "\") in your script." << std::endl;
             
             return 0;
         }
@@ -276,44 +295,75 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             
-            std::string modelPath = argv[3];
-            
-            std::cout << "Loading model: " << modelPath << std::endl;
-            
-            auto model = Model::load(modelPath);
-            if (!model) {
-                std::cerr << "Error: Failed to load model" << std::endl;
-                return 1;
-            }
-            
-            std::cout << std::endl;
-            std::cout << "Model info:" << std::endl;
-            std::cout << "  Input size: " << model->getInputSize() << std::endl;
-            std::cout << "  Output size: " << model->getOutputSize() << std::endl;
-            std::cout << "  Epochs trained: " << model->getEpoch() << std::endl;
-            std::cout << "  Final loss: " << model->getFinalLoss() << std::endl;
-            std::cout << std::endl;
-            
-            // Check for input flag
-            if (argc >= 6 && std::string(argv[4]) == "--input") {
-                std::string inputStr = argv[5];
+            try {
+                std::string modelPath = argv[3];
                 
-                // Parse input array [1.0, 2.0, ...]
-                std::vector<float> input;
-                size_t pos = 0;
-                while ((pos = inputStr.find_first_of("0123456789.-", pos)) != std::string::npos) {
-                    size_t endPos = inputStr.find_first_of(",]", pos);
-                    std::string numStr = inputStr.substr(pos, endPos - pos);
-                    input.push_back(std::stof(numStr));
-                    pos = endPos;
-                    if (pos == std::string::npos) break;
-                    ++pos;
+                // Check if file exists
+                if (!fs::exists(modelPath)) {
+                    std::cerr << "Error: Model file not found: " << modelPath << std::endl;
+                    return 1;
                 }
                 
-                if (!input.empty()) {
+                std::cout << "Loading model: " << modelPath << std::endl;
+                
+                auto model = Model::load(modelPath);
+                if (!model) {
+                    std::cerr << "Error: Failed to load model (invalid format or corrupted file)" << std::endl;
+                    return 1;
+                }
+                
+                std::cout << std::endl;
+                std::cout << "Model info:" << std::endl;
+                std::cout << "  Input size: " << model->getInputSize() << std::endl;
+                std::cout << "  Output size: " << model->getOutputSize() << std::endl;
+                std::cout << "  Epochs trained: " << model->getEpoch() << std::endl;
+                std::cout << "  Final loss: " << model->getFinalLoss() << std::endl;
+                std::cout << std::endl;
+                
+                // Check for input flag
+                if (argc >= 6 && std::string(argv[4]) == "--input") {
+                    std::string inputStr = argv[5];
+                    
+                    // Parse input array [1.0, 2.0, ...]
+                    std::vector<float> input;
+                    try {
+                        size_t pos = 0;
+                        while ((pos = inputStr.find_first_of("0123456789.-", pos)) != std::string::npos) {
+                            size_t endPos = inputStr.find_first_of(",] ", pos);
+                            if (endPos == std::string::npos) endPos = inputStr.length();
+                            std::string numStr = inputStr.substr(pos, endPos - pos);
+                            if (!numStr.empty()) {
+                                input.push_back(std::stof(numStr));
+                            }
+                            pos = endPos;
+                            if (pos >= inputStr.length()) break;
+                            ++pos;
+                        }
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error parsing input: " << e.what() << std::endl;
+                        std::cerr << "Expected format: \"[1.0, 2.0, 3.0]\"" << std::endl;
+                        return 1;
+                    }
+                    
+                    if (input.empty()) {
+                        std::cerr << "Error: No valid numbers found in input" << std::endl;
+                        return 1;
+                    }
+                    
+                    if (input.size() != model->getInputSize()) {
+                        std::cerr << "Warning: Input size (" << input.size() 
+                                  << ") does not match model input size (" 
+                                  << model->getInputSize() << ")" << std::endl;
+                    }
+                    
                     std::cout << "Running inference with input size: " << input.size() << std::endl;
                     
                     auto output = model->predict(input);
+                    
+                    if (output.empty()) {
+                        std::cerr << "Error: Model returned empty output" << std::endl;
+                        return 1;
+                    }
                     
                     std::cout << "Output: [";
                     for (size_t i = 0; i < output.size(); ++i) {
@@ -325,10 +375,14 @@ int main(int argc, char* argv[]) {
                     // Find argmax
                     auto maxIt = std::max_element(output.begin(), output.end());
                     std::cout << "Prediction: " << (maxIt - output.begin()) << std::endl;
+                } else {
+                    std::cout << "To run inference: " << argv[0] << " model run " << modelPath 
+                              << " --input \"[1.0, 2.0, ...]\"" << std::endl;
                 }
-            } else {
-                std::cout << "To run inference: " << argv[0] << " model run " << modelPath 
-                          << " --input \"[1.0, 2.0, ...]\"" << std::endl;
+                
+            } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+                return 1;
             }
             
             return 0;
