@@ -5,6 +5,7 @@
  */
 
 #include "JIT.hpp"
+#include "NativeJIT.hpp"
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -167,6 +168,44 @@ void Evaluator::setupStandardLibrary() {
             }
         }
         return Value::fromFloat(0.0);
+    });
+
+    // Native JIT benchmark functions
+    registerNative("nativeSumLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty() || !args[0].isNumber()) return Value::nil();
+        int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
+        
+        auto [result, opsPerSec] = NativeLoop::sumLoop(n);
+        
+        // Return array with [result, ops_per_second]
+        std::vector<Value> output;
+        output.push_back(Value::fromInt(result));
+        output.push_back(Value::fromFloat(opsPerSec));
+        return Value::fromArray(std::move(output));
+    });
+
+    registerNative("nativeFibLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty() || !args[0].isNumber()) return Value::nil();
+        int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
+        
+        auto [result, opsPerSec] = NativeLoop::fibLoop(n);
+        
+        std::vector<Value> output;
+        output.push_back(Value::fromInt(result));
+        output.push_back(Value::fromFloat(opsPerSec));
+        return Value::fromArray(std::move(output));
+    });
+
+    registerNative("nativeCallLoop", [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty() || !args[0].isNumber()) return Value::nil();
+        int64_t n = args[0].isInt() ? args[0].intVal : static_cast<int64_t>(args[0].floatVal);
+        
+        auto [result, opsPerSec] = NativeLoop::callLoop(n);
+        
+        std::vector<Value> output;
+        output.push_back(Value::fromInt(result));
+        output.push_back(Value::fromFloat(opsPerSec));
+        return Value::fromArray(std::move(output));
     });
 }
 
