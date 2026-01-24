@@ -5,11 +5,16 @@
  */
 
 #include "AI.hpp"
+#include "../../core/include/JIT.hpp"
 #include <cmath>
 #include <algorithm>
 #include <numeric>
 #include <random>
+#include <filesystem>
+#include <iostream>
 #include <immintrin.h>
+
+namespace fs = std::filesystem;
 
 namespace nevaarize {
 namespace stdlib {
@@ -903,7 +908,7 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
         return ai_internal::fromFloatVector(output);
     };
     
-    funcs["saveModel"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+    funcs["saveModel"] = [](Evaluator& eval, const std::vector<Value>& args) -> Value {
         if (args.size() < 2) return Value::fromBool(false);
         
         int modelId = static_cast<int>(args[0].asDouble());
@@ -912,16 +917,56 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
         
         if (!args[1].isString() || !args[1].stringVal) return Value::fromBool(false);
         
-        bool success = it->second->save(*args[1].stringVal);
+        // Resolve path relative to current source file
+        std::string pathStr = *args[1].stringVal;
+        fs::path savePath;
+        
+        if (fs::path(pathStr).is_absolute()) {
+            savePath = pathStr;
+        } else {
+            fs::path currentFile = eval.getCurrentFilePath();
+            if (!currentFile.empty()) {
+                savePath = currentFile.parent_path() / pathStr;
+            } else {
+                savePath = pathStr;
+            }
+        }
+        
+        // Create parent directories if needed
+        if (savePath.has_parent_path()) {
+            fs::create_directories(savePath.parent_path());
+        }
+        
+        bool success = it->second->save(savePath.string());
         return Value::fromBool(success);
     };
     
-    funcs["loadModel"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+    funcs["loadModel"] = [](Evaluator& eval, const std::vector<Value>& args) -> Value {
         if (args.empty() || !args[0].isString() || !args[0].stringVal) {
             return Value::fromInt(-1);
         }
         
-        auto model = Model::load(*args[0].stringVal);
+        // Resolve path relative to current source file
+        std::string pathStr = *args[0].stringVal;
+        fs::path loadPath;
+        
+        if (fs::path(pathStr).is_absolute()) {
+            loadPath = pathStr;
+        } else {
+            fs::path currentFile = eval.getCurrentFilePath();
+            if (!currentFile.empty()) {
+                loadPath = currentFile.parent_path() / pathStr;
+            } else {
+                loadPath = pathStr;
+            }
+        }
+        
+        if (!fs::exists(loadPath)) {
+            std::cerr << "Error: Model file not found: " << loadPath.string() << std::endl;
+            return Value::fromInt(-1);
+        }
+        
+        auto model = Model::load(loadPath.string());
         if (!model) return Value::fromInt(-1);
         
         int modelId = nextModelId++;
