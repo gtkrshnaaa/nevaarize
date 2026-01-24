@@ -151,6 +151,34 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return dst;
         }
         
+        case NodeType::LITERAL_FLOAT: {
+            X64Reg dst = allocateReg();
+            double value = std::get<double>(node.literal.data);
+            
+            // Store double as int64 bit pattern
+            int64_t bits;
+            std::memcpy(&bits, &value, sizeof(bits));
+            
+            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+            buf.emit64(static_cast<uint64_t>(bits));
+            
+            return dst;
+        }
+        
+        case NodeType::LITERAL_BOOL: {
+            X64Reg dst = allocateReg();
+            bool value = std::get<bool>(node.literal.data);
+            
+            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+            buf.emit64(value ? 1 : 0);
+            
+            return dst;
+        }
+        
         case NodeType::IDENTIFIER: {
             X64Reg dst = allocateReg();
             
@@ -669,6 +697,7 @@ CompiledFunc JIT::compile(const AST& ast) {
     codegen = CodeGenerator();
     variables.clear();
     userFunctions.clear();
+    stdlibAliases.clear();
     currentAST = &ast;
     stackSize = 0;
     nextStackSlot = 0;
@@ -750,6 +779,16 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         case NodeType::FUNC_DECL:
             compileFuncDecl(ast, idx);
             break;
+            
+        case NodeType::IMPORT_STDLIB: {
+            // Register the stdlib module alias
+            const std::string& moduleName = node.name;
+            if (!node.paramNames.empty()) {
+                const std::string& alias = node.paramNames[0];
+                stdlibAliases[alias] = moduleName;
+            }
+            break;
+        }
             
         default:
             // Skip unsupported statements for now

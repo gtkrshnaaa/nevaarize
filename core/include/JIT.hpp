@@ -81,6 +81,7 @@ private:
         bool isCompiled;
     };
     std::unordered_map<std::string, FuncInfo> userFunctions;
+    std::unordered_map<std::string, std::string> stdlibAliases;  // alias -> module name
     const AST* currentAST;
     bool inFunctionCall;
 
