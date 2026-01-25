@@ -1637,7 +1637,27 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             freeReg(idxVal.valueReg); freeReg(idxVal.typeReg);
             break;
         }
+        
+        case NodeType::MEMBER_ASSIGN: {
+            // obj.field = value (simplified implementation)
+            // TODO: Full implementation requires runtime type info 
+            // For now, treat as assignment to first field
+            CodeBuffer& buf = codegen.getCode();
+            JITValue value = compileExpr(ast, node.right);
             
+            // Store value at a default offset (incomplete)
+            int32_t offset = -16;
+            bool valHigh = static_cast<uint8_t>(value.valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0x85 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(offset));
+            
+            freeReg(value.valueReg);
+            freeReg(value.typeReg);
+            break;
+        }
+        
         case NodeType::EXPR_STMT: {
             // Check if this is a function call like print()
             const ASTNode& exprNode = ast.get(node.left);
