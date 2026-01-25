@@ -1,10 +1,9 @@
 // Main entry point for modules test
-// Assuming imports are resolved relative to CWD or file
-// Trying path relative to project root 'examples/...'
+// Fixed import usage: path string with quotes
 
-import examples/modules/config/settings as conf
-import examples/modules/lib/math as m
-import examples/modules/lib/utils/logger as l
+import "examples/modules/config/settings.nva" as conf
+import "examples/modules/lib/math.nva" as m
+import "examples/modules/lib/utils/logger.nva" as l
 
 print("Starting Application:", conf.APP_NAME)
 limit = conf.MAX_ITEMS
