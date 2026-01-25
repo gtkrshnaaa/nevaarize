@@ -40,7 +40,7 @@ void JIT::emitPrologue() {
     buf.emit8(0x48);
     buf.emit8(0x81);
     buf.emit8(0xEC);
-    buf.emit32(256); // Reserve 256 bytes for locals
+    buf.emit32(4096); // Reserve 4096 bytes for locals (increased from 256)
 }
 
 void JIT::emitEpilogue() {
@@ -523,6 +523,57 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             } else if (callee.type == NodeType::MEMBER_ACCESS) {
                 // Module function calls like ai.loadModel()
                 const std::string& memberName = callee.name;
+                
+                if (memberName == "clock") {
+                    CodeBuffer& buf = codegen.getCode();
+                    
+                    // Allocate space for timespec (16 bytes)
+                    // sub rsp, 16
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xEC); buf.emit8(0x10);
+                    
+                    // mov rax, 228 (sys_clock_gettime)
+                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC0); buf.emit32(228);
+                    
+                    // mov rdi, 1 (CLOCK_MONOTONIC)
+                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC7); buf.emit32(1);
+                    
+                    // mov rsi, rsp (buffer ptr)
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE6);
+                    
+                    // syscall
+                    buf.emit8(0x0F); buf.emit8(0x05);
+                    
+                    // Convert to nanoseconds: sec * 1e9 + nsec
+                    // sec is at [rsp], nsec at [rsp+8]
+                    
+                    // mov rax, [rsp]
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x04); buf.emit8(0x24);
+                    
+                    // mov rcx, 1000000000
+                    buf.emit8(0x48); buf.emit8(0xB9); buf.emit64(1000000000);
+                    
+                    // imul rax, rcx
+                    buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0xAF); buf.emit8(0xC1);
+                    
+                    // add rax, [rsp+8]
+                    buf.emit8(0x48); buf.emit8(0x03); buf.emit8(0x44); buf.emit8(0x24); buf.emit8(0x08);
+                    
+                    // Free stack
+                    // add rsp, 16
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x10);
+                    
+                    // Result is in RAX. Move to destination register.
+                    X64Reg dst = allocateReg();
+                    if (dst != X64Reg::RAX) {
+                        // mov dst, rax
+                        bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                        buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                    }
+                    
+                    return dst;
+                }
                 
                 // AI module functions
                 if (memberName == "loadModel" || memberName == "getModelInfo" || 
@@ -1096,7 +1147,6 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
 // Compile for loop (supports Range iteration)
 void JIT::compileFor(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
-    CodeBuffer& buf = codegen.getCode();
     
     // Get iterator variable name
     const std::string& iterName = node.name;
@@ -1106,86 +1156,89 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     const ASTNode& iterable = ast.get(node.left);
     
     // Check if it's a Range call
-    int64_t rangeStart = 0;
-    int64_t rangeEnd = 0;
-    
     if (iterable.type == NodeType::CALL && iterable.left != INVALID_NODE) {
         const ASTNode& callee = ast.get(iterable.left);
         if (callee.type == NodeType::IDENTIFIER && callee.name == "Range") {
             // Get Range arguments
             if (iterable.children.size() >= 2) {
-                const ASTNode& startNode = ast.get(iterable.children[0]);
-                const ASTNode& endNode = ast.get(iterable.children[1]);
+                // Compile Start Expression
+                CodeBuffer& buf = codegen.getCode();
                 
-                if (startNode.type == NodeType::LITERAL_INT) {
-                    rangeStart = std::get<int64_t>(startNode.literal.data);
+                // Allocate stack slot for iterator
+                VarLocation iterLoc;
+                iterLoc.stackOffset = allocateStackSlot();
+                iterLoc.isRegister = false;
+                variables[iterName] = iterLoc;
+                
+                // Compile start value
+                X64Reg startReg = compileExpr(ast, iterable.children[0]);
+                
+                // mov [rbp+offset], startReg
+                bool regHigh = static_cast<uint8_t>(startReg) >= 8;
+                buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0x85 | ((static_cast<uint8_t>(startReg) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+                
+                freeReg(startReg);
+                
+                // Compile end value
+                X64Reg endReg = compileExpr(ast, iterable.children[1]);
+                
+                // Move end value to RCX (loop limit)
+                if (endReg != X64Reg::RCX) {
+                    bool endHigh = static_cast<uint8_t>(endReg) >= 8;
+                    buf.emit8(0x48 | (endHigh ? 0x01 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0xC1 | ((static_cast<uint8_t>(endReg) & 0x7) << 3));
+                    
+                    freeReg(endReg);
                 }
-                if (endNode.type == NodeType::LITERAL_INT) {
-                    rangeEnd = std::get<int64_t>(endNode.literal.data);
+                
+                // loop_start:
+                size_t loopStart = buf.getOffset();
+                
+                // cmp [rbp+offset], rcx
+                buf.emit8(0x48);
+                buf.emit8(0x39);
+                buf.emit8(0x8D);
+                buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+                
+                // jge loop_end
+                buf.emit8(0x0F);
+                buf.emit8(0x8D);
+                size_t jgePatch = buf.getOffset();
+                buf.emit32(0);
+                
+                // Save rcx before body
+                buf.emit8(0x51); // push rcx
+                
+                // Compile loop body
+                if (node.right != INVALID_NODE) {
+                    compileStatement(ast, node.right);
                 }
+                
+                // Restore rcx
+                buf.emit8(0x59); // pop rcx
+                
+                // Increment iterator: inc [rbp+offset]
+                buf.emit8(0x48);
+                buf.emit8(0xFF);
+                buf.emit8(0x85);
+                buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+                
+                // jmp loop_start
+                buf.emit8(0xE9);
+                int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
+                buf.emit32(static_cast<uint32_t>(jumpBack));
+                
+                // loop_end: patch the jge
+                size_t loopEnd = buf.getOffset();
+                int32_t jgeOffset = static_cast<int32_t>(loopEnd - (jgePatch + 4));
+                buf.patch32(jgePatch, static_cast<uint32_t>(jgeOffset));
             }
         }
     }
-    
-    // Allocate stack slot for iterator
-    VarLocation iterLoc;
-    iterLoc.stackOffset = allocateStackSlot();
-    iterLoc.isRegister = false;
-    variables[iterName] = iterLoc;
-    
-    // Initialize iterator: mov [rbp+offset], rangeStart
-    buf.emit8(0x48);
-    buf.emit8(0xC7);
-    buf.emit8(0x85);
-    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
-    buf.emit32(static_cast<uint32_t>(rangeStart));
-    
-    // Store end value in a register (rcx)
-    buf.emit8(0x48);
-    buf.emit8(0xB9);
-    buf.emit64(static_cast<uint64_t>(rangeEnd));
-    
-    // loop_start:
-    size_t loopStart = buf.getOffset();
-    
-    // cmp [rbp+offset], rcx
-    buf.emit8(0x48);
-    buf.emit8(0x39);
-    buf.emit8(0x8D);
-    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
-    
-    // jge loop_end
-    buf.emit8(0x0F);
-    buf.emit8(0x8D);
-    size_t jgePatch = buf.getOffset();
-    buf.emit32(0);
-    
-    // Save rcx before body (it might be clobbered)
-    buf.emit8(0x51); // push rcx
-    
-    // Compile loop body
-    if (node.right != INVALID_NODE) {
-        compileStatement(ast, node.right);
-    }
-    
-    // Restore rcx
-    buf.emit8(0x59); // pop rcx
-    
-    // Increment iterator: inc [rbp+offset]
-    buf.emit8(0x48);
-    buf.emit8(0xFF);
-    buf.emit8(0x85);
-    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
-    
-    // jmp loop_start
-    buf.emit8(0xE9);
-    int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
-    buf.emit32(static_cast<uint32_t>(jumpBack));
-    
-    // loop_end: patch the jge
-    size_t loopEnd = buf.getOffset();
-    int32_t jgeOffset = static_cast<int32_t>(loopEnd - (jgePatch + 4));
-    buf.patch32(jgePatch, static_cast<uint32_t>(jgeOffset));
 }
 
 // Compile return statement
@@ -1649,23 +1702,21 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
         }
         
         if (memberName == "serve") {
-            // Mock server start: print message and return (don't block)
-            // This allows the test suite to pass
-            // In a real run, this would loop forever
+            // Mock server start
             X64Reg argReg = X64Reg::RAX;
             if (!node.children.empty()) {
                 argReg = compileExpr(ast, node.children[0]);
             }
-            
-            // Print "Server started on port X"
-            // For now, just exit
             if (argReg != X64Reg::RAX) freeReg(argReg);
             return;
         }
         
         // Fallback for other member calls
         if (userFunctions.count(memberName)) {
-             // Treat as user function if name matches? unlikely but safe fallback
+             // Treat as user function if name matches
+             X64Reg result = compileUserCall(ast, idx, memberName);
+             freeReg(result); // Ignore result
+             return;
         }
         return;
     }
