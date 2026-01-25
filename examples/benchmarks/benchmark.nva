@@ -1,0 +1,111 @@
+// Comprehensive Benchmark for Nevaarize
+// Tests performance across multiple dimensions using stdlib time (native JIT clock)
+
+import stdlib time as t
+
+// Utility to calculate and print ops/sec
+func printResult(ops, startNs, endNs) {
+    durationNs = endNs - startNs
+    
+    // Avoid division by zero
+    if (durationNs == 0) {
+        durationNs = 1
+    }
+    
+    // Calculate ops/sec: (ops * 1e9) / durationNs
+    opsPerSec = (ops * 1000000000) / durationNs
+    
+    print("Duration:", durationNs / 1000000, "ms")
+    // print("Operations:", ops) 
+    
+    if (opsPerSec > 1000000000) {
+        print("Speed:", opsPerSec / 1000000000, "Billion ops/sec")
+    } elif (opsPerSec > 1000000) {
+        print("Speed:", opsPerSec / 1000000, "Million ops/sec")
+    } else {
+        print("Speed:", opsPerSec, "ops/sec")
+    }
+}
+
+loops = 10000000
+
+print("Nevaarize Benchmark Suite")
+print("Target Loops:", loops)
+
+print("")
+print("=== Integer Arithmetic (Add/Sub) ===")
+acc = 0
+start1 = t.clock()
+i = 0
+while (i < loops) {
+    acc = acc + 1
+    acc = acc - 1
+    i = i + 1
+}
+end1 = t.clock()
+print("Result Check:", acc)
+printResult(loops * 2, start1, end1) // 2 ops per loop
+
+print("")
+print("=== Control Flow (If/Else) ===")
+acc2 = 0
+start2 = t.clock()
+j = 0
+while (j < loops) {
+    if (j < loops) {
+        acc2 = acc2 + 1
+    } else {
+        acc2 = acc2 - 1
+    }
+    j = j + 1
+}
+end2 = t.clock()
+print("Result Check:", acc2)
+printResult(loops, start2, end2)
+
+print("")
+print("=== Function Call (Inlined) ===")
+func addOne(val) {
+    return val + 1
+}
+
+acc3 = 0
+start3 = t.clock()
+k = 0
+while (k < loops) {
+    acc3 = addOne(acc3)
+    k = k + 1
+}
+end3 = t.clock()
+print("Result Check:", acc3)
+printResult(loops, start3, end3)
+
+print("")
+print("=== Array Write Access ===")
+// Create array of size 10
+arr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+start4 = t.clock()
+l = 0
+while (l < loops) {
+    // Write towards end to test offset calculation
+    idx = 5
+    arr[idx] = l
+    l = l + 1
+}
+end4 = t.clock()
+print("Result Check (arr[5]):", arr[5])
+printResult(loops, start4, end4)
+
+print("")
+print("=== For Loop (Range) ===")
+acc5 = 0
+start5 = t.clock()
+for (num in Range(0, loops)) {
+    acc5 = acc5 + 1
+}
+end5 = t.clock()
+print("Result Check:", acc5)
+printResult(loops, start5, end5)
+
+print("")
+print("=== ALL TESTS COMPLETE ===")
