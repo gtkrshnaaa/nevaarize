@@ -13,6 +13,7 @@
 #include "Value.hpp"
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace nevaarize {
 
@@ -82,6 +83,7 @@ private:
     };
     std::unordered_map<std::string, FuncInfo> userFunctions;
     std::unordered_map<std::string, std::string> stdlibAliases;  // alias -> module name
+    std::unordered_set<std::string> currentlyCompiling;  // Track recursion
     const AST* currentAST;
     bool inFunctionCall;
 

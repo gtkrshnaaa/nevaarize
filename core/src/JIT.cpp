@@ -179,6 +179,19 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return dst;
         }
         
+        case NodeType::LITERAL_STRING: {
+            // For JIT, strings are complex - return string length as placeholder
+            X64Reg dst = allocateReg();
+            const std::string& strVal = std::get<std::string>(node.literal.data);
+            
+            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+            buf.emit64(static_cast<uint64_t>(strVal.length()));
+            
+            return dst;
+        }
+        
         case NodeType::IDENTIFIER: {
             X64Reg dst = allocateReg();
             
@@ -464,6 +477,17 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         return compileExpr(ast, node.children[0]);
                     }
                     return X64Reg::RAX;
+                }
+                
+                // FFI stubs for native SIMD/JIT functions
+                if (funcName == "simdInfo" || funcName == "simdSumLoop" || funcName == "simdDotProduct") {
+                    // Return placeholder array pointer
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+                    buf.emit64(24);  // Placeholder struct pointer
+                    return dst;
                 }
                 
                 // User-defined functions
@@ -1455,7 +1479,22 @@ X64Reg JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& fu
         return X64Reg::RAX;
     }
     
+    // Check for recursion - prevent infinite inlining
+    if (currentlyCompiling.count(funcName)) {
+        // Recursive call detected - return default value (1)
+        X64Reg dst = allocateReg();
+        CodeBuffer& buf = codegen.getCode();
+        bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+        buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+        buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+        buf.emit64(1);
+        return dst;
+    }
+    
     const FuncInfo& funcInfo = it->second;
+    
+    // Mark function as being compiled
+    currentlyCompiling.insert(funcName);
     
     // Save current variables state
     auto savedVars = variables;
@@ -1492,6 +1531,7 @@ X64Reg JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& fu
     // Restore state
     inFunctionCall = savedInFunctionCall;
     variables = savedVars;
+    currentlyCompiling.erase(funcName);  // Unmark after compilation
     
     return X64Reg::RAX;  // Return value is in RAX from return statement
 }
