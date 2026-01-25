@@ -332,6 +332,26 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x0F); buf.emit8(0xAF);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
                     break;
+                case BinaryOp::LT: {
+                    // CMP result, right (compares left - right, sets flags)
+                    // result holds left value copy
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x39);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // SETL al (set low byte of RAX if SF != OF)
+                    // IMPORTANT: SETL must come IMMEDIATELY after CMP to read correct flags!
+                    buf.emit8(0x0F);
+                    buf.emit8(0x9C);
+                    buf.emit8(0xC0); // SETL al
+                    
+                    // MOVZX result, al (zero extend byte to qword, clearing high bits)
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0)); // REX.W + REX.R if result is R8-R15
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // MOVZX result, al
+                    break;
+                }
                 // TODO: DIV/MOD etc for Int
                 default: break;
             }
@@ -409,6 +429,20 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 case BinaryOp::SUB: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1); break; // subsd xmm0, xmm1
                 case BinaryOp::MUL: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x59); buf.emit8(0xC1); break; // mulsd xmm0, xmm1
                 case BinaryOp::DIV: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5E); buf.emit8(0xC1); break; // divsd xmm0, xmm1
+                case BinaryOp::LT: {
+                    // UCOMISD xmm0, xmm1 (compare floats, sets CF if xmm0 < xmm1)
+                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                    
+                    // XOR rax, rax (clear for setb)
+                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                    
+                    // SETB al (set byte if CF=1, i.e. unordered or less than)
+                    buf.emit8(0x0F); buf.emit8(0x92); buf.emit8(0xC0);
+                    
+                    // CVTSI2SD xmm0, rax (convert 0/1 to 0.0/1.0)
+                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                    break;
+                }
                 default: break;
             }
             
