@@ -1332,6 +1332,12 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return result;
         }
         
+        case NodeType::AWAIT_EXPR: {
+            // Await expression - for now, just evaluate the expression
+            // TODO: Implement async runtime with suspension/resumption
+            return compileExpr(ast, node.left);
+        }
+        
         default: {
             JITValue nullVal;
             nullVal.valueReg = X64Reg::RAX;
@@ -1710,6 +1716,24 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             info.fieldNames = node.paramNames;
             info.size = node.paramNames.size();
             structs[node.name] = info;
+            break;
+        }
+        
+        case NodeType::IMPORT_FILE: {
+            // File import stub (requires full module system)
+            // TODO: Load file, parse AST, compile functions, register namespace
+            // For now, just register the alias as a placeholder
+            if (!node.paramNames.empty()) {
+                const std::string& alias = node.paramNames[0];
+                // Placeholder: store alias for future resolution
+            }
+            break;
+        }
+        
+        case NodeType::ASYNC_FUNC_DECL: {
+            // Async functions treated same as regular functions
+            // TODO: Mark as async for future runtime scheduler
+            compileFuncDecl(ast, idx);
             break;
         }
         
