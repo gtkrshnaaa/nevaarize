@@ -284,7 +284,27 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         
         case NodeType::BINARY_OP: {
             JITValue left = compileExpr(ast, node.left);
-            JITValue right = compileExpr(ast, node.right);
+            JITValue right = {X64Reg::RAX, X64Reg::RAX}; // Initialize to silence warning
+            bool rightIsImm = false;
+            int64_t immVal = 0;
+            const ASTNode& rNode = ast.get(node.right);
+            
+            // Check for immediate candidate (INT literal fitting 32-bit signed)
+            // Supported ops: ADD, SUB, MUL, Comparisons. (DIV/MOD/AND/OR logic remains register-based)
+            bool isSupportedOp = (node.binaryOp != BinaryOp::DIV && node.binaryOp != BinaryOp::MOD && 
+                                  node.binaryOp != BinaryOp::AND && node.binaryOp != BinaryOp::OR);
+                                  
+            if (isSupportedOp && rNode.type == NodeType::LITERAL_INT) {
+                 int64_t v = std::get<int64_t>(rNode.literal.data);
+                 if (v >= -2147483648LL && v <= 2147483647LL) {
+                     rightIsImm = true;
+                     immVal = v;
+                 }
+            }
+            
+            if (!rightIsImm) {
+                right = compileExpr(ast, node.right);
+            }
             
             // Allocate register for results - OPTIMIZATION: Reuse left as result
             JITValue result;
@@ -292,7 +312,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             result.typeReg = left.typeReg;
             
             // Check types: Is either a float? (tag != 0)
-            // Use scratch register to check types without destroying them
             X64Reg typeScratch = allocateReg();
             
             bool tempHigh = static_cast<uint8_t>(typeScratch) >= 8;
@@ -304,12 +323,15 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit8(0xC0 | ((static_cast<uint8_t>(left.typeReg) & 0x7) << 3) | 
                       (static_cast<uint8_t>(typeScratch) & 0x7));
             
-            // or scratch, right.type
-            bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
-            buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (rTypeHigh ? 0x04 : 0));
-            buf.emit8(0x09);
-            buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | 
-                      (static_cast<uint8_t>(typeScratch) & 0x7));
+            if (!rightIsImm) {
+                // or scratch, right.type
+                bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (rTypeHigh ? 0x04 : 0));
+                buf.emit8(0x09);
+                buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | 
+                          (static_cast<uint8_t>(typeScratch) & 0x7));
+            }
+            // If rightIsImm, right.type is 0 (Int), so 'or scratch, 0' is nop.
                       
             // Check if scratch is 0
             buf.emit8(0x48 | (tempHigh ? 0x01 : 0)); // REX.W
@@ -338,131 +360,156 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             }
             
             bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-            bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+            bool rValHigh = (!rightIsImm && static_cast<uint8_t>(right.valueReg) >= 8);
             
             switch (node.binaryOp) {
                 case BinaryOp::ADD:
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x01);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x81); // ADD r/m64, imm32
+                        buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x01);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
                     break;
                 case BinaryOp::SUB:
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x29);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x81); // SUB r/m64, imm32 (Group 1 /5)
+                        buf.emit8(0xE8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x29);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
                     break;
                 case BinaryOp::MUL:
-                    buf.emit8(0x48 | (resHigh ? 0x04 : 0) | (rValHigh ? 0x01 : 0));
-                    buf.emit8(0x0F); buf.emit8(0xAF);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0)); // dest=res, src=res
+                        buf.emit8(0x69); // IMUL r64, r/m64, imm32
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (resHigh ? 0x04 : 0) | (rValHigh ? 0x01 : 0));
+                        buf.emit8(0x0F); buf.emit8(0xAF);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
+                    }
                     break;
                 case BinaryOp::LT: {
-                    // CMP result, right (compares left - right, sets flags)
-                    // result holds left value copy
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x39);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                    
-                    // SETL al (set low byte of RAX if SF != OF)
-                    // IMPORTANT: SETL must come IMMEDIATELY after CMP to read correct flags!
-                    buf.emit8(0x0F);
-                    buf.emit8(0x9C);
-                    buf.emit8(0xC0); // SETL al
-                    
-                    // MOVZX result, al (zero extend byte to qword, clearing high bits)
-                    buf.emit8(0x48 | (resHigh ? 0x04 : 0)); // REX.W + REX.R if result is R8-R15
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // MOVZX result, al
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x81); // CMP r/m64, imm32 (Group 1 /7)
+                        buf.emit8(0xF8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x39);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
+                    // SETL al
+                    buf.emit8(0x0F); buf.emit8(0x9C); buf.emit8(0xC0);
+                    // MOVZX
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F); buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     break;
                 }
                 case BinaryOp::GT: {
-                    // CMP result, right
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x39);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                    
-                    // SETG al (set if SF == OF AND ZF == 0, i.e. greater)
-                    buf.emit8(0x0F);
-                    buf.emit8(0x9F); // SETG
-                    buf.emit8(0xC0);
-                    
-                    // MOVZX result, al
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x81); // CMP r/m64, imm32
+                        buf.emit8(0xF8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x39);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
+                    // SETG al
+                    buf.emit8(0x0F); buf.emit8(0x9F); buf.emit8(0xC0);
+                    // MOVZX
                     buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
+                    buf.emit8(0x0F); buf.emit8(0xB6);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     break;
                 }
                 case BinaryOp::LTE: {
-                    // CMP result, right
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x39);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                    
-                    // SETLE al (set if SF != OF OR ZF == 1)
-                    buf.emit8(0x0F);
-                    buf.emit8(0x9E); // SETLE
-                    buf.emit8(0xC0);
-                    
-                    // MOVZX result, al
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x81); // CMP r/m64, imm32
+                        buf.emit8(0xF8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x39);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
+                    // SETLE al
+                    buf.emit8(0x0F); buf.emit8(0x9E); buf.emit8(0xC0);
+                    // MOVZX
                     buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
+                    buf.emit8(0x0F); buf.emit8(0xB6);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     break;
                 }
                 case BinaryOp::GTE: {
-                    // CMP result, right
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x39);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                    
-                    // SETGE al (set if SF == OF)
-                    buf.emit8(0x0F);
-                    buf.emit8(0x9D); // SETGE
-                    buf.emit8(0xC0);
-                    
-                    // MOVZX result, al
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x81); // CMP r/m64, imm32
+                        buf.emit8(0xF8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x39);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
+                    // SETGE al
+                    buf.emit8(0x0F); buf.emit8(0x9D); buf.emit8(0xC0);
+                    // MOVZX
                     buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
+                    buf.emit8(0x0F); buf.emit8(0xB6);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     break;
                 }
                 case BinaryOp::EQ: {
-                    // CMP result, right
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x39);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                    
-                    // SETE al (set if ZF == 1)
-                    buf.emit8(0x0F);
-                    buf.emit8(0x94); // SETE
-                    buf.emit8(0xC0);
-                    
-                    // MOVZX result, al
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x81); // CMP r/m64, imm32
+                        buf.emit8(0xF8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x39);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
+                    // SETE al
+                    buf.emit8(0x0F); buf.emit8(0x94); buf.emit8(0xC0);
+                    // MOVZX
                     buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
+                    buf.emit8(0x0F); buf.emit8(0xB6);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     break;
                 }
                 case BinaryOp::NEQ: {
-                    // CMP result, right
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x39);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                    
-                    // SETNE al (set if ZF == 0)
-                    buf.emit8(0x0F);
-                    buf.emit8(0x95); // SETNE
-                    buf.emit8(0xC0);
-                    
-                    // MOVZX result, al
+                    if (rightIsImm) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x81); // CMP r/m64, imm32
+                        buf.emit8(0xF8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit32(static_cast<uint32_t>(immVal));
+                    } else {
+                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x39);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
+                    // SETNE al
+                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0);
+                    // MOVZX
                     buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
+                    buf.emit8(0x0F); buf.emit8(0xB6);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     break;
                 }
@@ -634,29 +681,50 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit8(0xC0 | (static_cast<uint8_t>(left.valueReg) & 0x7));
             
             // Similar for Right to XMM1
-            // cmp right.type, 0
-            buf.emit8(0x48 | (rTypeHigh ? 0x01 : 0));
-            buf.emit8(0x83);
-            buf.emit8(0xF8 | (static_cast<uint8_t>(right.typeReg) & 0x7));
-            buf.emit8(0x00);
-            
-            // jnz right_is_float
-            buf.emit8(0x75);
-            buf.emit8(0x07); // Skip 7 bytes (cvtsi2sd (5) + jmp (2))
-            
-            // cvtsi2sd xmm1, right.val
-            // rValHigh is already declared above
-            buf.emit8(0xF2);
-            buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); // REX.W | REX.B
-            buf.emit8(0x0F); buf.emit8(0x2A);
-            buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
-            
-            // jmp right_ready
-            buf.emit8(0xEB); buf.emit8(0x05);
-            
-            // right_is_float: movq xmm1, right.val
-            buf.emit8(0x66); buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
-            buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
+            if (rightIsImm) {
+                // If immediate, it's INT (0). Load to XMM1.
+                // Need a scratch reg
+                X64Reg rScratch = allocateReg();
+                bool rScHigh = static_cast<uint8_t>(rScratch) >= 8;
+                
+                // mov scratch, imm64
+                buf.emit8(0x48 | (rScHigh ? 0x01 : 0));
+                buf.emit8(0xB8 + (static_cast<uint8_t>(rScratch) & 0x7));
+                buf.emit64(static_cast<uint64_t>(immVal));
+                
+                // cvtsi2sd xmm1, scratch
+                buf.emit8(0xF2);
+                buf.emit8(0x48 | (rScHigh ? 0x01 : 0));
+                buf.emit8(0x0F); buf.emit8(0x2A);
+                buf.emit8(0xC8 | (static_cast<uint8_t>(rScratch) & 0x7)); // XMM1
+                
+                freeReg(rScratch);
+            } else {
+                // cmp right.type, 0
+                bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                buf.emit8(0x48 | (rTypeHigh ? 0x01 : 0));
+                buf.emit8(0x83);
+                buf.emit8(0xF8 | (static_cast<uint8_t>(right.typeReg) & 0x7));
+                buf.emit8(0x00);
+                
+                // jnz right_is_float
+                buf.emit8(0x75);
+                buf.emit8(0x07); // Skip 7 bytes (cvtsi2sd (5) + jmp (2))
+                
+                // cvtsi2sd xmm1, right.val
+                bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                buf.emit8(0xF2);
+                buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); // REX.W | REX.B
+                buf.emit8(0x0F); buf.emit8(0x2A);
+                buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
+                
+                // jmp right_ready
+                buf.emit8(0xEB); buf.emit8(0x05);
+                
+                // right_is_float: movq xmm1, right.val
+                buf.emit8(0x66); buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
+                buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
+            }
             
             // Perform Float Op
             switch (node.binaryOp) {
@@ -745,7 +813,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.patch32(jmpPatch, static_cast<uint32_t>(jmpOffset));
             
             // freeReg(left.valueReg); freeReg(left.typeReg); // Reused as result
-            freeReg(right.valueReg); freeReg(right.typeReg);
+            if (!rightIsImm) {
+                freeReg(right.valueReg); freeReg(right.typeReg);
+            }
             return result;
         }
         
@@ -1624,6 +1694,11 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
+    // Align loop start
+    while (buf.getOffset() % 16 != 0) {
+        buf.emit8(0x90); // NOP
+    }
+    
     // loop_start:
     size_t loopStart = buf.getOffset();
     
@@ -1719,6 +1794,11 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
                 
                 // Free end type
                 freeReg(endVal.typeReg);
+                
+                // Align loop start
+                while (buf.getOffset() % 16 != 0) {
+                    buf.emit8(0x90); // NOP
+                }
                 
                 // loop_start:
                 size_t loopStart = buf.getOffset();
