@@ -2532,6 +2532,28 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
             return;
         }
         
+        // Check for module namespace calls (e.g., math.square())
+        if (callee.left != INVALID_NODE) {
+            const ASTNode& moduleNode = ast.get(callee.left);
+            if (moduleNode.type == NodeType::IDENTIFIER) {
+                const std::string& moduleAlias = moduleNode.name;
+                
+                // Check if this is a loaded module
+                if (modules.count(moduleAlias)) {
+                    const std::string& funcName = callee.name;
+                    std::string namespacedName = moduleAlias + "_" + funcName;
+                    
+                    // Call the namespaced function
+                    if (userFunctions.count(namespacedName)) {
+                        JITValue result = compileUserCall(ast, idx, namespacedName);
+                        freeReg(result.valueReg);
+                        freeReg(result.typeReg);
+                        return;
+                    }
+                }
+            }
+        }
+        
         // Fallback for other member calls
         if (userFunctions.count(memberName)) {
              // Treat as user function if name matches
