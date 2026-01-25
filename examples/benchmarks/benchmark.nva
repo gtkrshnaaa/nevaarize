@@ -18,10 +18,29 @@ func printResult(ops, startNs, endNs) {
     print("Duration:", durationNs / 1000000, "ms")
     print("Raw Speed:", opsPerSec, "ops/sec")
     
+    write("Formatted: ")
     if (opsPerSec > 1000000000) {
-        print("Formatted:", opsPerSec / 1000000000, "Billion ops/sec")
+        billions = opsPerSec / 1000000000
+        rem = opsPerSec % 1000000000
+        millis = rem / 1000000
+        
+        write(billions, ".")
+        if (millis < 10) { write("00") }
+        elif (millis < 100) { write("0") }
+        write(millis, " Billion ops/sec\n")
+        
     } elif (opsPerSec > 1000000) {
-        print("Formatted:", opsPerSec / 1000000, "Million ops/sec")
+        millions = opsPerSec / 1000000
+        rem = opsPerSec % 1000000
+        thous = rem / 1000
+        
+        write(millions, ".")
+        if (thous < 10) { write("00") }
+        elif (thous < 100) { write("0") }
+        write(thous, " Million ops/sec\n")
+        
+    } else {
+        write(opsPerSec, " ops/sec\n")
     }
 }
 

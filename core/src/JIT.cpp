@@ -15,7 +15,7 @@ JIT::JIT()
     , nextStackSlot(0)
     , currentAST(nullptr)
     , inFunctionCall(false) {
-    execMem = std::make_unique<ExecutableMemory>(16384);
+    execMem = std::make_unique<ExecutableMemory>(65536);
     std::memset(regInUse, 0, sizeof(regInUse));
     
     // Reserve some registers
@@ -1771,6 +1771,35 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
                 freeReg(argReg);
             }
             ++argIndex;
+        }
+    } else if (funcName == "write") {
+        // write() - same as print but NO spacing and NO newline at end
+        for (NodeIndex argIdx : node.children) {
+            const ASTNode& argNode = ast.get(argIdx);
+            
+            if (argNode.type == NodeType::LITERAL_STRING) {
+                std::string strVal = std::get<std::string>(argNode.literal.data);
+                // Process escape sequences
+                std::string processed;
+                for (size_t i = 0; i < strVal.length(); ++i) {
+                    if (strVal[i] == '\\' && i + 1 < strVal.length()) {
+                        char next = strVal[i + 1];
+                        if (next == 'n') { processed += '\n'; ++i; }
+                        else if (next == 't') { processed += '\t'; ++i; }
+                        else if (next == 'r') { processed += '\r'; ++i; }
+                        else if (next == '\\') { processed += '\\'; ++i; }
+                        else if (next == '"') { processed += '"'; ++i; }
+                        else processed += strVal[i];
+                    } else {
+                        processed += strVal[i];
+                    }
+                }
+                emitPrintStringNoNewline(processed);
+            } else {
+                X64Reg argReg = compileExpr(ast, argIdx);
+                emitPrintIntNoNewline(argReg);
+                freeReg(argReg);
+            }
         }
     } else if (userFunctions.count(funcName)) {
         // User-defined function call
