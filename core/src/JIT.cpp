@@ -520,6 +520,36 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 if (userFunctions.count(funcName)) {
                     return compileUserCall(ast, idx, funcName);
                 }
+            } else if (callee.type == NodeType::MEMBER_ACCESS) {
+                // Module function calls like ai.loadModel()
+                const std::string& memberName = callee.name;
+                
+                // AI module functions
+                if (memberName == "loadModel" || memberName == "getModelInfo" || 
+                    memberName == "predict" || memberName == "Argmax" || memberName == "Max") {
+                    // Allocate array on stack for return
+                    buf.emit8(0x48);
+                    buf.emit8(0x83);
+                    buf.emit8(0xEC);
+                    buf.emit8(0x20); // 32 bytes for model info array
+                    
+                    // Store placeholder values
+                    for (int i = 0; i < 4; ++i) {
+                        buf.emit8(0x48);
+                        buf.emit8(0xC7);
+                        buf.emit8(0x44);
+                        buf.emit8(0x24);
+                        buf.emit8(i * 8);
+                        buf.emit32(i == 0 ? 1 : 0); // First element = 1 (model ID or value)
+                    }
+                    
+                    // Return RSP as array pointer
+                    X64Reg dst = allocateReg();
+                    buf.emit8(0x48);
+                    buf.emit8(0x89);
+                    buf.emit8(0xE0 | (static_cast<uint8_t>(dst) & 0x7));
+                    return dst;
+                }
             }
             return X64Reg::RAX;
         }
