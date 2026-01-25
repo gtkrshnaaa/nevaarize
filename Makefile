@@ -11,8 +11,8 @@ SRC_DIR := core/src
 STDLIB_SRC := stdlib/src
 INC_DIR := core/include
 STDLIB_INC := stdlib/include
-BUILD_DIR = build_user
-BIN_DIR := bin_user
+BUILD_DIR = build
+BIN_DIR := bin
 
 # Source files
 SOURCES_CORE := $(wildcard $(SRC_DIR)/*.cpp)
