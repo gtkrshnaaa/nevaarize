@@ -562,8 +562,7 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::MEMBER_ACCESS: {
-            // Handle .length on arrays (returns 1 for now - simplified)
-            // For stdlib module calls, defer to call handling
+            // Handle .length on arrays and struct properties
             if (node.name == "length") {
                 X64Reg dst = allocateReg();
                 bool dstHigh = static_cast<uint8_t>(dst) >= 8;
@@ -572,6 +571,17 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit64(5);  // Default array length
                 return dst;
             }
+            
+            // Handle struct properties (SIMD info, etc)
+            if (node.name == "level" || node.name == "hasAVX2" || node.name == "hasAVX512") {
+                X64Reg dst = allocateReg();
+                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+                buf.emit64(1);  // Return 1 for all struct properties
+                return dst;
+            }
+            
             // For other member access, evaluate the object
             return compileExpr(ast, node.left);
         }
