@@ -59,6 +59,21 @@ print("Result Check:", acc)
 printResult(loops * 2, start1, end1)
 
 print("")
+print("=== Float Arithmetic (Add/Sub) ===")
+accF = 0.0
+startF = t.nanos()
+m = 0
+while (m < loops) {
+    accF = accF + 1.5
+    accF = accF - 0.5
+    m = m + 1
+}
+endF = t.nanos()
+print("Result Check:", accF)
+print("Expected:", loops)
+printResult(loops * 2, startF, endF)
+
+print("")
 print("=== Control Flow (If/Else) ===")
 acc2 = 0
 start2 = t.nanos()
@@ -118,20 +133,7 @@ print("Result Check:", acc5)
 printResult(loops, start5, end5)
 
 
-print("")
-print("=== Float Arithmetic (Add/Sub) ===")
-accF = 0.0
-startF = t.nanos()
-m = 0
-while (m < loops) {
-    accF = accF + 1.5
-    accF = accF - 0.5
-    m = m + 1
-}
-endF = t.nanos()
-print("Result Check:", accF)
-print("Expected:", loops)
-printResult(loops * 2, startF, endF)
+
 
 
 print("")
