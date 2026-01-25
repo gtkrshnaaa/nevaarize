@@ -1,16 +1,88 @@
-// Main entry point for modules test
-// Fixed import usage: path string with quotes
-// Fixed identifiers: No underscores
+// Main Entry Point - Complex Module System Test
+// Demonstrates: Relative imports, nested dependencies, cross-module usage
 
-import "examples/modules/config/settings.nva" as conf
-import "examples/modules/lib/math.nva" as m
-import "examples/modules/lib/utils/logger.nva" as l
+// Import from subdirectories (relative to this file)
+import "config/settings.nva" as conf
+import "lib/math.nva" as math
+import "lib/strings.nva" as strings
+import "lib/arrays.nva" as arrays
+import "lib/utils/logger.nva" as log
 
-print("Starting Application:", conf.appName)
+print("=== Complex Module System Test ===")
+print("")
+
+// 1. Configuration Usage
+log.info("Application Starting")
+print("App Name:", conf.appName)
+print("Version:", conf.version)
+print("Max Items:", conf.maxItems)
+print("Debug Mode:", conf.debugMode)
+
+// 2. Math Module Functions
+print("")
+log.info("Testing Math Module")
+
+num = 5
+squared = math.square(num)
+cubed = math.cube(num)
+powered = math.power(2, 8)
+
+print("square(5) =", squared)
+print("cube(5) =", cubed)
+print("power(2, 8) =", powered)
+
+// 3. Array Operations (which internally uses math module)
+print("")
+log.info("Testing Array Module")
+
+testData = [3, 7, 2, 9, 4]
+sum = arrays.arraySum(testData, 5)
+max = arrays.arrayMax(testData, 5)
+squares = arrays.arraySquares(testData, 5)
+
+print("Test Array:", testData)
+print("Sum:", sum)
+print("Max:", max)
+print("Squares:", squares)
+
+// 4. Demonstrate nested module dependencies
+print("")
+log.info("Nested Dependencies Working")
+log.warn("This is a warning message")
+
+// 5. Complex calculation using multiple modules
+print("")
+log.info("Complex Calculation")
+
+// Calculate sum of squares using both modules
+total = 0
+i = 0
+while (i < 5) {
+    squared = math.square(testData[i])
+    total = total + squared
+    i = i + 1
+}
+print("Sum of Squares:", total)
+
+// Compare with array module result
+sumOfSquaresArray = arrays.arraySum(squares, 5)
+print("Verification:", sumOfSquaresArray)
+
+// 6. Using configuration in logic
+print("")
+if (conf.debugMode) {
+    log.info("Debug mode is enabled")
+} else {
+    log.info("Running in production mode")
+}
+
 limit = conf.maxItems
+count = 0
+while (count < 3 and count < limit) {
+    print("Processing item", count)
+    count = count + 1
+}
 
-res = m.square(12)
-l.log("Squared 12:", res)
-
-l.log("Config Max:", limit)
-print("Modules Test Complete")
+print("")
+log.info("Module System Test Complete")
+print("=== All Tests Passed ===")

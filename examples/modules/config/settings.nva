@@ -1,2 +1,7 @@
+// Module: Configuration Settings
+// Provides application constants
+
 maxItems = 100
-appName = "Modular Test"
+appName = "Modular Application"
+version = "1.0.0"
+debugMode = false

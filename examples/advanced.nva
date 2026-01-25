@@ -1,9 +1,68 @@
-// Nevaarize Advanced - Complex Algorithms and Patterns
-// No standard library, pure language features
+// Nevaarize Advanced - Complex Algorithms and Advanced Features
+// Demonstrates: Closures, Async/Await patterns, Advanced algorithms
 
 print("=== Nevaarize Advanced Test Suite ===")
 
-// 1. Fibonacci (Recursive)
+// 1. Closures - Functions Capturing Environment
+print("")
+print("--- Closures ---")
+
+func makeCounter() {
+    count = 0
+    
+    func increment() {
+        count = count + 1
+        return count
+    }
+    
+    return increment
+}
+
+counter1 = makeCounter()
+counter2 = makeCounter()
+
+print("counter1():", counter1())
+print("counter1():", counter1())
+print("counter1():", counter1())
+print("counter2():", counter2())
+print("counter2():", counter2())
+
+// 2. Higher-Order Functions
+print("")
+print("--- Higher-Order Functions ---")
+
+func makeMultiplier(factor) {
+    func multiply(n) {
+        return n * factor
+    }
+    return multiply
+}
+
+double = makeMultiplier(2)
+triple = makeMultiplier(3)
+tenTimes = makeMultiplier(10)
+
+print("double(5):", double(5))
+print("triple(5):", triple(5))
+print("tenTimes(5):", tenTimes(5))
+
+// 3. Function Composition
+func compose(f, g, x) {
+    return f(g(x))
+}
+
+func addTen(n) {
+    return n + 10
+}
+
+func square(n) {
+    return n * n
+}
+
+result = compose(square, addTen, 5)
+print("square(addTen(5)):", result)
+
+// 4. Fibonacci (Recursive with Memoization concept)
 print("")
 print("--- Fibonacci Sequence ---")
 
@@ -14,15 +73,12 @@ func fibonacci(n) {
     return fibonacci(n - 1) + fibonacci(n - 2)
 }
 
-print("fib(0) =", fibonacci(0))
-print("fib(1) =", fibonacci(1))
-print("fib(5) =", fibonacci(5))
-print("fib(10) =", fibonacci(10))
+print("fib(0):", fibonacci(0))
+print("fib(1):", fibonacci(1))
+print("fib(5):", fibonacci(5))
+print("fib(10):", fibonacci(10))
 
-// 2. Iterative Fibonacci (More efficient)
-print("")
-print("--- Fibonacci (Iterative) ---")
-
+// 5. Iterative Fibonacci (More efficient)
 func fibIterative(n) {
     if (n <= 1) {
         return n
@@ -42,10 +98,10 @@ func fibIterative(n) {
     return curr
 }
 
-print("fibIterative(15) =", fibIterative(15))
-print("fibIterative(20) =", fibIterative(20))
+print("fibIterative(15):", fibIterative(15))
+print("fibIterative(20):", fibIterative(20))
 
-// 3. Array Sum Algorithm
+// 6. Advanced Array Algorithms
 print("")
 print("--- Array Algorithms ---")
 
@@ -59,11 +115,6 @@ func arraySum(arr, length) {
     return total
 }
 
-testArray = [5, 10, 15, 20, 25]
-sum = arraySum(testArray, 5)
-print("Sum of [5, 10, 15, 20, 25] =", sum)
-
-// 4. Find Maximum in Array
 func arrayMax(arr, length) {
     if (length == 0) {
         return nil
@@ -80,10 +131,29 @@ func arrayMax(arr, length) {
     return max
 }
 
-maxValue = arrayMax(testArray, 5)
-print("Max of [5, 10, 15, 20, 25] =", maxValue)
+func arrayMin(arr, length) {
+    if (length == 0) {
+        return nil
+    }
+    
+    min = arr[0]
+    i = 1
+    while (i < length) {
+        if (arr[i] < min) {
+            min = arr[i]
+        }
+        i = i + 1
+    }
+    return min
+}
 
-// 5. Bubble Sort
+testArray = [5, 10, 15, 20, 25, 3, 18]
+print("Array:", testArray)
+print("Sum:", arraySum(testArray, 7))
+print("Max:", arrayMax(testArray, 7))
+print("Min:", arrayMin(testArray, 7))
+
+// 7. Bubble Sort
 print("")
 print("--- Bubble Sort ---")
 
@@ -93,7 +163,6 @@ func bubbleSort(arr, length) {
         j = 0
         while (j < length - i - 1) {
             if (arr[j] > arr[j + 1]) {
-                // Swap
                 temp = arr[j]
                 arr[j] = arr[j + 1]
                 arr[j + 1] = temp
@@ -106,82 +175,74 @@ func bubbleSort(arr, length) {
 }
 
 unsorted = [64, 34, 25, 12, 22, 11, 90]
-print("Before sort:", unsorted)
+print("Before:", unsorted)
 sorted = bubbleSort(unsorted, 7)
-print("After sort:", sorted)
+print("After:", sorted)
 
-// 6. Matrix Operations (2D arrays via 1D array with indexing)
+// 8. Quick Sort (Divide and Conquer)
+print("")
+print("--- Quick Sort ---")
+
+func partition(arr, low, high) {
+    pivot = arr[high]
+    i = low - 1
+    
+    j = low
+    while (j < high) {
+        if (arr[j] < pivot) {
+            i = i + 1
+            temp = arr[i]
+            arr[i] = arr[j]
+            arr[j] = temp
+        }
+        j = j + 1
+    }
+    
+    temp = arr[i + 1]
+    arr[i + 1] = arr[high]
+    arr[high] = temp
+    
+    return i + 1
+}
+
+func quickSortRecursive(arr, low, high) {
+    if (low < high) {
+        pi = partition(arr, low, high)
+        quickSortRecursive(arr, low, pi - 1)
+        quickSortRecursive(arr, pi + 1, high)
+    }
+    return arr
+}
+
+unsorted2 = [38, 27, 43, 3, 9, 82, 10]
+print("Before:", unsorted2)
+sorted2 = quickSortRecursive(unsorted2, 0, 6)
+print("After:", sorted2)
+
+// 9. Matrix Operations (2D via flat arrays)
 print("")
 print("--- Matrix Operations ---")
 
-// Represent 2x2 matrix as flat array: [a00, a01, a10, a11]
 matrixA = [1, 2, 3, 4]  // [[1,2], [3,4]]
 matrixB = [5, 6, 7, 8]  // [[5,6], [7,8]]
 
-// Matrix addition (2x2)
-func matrixAdd2x2(a, b) {
-    result = [0, 0, 0, 0]
-    result[0] = a[0] + b[0]
-    result[1] = a[1] + b[1]
-    result[2] = a[2] + b[2]
-    result[3] = a[3] + b[3]
-    return result
-}
-
-// Matrix multiplication (2x2)
 func matrixMul2x2(a, b) {
     result = [0, 0, 0, 0]
-    // Row 0, Col 0
     result[0] = a[0] * b[0] + a[1] * b[2]
-    // Row 0, Col 1
     result[1] = a[0] * b[1] + a[1] * b[3]
-    // Row 1, Col 0
     result[2] = a[2] * b[0] + a[3] * b[2]
-    // Row 1, Col 1
     result[3] = a[2] * b[1] + a[3] * b[3]
     return result
 }
 
 print("Matrix A:", matrixA)
 print("Matrix B:", matrixB)
-
-addResult = matrixAdd2x2(matrixA, matrixB)
-print("A + B =", addResult)
-
 mulResult = matrixMul2x2(matrixA, matrixB)
-print("A * B =", mulResult)
+print("A * B:", mulResult)
 
-// 7. Nested Conditionals and Complex Logic
+// 10. Prime Number Algorithms
 print("")
-print("--- Complex Conditionals ---")
-
-func classify(value) {
-    if (value < 0) {
-        if (value < -100) {
-            return "Very Negative"
-        } else {
-            return "Negative"
-        }
-    } elif (value == 0) {
-        return "Zero"
-    } else {
-        if (value > 100) {
-            return "Very Positive"
-        } else {
-            return "Positive"
-        }
-    }
-}
-
-print("classify(-150) =", classify(-150))
-print("classify(-50) =", classify(-50))
-print("classify(0) =", classify(0))
-print("classify(50) =", classify(50))
-print("classify(150) =", classify(150))
-
-// 8. Prime Number Check
-print("")
-print("--- Prime Number Detection ---")
+print("--- Prime Numbers ---")
 
 func isPrime(n) {
     if (n <= 1) {
@@ -204,10 +265,81 @@ func isPrime(n) {
     return true
 }
 
-print("isPrime(2) =", isPrime(2))
-print("isPrime(17) =", isPrime(17))
-print("isPrime(20) =", isPrime(20))
-print("isPrime(97) =", isPrime(97))
+func sieveOfEratosthenes(limit) {
+    // Returns count of primes up to limit
+    // Simplified version without dynamic arrays
+    count = 0
+    n = 2
+    while (n <= limit) {
+        if (isPrime(n)) {
+            count = count + 1
+        }
+        n = n + 1
+    }
+    return count
+}
+
+print("isPrime(17):", isPrime(17))
+print("isPrime(20):", isPrime(20))
+print("isPrime(97):", isPrime(97))
+print("Primes up to 50:", sieveOfEratosthenes(50))
+
+// 11. Async/Await Pattern Simulation
+print("")
+print("--- Async Pattern Simulation ---")
+
+// Since true async may not be implemented, we simulate the pattern
+async func fetchData(id) {
+    // Simulated async operation
+    print("Fetching data for ID:", id)
+    result = id * 100
+    return result
+}
+
+async func processData() {
+    print("Starting async workflow...")
+    
+    data1 = await fetchData(1)
+    print("Received:", data1)
+    
+    data2 = await fetchData(2)
+    print("Received:", data2)
+    
+    combined = data1 + data2
+    print("Combined result:", combined)
+    
+    return combined
+}
+
+// Call async function
+finalResult = await processData()
+print("Final async result:", finalResult)
+
+// 12. Complex Nested Logic
+print("")
+print("--- Complex Conditionals ---")
+
+func classify(value) {
+    if (value < 0) {
+        if (value < -100) {
+            return "Very Negative"
+        } else {
+            return "Negative"
+        }
+    } elif (value == 0) {
+        return "Zero"
+    } else {
+        if (value > 100) {
+            return "Very Positive"
+        } else {
+            return "Positive"
+        }
+    }
+}
+
+print("classify(-150):", classify(-150))
+print("classify(0):", classify(0))
+print("classify(150):", classify(150))
 
 print("")
 print("=== Advanced Complete ===")
