@@ -99,6 +99,15 @@ private:
     };
     std::unordered_map<std::string, StructInfo> structs;
     
+    // Module storage (for IMPORT_FILE)
+    struct ModuleInfo {
+        std::string filePath;
+        std::unordered_map<std::string, NodeIndex> exportedFunctions;
+        std::unordered_map<std::string, int32_t> exportedVariables;
+    };
+    std::unordered_map<std::string, ModuleInfo> modules;
+    std::unordered_set<std::string> importedFiles;  // Circular import detection
+    
     std::unordered_map<std::string, std::string> stdlibAliases;  // alias -> module name
     std::unordered_set<std::string> currentlyCompiling;  // Track recursion
     const AST* currentAST;
