@@ -1292,6 +1292,54 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 return result;
             }
             
+            // Try to load struct field
+            if (node.left != INVALID_NODE) {
+                JITValue objVal = compileExpr(ast, node.left);
+                
+                // Check if object is a variable that's a struct instance
+                const ASTNode& objNode = ast.get(node.left);
+                if (objNode.type == NodeType::IDENTIFIER) {
+                    // Try to find struct type for this variable
+                    // For now, we'll use a simplified approach:
+                    // Load value from obj base + field offset
+                    
+                    // Assume objVal.valueReg contains base stack offset
+                    // Field offset = field_index * 16 (value=8 + type=8)
+                    
+                    // For now, hardcode to load first field (index 0)
+                    // TODO: Proper field name resolution
+                    int32_t fieldOffset = 0; // First field
+                    
+                    JITValue result;
+                    result.valueReg = allocateReg();
+                    result.typeReg = allocateReg();
+                    
+                    // Load value from [rbp + baseOffset + fieldOffset]
+                    // We need objVal.valueReg value which is the base offset
+                    // But we stored it as immediate, not as memory location
+                    
+                    // Simplified: assume field offset relative to base
+                    // mov result, [rbp + objOffset]
+                    bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                    buf.emit8(0x8B);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(fieldOffset));
+                    
+                    // Load type
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0x8B);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                    
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
+                    return result;
+                }
+            }
+            
             // For other member access, evaluate the object
             return compileExpr(ast, node.left);
         }
