@@ -369,6 +369,144 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // MOVZX result, al
                     break;
                 }
+                case BinaryOp::GT: {
+                    // CMP result, right
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x39);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // SETG al (set if SF == OF AND ZF == 0, i.e. greater)
+                    buf.emit8(0x0F);
+                    buf.emit8(0x9F); // SETG
+                    buf.emit8(0xC0);
+                    
+                    // MOVZX result, al
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    break;
+                }
+                case BinaryOp::LTE: {
+                    // CMP result, right
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x39);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // SETLE al (set if SF != OF OR ZF == 1)
+                    buf.emit8(0x0F);
+                    buf.emit8(0x9E); // SETLE
+                    buf.emit8(0xC0);
+                    
+                    // MOVZX result, al
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    break;
+                }
+                case BinaryOp::GTE: {
+                    // CMP result, right
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x39);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // SETGE al (set if SF == OF)
+                    buf.emit8(0x0F);
+                    buf.emit8(0x9D); // SETGE
+                    buf.emit8(0xC0);
+                    
+                    // MOVZX result, al
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    break;
+                }
+                case BinaryOp::EQ: {
+                    // CMP result, right
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x39);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // SETE al (set if ZF == 1)
+                    buf.emit8(0x0F);
+                    buf.emit8(0x94); // SETE
+                    buf.emit8(0xC0);
+                    
+                    // MOVZX result, al
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    break;
+                }
+                case BinaryOp::NEQ: {
+                    // CMP result, right
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x39);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // SETNE al (set if ZF == 0)
+                    buf.emit8(0x0F);
+                    buf.emit8(0x95); // SETNE
+                    buf.emit8(0xC0);
+                    
+                    // MOVZX result, al
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F);
+                    buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    break;
+                }
+                case BinaryOp::AND: {
+                    // Logical AND: result && right
+                    // TEST result, result (check if result is non-zero)
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // SETNE al (result != 0)
+                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0);
+                    
+                    // TEST right, right
+                    buf.emit8(0x48 | (rValHigh ? 0x01 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
+                    
+                    // SETNE cl (right != 0)
+                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC1);
+                    
+                    // AND al, cl
+                    buf.emit8(0x20); buf.emit8(0xC8);
+                    
+                    // MOVZX result, al
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F); buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    break;
+                }
+                case BinaryOp::OR: {
+                    // Logical OR: result || right
+                    // OR result, right (bitwise)
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x09);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // TEST result, result
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // SETNE al
+                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0);
+                    
+                    // MOVZX result, al
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F); buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    break;
+                }
                 // TODO: DIV/MOD etc for Int
                 default: break;
             }
@@ -457,6 +595,51 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x0F); buf.emit8(0x92); buf.emit8(0xC0);
                     
                     // CVTSI2SD xmm0, rax (convert 0/1 to 0.0/1.0)
+                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                    break;
+                }
+                case BinaryOp::GT: {
+                    // UCOMISD xmm0, xmm1
+                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                    // SETA al (above = CF=0 AND ZF=0)
+                    buf.emit8(0x0F); buf.emit8(0x97); buf.emit8(0xC0);
+                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                    break;
+                }
+                case BinaryOp::LTE: {
+                    // UCOMISD xmm0, xmm1
+                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                    // SETBE al (below or equal = CF=1 OR ZF=1)
+                    buf.emit8(0x0F); buf.emit8(0x96); buf.emit8(0xC0);
+                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                    break;
+                }
+                case BinaryOp::GTE: {
+                    // UCOMISD xmm0, xmm1
+                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                    // SETAE al (above or equal = CF=0)
+                    buf.emit8(0x0F); buf.emit8(0x93); buf.emit8(0xC0);
+                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                    break;
+                }
+                case BinaryOp::EQ: {
+                    // UCOMISD xmm0, xmm1
+                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                    // SETE al (equal = ZF=1)
+                    buf.emit8(0x0F); buf.emit8(0x94); buf.emit8(0xC0);
+                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                    break;
+                }
+                case BinaryOp::NEQ: {
+                    // UCOMISD xmm0, xmm1
+                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                    // SETNE al (not equal = ZF=0)
+                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0);
                     buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
                     break;
                 }
