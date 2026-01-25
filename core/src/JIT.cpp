@@ -1840,28 +1840,38 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             auto tokens = lexer.tokenize();
             
             Parser parser(tokens);
-            parser.parse(); // Returns root NodeIndex
-            const AST& importedAST = parser.getAST();
+            parser.parse();
+            AST importedAST = std::move(parser.getAST());  // Move ownership
+            
+            // Store AST to keep it alive
+            importedASTs[alias] = std::move(importedAST);
+            const AST& storedAST = importedASTs[alias];
             
             // Store module info
             ModuleInfo modInfo;
             modInfo.filePath = fullPath.string();
             
+            
             // Compile top-level functions from imported file
-            const ASTNode& root = importedAST.get(importedAST.root());
+            const ASTNode& root = storedAST.get(storedAST.root());
             for (NodeIndex childIdx : root.children) {
-                const ASTNode& child = importedAST.get(childIdx);
+                const ASTNode& child = storedAST.get(childIdx);
                 
                 if (child.type == NodeType::FUNC_DECL) {
                     // Register function with namespace prefix
                     std::string namespacedName = alias + "_" + child.name;
                     
-                    // Note: We can't store child.left here because it's from importedAST
-                    // We would need to copy the AST or compile immediately
-                    // For now, just track that this function exists
-                    modInfo.exportedFunctions[child.name] = 0; // Placeholder
+                    // Store function info with source AST pointer
+                    FuncInfo info;
+                    info.bodyIndex = child.left;
+                    info.paramNames = child.paramNames;
+                    info.isCompiled = false;
+                    info.compiledOffset = 0;
+                    info.sourceAST = &storedAST;  // Point to stored AST
+                    
+                    userFunctions[namespacedName] = info;
+                    modInfo.exportedFunctions[child.name] = childIdx;
                 }
-                // TODO: Handle exported variables if needed
             }
             
             modules[alias] = modInfo;
@@ -2477,10 +2487,11 @@ void JIT::compileFuncDecl(const AST& ast, NodeIndex idx) {
     
     // Store function info for later use
     FuncInfo info;
-    info.bodyIndex = node.left;  // Function body is in LEFT field (per Parser.cpp)
+    info.bodyIndex = node.left;
     info.paramNames = node.paramNames;
     info.compiledOffset = 0;
     info.isCompiled = false;
+    info.sourceAST = nullptr;  // Local function uses currentAST
     userFunctions[node.name] = info;
 }
 
@@ -2559,9 +2570,12 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     bool savedInFunctionCall = inFunctionCall;
     inFunctionCall = true;
     
-    // Compile the function body
+    // Use source AST for imported functions, otherwise use current AST
+    const AST& funcAST = (funcInfo.sourceAST != nullptr) ? *funcInfo.sourceAST : ast;
+    
+    // Compile the function body from correct AST
     if (funcInfo.bodyIndex != INVALID_NODE) {
-        compileStatement(ast, funcInfo.bodyIndex);
+        compileStatement(funcAST, funcInfo.bodyIndex);
     }
     
     inFunctionCall = savedInFunctionCall;

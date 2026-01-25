@@ -87,8 +87,9 @@ private:
     struct FuncInfo {
         NodeIndex bodyIndex;
         std::vector<std::string> paramNames;
-        size_t compiledOffset;  // Offset in code buffer for compiled function
+        size_t compiledOffset;
         bool isCompiled;
+        const AST* sourceAST;  // Which AST contains this function (nullptr = currentAST)
     };
     std::unordered_map<std::string, FuncInfo> userFunctions;
     
@@ -106,10 +107,11 @@ private:
         std::unordered_map<std::string, int32_t> exportedVariables;
     };
     std::unordered_map<std::string, ModuleInfo> modules;
-    std::unordered_set<std::string> importedFiles;  // Circular import detection
+    std::unordered_set<std::string> importedFiles;
+    std::unordered_map<std::string, AST> importedASTs;  // Store imported ASTs
     
-    std::unordered_map<std::string, std::string> stdlibAliases;  // alias -> module name
-    std::unordered_set<std::string> currentlyCompiling;  // Track recursion
+    std::unordered_map<std::string, std::string> stdlibAliases;
+    std::unordered_set<std::string> currentlyCompiling;
     const AST* currentAST;
     bool inFunctionCall;
 
