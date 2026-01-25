@@ -1,12 +1,13 @@
 // Main entry point for modules test
 // Fixed import usage: path string with quotes
+// Fixed identifiers: No underscores
 
 import "examples/modules/config/settings.nva" as conf
 import "examples/modules/lib/math.nva" as m
 import "examples/modules/lib/utils/logger.nva" as l
 
-print("Starting Application:", conf.APP_NAME)
-limit = conf.MAX_ITEMS
+print("Starting Application:", conf.appName)
+limit = conf.maxItems
 
 res = m.square(12)
 l.log("Squared 12:", res)

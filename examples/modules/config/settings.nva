@@ -1,2 +1,2 @@
-MAX_ITEMS = 100
-APP_NAME = "Modular Test"
+maxItems = 100
+appName = "Modular Test"

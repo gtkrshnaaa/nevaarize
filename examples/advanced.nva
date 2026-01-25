@@ -1,49 +1,213 @@
-// Nevaarize Advanced Features
-import stdlib ai as nn
-import stdlib http as http
-import stdlib time as t
-// import stdlib io as io // Uncomment if IO implemented
+// Nevaarize Advanced - Complex Algorithms and Patterns
+// No standard library, pure language features
 
-print("=== Nevaarize Advanced Features ===")
+print("=== Nevaarize Advanced Test Suite ===")
 
-// 1. AI & Tensors (Matrix Operations)
-print("--- AI / Tensor Operations ---")
-// Create 2x2 Tensors
-// Note: Syntax conceptual, adjust to actual API
-// Assuming nn.tensor(shape, flat_data)
-m1 = nn.tensor([2, 2], [1.0, 2.0, 3.0, 4.0])
-m2 = nn.tensor([2, 2], [0.5, 0.5, 0.5, 0.5])
+// 1. Fibonacci (Recursive)
+print("")
+print("--- Fibonacci Sequence ---")
 
-// print("Matrix 1:", m1) // Printing tensor object might show pointer or data depending on impl
-// print("Matrix 2:", m2)
-
-// Matrix Addition
-m3 = m1 + m2
-print("MatAdd Performed (Object Handle):", m3)
-
-// Matrix Multiplication
-m4 = m1 * m2 
-print("MatMul Performed (Object Handle):", m4)
-
-// 2. HTTP Requests
-print("--- HTTP Client ---")
-url = "http://example.com"
-print("Fetching:", url)
-// resp = http.get(url) 
-// print("Request Sent.")
-// print("Status:", resp) // Assuming response wraps status
-
-// 3. Time & Benchmarking
-print("--- Time ---")
-start = t.nanos()
-// Simulate work
-sum = 0
-for (i in Range(0, 10000)) {
-    sum = sum + i
+func fibonacci(n) {
+    if (n <= 1) {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
 }
-end = t.nanos()
-duration = end - start
-print("Sum:", sum)
-print("Work took (ns):", duration)
 
+print("fib(0) =", fibonacci(0))
+print("fib(1) =", fibonacci(1))
+print("fib(5) =", fibonacci(5))
+print("fib(10) =", fibonacci(10))
+
+// 2. Iterative Fibonacci (More efficient)
+print("")
+print("--- Fibonacci (Iterative) ---")
+
+func fibIterative(n) {
+    if (n <= 1) {
+        return n
+    }
+    
+    prev = 0
+    curr = 1
+    i = 2
+    
+    while (i <= n) {
+        next = prev + curr
+        prev = curr
+        curr = next
+        i = i + 1
+    }
+    
+    return curr
+}
+
+print("fibIterative(15) =", fibIterative(15))
+print("fibIterative(20) =", fibIterative(20))
+
+// 3. Array Sum Algorithm
+print("")
+print("--- Array Algorithms ---")
+
+func arraySum(arr, length) {
+    total = 0
+    i = 0
+    while (i < length) {
+        total = total + arr[i]
+        i = i + 1
+    }
+    return total
+}
+
+testArray = [5, 10, 15, 20, 25]
+sum = arraySum(testArray, 5)
+print("Sum of [5, 10, 15, 20, 25] =", sum)
+
+// 4. Find Maximum in Array
+func arrayMax(arr, length) {
+    if (length == 0) {
+        return nil
+    }
+    
+    max = arr[0]
+    i = 1
+    while (i < length) {
+        if (arr[i] > max) {
+            max = arr[i]
+        }
+        i = i + 1
+    }
+    return max
+}
+
+maxValue = arrayMax(testArray, 5)
+print("Max of [5, 10, 15, 20, 25] =", maxValue)
+
+// 5. Bubble Sort
+print("")
+print("--- Bubble Sort ---")
+
+func bubbleSort(arr, length) {
+    i = 0
+    while (i < length) {
+        j = 0
+        while (j < length - i - 1) {
+            if (arr[j] > arr[j + 1]) {
+                // Swap
+                temp = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = temp
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return arr
+}
+
+unsorted = [64, 34, 25, 12, 22, 11, 90]
+print("Before sort:", unsorted)
+sorted = bubbleSort(unsorted, 7)
+print("After sort:", sorted)
+
+// 6. Matrix Operations (2D arrays via 1D array with indexing)
+print("")
+print("--- Matrix Operations ---")
+
+// Represent 2x2 matrix as flat array: [a00, a01, a10, a11]
+matrixA = [1, 2, 3, 4]  // [[1,2], [3,4]]
+matrixB = [5, 6, 7, 8]  // [[5,6], [7,8]]
+
+// Matrix addition (2x2)
+func matrixAdd2x2(a, b) {
+    result = [0, 0, 0, 0]
+    result[0] = a[0] + b[0]
+    result[1] = a[1] + b[1]
+    result[2] = a[2] + b[2]
+    result[3] = a[3] + b[3]
+    return result
+}
+
+// Matrix multiplication (2x2)
+func matrixMul2x2(a, b) {
+    result = [0, 0, 0, 0]
+    // Row 0, Col 0
+    result[0] = a[0] * b[0] + a[1] * b[2]
+    // Row 0, Col 1
+    result[1] = a[0] * b[1] + a[1] * b[3]
+    // Row 1, Col 0
+    result[2] = a[2] * b[0] + a[3] * b[2]
+    // Row 1, Col 1
+    result[3] = a[2] * b[1] + a[3] * b[3]
+    return result
+}
+
+print("Matrix A:", matrixA)
+print("Matrix B:", matrixB)
+
+addResult = matrixAdd2x2(matrixA, matrixB)
+print("A + B =", addResult)
+
+mulResult = matrixMul2x2(matrixA, matrixB)
+print("A * B =", mulResult)
+
+// 7. Nested Conditionals and Complex Logic
+print("")
+print("--- Complex Conditionals ---")
+
+func classify(value) {
+    if (value < 0) {
+        if (value < -100) {
+            return "Very Negative"
+        } else {
+            return "Negative"
+        }
+    } elif (value == 0) {
+        return "Zero"
+    } else {
+        if (value > 100) {
+            return "Very Positive"
+        } else {
+            return "Positive"
+        }
+    }
+}
+
+print("classify(-150) =", classify(-150))
+print("classify(-50) =", classify(-50))
+print("classify(0) =", classify(0))
+print("classify(50) =", classify(50))
+print("classify(150) =", classify(150))
+
+// 8. Prime Number Check
+print("")
+print("--- Prime Number Detection ---")
+
+func isPrime(n) {
+    if (n <= 1) {
+        return false
+    }
+    if (n == 2) {
+        return true
+    }
+    if (n % 2 == 0) {
+        return false
+    }
+    
+    i = 3
+    while (i * i <= n) {
+        if (n % i == 0) {
+            return false
+        }
+        i = i + 2
+    }
+    return true
+}
+
+print("isPrime(2) =", isPrime(2))
+print("isPrime(17) =", isPrime(17))
+print("isPrime(20) =", isPrime(20))
+print("isPrime(97) =", isPrime(97))
+
+print("")
 print("=== Advanced Complete ===")

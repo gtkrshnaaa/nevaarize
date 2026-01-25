@@ -1,76 +1,149 @@
-// Nevaarize Basics Usage Guide
-print("=== Nevaarize Basics ===")
+// Nevaarize Basics - Core Language Features
+// Pure syntax demonstration, no standard library
 
-// 1. Variables & Types
-print("--- Variables ---")
-x = 10
-y = 20
-f = 3.14
-s = "Hello World"
-b = true
-print("Int:", x)
-print("Float:", f)
-print("String:", s)
-print("Bool:", b)
+print("=== Nevaarize Basics Test Suite ===")
 
-// 2. Arithmetic
+// 1. Variables and Basic Types
+print("")
+print("--- Variables and Types ---")
+x = 42
+y = 3.14
+name = "Nevaarize"
+flag = true
+nothing = nil
+
+print("Integer:", x)
+print("Float:", y)
+print("String:", name)
+print("Boolean:", flag)
+print("Nil:", nothing)
+
+// 2. Arithmetic Operators
+print("")
 print("--- Arithmetic ---")
-sum = x + y
-diff = y - x
-prod = x * 2
-// div = y / 2 // Integer division? Or Float? Assuming supported
+sum = 10 + 20
+diff = 30 - 15
+product = 5 * 6
+quotient = 100 / 4
+remainder = 17 % 5
+
 print("10 + 20 =", sum)
-print("20 - 10 =", diff)
-print("10 * 2 =", prod)
+print("30 - 15 =", diff)
+print("5 * 6 =", product)
+print("100 / 4 =", quotient)
+print("17 % 5 =", remainder)
 
-// 3. Control Flow
+// 3. Comparison Operators
+print("")
+print("--- Comparisons ---")
+a = 10
+b = 20
+
+print("10 == 20:", a == b)
+print("10 != 20:", a != b)
+print("10 < 20:", a < b)
+print("10 > 20:", a > b)
+print("10 <= 20:", a <= b)
+print("10 >= 20:", a >= b)
+
+// 4. Logical Operators
+print("")
+print("--- Logical Operators ---")
+print("true and false:", true and false)
+print("true or false:", true or false)
+print("not true:", not true)
+
+// 5. Control Flow - If/Elif/Else
+print("")
 print("--- Control Flow ---")
-if (x < y) {
-    print("x is less than y")
+score = 85
+
+if (score >= 90) {
+    print("Grade: A")
+} elif (score >= 80) {
+    print("Grade: B")
+} elif (score >= 70) {
+    print("Grade: C")
 } else {
-    print("x is greater or equal y")
+    print("Grade: F")
 }
 
-print("While Loop:")
-i = 0
-while (i < 3) {
-    print("i =", i)
-    i = i + 1
+// 6. While Loop
+print("")
+print("--- While Loop ---")
+counter = 0
+while (counter < 5) {
+    print("Counter:", counter)
+    counter = counter + 1
 }
 
-print("For Loop (Range):")
-for (j in Range(0, 3)) {
-    print("j =", j)
+// 7. For Loop with Range
+print("")
+print("--- For Loop ---")
+for (i in Range(0, 5)) {
+    print("Index:", i)
 }
 
-// 4. Functions
+// 8. Functions
+print("")
 print("--- Functions ---")
+
 func add(a, b) {
     return a + b
 }
-res = add(5, 7)
-print("add(5, 7) =", res)
+
+func multiply(x, y) {
+    return x * y
+}
+
+result1 = add(5, 3)
+result2 = multiply(4, 7)
+print("add(5, 3) =", result1)
+print("multiply(4, 7) =", result2)
+
+// 9. Recursive Function
+print("")
+print("--- Recursion ---")
 
 func factorial(n) {
-    if (n <= 1) { return 1 }
+    if (n <= 1) {
+        return 1
+    }
     return n * factorial(n - 1)
 }
+
 print("factorial(5) =", factorial(5))
+print("factorial(6) =", factorial(6))
 
-// 5. Arrays
+// 10. Arrays
+print("")
 print("--- Arrays ---")
-arr = [1, 2, 3, 4, 5]
-print("Array index 2:", arr[2])
-arr[2] = 99
-print("Modified index 2:", arr[2])
+numbers = [10, 20, 30, 40, 50]
 
-print("Total Array Sum:")
-total = 0
-idx = 0
-while (idx < 5) {
-    total = total + arr[idx]
-    idx = idx + 1
+print("Array:", numbers)
+print("numbers[0] =", numbers[0])
+print("numbers[2] =", numbers[2])
+print("numbers[4] =", numbers[4])
+
+// Modify array element
+numbers[2] = 99
+print("After numbers[2] = 99:", numbers[2])
+
+// Array iteration
+print("Iterating array:")
+for (i in Range(0, 5)) {
+    print("  numbers[" , i, "] =", numbers[i])
 }
-print("Sum:", total)
 
+// 11. Nested Loops
+print("")
+print("--- Nested Loops ---")
+print("Multiplication table (3x3):")
+for (row in Range(1, 4)) {
+    for (col in Range(1, 4)) {
+        print(row, "x", col, "=", row * col)
+    }
+}
+
+print("")
 print("=== Basics Complete ===")
