@@ -1294,49 +1294,74 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             // Try to load struct field
             if (node.left != INVALID_NODE) {
-                JITValue objVal = compileExpr(ast, node.left);
-                
-                // Check if object is a variable that's a struct instance
                 const ASTNode& objNode = ast.get(node.left);
+                
+                // For struct member access: obj.field
+                // objNode should be IDENTIFIER (the struct variable)
                 if (objNode.type == NodeType::IDENTIFIER) {
-                    // Try to find struct type for this variable
-                    // For now, we'll use a simplified approach:
-                    // Load value from obj base + field offset
+                    const std::string& varName = objNode.name;
                     
-                    // Assume objVal.valueReg contains base stack offset
-                    // Field offset = field_index * 16 (value=8 + type=8)
-                    
-                    // For now, hardcode to load first field (index 0)
-                    // TODO: Proper field name resolution
-                    int32_t fieldOffset = 0; // First field
-                    
-                    JITValue result;
-                    result.valueReg = allocateReg();
-                    result.typeReg = allocateReg();
-                    
-                    // Load value from [rbp + baseOffset + fieldOffset]
-                    // We need objVal.valueReg value which is the base offset
-                    // But we stored it as immediate, not as memory location
-                    
-                    // Simplified: assume field offset relative to base
-                    // mov result, [rbp + objOffset]
-                    bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-                    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-                    buf.emit8(0x8B);
-                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-                    buf.emit32(static_cast<uint32_t>(fieldOffset));
-                    
-                    // Load type
-                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                    buf.emit8(0x8B);
-                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
-                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
-                    
-                    freeReg(objVal.valueReg);
-                    freeReg(objVal.typeReg);
-                    
-                    return result;
+                    // Check if variable exists
+                    if (variables.count(varName)) {
+                        const VarLocation& varLoc = variables[varName];
+                        
+                        // Determine field offset based on field name
+                        // For now, hardcode: x=0, y=16
+                        int32_t fieldIndex = 0;
+                        if (node.name == "y") {
+                            fieldIndex = 1;
+                        } else if (node.name == "z") {
+                            fieldIndex = 2;
+                        }
+                        int32_t fieldOffset = fieldIndex * 16;
+                        
+                        // Load base offset from variable
+                        // Variable stores the struct base offset as a value
+                        X64Reg baseReg = allocateReg();
+                        bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
+                        buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
+                        buf.emit8(0x8B);
+                        buf.emit8(0x85 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(varLoc.stackOffset));
+                        
+                        // Now baseReg contains the base stack offset VALUE
+                        // We need to load from [RBP + baseReg + fieldOffset]
+                        // BUT x86-64 doesn't support [RBP + reg + imm] directly
+                        // So we add fieldOffset to baseReg first
+                        
+                        if (fieldOffset != 0) {
+                            // add baseReg, fieldOffset
+                            buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
+                            buf.emit8(0x81);
+                            buf.emit8(0xC0 | (static_cast<uint8_t>(baseReg) & 0x7));
+                            buf.emit32(static_cast<uint32_t>(fieldOffset));
+                        }
+                        
+                        // Now load from [RBP + baseReg]
+                        // This requires using SIB byte with RBP as base and baseReg as index
+                        // mov result, [rbp + baseReg]
+                        JITValue result;
+                        result.valueReg = allocateReg();
+                        result.typeReg = allocateReg();
+                        
+                        bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                        buf.emit8(0x48 | (valHigh ? 0x01 : 0) | (baseHigh ? 0x02 : 0));
+                        buf.emit8(0x8B);
+                        buf.emit8(0x84 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7)); // SIB: [rbp + baseReg]
+                        buf.emit32(0); // displacement
+                        
+                        // Load type similarly
+                        bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                        buf.emit8(0x48 | (typeHigh ? 0x01 : 0) | (baseHigh ? 0x02 : 0));
+                        buf.emit8(0x8B);
+                        buf.emit8(0x84 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
+                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7)); // SIB
+                        buf.emit32(8); // displacement for type field
+                        
+                        freeReg(baseReg);
+                        return result;
+                    }
                 }
             }
             
