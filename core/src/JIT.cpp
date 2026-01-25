@@ -284,14 +284,14 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             bool lTypeHigh = static_cast<uint8_t>(left.typeReg) >= 8;
             
             // mov temp, left.type
-            buf.emit8(0x48 | (tempHigh ? 0x04 : 0) | (lTypeHigh ? 0x01 : 0));
+            buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (lTypeHigh ? 0x04 : 0));
             buf.emit8(0x89);
             buf.emit8(0xC0 | ((static_cast<uint8_t>(left.typeReg) & 0x7) << 3) | 
                       (static_cast<uint8_t>(result.typeReg) & 0x7));
             
             // or temp, right.type
             bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
-            buf.emit8(0x48 | (tempHigh ? 0x04 : 0) | (rTypeHigh ? 0x01 : 0));
+            buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (rTypeHigh ? 0x04 : 0));
             buf.emit8(0x09);
             buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | 
                       (static_cast<uint8_t>(result.typeReg) & 0x7));
@@ -307,7 +307,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             if (result.valueReg != left.valueReg) {
                 bool resValHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                 bool lValHigh = static_cast<uint8_t>(left.valueReg) >= 8;
-                buf.emit8(0x48 | (resValHigh ? 0x04 : 0) | (lValHigh ? 0x01 : 0));
+                buf.emit8(0x48 | (resValHigh ? 0x01 : 0) | (lValHigh ? 0x04 : 0));
                 buf.emit8(0x89);
                 buf.emit8(0xC0 | ((static_cast<uint8_t>(left.valueReg) & 0x7) << 3) | 
                           (static_cast<uint8_t>(result.valueReg) & 0x7));
@@ -362,7 +362,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             // jnz left_is_float
             buf.emit8(0x75);
-            buf.emit8(0x05); // Skip 5 bytes (cvtsi2sd length is 5)
+            buf.emit8(0x07); // Skip 7 bytes (cvtsi2sd (5) + jmp (2))
             
             // cvtsi2sd xmm0, left.val
             bool lValHigh = static_cast<uint8_t>(left.valueReg) >= 8;
@@ -387,21 +387,21 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             // jnz right_is_float
             buf.emit8(0x75);
-            buf.emit8(0x05); // Skip 5 bytes
+            buf.emit8(0x07); // Skip 7 bytes (cvtsi2sd (5) + jmp (2))
             
             // cvtsi2sd xmm1, right.val
-            bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+            // rValHigh is already declared above
             buf.emit8(0xF2);
             buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); // REX.W | REX.B
             buf.emit8(0x0F); buf.emit8(0x2A);
-            buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7));
+            buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
             
             // jmp right_ready
             buf.emit8(0xEB); buf.emit8(0x05);
             
             // right_is_float: movq xmm1, right.val
             buf.emit8(0x66); buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
-            buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7));
+            buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
             
             // Perform Float Op
             switch (node.binaryOp) {
@@ -420,7 +420,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit8(0x7E);
             buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
             
-            // Set Type to FLOAT (1)
+            // === END ===
             buf.emit8(0x48 | (static_cast<uint8_t>(result.typeReg) >= 8 ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
             buf.emit64(1);
