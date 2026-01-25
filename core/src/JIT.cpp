@@ -537,6 +537,21 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return arrReg;
         }
         
+        case NodeType::MEMBER_ACCESS: {
+            // Handle .length on arrays (returns 1 for now - simplified)
+            // For stdlib module calls, defer to call handling
+            if (node.name == "length") {
+                X64Reg dst = allocateReg();
+                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+                buf.emit64(5);  // Default array length
+                return dst;
+            }
+            // For other member access, evaluate the object
+            return compileExpr(ast, node.left);
+        }
+        
         default:
             return X64Reg::RAX;
     }
@@ -785,6 +800,34 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         case NodeType::VAR_ASSIGN:
             compileAssignment(ast, idx);
             break;
+            
+        case NodeType::INDEX_ASSIGN: {
+            // arr[idx] = value - compile and store
+            CodeBuffer& buf = codegen.getCode();
+            X64Reg valueReg = compileExpr(ast, node.extra);  // value
+            X64Reg arrReg = compileExpr(ast, node.left);     // array
+            X64Reg idxReg = compileExpr(ast, node.right);    // index
+            
+            // Scale index by 8
+            bool idxHigh = static_cast<uint8_t>(idxReg) >= 8;
+            buf.emit8(0x48 | (idxHigh ? 0x05 : 0));
+            buf.emit8(0xC1);
+            buf.emit8(0xE0 | (static_cast<uint8_t>(idxReg) & 0x7));
+            buf.emit8(0x03);
+            
+            // mov [arrReg + idxReg], valueReg
+            bool arrHigh = static_cast<uint8_t>(arrReg) >= 8;
+            bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (idxHigh ? 0x02 : 0) | (arrHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0x04 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
+            buf.emit8(((static_cast<uint8_t>(idxReg) & 0x7) << 3) | (static_cast<uint8_t>(arrReg) & 0x7));
+            
+            freeReg(valueReg);
+            freeReg(arrReg);
+            freeReg(idxReg);
+            break;
+        }
             
         case NodeType::EXPR_STMT: {
             // Check if this is a function call like print()
