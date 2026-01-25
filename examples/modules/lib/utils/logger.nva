@@ -1,0 +1,3 @@
+func log(msg, val) {
+    print("[LOG]", msg, val)
+}

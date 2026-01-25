@@ -1,26 +1,16 @@
-// Main Program
-// Demonstrates module import system
+// Main entry point for modules test
+// Assuming imports are resolved relative to CWD or file
+// Trying path relative to project root 'examples/...'
 
-import "utils.nva" as utils
+import examples/modules/config/settings as conf
+import examples/modules/lib/math as m
+import examples/modules/lib/utils/logger as l
 
-print("=== Module System Demo ===")
+print("Starting Application:", conf.APP_NAME)
+limit = conf.MAX_ITEMS
 
-// Use imported functions
-x = 5
-print("Square of", x, "=", utils.square(x))
-print("Cube of", x, "=", utils.cube(x))
+res = m.square(12)
+l.log("Squared 12:", res)
 
-// Use greet function
-message = utils.greet("Nevaarize")
-print(message)
-
-// Use sum function
-numbers = [1, 2, 3, 4, 5]
-total = utils.sum(numbers)
-print("Sum of", numbers, "=", total)
-
-// Combine with stdlib
-import stdlib math as m
-
-result = m.Sqrt(utils.square(10))
-print("sqrt(square(10)) =", result)
+l.log("Config Max:", limit)
+print("Modules Test Complete")

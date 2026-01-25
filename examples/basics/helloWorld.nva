@@ -1,5 +1,0 @@
-// Hello World in Nevaarize
-// Demonstrates basic output functionality
-
-print("Hello, World!")
-print("Welcome to Nevaarize - Native JIT Performance")

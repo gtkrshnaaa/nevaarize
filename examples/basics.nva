@@ -1,0 +1,76 @@
+// Nevaarize Basics Usage Guide
+print("=== Nevaarize Basics ===")
+
+// 1. Variables & Types
+print("--- Variables ---")
+x = 10
+y = 20
+f = 3.14
+s = "Hello World"
+b = true
+print("Int:", x)
+print("Float:", f)
+print("String:", s)
+print("Bool:", b)
+
+// 2. Arithmetic
+print("--- Arithmetic ---")
+sum = x + y
+diff = y - x
+prod = x * 2
+// div = y / 2 // Integer division? Or Float? Assuming supported
+print("10 + 20 =", sum)
+print("20 - 10 =", diff)
+print("10 * 2 =", prod)
+
+// 3. Control Flow
+print("--- Control Flow ---")
+if (x < y) {
+    print("x is less than y")
+} else {
+    print("x is greater or equal y")
+}
+
+print("While Loop:")
+i = 0
+while (i < 3) {
+    print("i =", i)
+    i = i + 1
+}
+
+print("For Loop (Range):")
+for (j in Range(0, 3)) {
+    print("j =", j)
+}
+
+// 4. Functions
+print("--- Functions ---")
+func add(a, b) {
+    return a + b
+}
+res = add(5, 7)
+print("add(5, 7) =", res)
+
+func factorial(n) {
+    if (n <= 1) { return 1 }
+    return n * factorial(n - 1)
+}
+print("factorial(5) =", factorial(5))
+
+// 5. Arrays
+print("--- Arrays ---")
+arr = [1, 2, 3, 4, 5]
+print("Array index 2:", arr[2])
+arr[2] = 99
+print("Modified index 2:", arr[2])
+
+print("Total Array Sum:")
+total = 0
+idx = 0
+while (idx < 5) {
+    total = total + arr[idx]
+    idx = idx + 1
+}
+print("Sum:", total)
+
+print("=== Basics Complete ===")
