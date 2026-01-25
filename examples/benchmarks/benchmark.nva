@@ -46,8 +46,10 @@ func printResult(ops, startNs, endNs) {
 
 loops = 10000000
 
+
 print("Nevaarize Benchmark Suite")
-print("Target Loops:", loops)
+print("Target Loops (Scalar):", loops)
+
 
 print("")
 print("=== Integer Arithmetic (Add/Sub) ===")
@@ -123,6 +125,8 @@ for (num in Range(0, loops)) {
 end5 = t.clock()
 print("Result Check:", acc5)
 printResult(loops, start5, end5)
+
+
 
 print("")
 print("=== ALL TESTS COMPLETE ===")
