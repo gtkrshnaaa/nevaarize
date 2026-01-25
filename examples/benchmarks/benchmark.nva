@@ -127,6 +127,21 @@ print("Result Check:", acc5)
 printResult(loops, start5, end5)
 
 
+print("")
+print("=== Float Arithmetic (Add/Sub) ===")
+accF = 0.0
+startF = t.clock()
+m = 0
+while (m < loops) {
+    accF = accF + 1.0
+    accF = accF - 1.0
+    m = m + 1
+}
+endF = t.clock()
+print("Result Check:", accF)
+printResult(loops * 2, startF, endF)
+
+
 
 print("")
 print("=== ALL TESTS COMPLETE ===")
