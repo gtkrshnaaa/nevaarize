@@ -1,7 +1,6 @@
-// Module: Configuration Settings
-// Provides application constants
-
-maxItems = 100
-appName = "Modular Application"
-version = "1.0.0"
+maxIterations = 1000
+tolerance = 0.001
 debugMode = false
+
+appName = "Computational Engine"
+version = "2.0.0"

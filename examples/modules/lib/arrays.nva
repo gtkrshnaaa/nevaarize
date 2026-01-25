@@ -1,9 +1,4 @@
-// Module: Array Utilities
-// Depends on math module for calculations
-
-import "math.nva" as math
-
-func arraySum(arr, length) {
+func sum(arr, length) {
     total = 0
     i = 0
     while (i < length) {
@@ -13,27 +8,52 @@ func arraySum(arr, length) {
     return total
 }
 
-func arraySquares(arr, length) {
-    result = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    i = 0
-    while (i < length) {
-        result[i] = math.square(arr[i])
-        i = i + 1
-    }
-    return result
-}
-
-func arrayMax(arr, length) {
+func average(arr, length) {
     if (length == 0) {
         return 0
     }
-    max = arr[0]
+    return sum(arr, length) / length
+}
+
+func findMax(arr, length) {
+    if (length == 0) {
+        return 0
+    }
+    
+    maximum = arr[0]
     i = 1
     while (i < length) {
-        if (arr[i] > max) {
-            max = arr[i]
+        if (arr[i] > maximum) {
+            maximum = arr[i]
         }
         i = i + 1
     }
-    return max
+    return maximum
+}
+
+func findMin(arr, length) {
+    if (length == 0) {
+        return 0
+    }
+    
+    minimum = arr[0]
+    i = 1
+    while (i < length) {
+        if (arr[i] < minimum) {
+            minimum = arr[i]
+        }
+        i = i + 1
+    }
+    return minimum
+}
+
+func reverse(arr, length) {
+    i = 0
+    while (i < length / 2) {
+        temp = arr[i]
+        arr[i] = arr[length - 1 - i]
+        arr[length - 1 - i] = temp
+        i = i + 1
+    }
+    return arr
 }

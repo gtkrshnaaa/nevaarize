@@ -1,88 +1,159 @@
-// Main Entry Point - Complex Module System Test
-// Demonstrates: Relative imports, nested dependencies, cross-module usage
-
-// Import from subdirectories (relative to this file)
-import "config/settings.nva" as conf
+import "config/settings.nva" as config
 import "lib/math.nva" as math
-import "lib/strings.nva" as strings
 import "lib/arrays.nva" as arrays
 import "lib/utils/logger.nva" as log
 
-print("=== Complex Module System Test ===")
+
+print("╔════════════════════════════════════════╗")
+print("║  Modular Application Demonstration    ║")
+print("╚════════════════════════════════════════╝")
 print("")
 
-// 1. Configuration Usage
-log.info("Application Starting")
-print("App Name:", conf.appName)
-print("Version:", conf.version)
-print("Max Items:", conf.maxItems)
-print("Debug Mode:", conf.debugMode)
-
-// 2. Math Module Functions
+log.info("Initializing application")
+print("Application:", config.appName)
+print("Version:", config.version)
+print("Max Iterations:", config.maxIterations)
 print("")
-log.info("Testing Math Module")
 
-num = 5
-squared = math.square(num)
-cubed = math.cube(num)
-powered = math.power(2, 8)
 
-print("square(5) =", squared)
-print("cube(5) =", cubed)
-print("power(2, 8) =", powered)
+print("SECTION 1: Mathematical Operations")
+print("===================================")
 
-// 3. Array Operations (which internally uses math module)
+numbers = [3, 7, 2, 9, 4, 1, 8, 5]
+n = 8
+
+log.info("Processing dataset")
+print("Dataset:", numbers)
 print("")
-log.info("Testing Array Module")
 
-testData = [3, 7, 2, 9, 4]
-sum = arrays.arraySum(testData, 5)
-max = arrays.arrayMax(testData, 5)
-squares = arrays.arraySquares(testData, 5)
-
-print("Test Array:", testData)
-print("Sum:", sum)
-print("Max:", max)
-print("Squares:", squares)
-
-// 4. Demonstrate nested module dependencies
+print("Basic Statistics:")
+print("  Sum:", arrays.sum(numbers, n))
+print("  Average:", arrays.average(numbers, n))
+print("  Maximum:", arrays.findMax(numbers, n))
+print("  Minimum:", arrays.findMin(numbers, n))
 print("")
-log.info("Nested Dependencies Working")
-log.warn("This is a warning message")
 
-// 5. Complex calculation using multiple modules
+
+print("SECTION 2: Mathematical Transformations")
+print("========================================")
+
+base = 5
+squared = math.square(base)
+cubed = math.cube(base)
+
+print("Base value:", base)
+print("  Squared:", squared)
+print("  Cubed:", cubed)
 print("")
-log.info("Complex Calculation")
 
-// Calculate sum of squares using both modules
-total = 0
+testValue = -15
+absValue = math.abs(testValue)
+print("Absolute value of", testValue, ":", absValue)
+print("")
+
+a = 42
+b = 17
+print("Comparison of", a, "and", b)
+print("  Maximum:", math.max(a, b))
+print("  Minimum:", math.min(a, b))
+print("")
+
+
+print("SECTION 3: Data Processing Pipeline")
+print("====================================")
+
+rawData = [100, 25, 75, 50, 90, 10, 85, 60]
+dataSize = 8
+
+log.info("Running data pipeline")
+
+step1 = arrays.sum(rawData, dataSize)
+log.debug("Step 1 (sum)", step1)
+
+step2 = arrays.average(rawData, dataSize)
+log.debug("Step 2 (average)", step2)
+
+step3 = math.square(step2)
+log.debug("Step 3 (squared avg)", step3)
+
+normalizedValue = math.clamp(step3, 0, 10000)
+log.debug("Step 4 (clamped)", normalizedValue)
+
+log.success("Pipeline completed successfully")
+print("Pipeline result:", normalizedValue)
+print("")
+
+
+print("SECTION 4: Array Manipulation")
+print("==============================")
+
+original = [10, 20, 30, 40, 50]
+size = 5
+
+print("Original array:", original)
+
+reversed = arrays.reverse(original, size)
+print("Reversed array:", reversed)
+print("")
+
+
+print("SECTION 5: Configuration-Driven Loop")
+print("=====================================")
+
+iterations = 0
+threshold = 100
+current = 0
+
+log.info("Starting iterative computation")
+
+while (iterations < config.maxIterations and current < threshold) {
+    current = current + math.square(iterations % 10)
+    iterations = iterations + 1
+}
+
+print("Iterations performed:", iterations)
+print("Final value:", current)
+print("")
+
+if (iterations >= config.maxIterations) {
+    log.warn("Reached maximum iterations limit")
+} else {
+    log.success("Computation converged")
+}
+print("")
+
+
+print("SECTION 6: Complex Calculation")
+print("===============================")
+
+dataset = [12, 45, 23, 67, 34, 89, 56, 78]
+numPoints = 8
+
+log.info("Performing statistical analysis")
+
+mean = arrays.average(dataset, numPoints)
+maximum = arrays.findMax(dataset, numPoints)
+minimum = arrays.findMin(dataset, numPoints)
+range = maximum - minimum
+
+variance = 0
 i = 0
-while (i < 5) {
-    squared = math.square(testData[i])
-    total = total + squared
+while (i < numPoints) {
+    diff = dataset[i] - mean
+    variance = variance + math.square(diff)
     i = i + 1
 }
-print("Sum of Squares:", total)
+variance = variance / numPoints
 
-// Compare with array module result
-sumOfSquaresArray = arrays.arraySum(squares, 5)
-print("Verification:", sumOfSquaresArray)
-
-// 6. Using configuration in logic
+print("Statistical Analysis:")
+print("  Mean:", mean)
+print("  Range:", range)
+print("  Variance:", variance)
 print("")
-if (conf.debugMode) {
-    log.info("Debug mode is enabled")
-} else {
-    log.info("Running in production mode")
-}
 
-limit = conf.maxItems
-count = 0
-while (count < 3 and count < limit) {
-    print("Processing item", count)
-    count = count + 1
-}
+log.success("Analysis complete")
 
-print("")
-log.info("Module System Test Complete")
-print("=== All Tests Passed ===")
+
+print("╔════════════════════════════════════════╗")
+print("║     Application Complete               ║")
+print("╚════════════════════════════════════════╝")

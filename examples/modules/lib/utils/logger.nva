@@ -1,16 +1,19 @@
-// Module: Logger Utility
-// Depends on string utils
-
-import "../strings.nva" as str
-
-func log(msg, val) {
-    print("[LOG]", msg, val)
+func info(message) {
+    print("[INFO]", message)
 }
 
-func warn(msg) {
-    print("[WARN]", msg)
+func warn(message) {
+    print("[WARN]", message)
 }
 
-func info(msg) {
-    print("[INFO]", msg)
+func error(message) {
+    print("[ERROR]", message)
+}
+
+func success(message) {
+    print("[OK]", message)
+}
+
+func debug(label, value) {
+    print("[DEBUG]", label, "=", value)
 }

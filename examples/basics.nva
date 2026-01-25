@@ -1,109 +1,120 @@
-// Nevaarize Basics - Core Language Features
-// Pure syntax demonstration, no standard library
-
-print("=== Nevaarize Basics Test Suite ===")
-
-// 1. Variables and Basic Types
+print("=== Nevaarize Language Fundamentals ===")
 print("")
-print("--- Variables and Types ---")
+
+
+print("1. Variables and Types")
+print("----------------------")
+
 x = 42
-y = 3.14
+pi = 3.14159
 name = "Nevaarize"
-flag = true
-nothing = nil
+isActive = true
+empty = nil
 
 print("Integer:", x)
-print("Float:", y)
+print("Float:", pi)
 print("String:", name)
-print("Boolean:", flag)
-print("Nil:", nothing)
-
-// 2. Arithmetic Operators
+print("Boolean:", isActive)
+print("Nil:", empty)
 print("")
-print("--- Arithmetic ---")
-sum = 10 + 20
-diff = 30 - 15
-product = 5 * 6
-quotient = 100 / 4
-remainder = 17 % 5
 
-print("10 + 20 =", sum)
-print("30 - 15 =", diff)
-print("5 * 6 =", product)
-print("100 / 4 =", quotient)
-print("17 % 5 =", remainder)
 
-// 3. Comparison Operators
+print("2. Arithmetic Operations")
+print("------------------------")
+
+a = 15
+b = 4
+
+print("Addition:", a + b)
+print("Subtraction:", a - b)
+print("Multiplication:", a * b)
+print("Division:", a / b)
+print("Modulo:", a % b)
 print("")
-print("--- Comparisons ---")
-a = 10
-b = 20
 
-print("10 == 20:", a == b)
-print("10 != 20:", a != b)
-print("10 < 20:", a < b)
-print("10 > 20:", a > b)
-print("10 <= 20:", a <= b)
-print("10 >= 20:", a >= b)
 
-// 4. Logical Operators
+print("3. Comparison and Logic")
+print("-----------------------")
+
+print("15 > 4:", a > b)
+print("15 == 4:", a == b)
+print("15 != 4:", a != b)
+
+boolA = true
+boolB = false
+
+print("true AND false:", boolA and boolB)
+print("true OR false:", boolA or boolB)
+print("NOT true:", not boolA)
 print("")
-print("--- Logical Operators ---")
-print("true and false:", true and false)
-print("true or false:", true or false)
-print("not true:", not true)
 
-// 5. Control Flow - If/Elif/Else
-print("")
-print("--- Control Flow ---")
-score = 85
 
-if (score >= 90) {
-    print("Grade: A")
-} elif (score >= 80) {
-    print("Grade: B")
-} elif (score >= 70) {
-    print("Grade: C")
+print("4. Control Flow")
+print("---------------")
+
+temperature = 25
+
+if (temperature > 30) {
+    print("Hot day")
+} elif (temperature > 20) {
+    print("Pleasant weather")
+} elif (temperature > 10) {
+    print("Cool day")
 } else {
-    print("Grade: F")
+    print("Cold day")
 }
-
-// 6. While Loop
 print("")
-print("--- While Loop ---")
+
+
+print("5. Loops")
+print("--------")
+
+print("While loop (0 to 4):")
 counter = 0
 while (counter < 5) {
-    print("Counter:", counter)
+    print("  Value:", counter)
     counter = counter + 1
 }
 
-// 7. For Loop with Range
-print("")
-print("--- For Loop ---")
-for (i in Range(0, 5)) {
-    print("Index:", i)
+print("For loop (Range 5 to 9):")
+for (i in Range(5, 10)) {
+    print("  Index:", i)
 }
-
-// 8. Functions
 print("")
-print("--- Functions ---")
 
-func add(a, b) {
-    return a + b
+
+print("6. Functions")
+print("------------")
+
+func add(x, y) {
+    return x + y
 }
 
 func multiply(x, y) {
     return x * y
 }
 
-result1 = add(5, 3)
-result2 = multiply(4, 7)
-print("add(5, 3) =", result1)
-print("multiply(4, 7) =", result2)
+func power(base, exp) {
+    if (exp == 0) {
+        return 1
+    }
+    result = 1
+    i = 0
+    while (i < exp) {
+        result = result * base
+        i = i + 1
+    }
+    return result
+}
 
-// 9. Recursive Function
+print("add(7, 3):", add(7, 3))
+print("multiply(6, 7):", multiply(6, 7))
+print("power(2, 10):", power(2, 10))
 print("")
-print("--- Recursion ---")
+
+
+print("7. Recursion")
+print("------------")
 
 func factorial(n) {
     if (n <= 1) {
@@ -112,38 +123,105 @@ func factorial(n) {
     return n * factorial(n - 1)
 }
 
-print("factorial(5) =", factorial(5))
-print("factorial(6) =", factorial(6))
+func fibonacci(n) {
+    if (n <= 1) {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
 
-// 10. Arrays
+print("factorial(7):", factorial(7))
+print("fibonacci(8):", fibonacci(8))
 print("")
-print("--- Arrays ---")
-numbers = [10, 20, 30, 40, 50]
+
+
+print("8. Arrays")
+print("---------")
+
+numbers = [3, 1, 4, 1, 5, 9, 2, 6]
 
 print("Array:", numbers)
-print("numbers[0] =", numbers[0])
-print("numbers[2] =", numbers[2])
-print("numbers[4] =", numbers[4])
+print("First element:", numbers[0])
+print("Fourth element:", numbers[3])
 
-// Modify array element
-numbers[2] = 99
-print("After numbers[2] = 99:", numbers[2])
+numbers[3] = 99
+print("After modification:", numbers[3])
 
-// Array iteration
-print("Iterating array:")
-for (i in Range(0, 5)) {
-    print("  numbers[" , i, "] =", numbers[i])
+total = 0
+i = 0
+while (i < 8) {
+    total = total + numbers[i]
+    i = i + 1
 }
-
-// 11. Nested Loops
+print("Array sum:", total)
 print("")
-print("--- Nested Loops ---")
-print("Multiplication table (3x3):")
-for (row in Range(1, 4)) {
-    for (col in Range(1, 4)) {
-        print(row, "x", col, "=", row * col)
+
+
+print("9. Nested Structures")
+print("--------------------")
+
+matrix = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+print("Matrix[1][2]:", matrix[1][2])
+
+sum = 0
+row = 0
+while (row < 3) {
+    col = 0
+    while (col < 3) {
+        sum = sum + matrix[row][col]
+        col = col + 1
     }
+    row = row + 1
+}
+print("Matrix sum:", sum)
+print("")
+
+
+print("10. Complex Logic")
+print("-----------------")
+
+func isPrime(n) {
+    if (n <= 1) {
+        return false
+    }
+    if (n == 2) {
+        return true
+    }
+    if (n % 2 == 0) {
+        return false
+    }
+    
+    i = 3
+    while (i * i <= n) {
+        if (n % i == 0) {
+            return false
+        }
+        i = i + 2
+    }
+    return true
 }
 
+func countPrimes(limit) {
+    count = 0
+    n = 2
+    while (n <= limit) {
+        if (isPrime(n)) {
+            count = count + 1
+        }
+        n = n + 1
+    }
+    return count
+}
+
+print("isPrime(17):", isPrime(17))
+print("isPrime(20):", isPrime(20))
+print("Primes up to 50:", countPrimes(50))
 print("")
-print("=== Basics Complete ===")
+
+
+print("=== All Fundamentals Covered ===")
