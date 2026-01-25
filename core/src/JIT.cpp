@@ -2029,29 +2029,39 @@ void JIT::compileReturn(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
-    // Compile return value if present
     if (node.left != INVALID_NODE) {
         JITValue result = compileExpr(ast, node.left);
-        X64Reg resultReg = result.valueReg;
         
-        // Move result to RAX if not already there
-        if (resultReg != X64Reg::RAX) {
-            bool resultHigh = static_cast<uint8_t>(resultReg) >= 8;
-            buf.emit8(0x48 | (resultHigh ? 0x01 : 0));
+        // Move value to RAX
+        if (result.valueReg != X64Reg::RAX) {
+            bool srcHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+            buf.emit8(0x48 | (srcHigh ? 0x04 : 0));
             buf.emit8(0x89);
-            buf.emit8(0xC0 | ((static_cast<uint8_t>(resultReg) & 0x7) << 3));
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | 0);
+        }
+        
+        // Move type to RDX (convention: RAX=value, RDX=type)
+        if (result.typeReg != X64Reg::RDX) {
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC2 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
         }
         
         freeReg(result.valueReg);
         freeReg(result.typeReg);
     } else {
-        // Return 0 by default
+        // Return 0 (value)
         buf.emit8(0x48);
         buf.emit8(0x31);
         buf.emit8(0xC0);
+        
+        // Type = 0 (int)
+        buf.emit8(0x48);
+        buf.emit8(0x31);
+        buf.emit8(0xD2);
     }
     
-    // Only emit epilogue if not in inline function call
     if (!inFunctionCall) {
         emitEpilogue();
     }
@@ -2481,26 +2491,33 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
         compileStatement(ast, funcInfo.bodyIndex);
     }
     
-    // Restore state
     inFunctionCall = savedInFunctionCall;
     variables = savedVars;
-    currentlyCompiling.erase(funcName);  // Unmark after compilation
+    currentlyCompiling.erase(funcName);
     
-    // Return RAX as JITValue (result of last statement execution or return)
-    // Currently compileStatement doesn't return JITValue, but writes to RAX/Stack.
-    // Return statements write to RAX.
-    
+    // Function return convention: RAX=value, RDX=type
+    // Allocate new registers and copy from RAX/RDX
     JITValue finalRes;
-    finalRes.valueReg = X64Reg::RAX;
-    finalRes.typeReg = X64Reg::RAX; // We assume Type is also set?
-    // WARNING: Type tracking for function returns is tricky.
-    // If user returns float, type tag should be set?
-    // We haven't implemented return type register tracking!
-    // But since typeReg is just a register index, we can say RAX holds value.
-    // What holds Type? We need a convention.
-    // For now, let's assume default return (Int).
-    // Or we should reserve say RDX for type return?
-    // This is a future improvement. For now, returning defaultRes (aliased to RAX) is "safe" enough to compile.
+    finalRes.valueReg = allocateReg();
+    finalRes.typeReg = allocateReg();
+    
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Copy value from RAX to allocated register
+    if (finalRes.valueReg != X64Reg::RAX) {
+        bool dstHigh = static_cast<uint8_t>(finalRes.valueReg) >= 8;
+        buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0xC0 | (0 << 3) | (static_cast<uint8_t>(finalRes.valueReg) & 0x7));
+    }
+    
+    // Copy type from RDX to allocated register
+    if (finalRes.typeReg != X64Reg::RDX) {
+        bool typeHigh = static_cast<uint8_t>(finalRes.typeReg) >= 8;
+        buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0xC0 | (2 << 3) | (static_cast<uint8_t>(finalRes.typeReg) & 0x7));
+    }
     
     return finalRes;
 }
