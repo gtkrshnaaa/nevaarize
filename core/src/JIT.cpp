@@ -286,34 +286,41 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             JITValue left = compileExpr(ast, node.left);
             JITValue right = compileExpr(ast, node.right);
             
-            // Allocate register for results
+            // Allocate register for results - OPTIMIZATION: Reuse left as result
             JITValue result;
-            result.valueReg = allocateReg();
-            result.typeReg = allocateReg();
+            result.valueReg = left.valueReg;
+            result.typeReg = left.typeReg;
             
             // Check types: Is either a float? (tag != 0)
-            // Use result.typeReg as temp to check types without destroying them yet
-            // mov temp, left.type
-            // or temp, right.type
-            // jnz float_path
+            // Use scratch register to check types without destroying them
+            X64Reg typeScratch = allocateReg();
             
-            bool tempHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            bool tempHigh = static_cast<uint8_t>(typeScratch) >= 8;
             bool lTypeHigh = static_cast<uint8_t>(left.typeReg) >= 8;
             
-            // mov temp, left.type
+            // mov scratch, left.type
             buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (lTypeHigh ? 0x04 : 0));
             buf.emit8(0x89);
             buf.emit8(0xC0 | ((static_cast<uint8_t>(left.typeReg) & 0x7) << 3) | 
-                      (static_cast<uint8_t>(result.typeReg) & 0x7));
+                      (static_cast<uint8_t>(typeScratch) & 0x7));
             
-            // or temp, right.type
+            // or scratch, right.type
             bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
             buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (rTypeHigh ? 0x04 : 0));
             buf.emit8(0x09);
             buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | 
-                      (static_cast<uint8_t>(result.typeReg) & 0x7));
+                      (static_cast<uint8_t>(typeScratch) & 0x7));
                       
-            // jnz float_path
+            // Check if scratch is 0
+            buf.emit8(0x48 | (tempHigh ? 0x01 : 0)); // REX.W
+            buf.emit8(0x85); // test r/m64, r64
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(typeScratch) & 0x7) << 3) | 
+                      (static_cast<uint8_t>(typeScratch) & 0x7));
+            
+            // Free scratch
+            freeReg(typeScratch);
+                      
+            // jnz float_path (if not zero, one of them is float)
             buf.emit8(0x0F);
             buf.emit8(0x85); // jnz far
             size_t jnzPatch = buf.getOffset();
@@ -737,7 +744,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             int32_t jmpOffset = static_cast<int32_t>(endPos - (jmpPatch + 4));
             buf.patch32(jmpPatch, static_cast<uint32_t>(jmpOffset));
             
-            freeReg(left.valueReg); freeReg(left.typeReg);
+            // freeReg(left.valueReg); freeReg(left.typeReg); // Reused as result
             freeReg(right.valueReg); freeReg(right.typeReg);
             return result;
         }
