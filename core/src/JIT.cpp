@@ -8,6 +8,7 @@
 #include "JIT.hpp"
 #include <cstring>
 #include <cstdio>
+#include <chrono>
 
 // Helper for JIT to call for float printing
 extern "C" void jit_print_double(double val) {
@@ -16,6 +17,22 @@ extern "C" void jit_print_double(double val) {
     } else {
         printf("%g\n", val);
     }
+}
+
+// Helper for JIT to get nanosecond timestamp (for t.nanos())
+extern "C" int64_t jit_get_nanos() {
+    auto now = std::chrono::steady_clock::now();
+    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        now.time_since_epoch()).count();
+    return static_cast<int64_t>(ns);
+}
+
+// Helper for JIT to get clock in nanoseconds (for t.clock())
+extern "C" int64_t jit_get_clock_ns() {
+    auto now = std::chrono::high_resolution_clock::now();
+    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        now.time_since_epoch()).count();
+    return static_cast<int64_t>(ns);
 }
 
 namespace nevaarize {
@@ -654,7 +671,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 // Module function calls like ai.loadModel()
                 const std::string& memberName = callee.name;
                 
-                if (memberName == "clock") {
+                if (memberName == "clock" || memberName == "nanos") {
                     CodeBuffer& buf = codegen.getCode();
                     
                     // Allocate space for timespec (16 bytes)
@@ -2005,6 +2022,28 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
              freeReg(result.valueReg);
              freeReg(result.typeReg);
              return;
+        }
+        
+        // Time module functions - call native C++ helpers via FFI
+        if (memberName == "nanos" || memberName == "clock") {
+            // Allocate result registers for expression return
+            // Note: This is a STATEMENT context (void), but we store result
+            // for when called as expression. The caller will handle unused regs.
+            
+            // Call jit_get_nanos() which returns int64_t
+            // mov rax, &jit_get_nanos
+            buf.emit8(0x48); buf.emit8(0xB8);
+            if (memberName == "nanos") {
+                buf.emit64(reinterpret_cast<uint64_t>(&jit_get_nanos));
+            } else {
+                buf.emit64(reinterpret_cast<uint64_t>(&jit_get_clock_ns));
+            }
+            // call rax
+            buf.emit8(0xFF); buf.emit8(0xD0);
+            // Result is in RAX - for statement context we don't need to store it
+            // But if used as expression, the caller needs it...
+            // For now, statement calls ignore result.
+            return;
         }
         return;
     }
