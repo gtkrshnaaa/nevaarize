@@ -1337,8 +1337,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::AWAIT_EXPR: {
-            // Await expression - for now, just evaluate the expression
-            // TODO: Implement async runtime with suspension/resumption
+            // Await expression support (synchronous evaluation)
+            // Current: Immediately evaluates the expression (no suspension)
+            // Future: Check if value is Promise, wait if pending, extract result
+            // Note: True suspension requires stack unwinding or continuation passing
             return compileExpr(ast, node.left);
         }
         
@@ -1794,8 +1796,10 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::ASYNC_FUNC_DECL: {
-            // Async functions treated same as regular functions
-            // TODO: Mark as async for future runtime scheduler
+            // Async function support (synchronous execution model)
+            // Current: Compiles as regular function (immediate execution)
+            // Future: Wrap return in Promise, integrate with event loop
+            // Note: True async requires CPS transformation or IR-level state machine
             compileFuncDecl(ast, idx);
             break;
         }
