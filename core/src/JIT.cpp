@@ -507,7 +507,80 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     break;
                 }
-                // TODO: DIV/MOD etc for Int
+                case BinaryOp::DIV: {
+                    // Integer division: result / right
+                    // x86-64 IDIV: divides RDX:RAX by operand, quotient in RAX
+                    // CRITICAL: right may be in RAX or RDX, save it to RCX first
+                    
+                    // Save registers that will be clobbered
+                    buf.emit8(0x51); // push rcx
+                    buf.emit8(0x52); // push rdx
+                    
+                    // Move divisor (right) to RCX (safe location)
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0xC1 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3)); // mov rcx, right
+                    
+                    // Move dividend (result) to RAX
+                    if (result.valueReg != X64Reg::RAX) {
+                        buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // mov rax, result
+                    }
+                    
+                    // Sign-extend RAX into RDX (CQO)
+                    buf.emit8(0x48); buf.emit8(0x99);
+                    
+                    // IDIV rcx (divide RDX:RAX by RCX)
+                    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0xF9);
+                    
+                    // Move quotient (RAX) to result
+                    if (result.valueReg != X64Reg::RAX) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // mov result, rax
+                    }
+                    
+                    // Restore registers
+                    buf.emit8(0x5A); // pop rdx
+                    buf.emit8(0x59); // pop rcx
+                    break;
+                }
+                case BinaryOp::MOD: {
+                    // Integer modulo: result % right
+                    // x86-64 IDIV: remainder in RDX
+                    
+                    buf.emit8(0x51); // push rcx
+                    buf.emit8(0x52); // push rdx
+                    
+                    // Move divisor (right) to RCX
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0xC1 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3));
+                    
+                    // Move dividend (result) to RAX
+                    if (result.valueReg != X64Reg::RAX) {
+                        buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    }
+                    
+                    // Sign-extend RAX into RDX (CQO)
+                    buf.emit8(0x48); buf.emit8(0x99);
+                    
+                    // IDIV rcx
+                    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0xF9);
+                    
+                    // Move remainder (RDX) to result
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0xD0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // Pop saved registers (order matters!)
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x08); // add rsp, 8 (discard rdx save)
+                    buf.emit8(0x59); // pop rcx
+                    break;
+                }
                 default: break;
             }
             

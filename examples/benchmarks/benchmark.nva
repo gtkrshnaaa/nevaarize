@@ -1,5 +1,5 @@
 // Comprehensive Benchmark for Nevaarize
-// Tests performance across multiple dimensions using stdlib time (native JIT clock)
+// Tests performance across multiple dimensions using stdlib time (native JIT nanos)
 
 import stdlib time as t
 
@@ -12,40 +12,30 @@ func printResult(ops, startNs, endNs) {
         durationNs = 1
     }
     
+    // Calculate duration in milliseconds
+    durationMs = durationNs / 1000000
+    
     // Calculate ops/sec: (ops * 1e9) / durationNs
     opsPerSec = (ops * 1000000000) / durationNs
     
-    print("Duration:", durationNs / 1000000, "ms")
-    print("Raw Speed:", opsPerSec, "ops/sec")
+    print("Duration:", durationMs, "ms")
     
-    write("Formatted: ")
-    if (opsPerSec > 1000000000) {
+    // Format speed output
+    if (opsPerSec >= 1000000000) {
         billions = opsPerSec / 1000000000
-        rem = opsPerSec % 1000000000
-        millis = rem / 1000000
-        
-        write(billions, ".")
-        if (millis < 10) { write("00") }
-        elif (millis < 100) { write("0") }
-        write(millis, " Billion ops/sec\n")
-        
-    } elif (opsPerSec > 1000000) {
+        print("Speed:", billions, "Billion ops/sec")
+    } elif (opsPerSec >= 1000000) {
         millions = opsPerSec / 1000000
-        rem = opsPerSec % 1000000
-        thous = rem / 1000
-        
-        write(millions, ".")
-        if (thous < 10) { write("00") }
-        elif (thous < 100) { write("0") }
-        write(thous, " Million ops/sec\n")
-        
+        print("Speed:", millions, "Million ops/sec")
+    } elif (opsPerSec >= 1000) {
+        thousands = opsPerSec / 1000
+        print("Speed:", thousands, "Thousand ops/sec")
     } else {
-        write(opsPerSec, " ops/sec\n")
+        print("Speed:", opsPerSec, "ops/sec")
     }
 }
 
 loops = 10000000
-
 
 print("Nevaarize Benchmark Suite")
 print("Target Loops (Scalar):", loops)
@@ -54,21 +44,21 @@ print("Target Loops (Scalar):", loops)
 print("")
 print("=== Integer Arithmetic (Add/Sub) ===")
 acc = 0
-start1 = t.clock()
+start1 = t.nanos()
 i = 0
 while (i < loops) {
     acc = acc + 1
     acc = acc - 1
     i = i + 1
 }
-end1 = t.clock()
+end1 = t.nanos()
 print("Result Check:", acc)
-printResult(loops * 2, start1, end1) // 2 ops per loop
+printResult(loops * 2, start1, end1)
 
 print("")
 print("=== Control Flow (If/Else) ===")
 acc2 = 0
-start2 = t.clock()
+start2 = t.nanos()
 j = 0
 while (j < loops) {
     if (j < loops) {
@@ -78,7 +68,7 @@ while (j < loops) {
     }
     j = j + 1
 }
-end2 = t.clock()
+end2 = t.nanos()
 print("Result Check:", acc2)
 printResult(loops, start2, end2)
 
@@ -89,40 +79,38 @@ func addOne(val) {
 }
 
 acc3 = 0
-start3 = t.clock()
+start3 = t.nanos()
 k = 0
 while (k < loops) {
     acc3 = addOne(acc3)
     k = k + 1
 }
-end3 = t.clock()
+end3 = t.nanos()
 print("Result Check:", acc3)
 printResult(loops, start3, end3)
 
 print("")
 print("=== Array Write Access ===")
-// Create array of size 10
 arr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-start4 = t.clock()
+start4 = t.nanos()
 l = 0
 while (l < loops) {
-    // Write towards end to test offset calculation
     idx = 5
     arr[idx] = l
     l = l + 1
 }
-end4 = t.clock()
+end4 = t.nanos()
 print("Result Check (arr[5]):", arr[5])
 printResult(loops, start4, end4)
 
 print("")
 print("=== For Loop (Range) ===")
 acc5 = 0
-start5 = t.clock()
+start5 = t.nanos()
 for (num in Range(0, loops)) {
     acc5 = acc5 + 1
 }
-end5 = t.clock()
+end5 = t.nanos()
 print("Result Check:", acc5)
 printResult(loops, start5, end5)
 
@@ -130,17 +118,17 @@ printResult(loops, start5, end5)
 print("")
 print("=== Float Arithmetic (Add/Sub) ===")
 accF = 0.0
-startF = t.clock()
+startF = t.nanos()
 m = 0
 while (m < loops) {
-    accF = accF + 1.0
-    accF = accF - 1.0
+    accF = accF + 1.5
+    accF = accF - 0.5
     m = m + 1
 }
-endF = t.clock()
+endF = t.nanos()
 print("Result Check:", accF)
+print("Expected:", loops)
 printResult(loops * 2, startF, endF)
-
 
 
 print("")
