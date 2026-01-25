@@ -426,6 +426,47 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             const ASTNode& callee = ast.get(node.left);
             if (callee.type == NodeType::IDENTIFIER) {
                 const std::string& funcName = callee.name;
+                
+                // Handle builtin functions
+                if (funcName == "len") {
+                    // len() returns 1 by default (simplification)
+                    // For array literals, return compile-time length
+                    X64Reg dst = allocateReg();
+                    int64_t length = 1;
+                    
+                    if (!node.children.empty()) {
+                        const ASTNode& argNode = ast.get(node.children[0]);
+                        if (argNode.type == NodeType::ARRAY_LITERAL) {
+                            length = static_cast<int64_t>(argNode.children.size());
+                        }
+                    }
+                    
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+                    buf.emit64(static_cast<uint64_t>(length));
+                    return dst;
+                }
+                
+                if (funcName == "type") {
+                    // type() returns 1 (simplified)
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+                    buf.emit64(1);
+                    return dst;
+                }
+                
+                if (funcName == "int" || funcName == "str" || funcName == "float") {
+                    // Just pass through the argument value for now
+                    if (!node.children.empty()) {
+                        return compileExpr(ast, node.children[0]);
+                    }
+                    return X64Reg::RAX;
+                }
+                
+                // User-defined functions
                 if (userFunctions.count(funcName)) {
                     return compileUserCall(ast, idx, funcName);
                 }
