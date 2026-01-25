@@ -3,7 +3,7 @@
 
 # Compiler settings
 CXX := g++
-CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -O3 -march=native -fno-rtti
+CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -O3 -march=native -fno-rtti -fno-stack-protector
 CXXFLAGS_DEBUG := -std=c++23 -Wall -Wextra -Wpedantic -g -O0 -DDEBUG
 
 # Directories
