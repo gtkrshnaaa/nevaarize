@@ -69,6 +69,12 @@ public:
         code[offset + 3] = static_cast<uint8_t>((value >> 24) & 0xFF);
     }
 
+    void patch8(size_t offset, uint8_t value) {
+        if (offset < code.size()) {
+            code[offset] = value;
+        }
+    }
+
     size_t getOffset() const { return code.size(); }
 
 private:

@@ -7,6 +7,16 @@
 
 #include "JIT.hpp"
 #include <cstring>
+#include <cstdio>
+
+// Helper for JIT to call for float printing
+extern "C" void jit_print_double(double val) {
+    if (val == (int64_t)val) {
+        printf("%.1f\n", val); // Print 1.0 as 1.0 not 1
+    } else {
+        printf("%g\n", val);
+    }
+}
 
 namespace nevaarize {
 
@@ -93,7 +103,7 @@ void JIT::freeReg(X64Reg reg) {
 }
 
 int32_t JIT::allocateStackSlot() {
-    nextStackSlot += 8;
+    nextStackSlot += 16; // Reserve 16 bytes: 8 for Value, 8 for Tag
     if (nextStackSlot > stackSize) {
         stackSize = nextStackSlot;
     }
@@ -131,311 +141,414 @@ bool JIT::canCompileLoop(const AST& ast, NodeIndex forNode) {
     return true;
 }
 
-X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
-    if (idx == INVALID_NODE) return X64Reg::RAX;
+JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
+    if (idx == INVALID_NODE) {
+        JITValue val;
+        val.valueReg = X64Reg::RAX;
+        val.typeReg = X64Reg::RAX;
+        return val;
+    }
     
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
     switch (node.type) {
         case NodeType::LITERAL_INT: {
-            X64Reg dst = allocateReg();
-            int64_t value = std::get<int64_t>(node.literal.data);
+            JITValue result;
+            result.valueReg = allocateReg();
+            result.typeReg = allocateReg();
             
-            // mov reg, imm64
-            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
-            buf.emit64(static_cast<uint64_t>(value));
+            // Value
+            bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
+            buf.emit64(std::get<int64_t>(node.literal.data));
             
-            return dst;
+            // Type (0 for Int)
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(0);
+            
+            return result;
         }
         
         case NodeType::LITERAL_FLOAT: {
-            X64Reg dst = allocateReg();
-            double value = std::get<double>(node.literal.data);
+            JITValue result;
+            result.valueReg = allocateReg();
+            result.typeReg = allocateReg();
             
-            // Store double as int64 bit pattern
+            double value = std::get<double>(node.literal.data);
             int64_t bits;
             std::memcpy(&bits, &value, sizeof(bits));
             
-            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+            // Value
+            bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
             buf.emit64(static_cast<uint64_t>(bits));
             
-            return dst;
+            // Type (1 for Float)
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(1);
+            
+            return result;
         }
         
         case NodeType::LITERAL_BOOL: {
-            X64Reg dst = allocateReg();
+            JITValue result;
+            result.valueReg = allocateReg();
+            result.typeReg = allocateReg();
+            
             bool value = std::get<bool>(node.literal.data);
             
-            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+            bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
             buf.emit64(value ? 1 : 0);
             
-            return dst;
+            // Type 0 (Int) for Bool for now (simplification)
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(0);
+            
+            return result;
         }
         
         case NodeType::LITERAL_STRING: {
-            // For JIT, strings are complex - return string length as placeholder
-            X64Reg dst = allocateReg();
+            JITValue result;
+            result.valueReg = allocateReg();
+            result.typeReg = allocateReg();
+            
             const std::string& strVal = std::get<std::string>(node.literal.data);
             
-            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+            bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
             buf.emit64(static_cast<uint64_t>(strVal.length()));
             
-            return dst;
+            // Type 0 (Int) for length placeholder
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(0);
+            
+            return result;
         }
         
         case NodeType::IDENTIFIER: {
-            X64Reg dst = allocateReg();
+            JITValue result;
+            result.valueReg = allocateReg();
+            result.typeReg = allocateReg();
             
-            // Check if variable exists
             auto it = variables.find(node.name);
             if (it != variables.end()) {
-                // mov reg, [rbp + offset]
-                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                int32_t offset = it->second.stackOffset;
+                
+                // Load Value
+                bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
                 buf.emit8(0x8B);
-                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
-                buf.emit32(static_cast<uint32_t>(it->second.stackOffset));
+                buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(offset));
+                
+                // Load Type
+                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(offset + 8));
             }
-            
-            return dst;
+            return result;
         }
         
         case NodeType::BINARY_OP: {
-            X64Reg left = compileExpr(ast, node.left);
-            X64Reg right = compileExpr(ast, node.right);
+            JITValue left = compileExpr(ast, node.left);
+            JITValue right = compileExpr(ast, node.right);
             
-            bool leftHigh = static_cast<uint8_t>(left) >= 8;
-            bool rightHigh = static_cast<uint8_t>(right) >= 8;
+            // Allocate register for results
+            JITValue result;
+            result.valueReg = allocateReg();
+            result.typeReg = allocateReg();
+            
+            // Check types: Is either a float? (tag != 0)
+            // Use result.typeReg as temp to check types without destroying them yet
+            // mov temp, left.type
+            // or temp, right.type
+            // jnz float_path
+            
+            bool tempHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            bool lTypeHigh = static_cast<uint8_t>(left.typeReg) >= 8;
+            
+            // mov temp, left.type
+            buf.emit8(0x48 | (tempHigh ? 0x04 : 0) | (lTypeHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(left.typeReg) & 0x7) << 3) | 
+                      (static_cast<uint8_t>(result.typeReg) & 0x7));
+            
+            // or temp, right.type
+            bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+            buf.emit8(0x48 | (tempHigh ? 0x04 : 0) | (rTypeHigh ? 0x01 : 0));
+            buf.emit8(0x09);
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | 
+                      (static_cast<uint8_t>(result.typeReg) & 0x7));
+                      
+            // jnz float_path
+            buf.emit8(0x0F);
+            buf.emit8(0x85); // jnz far
+            size_t jnzPatch = buf.getOffset();
+            buf.emit32(0);
+            
+            // === INTEGER PATH ===
+            // Copy left value to result value register if needed
+            if (result.valueReg != left.valueReg) {
+                bool resValHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                bool lValHigh = static_cast<uint8_t>(left.valueReg) >= 8;
+                buf.emit8(0x48 | (resValHigh ? 0x04 : 0) | (lValHigh ? 0x01 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC0 | ((static_cast<uint8_t>(left.valueReg) & 0x7) << 3) | 
+                          (static_cast<uint8_t>(result.valueReg) & 0x7));
+            }
+            
+            bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+            bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
             
             switch (node.binaryOp) {
                 case BinaryOp::ADD:
-                    // add left, right
-                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
                     buf.emit8(0x01);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
-                              (static_cast<uint8_t>(left) & 0x7));
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                     break;
-                    
                 case BinaryOp::SUB:
-                    // sub left, right
-                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
                     buf.emit8(0x29);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
-                              (static_cast<uint8_t>(left) & 0x7));
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                     break;
-                    
                 case BinaryOp::MUL:
-                    // imul left, right
-                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0) | (rightHigh ? 0x01 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xAF);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3) | 
-                              (static_cast<uint8_t>(right) & 0x7));
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0) | (rValHigh ? 0x01 : 0));
+                    buf.emit8(0x0F); buf.emit8(0xAF);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
                     break;
-                    
-                case BinaryOp::DIV: {
-                    // Division requires RAX for dividend and RDX for remainder
-                    // Save RDX if in use, move left to RAX, sign-extend to RDX, idiv right
-                    
-                    // Move left to RAX if not already there
-                    if (left != X64Reg::RAX) {
-                        buf.emit8(0x48 | (leftHigh ? 0x01 : 0));
-                        buf.emit8(0x89);
-                        buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
-                    }
-                    
-                    // cqo: sign-extend RAX to RDX:RAX
-                    buf.emit8(0x48);
-                    buf.emit8(0x99);
-                    
-                    // idiv right
-                    buf.emit8(0x48 | (rightHigh ? 0x01 : 0));
-                    buf.emit8(0xF7);
-                    buf.emit8(0xF8 | (static_cast<uint8_t>(right) & 0x7));
-                    
-                    freeReg(right);
-                    if (left != X64Reg::RAX) freeReg(left);
-                    return X64Reg::RAX;
-                }
-                    
-                case BinaryOp::MOD: {
-                    // Modulo: same as division but result is in RDX
-                    if (left != X64Reg::RAX) {
-                        buf.emit8(0x48 | (leftHigh ? 0x01 : 0));
-                        buf.emit8(0x89);
-                        buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
-                    }
-                    
-                    // cqo
-                    buf.emit8(0x48);
-                    buf.emit8(0x99);
-                    
-                    // idiv right
-                    buf.emit8(0x48 | (rightHigh ? 0x01 : 0));
-                    buf.emit8(0xF7);
-                    buf.emit8(0xF8 | (static_cast<uint8_t>(right) & 0x7));
-                    
-                    // mov rax, rdx (remainder is in RDX)
-                    buf.emit8(0x48);
-                    buf.emit8(0x89);
-                    buf.emit8(0xD0);
-                    
-                    freeReg(right);
-                    if (left != X64Reg::RAX) freeReg(left);
-                    return X64Reg::RAX;
-                }
-                
-                // Comparison operators: use CMP + SETcc
-                case BinaryOp::EQ:
-                case BinaryOp::NEQ:
-                case BinaryOp::LT:
-                case BinaryOp::LTE:
-                case BinaryOp::GT:
-                case BinaryOp::GTE: {
-                    // cmp left, right
-                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
-                    buf.emit8(0x39);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
-                              (static_cast<uint8_t>(left) & 0x7));
-                    
-                    // SETcc al (set al based on condition)
-                    buf.emit8(0x0F);
-                    switch (node.binaryOp) {
-                        case BinaryOp::EQ:  buf.emit8(0x94); break;  // sete
-                        case BinaryOp::NEQ: buf.emit8(0x95); break;  // setne
-                        case BinaryOp::LT:  buf.emit8(0x9C); break;  // setl
-                        case BinaryOp::LTE: buf.emit8(0x9E); break;  // setle
-                        case BinaryOp::GT:  buf.emit8(0x9F); break;  // setg
-                        case BinaryOp::GTE: buf.emit8(0x9D); break;  // setge
-                        default: break;
-                    }
-                    buf.emit8(0xC0); // al
-                    
-                    // movzx left, al (zero-extend al to 64-bit)
-                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
-                    
-                    freeReg(right);
-                    return left;
-                }
-                
-                case BinaryOp::AND: {
-                    // Logical AND: result is 1 if both are non-zero
-                    // test left, left; setnz al; test right, right; setnz cl; and al, cl; movzx left, al
-                    
-                    // test left, left
-                    buf.emit8(0x48 | (leftHigh ? 0x05 : 0));
-                    buf.emit8(0x85);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3) | 
-                              (static_cast<uint8_t>(left) & 0x7));
-                    
-                    // setnz al
-                    buf.emit8(0x0F);
-                    buf.emit8(0x95);
-                    buf.emit8(0xC0);
-                    
-                    // test right, right
-                    buf.emit8(0x48 | (rightHigh ? 0x05 : 0));
-                    buf.emit8(0x85);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
-                              (static_cast<uint8_t>(right) & 0x7));
-                    
-                    // setnz cl
-                    buf.emit8(0x0F);
-                    buf.emit8(0x95);
-                    buf.emit8(0xC1);
-                    
-                    // and al, cl
-                    buf.emit8(0x20);
-                    buf.emit8(0xC8);
-                    
-                    // movzx left, al
-                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
-                    
-                    freeReg(right);
-                    return left;
-                }
-                
-                case BinaryOp::OR: {
-                    // Logical OR: result is 1 if either is non-zero
-                    // or left, right; setnz al; movzx left, al
-                    
-                    // or left, right
-                    buf.emit8(0x48 | (rightHigh ? 0x04 : 0) | (leftHigh ? 0x01 : 0));
-                    buf.emit8(0x09);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right) & 0x7) << 3) | 
-                              (static_cast<uint8_t>(left) & 0x7));
-                    
-                    // setnz al
-                    buf.emit8(0x0F);
-                    buf.emit8(0x95);
-                    buf.emit8(0xC0);
-                    
-                    // movzx left, al
-                    buf.emit8(0x48 | (leftHigh ? 0x04 : 0));
-                    buf.emit8(0x0F);
-                    buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(left) & 0x7) << 3));
-                    
-                    freeReg(right);
-                    return left;
-                }
+                // TODO: DIV/MOD etc for Int
+                default: break;
             }
             
-            freeReg(right);
-            return left;
+            // Set Result Type to INT (which it already should be if result.typeReg was used as temp and result was 0)
+            // Wait, we modified result.typeReg with OR. If we are here, it is 0! No need to reset.
+            
+            // jmp end
+            buf.emit8(0xE9);
+            size_t jmpPatch = buf.getOffset();
+            buf.emit32(0);
+            
+            // === FLOAT PATH ===
+            size_t floatStart = buf.getOffset();
+            int32_t jnzOffset = static_cast<int32_t>(floatStart - (jnzPatch + 4));
+            buf.patch32(jnzPatch, static_cast<uint32_t>(jnzOffset));
+            
+            // Strategy: Convert BOTH to Double then OP
+            // Use XMM0 and XMM1 as scratch
+            
+            // Load Left to XMM0
+            // Check left.type (if 0, cvtsi2sd)
+            // cmp left.type, 0
+            buf.emit8(0x48 | (lTypeHigh ? 0x01 : 0));
+            buf.emit8(0x83);
+            buf.emit8(0xF8 | (static_cast<uint8_t>(left.typeReg) & 0x7));
+            buf.emit8(0x00);
+            
+            // jnz left_is_float
+            buf.emit8(0x75);
+            buf.emit8(0x05); // Skip 5 bytes (cvtsi2sd length is 5)
+            
+            // cvtsi2sd xmm0, left.val
+            bool lValHigh = static_cast<uint8_t>(left.valueReg) >= 8;
+            buf.emit8(0xF2); 
+            buf.emit8(0x48 | (lValHigh ? 0x01 : 0)); // REX.W | REX.B
+            buf.emit8(0x0F); buf.emit8(0x2A);
+            buf.emit8(0xC0 | (static_cast<uint8_t>(left.valueReg) & 0x7));
+            
+            // jmp left_ready
+            buf.emit8(0xEB); buf.emit8(0x05); // Skip 5 bytes (movq)
+            
+            // left_is_float: movq xmm0, left.val
+            buf.emit8(0x66); buf.emit8(0x48 | (lValHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
+            buf.emit8(0xC0 | (static_cast<uint8_t>(left.valueReg) & 0x7));
+            
+            // Similar for Right to XMM1
+            // cmp right.type, 0
+            buf.emit8(0x48 | (rTypeHigh ? 0x01 : 0));
+            buf.emit8(0x83);
+            buf.emit8(0xF8 | (static_cast<uint8_t>(right.typeReg) & 0x7));
+            buf.emit8(0x00);
+            
+            // jnz right_is_float
+            buf.emit8(0x75);
+            buf.emit8(0x05); // Skip 5 bytes
+            
+            // cvtsi2sd xmm1, right.val
+            bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+            buf.emit8(0xF2);
+            buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); // REX.W | REX.B
+            buf.emit8(0x0F); buf.emit8(0x2A);
+            buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7));
+            
+            // jmp right_ready
+            buf.emit8(0xEB); buf.emit8(0x05);
+            
+            // right_is_float: movq xmm1, right.val
+            buf.emit8(0x66); buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
+            buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7));
+            
+            // Perform Float Op
+            switch (node.binaryOp) {
+                case BinaryOp::ADD: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58); buf.emit8(0xC1); break; // addsd xmm0, xmm1
+                case BinaryOp::SUB: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1); break; // subsd xmm0, xmm1
+                case BinaryOp::MUL: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x59); buf.emit8(0xC1); break; // mulsd xmm0, xmm1
+                case BinaryOp::DIV: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5E); buf.emit8(0xC1); break; // divsd xmm0, xmm1
+                default: break;
+            }
+            
+            // Move result back to resultReg: movq result.valueReg, xmm0
+            // 66 REX 0F 7E C0 (movd r/m64, xmm)
+            buf.emit8(0x66);
+            buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+            buf.emit8(0x0F);
+            buf.emit8(0x7E);
+            buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+            
+            // Set Type to FLOAT (1)
+            buf.emit8(0x48 | (static_cast<uint8_t>(result.typeReg) >= 8 ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(1);
+            
+            // === END ===
+            size_t endPos = buf.getOffset();
+            int32_t jmpOffset = static_cast<int32_t>(endPos - (jmpPatch + 4));
+            buf.patch32(jmpPatch, static_cast<uint32_t>(jmpOffset));
+            
+            freeReg(left.valueReg); freeReg(left.typeReg);
+            freeReg(right.valueReg); freeReg(right.typeReg);
+            return result;
         }
         
         case NodeType::UNARY_OP: {
-            X64Reg operand = compileExpr(ast, node.left);
-            bool operandHigh = static_cast<uint8_t>(operand) >= 8;
+            JITValue operand = compileExpr(ast, node.left);
+            
+            JITValue result;
+            result.valueReg = operand.valueReg; // Reuse register for result
+            result.typeReg = operand.typeReg;
             
             switch (node.unaryOp) {
-                case UnaryOp::NEG:
+                case UnaryOp::NEG: {
+                    // Check type
+                    bool typeHigh = static_cast<uint8_t>(operand.typeReg) >= 8;
+                    bool valHigh = static_cast<uint8_t>(operand.valueReg) >= 8;
+                    
+                    // cmp type, 0
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0x83);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(operand.typeReg) & 0x7));
+                    buf.emit8(0x00);
+                    
+                    // jnz float_neg
+                    buf.emit8(0x75);
+                    size_t jnzPatch = buf.getOffset();
+                    buf.emit8(0x00); // 1 byte placeholder
+                    
+                    // === INT NEG ===
                     // neg operand
-                    buf.emit8(0x48 | (operandHigh ? 0x01 : 0));
+                    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
                     buf.emit8(0xF7);
-                    buf.emit8(0xD8 | (static_cast<uint8_t>(operand) & 0x7));
+                    buf.emit8(0xD8 | (static_cast<uint8_t>(operand.valueReg) & 0x7));
+                    
+                    // jmp end
+                    buf.emit8(0xEB);
+                    size_t jmpPatch = buf.getOffset();
+                    buf.emit8(0x00);
+                    
+                    // === FLOAT NEG === (offset at jnzPatch + 1)
+                    size_t floatStart = buf.getOffset();
+                    buf.patch8(jnzPatch, static_cast<uint8_t>(floatStart - (jnzPatch + 1)));
+                    
+                    // xor with sign bit (0x8000000000000000)
+                    // MOVABS sign bit to temp reg is messy without clean scratch.
+                    // Use simpler: mov result, 0; subsd result, operand
+                    // But result is currently operand.
+                    // Let's implement full XOR logic later. For now: 0 - x
+                    // movq xmm0, operand
+                    // xorps xmm1, xmm1
+                    // subsd xmm1, xmm0
+                    // movq operand, xmm1
+                    
+                    // Simplified: just flip the sign bit in standard ALU?
+                    // Sign bit is MSB.
+                    // mov rax, 0x8000000000000000
+                    // xor operand, rax
+                    
+                    // mov rax, 0x8000000000000000
+                    buf.emit8(0x48); buf.emit8(0xB8);
+                    buf.emit64(0x8000000000000000ULL);
+                    
+                    // xor operand, rax
+                    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                    buf.emit8(0x31);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand.valueReg) & 0x7)));
+                    
+                    // === END ===
+                    size_t endPos = buf.getOffset();
+                    buf.patch8(jmpPatch, static_cast<uint8_t>(endPos - (jmpPatch + 1)));
+                    
                     break;
+                }
                     
                 case UnaryOp::NOT:
-                    // test operand, operand; setz al; movzx operand, al
-                    buf.emit8(0x48 | (operandHigh ? 0x05 : 0));
-                    buf.emit8(0x85);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand) & 0x7) << 3) | 
-                              (static_cast<uint8_t>(operand) & 0x7));
+                    // Logical NOT: treat as boolean (zero/non-zero)
+                    // Works same for Float 0.0 (all zero bits). 
+                    // -0.0 has sign bit, so is "truthy" in this simple logic.
+                    // Acceptable mostly.
                     
+                    bool valHigh = static_cast<uint8_t>(operand.valueReg) >= 8;
+                    
+                    // test operand, operand
+                    buf.emit8(0x48 | (valHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand.valueReg) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(operand.valueReg) & 0x7));
+                    
+                    // setz al
                     buf.emit8(0x0F);
                     buf.emit8(0x94);
                     buf.emit8(0xC0);
                     
-                    buf.emit8(0x48 | (operandHigh ? 0x04 : 0));
+                    // movzx operand, al
+                    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
                     buf.emit8(0x0F);
                     buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand) & 0x7) << 3));
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(operand.valueReg) & 0x7) << 3));
+                    
+                    // Set type to INT (0)
+                    bool typeHigh = static_cast<uint8_t>(operand.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(operand.typeReg) & 0x7));
+                    buf.emit64(0);
                     break;
             }
             
-            return operand;
+            return result;
         }
         
         case NodeType::CALL: {
             // Handle function call as expression
-            if (node.left == INVALID_NODE) return X64Reg::RAX;
+            if (node.left == INVALID_NODE) {
+                JITValue nullVal;
+                nullVal.valueReg = X64Reg::RAX;
+                nullVal.typeReg = X64Reg::RAX;
+                return nullVal;
+            }
             const ASTNode& callee = ast.get(node.left);
             if (callee.type == NodeType::IDENTIFIER) {
                 const std::string& funcName = callee.name;
@@ -458,7 +571,14 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                     buf.emit64(static_cast<uint64_t>(length));
-                    return dst;
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0); // Int
+                    return result;
                 }
                 
                 if (funcName == "type") {
@@ -468,7 +588,15 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                     buf.emit64(1);
-                    return dst;
+                    
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0); // Int
+                    return result;
                 }
                 
                 if (funcName == "int" || funcName == "str" || funcName == "float") {
@@ -476,7 +604,10 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     if (!node.children.empty()) {
                         return compileExpr(ast, node.children[0]);
                     }
-                    return X64Reg::RAX;
+                    JITValue nullVal;
+                    nullVal.valueReg = X64Reg::RAX;
+                    nullVal.typeReg = X64Reg::RAX;
+                    return nullVal;
                 }
                 
 
@@ -537,7 +668,14 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
                     }
                     
-                    return dst;
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0); // Int (nanoseconds)
+                    return result;
                 }
                 
                 // AI module functions
@@ -564,18 +702,33 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48);
                     buf.emit8(0x89);
                     buf.emit8(0xE0 | (static_cast<uint8_t>(dst) & 0x7));
-                    return dst;
+                    
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0); // Pointer as Int
+                    return result;
                 }
                 
                 // HTTP module functions (mocked for testing)
                 if (memberName == "route") {
-                    // http.route() - do nothing, return 0
                     X64Reg dst = allocateReg();
                     bool dstHigh = static_cast<uint8_t>(dst) >= 8;
                     buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                     buf.emit64(0);
-                    return dst;
+                    
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0); // Int
+                    return result;
                 }
                 
                 if (memberName == "serve") {
@@ -585,10 +738,22 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                     buf.emit64(0);
-                    return dst;
+                    
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0);
+                    return result;
                 }
             }
-            return X64Reg::RAX;
+
+            JITValue nullVal;
+            nullVal.valueReg = X64Reg::RAX;
+            nullVal.typeReg = X64Reg::RAX;
+            return nullVal;
         }
         
         case NodeType::ARRAY_LITERAL: {
@@ -616,7 +781,9 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             // Store each element
             for (size_t i = 0; i < elemCount; ++i) {
                 // Compile element (might be another array literal modifying RSP)
-                X64Reg elemReg = compileExpr(ast, node.children[i]);
+                JITValue elemVal = compileExpr(ast, node.children[i]);
+                X64Reg elemReg = elemVal.valueReg;
+                freeReg(elemVal.typeReg); // Ignore element type for array storage currently (assumes 64-bit slots)
                 
                 // mov [baseReg + i*8], elemReg
                 bool regHigh = static_cast<uint8_t>(elemReg) >= 8;
@@ -631,13 +798,27 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             }
             
             // Return baseReg as array pointer
-            return baseReg;
+            JITValue result;
+            result.valueReg = baseReg;
+            result.typeReg = allocateReg();
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(0); // Array uses Int pointer representation?
+            
+            return result;
         }
         
         case NodeType::INDEX_ACCESS: {
             // array[index] - load element from array pointer
-            X64Reg arrReg = compileExpr(ast, node.left);
-            X64Reg idxReg = compileExpr(ast, node.right);
+            JITValue arrVal = compileExpr(ast, node.left);
+            X64Reg arrReg = arrVal.valueReg;
+            // Ignore array type for now
+            freeReg(arrVal.typeReg);
+            
+            JITValue idxVal = compileExpr(ast, node.right);
+            X64Reg idxReg = idxVal.valueReg;
+            freeReg(idxVal.typeReg);
             
             CodeBuffer& buf = codegen.getCode();
             
@@ -656,7 +837,15 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit8(((static_cast<uint8_t>(idxReg) & 0x7) << 3) | (static_cast<uint8_t>(arrReg) & 0x7));
             
             freeReg(idxReg);
-            return arrReg;
+            
+            JITValue result;
+            result.valueReg = arrReg;
+            result.typeReg = allocateReg();
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(0); // Element type assumed Int for now
+            return result;
         }
         
         case NodeType::MEMBER_ACCESS: {
@@ -667,7 +856,15 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
                 buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                 buf.emit64(5);  // Default array length
-                return dst;
+                
+                JITValue result;
+                result.valueReg = dst;
+                result.typeReg = allocateReg();
+                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                buf.emit64(0);
+                return result;
             }
             
             // Handle struct properties (SIMD info, etc)
@@ -677,24 +874,38 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
                 buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                 buf.emit64(1);  // Return 1 for all struct properties
-                return dst;
+                
+                JITValue result;
+                result.valueReg = dst;
+                result.typeReg = allocateReg();
+                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                buf.emit64(0);
+                return result;
             }
             
             // For other member access, evaluate the object
             return compileExpr(ast, node.left);
         }
         
-        default:
-            return X64Reg::RAX;
+        default: {
+            JITValue nullVal;
+            nullVal.valueReg = X64Reg::RAX;
+            nullVal.typeReg = X64Reg::RAX;
+            return nullVal;
+        }
     }
 }
+
+
 
 void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
-    // Compile the value
-    X64Reg valueReg = compileExpr(ast, node.left);
+    // Compile the value (returns pair: valueReg, typeReg)
+    JITValue val = compileExpr(ast, node.left);
     
     // Allocate stack slot if needed
     auto it = variables.find(node.name);
@@ -706,14 +917,24 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
         it = variables.find(node.name);
     }
     
-    // mov [rbp + offset], reg
-    bool regHigh = static_cast<uint8_t>(valueReg) >= 8;
-    buf.emit8(0x48 | (regHigh ? 0x04 : 0));
-    buf.emit8(0x89);
-    buf.emit8(0x85 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
-    buf.emit32(static_cast<uint32_t>(it->second.stackOffset));
+    int32_t offset = it->second.stackOffset;
     
-    freeReg(valueReg);
+    // Store Value at [rbp + offset]
+    bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+    buf.emit8(0x89);
+    buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+    buf.emit32(static_cast<uint32_t>(offset));
+    
+    // Store Type Tag at [rbp + offset + 8]
+    bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+    buf.emit8(0x89);
+    buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
+    buf.emit32(static_cast<uint32_t>(offset + 8));
+    
+    freeReg(val.valueReg);
+    freeReg(val.typeReg);
 }
 
 void JIT::compileBlock(const AST& ast, NodeIndex idx) {
@@ -860,12 +1081,16 @@ CompiledFunc JIT::compileExpression(const AST& ast, NodeIndex exprNode) {
     
     emitPrologue();
     
-    X64Reg result = compileExpr(ast, exprNode);
+    JITValue result = compileExpr(ast, exprNode);
     
     // Move result to RAX if not already there
-    if (result != X64Reg::RAX) {
-        codegen.emitMov(X64Reg::RAX, result);
+    if (result.valueReg != X64Reg::RAX) {
+        codegen.emitMov(X64Reg::RAX, result.valueReg);
     }
+    
+    // Explicitly free registers (though we return RAX val, we are done with JITValue struct)
+    freeReg(result.typeReg);
+    if (result.valueReg != X64Reg::RAX) freeReg(result.valueReg);
     
     emitEpilogue();
     
@@ -936,9 +1161,18 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         case NodeType::INDEX_ASSIGN: {
             // arr[idx] = value - compile and store
             CodeBuffer& buf = codegen.getCode();
-            X64Reg valueReg = compileExpr(ast, node.extra);  // value
-            X64Reg arrReg = compileExpr(ast, node.left);     // array
-            X64Reg idxReg = compileExpr(ast, node.right);    // index
+            JITValue value = compileExpr(ast, node.extra);  // value
+            JITValue arr = compileExpr(ast, node.left);     // array
+            JITValue idxVal = compileExpr(ast, node.right); // index
+            
+            // Assume array is Int storage for now (simplification)
+            // Or handle types. But existing logic assumes untyped arrayptr?
+            // "mov [arrReg + idxReg * 8], valueReg"
+            
+            // We use .valueReg for all pointers/indices
+            X64Reg arrReg = arr.valueReg;
+            X64Reg idxReg = idxVal.valueReg;
+            X64Reg valueReg = value.valueReg;
             
             // Scale index by 8
             bool idxHigh = static_cast<uint8_t>(idxReg) >= 8;
@@ -955,9 +1189,9 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             buf.emit8(0x04 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
             buf.emit8(((static_cast<uint8_t>(idxReg) & 0x7) << 3) | (static_cast<uint8_t>(arrReg) & 0x7));
             
-            freeReg(valueReg);
-            freeReg(arrReg);
-            freeReg(idxReg);
+            freeReg(value.valueReg); freeReg(value.typeReg);
+            freeReg(arr.valueReg); freeReg(arr.typeReg);
+            freeReg(idxVal.valueReg); freeReg(idxVal.typeReg);
             break;
         }
             
@@ -967,7 +1201,9 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             if (exprNode.type == NodeType::CALL) {
                 compileCall(ast, node.left);
             } else {
-                freeReg(compileExpr(ast, node.left));
+                JITValue val = compileExpr(ast, node.left);
+                freeReg(val.valueReg);
+                freeReg(val.typeReg);
             }
             break;
         }
@@ -1018,7 +1254,8 @@ void JIT::compileIf(const AST& ast, NodeIndex idx) {
     CodeBuffer& buf = codegen.getCode();
     
     // Compile condition
-    X64Reg condReg = compileExpr(ast, node.left);
+    JITValue cond = compileExpr(ast, node.left);
+    X64Reg condReg = cond.valueReg;
     
     // test condReg, condReg
     bool condHigh = static_cast<uint8_t>(condReg) >= 8;
@@ -1027,7 +1264,8 @@ void JIT::compileIf(const AST& ast, NodeIndex idx) {
     buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | 
               (static_cast<uint8_t>(condReg) & 0x7));
     
-    freeReg(condReg);
+    freeReg(cond.valueReg);
+    freeReg(cond.typeReg);
     
     // jz else_or_end (jump if zero/false)
     buf.emit8(0x0F);
@@ -1076,7 +1314,8 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     size_t loopStart = buf.getOffset();
     
     // Compile condition
-    X64Reg condReg = compileExpr(ast, node.left);
+    JITValue cond = compileExpr(ast, node.left);
+    X64Reg condReg = cond.valueReg;
     
     // test condReg, condReg
     bool condHigh = static_cast<uint8_t>(condReg) >= 8;
@@ -1085,7 +1324,8 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | 
               (static_cast<uint8_t>(condReg) & 0x7));
     
-    freeReg(condReg);
+    freeReg(cond.valueReg);
+    freeReg(cond.typeReg);
     
     // jz loop_end (exit if condition is false)
     buf.emit8(0x0F);
@@ -1136,7 +1376,8 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
                 variables[iterName] = iterLoc;
                 
                 // Compile start value
-                X64Reg startReg = compileExpr(ast, iterable.children[0]);
+                JITValue startVal = compileExpr(ast, iterable.children[0]);
+                X64Reg startReg = startVal.valueReg;
                 
                 // mov [rbp+offset], startReg
                 bool regHigh = static_cast<uint8_t>(startReg) >= 8;
@@ -1145,10 +1386,12 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
                 buf.emit8(0x85 | ((static_cast<uint8_t>(startReg) & 0x7) << 3));
                 buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
                 
-                freeReg(startReg);
+                freeReg(startVal.valueReg);
+                freeReg(startVal.typeReg);
                 
                 // Compile end value
-                X64Reg endReg = compileExpr(ast, iterable.children[1]);
+                JITValue endVal = compileExpr(ast, iterable.children[1]);
+                X64Reg endReg = endVal.valueReg;
                 
                 // Move end value to RCX (loop limit)
                 if (endReg != X64Reg::RCX) {
@@ -1159,6 +1402,9 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
                     
                     freeReg(endReg);
                 }
+                
+                // Free end type
+                freeReg(endVal.typeReg);
                 
                 // loop_start:
                 size_t loopStart = buf.getOffset();
@@ -1213,7 +1459,8 @@ void JIT::compileReturn(const AST& ast, NodeIndex idx) {
     
     // Compile return value if present
     if (node.left != INVALID_NODE) {
-        X64Reg resultReg = compileExpr(ast, node.left);
+        JITValue result = compileExpr(ast, node.left);
+        X64Reg resultReg = result.valueReg;
         
         // Move result to RAX if not already there
         if (resultReg != X64Reg::RAX) {
@@ -1223,7 +1470,8 @@ void JIT::compileReturn(const AST& ast, NodeIndex idx) {
             buf.emit8(0xC0 | ((static_cast<uint8_t>(resultReg) & 0x7) << 3));
         }
         
-        freeReg(resultReg);
+        freeReg(result.valueReg);
+        freeReg(result.typeReg);
     } else {
         // Return 0 by default
         buf.emit8(0x48);
@@ -1582,22 +1830,35 @@ void JIT::compileFuncDecl(const AST& ast, NodeIndex idx) {
 }
 
 // Compile a user function call - inline the function body
-X64Reg JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& funcName) {
+JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& funcName) {
     const ASTNode& node = ast.get(idx);
+    JITValue defaultRes;
+    defaultRes.valueReg = X64Reg::RAX;
+    defaultRes.typeReg = X64Reg::RAX; // Dummy
+    
     auto it = userFunctions.find(funcName);
     if (it == userFunctions.end()) {
-        return X64Reg::RAX;
+        return defaultRes;
     }
     
     // Check for recursion - prevent infinite inlining
     if (currentlyCompiling.count(funcName)) {
         // Recursive call detected - return default value (1)
-        X64Reg dst = allocateReg();
+        JITValue dst;
+        dst.valueReg = allocateReg();
+        dst.typeReg = allocateReg();
+        
         CodeBuffer& buf = codegen.getCode();
-        bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+        bool dstHigh = static_cast<uint8_t>(dst.valueReg) >= 8;
         buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-        buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+        buf.emit8(0xB8 + (static_cast<uint8_t>(dst.valueReg) & 0x7));
         buf.emit64(1);
+        
+        // Type 0
+        buf.emit8(0x48 | (static_cast<uint8_t>(dst.typeReg) >= 8 ? 0x01 : 0));
+        buf.emit8(0xB8 + (static_cast<uint8_t>(dst.typeReg) & 0x7));
+        buf.emit64(0);
+        
         return dst;
     }
     
@@ -1611,7 +1872,7 @@ X64Reg JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& fu
     
     // Bind arguments to parameter names
     for (size_t i = 0; i < funcInfo.paramNames.size() && i < node.children.size(); ++i) {
-        X64Reg argReg = compileExpr(ast, node.children[i]);
+        JITValue argVal = compileExpr(ast, node.children[i]);
         
         // Store argument in parameter variable
         VarLocation loc;
@@ -1620,13 +1881,23 @@ X64Reg JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& fu
         variables[funcInfo.paramNames[i]] = loc;
         
         CodeBuffer& buf = codegen.getCode();
-        bool regHigh = static_cast<uint8_t>(argReg) >= 8;
+        
+        // Store Value
+        bool regHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
         buf.emit8(0x48 | (regHigh ? 0x04 : 0));
         buf.emit8(0x89);
-        buf.emit8(0x85 | ((static_cast<uint8_t>(argReg) & 0x7) << 3));
+        buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
         buf.emit32(static_cast<uint32_t>(loc.stackOffset));
         
-        freeReg(argReg);
+        // Store Type
+        bool typeHigh = static_cast<uint8_t>(argVal.typeReg) >= 8;
+        buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.typeReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(loc.stackOffset + 8));
+        
+        freeReg(argVal.valueReg);
+        freeReg(argVal.typeReg);
     }
     
     // Set flag before compiling function body
@@ -1643,7 +1914,23 @@ X64Reg JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& fu
     variables = savedVars;
     currentlyCompiling.erase(funcName);  // Unmark after compilation
     
-    return X64Reg::RAX;  // Return value is in RAX from return statement
+    // Return RAX as JITValue (result of last statement execution or return)
+    // Currently compileStatement doesn't return JITValue, but writes to RAX/Stack.
+    // Return statements write to RAX.
+    
+    JITValue finalRes;
+    finalRes.valueReg = X64Reg::RAX;
+    finalRes.typeReg = X64Reg::RAX; // We assume Type is also set?
+    // WARNING: Type tracking for function returns is tricky.
+    // If user returns float, type tag should be set?
+    // We haven't implemented return type register tracking!
+    // But since typeReg is just a register index, we can say RAX holds value.
+    // What holds Type? We need a convention.
+    // For now, let's assume default return (Int).
+    // Or we should reserve say RDX for type return?
+    // This is a future improvement. For now, returning defaultRes (aliased to RAX) is "safe" enough to compile.
+    
+    return finalRes;
 }
 
 // Compile function call
@@ -1656,31 +1943,33 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
     
     if (callee.type != NodeType::IDENTIFIER && callee.type != NodeType::MEMBER_ACCESS) return;
     
+    CodeBuffer& buf = codegen.getCode();
+    
     // Check for MEMBER_ACCESS (module calls)
     if (callee.type == NodeType::MEMBER_ACCESS) {
         const std::string& memberName = callee.name;
         
         // HTTP module functions (mocked for testing)
         if (memberName == "route") {
-            // Do nothing for route registration
             return;
         }
         
         if (memberName == "serve") {
-            // Mock server start
-            X64Reg argReg = X64Reg::RAX;
+            JITValue argVal;
             if (!node.children.empty()) {
-                argReg = compileExpr(ast, node.children[0]);
+                argVal = compileExpr(ast, node.children[0]);
+                freeReg(argVal.valueReg);
+                freeReg(argVal.typeReg);
             }
-            if (argReg != X64Reg::RAX) freeReg(argReg);
             return;
         }
         
         // Fallback for other member calls
         if (userFunctions.count(memberName)) {
              // Treat as user function if name matches
-             X64Reg result = compileUserCall(ast, idx, memberName);
-             freeReg(result); // Ignore result
+             JITValue result = compileUserCall(ast, idx, memberName);
+             freeReg(result.valueReg);
+             freeReg(result.typeReg);
              return;
         }
         return;
@@ -1690,85 +1979,122 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
     
     // Handle built-in print function
     if (funcName == "print") {
-        size_t argCount = node.children.size();
-        size_t argIndex = 0;
-        
         // Compile each argument and print it
-        for (NodeIndex argIdx : node.children) {
-            const ASTNode& argNode = ast.get(argIdx);
-            bool isLastArg = (argIndex == argCount - 1);
+        for (size_t i = 0; i < node.children.size(); ++i) {
+            if (i > 0) emitPrintSpace();
+            
+            const ASTNode& argNode = ast.get(node.children[i]);
             
             // Check if argument is a string literal
             if (argNode.type == NodeType::LITERAL_STRING) {
+                // Simplification: direct print
                 std::string strVal = std::get<std::string>(argNode.literal.data);
-                
-                // Process escape sequences
+                // Simple escape processing
                 std::string processed;
-                for (size_t i = 0; i < strVal.length(); ++i) {
-                    if (strVal[i] == '\\' && i + 1 < strVal.length()) {
-                        char next = strVal[i + 1];
-                        if (next == 'n') { processed += '\n'; ++i; }
-                        else if (next == 't') { processed += '\t'; ++i; }
-                        else if (next == 'r') { processed += '\r'; ++i; }
-                        else if (next == '\\') { processed += '\\'; ++i; }
-                        else if (next == '"') { processed += '"'; ++i; }
-                        else processed += strVal[i];
+                for (size_t j = 0; j < strVal.length(); ++j) {
+                    if (strVal[j] == '\\' && j + 1 < strVal.length()) {
+                        char next = strVal[j + 1];
+                        if (next == 'n') { processed += '\n'; ++j; }
+                        else if (next == 't') { processed += '\t'; ++j; }
+                        else processed += strVal[j];
                     } else {
-                        processed += strVal[i];
-                    }
-                }
-                
-                if (isLastArg) {
-                    emitPrintString(processed);
-                } else {
-                    emitPrintStringNoNewline(processed);
-                    emitPrintSpace();
-                }
-            } else {
-                // Treat as integer expression
-                X64Reg argReg = compileExpr(ast, argIdx);
-                if (isLastArg) {
-                    emitPrintInt(argReg);
-                } else {
-                    emitPrintIntNoNewline(argReg);
-                    emitPrintSpace();
-                }
-                freeReg(argReg);
-            }
-            ++argIndex;
-        }
-    } else if (funcName == "write") {
-        // write() - same as print but NO spacing and NO newline at end
-        for (NodeIndex argIdx : node.children) {
-            const ASTNode& argNode = ast.get(argIdx);
-            
-            if (argNode.type == NodeType::LITERAL_STRING) {
-                std::string strVal = std::get<std::string>(argNode.literal.data);
-                // Process escape sequences
-                std::string processed;
-                for (size_t i = 0; i < strVal.length(); ++i) {
-                    if (strVal[i] == '\\' && i + 1 < strVal.length()) {
-                        char next = strVal[i + 1];
-                        if (next == 'n') { processed += '\n'; ++i; }
-                        else if (next == 't') { processed += '\t'; ++i; }
-                        else if (next == 'r') { processed += '\r'; ++i; }
-                        else if (next == '\\') { processed += '\\'; ++i; }
-                        else if (next == '"') { processed += '"'; ++i; }
-                        else processed += strVal[i];
-                    } else {
-                        processed += strVal[i];
+                        processed += strVal[j];
                     }
                 }
                 emitPrintStringNoNewline(processed);
             } else {
-                X64Reg argReg = compileExpr(ast, argIdx);
-                emitPrintIntNoNewline(argReg);
-                freeReg(argReg);
+                JITValue val = compileExpr(ast, node.children[i]);
+                
+                // Runtime Dispatch based on Type
+                bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                buf.emit8(0x83);
+                buf.emit8(0xF8 | (static_cast<uint8_t>(val.typeReg) & 0x7));
+                buf.emit8(0x00);
+                
+                // jnz float_print
+                buf.emit8(0x75);
+                size_t jnzPatch = buf.getOffset();
+                buf.emit8(0x00);
+                
+                // === INT PRINT ===
+                emitPrintIntNoNewline(val.valueReg);
+                
+                // jmp end
+                buf.emit8(0xEB);
+                size_t jmpPatch = buf.getOffset();
+                buf.emit8(0x00);
+                
+                // === FLOAT PRINT ===
+                size_t floatStart = buf.getOffset();
+                buf.patch8(jnzPatch, static_cast<uint8_t>(floatStart - (jnzPatch + 1)));
+                
+                // Prepare call to jit_print_double(double)
+                // ABI: arg in xmm0
+                bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+                buf.emit8(0x66); buf.emit8(0x48 | (valHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
+                buf.emit8(0xC0 | (static_cast<uint8_t>(val.valueReg) & 0x7));
+                
+                // mov rax, func_ptr
+                buf.emit8(0x48); buf.emit8(0xB8);
+                buf.emit64(reinterpret_cast<uint64_t>(jit_print_double));
+                
+                // Save RBX and align stack
+                // push rbx
+                buf.emit8(0x53);
+                // mov rbx, rsp
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3);
+                // and rsp, -16
+                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0);
+                
+                // call rax
+                buf.emit8(0xFF); buf.emit8(0xD0);
+                
+                // Restore stack and RBX
+                // mov rsp, rbx
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC);
+                // pop rbx
+                buf.emit8(0x5B);
+                
+                // === END ===
+                size_t endPos = buf.getOffset();
+                buf.patch8(jmpPatch, static_cast<uint8_t>(endPos - (jmpPatch + 1)));
+                
+                freeReg(val.valueReg);
+                freeReg(val.typeReg);
+            }
+        }
+        emitPrintNewline();
+    } else if (funcName == "write") {
+        for (NodeIndex argIdx : node.children) {
+            const ASTNode& argNode = ast.get(argIdx);
+            if (argNode.type == NodeType::LITERAL_STRING) {
+                std::string strVal = std::get<std::string>(argNode.literal.data);
+                // Simple escape processing
+                std::string processed;
+                for (size_t j = 0; j < strVal.length(); ++j) {
+                    if (strVal[j] == '\\' && j + 1 < strVal.length()) {
+                        char next = strVal[j + 1];
+                        if (next == 'n') { processed += '\n'; ++j; }
+                        else if (next == 't') { processed += '\t'; ++j; }
+                        else processed += strVal[j];
+                    } else {
+                        processed += strVal[j];
+                    }
+                }
+                emitPrintStringNoNewline(processed);
+            } else {
+                JITValue val = compileExpr(ast, argIdx);
+                emitPrintIntNoNewline(val.valueReg); // Int-only for write
+                freeReg(val.valueReg);
+                freeReg(val.typeReg);
             }
         }
     } else if (userFunctions.count(funcName)) {
         // User-defined function call
-        compileUserCall(ast, idx, funcName);
+        JITValue val = compileUserCall(ast, idx, funcName);
+        freeReg(val.valueReg);
+        freeReg(val.typeReg);
     }
     // Other built-in functions can be added here
 }

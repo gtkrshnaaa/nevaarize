@@ -26,9 +26,18 @@ using CompiledFunc = int64_t (*)();
  * Variable location in compiled code.
  */
 struct VarLocation {
-    int32_t stackOffset;
+    int32_t stackOffset; // Base offset (value at offset, type at offset+8)
     bool isRegister;
     X64Reg reg;
+};
+
+/**
+ * JIT Value representation during compilation.
+ * Holds register for value bits and register for type tag.
+ */
+struct JITValue {
+    X64Reg valueReg;
+    X64Reg typeReg;
 };
 
 /**
@@ -95,7 +104,7 @@ private:
     int32_t allocateStackSlot();
 
     // AST compilation - expressions
-    X64Reg compileExpr(const AST& ast, NodeIndex idx);
+    JITValue compileExpr(const AST& ast, NodeIndex idx);
     
     // AST compilation - statements
     void compileStatement(const AST& ast, NodeIndex idx);
@@ -107,7 +116,7 @@ private:
     void compileReturn(const AST& ast, NodeIndex idx);
     void compileCall(const AST& ast, NodeIndex idx);
     void compileFuncDecl(const AST& ast, NodeIndex idx);
-    X64Reg compileUserCall(const AST& ast, NodeIndex idx, const std::string& funcName);
+    JITValue compileUserCall(const AST& ast, NodeIndex idx, const std::string& funcName);
     
     // Native function call emission
     void emitPrintInt(X64Reg valueReg);
