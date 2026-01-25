@@ -1,49 +1,27 @@
-print("=== Nevaarize Fundamentals ===")
-print("")
-
-
-print("1. Variables")
-print("------------")
-
 x = 42
 y = 3.14
 name = "Nevaarize"
-active = true
 
 print("Integer:", x)
 print("Float:", y)
 print("String:", name)
-print("Boolean:", active)
 print("")
 
 
-print("2. Arithmetic")
-print("-------------")
+a = 10
+b = 3
 
-a = 15
-b = 4
-
-sum = a + b
-diff = a - b
-prod = a * b
-
-print("15 + 4 =", sum)
-print("15 - 4 =", diff)
-print("15 * 4 =", prod)
+print("Addition:", a + b)
+print("Subtraction:", a - b)
+print("Multiplication:", a * b)
+print("Division:", a / b)
 print("")
 
 
-print("3. Comparisons")
-print("--------------")
-
-print("15 > 4:", a > b)
-print("15 == 4:", a == b)
-print("15 < 4:", a < b)
+print("Comparison:", a > b)
+print("Equality:", a == b)
 print("")
 
-
-print("4. Control Flow")
-print("---------------")
 
 temp = 25
 
@@ -57,28 +35,19 @@ if (temp > 30) {
 print("")
 
 
-print("5. While Loop")
-print("-------------")
-
-counter = 0
-while (counter < 5) {
-    print("Count:", counter)
-    counter = counter + 1
+count = 0
+while (count < 5) {
+    print("Count:", count)
+    count = count + 1
 }
 print("")
 
-
-print("6. For Loop")
-print("-----------")
 
 for (i in Range(0, 5)) {
     print("Index:", i)
 }
 print("")
 
-
-print("7. Functions")
-print("------------")
 
 func add(x, y) {
     return x + y
@@ -88,16 +57,10 @@ func multiply(x, y) {
     return x * y
 }
 
-result1 = add(10, 20)
-result2 = multiply(6, 7)
-
-print("add(10, 20):", result1)
-print("multiply(6, 7):", result2)
+print("add(7, 3):", add(7, 3))
+print("multiply(6, 4):", multiply(6, 4))
 print("")
 
-
-print("8. Recursion")
-print("------------")
 
 func factorial(n) {
     if (n <= 1) {
@@ -106,21 +69,19 @@ func factorial(n) {
     return n * factorial(n - 1)
 }
 
-fact5 = factorial(5)
-print("factorial(5):", fact5)
+print("factorial(5):", factorial(5))
+print("factorial(6):", factorial(6))
 print("")
 
 
-print("9. Arrays")
-print("---------")
-
 numbers = [10, 20, 30, 40, 50]
 
-print("numbers[0]:", numbers[0])
-print("numbers[2]:", numbers[2])
+print("Array:", numbers)
+print("First:", numbers[0])
+print("Third:", numbers[2])
 
 numbers[2] = 99
-print("After modify:", numbers[2])
+print("Modified:", numbers[2])
 
 total = 0
 i = 0
@@ -132,19 +93,4 @@ print("Sum:", total)
 print("")
 
 
-print("10. Nested Loops")
-print("----------------")
-
-row = 0
-while (row < 3) {
-    col = 0
-    while (col < 3) {
-        print("Row", row, "Col", col)
-        col = col + 1
-    }
-    row = row + 1
-}
-print("")
-
-
-print("=== Complete ===")
+print("=== All Features Demonstrated ===")
