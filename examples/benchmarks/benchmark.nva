@@ -16,14 +16,12 @@ func printResult(ops, startNs, endNs) {
     opsPerSec = (ops * 1000000000) / durationNs
     
     print("Duration:", durationNs / 1000000, "ms")
-    // print("Operations:", ops) 
+    print("Raw Speed:", opsPerSec, "ops/sec")
     
     if (opsPerSec > 1000000000) {
-        print("Speed:", opsPerSec / 1000000000, "Billion ops/sec")
+        print("Formatted:", opsPerSec / 1000000000, "Billion ops/sec")
     } elif (opsPerSec > 1000000) {
-        print("Speed:", opsPerSec / 1000000, "Million ops/sec")
-    } else {
-        print("Speed:", opsPerSec, "ops/sec")
+        print("Formatted:", opsPerSec / 1000000, "Million ops/sec")
     }
 }
 
