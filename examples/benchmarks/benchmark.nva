@@ -15,8 +15,9 @@ func printResult(ops, startNs, endNs) {
     // Calculate duration in milliseconds
     durationMs = durationNs / 1000000
     
-    // Calculate ops/sec: (ops * 1e9) / durationNs
-    opsPerSec = (ops * 1000000000) / durationNs
+    // Calculate ops/sec in two steps to avoid expression parsing issues
+    opsNano = ops * 1000000000
+    opsPerSec = opsNano / durationNs
     
     print("Duration:", durationMs, "ms")
     
