@@ -256,6 +256,25 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return result;
         }
         
+        case NodeType::LITERAL_NIL: {
+            JITValue result;
+            result.valueReg = allocateReg();
+            result.typeReg = allocateReg();
+            
+            // Nil: value=0, type=3
+            bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
+            buf.emit64(0);
+            
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(3);
+            
+            return result;
+        }
+        
         case NodeType::IDENTIFIER: {
             JITValue result;
             result.valueReg = allocateReg();
@@ -1273,6 +1292,46 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return compileExpr(ast, node.left);
         }
         
+        case NodeType::STRUCT_INIT: {
+            auto it = structs.find(node.name);
+            if (it == structs.end()) {
+                JITValue result;
+                result.valueReg = allocateReg();
+                result.typeReg = allocateReg();
+                return result;
+            }
+            
+            const StructInfo& info = it->second;
+            int32_t baseOffset = allocateStackSlot();
+            
+            CodeBuffer& buf = codegen.getCode();
+            for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+                int32_t fieldOffset = baseOffset + (i * 16);
+                buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                buf.emit32(static_cast<uint32_t>(fieldOffset));
+                buf.emit32(0);
+                buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                buf.emit32(3);
+            }
+            
+            JITValue result;
+            result.valueReg = allocateReg();
+            result.typeReg = allocateReg();
+            
+            bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
+            buf.emit64(static_cast<uint64_t>(baseOffset));
+            
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(4);
+            
+            return result;
+        }
+        
         default: {
             JITValue nullVal;
             nullVal.valueReg = X64Reg::RAX;
@@ -1625,7 +1684,15 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             }
             break;
         }
-            
+        
+        case NodeType::STRUCT_DECL: {
+            StructInfo info;
+            info.fieldNames = node.paramNames;
+            info.size = node.paramNames.size();
+            structs[node.name] = info;
+            break;
+        }
+        
         default:
             // Skip unsupported statements for now
             break;

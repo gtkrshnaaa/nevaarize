@@ -91,6 +91,14 @@ private:
         bool isCompiled;
     };
     std::unordered_map<std::string, FuncInfo> userFunctions;
+    
+    // Struct storage
+    struct StructInfo {
+        std::vector<std::string> fieldNames;
+        size_t size;
+    };
+    std::unordered_map<std::string, StructInfo> structs;
+    
     std::unordered_map<std::string, std::string> stdlibAliases;  // alias -> module name
     std::unordered_set<std::string> currentlyCompiling;  // Track recursion
     const AST* currentAST;
