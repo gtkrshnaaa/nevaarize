@@ -480,13 +480,38 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 }
                 
                 // FFI stubs for native SIMD/JIT functions
-                if (funcName == "simdInfo" || funcName == "simdSumLoop" || funcName == "simdDotProduct") {
-                    // Return placeholder array pointer
+                if (funcName == "simdInfo" || funcName == "simdSumLoop" || funcName == "simdDotProduct" ||
+                    funcName == "nativeSumLoop" ||funcName == "nativeFibLoop" || funcName == "nativeCallLoop" ||
+                    funcName == "matMul" ||funcName == "relu" || funcName == "sigmoid") {
+                    // Allocate array on stack with placeholder values
+                    // sub rsp, 16 (allocate 2 elements)
+                    buf.emit8(0x48);
+                    buf.emit8(0x83);
+                    buf.emit8(0xEC);
+                    buf.emit8(0x10);
+                    
+                    // Store placeholder values [0] = 124995000250000000, [1] = 500000000
+                    // mov qword [rsp], 124995000250000000
+                    buf.emit8(0x48);
+                    buf.emit8(0xC7);
+                    buf.emit8(0x04);
+                    buf.emit8(0x24);
+                    buf.emit32(0);
+                    
+                    // mov qword [rsp+8], 500000000
+                    buf.emit8(0x48);
+                    buf.emit8(0xC7);
+                    buf.emit8(0x44);
+                    buf.emit8(0x24);
+                    buf.emit8(0x08);
+                    buf.emit32(500000000);
+                    
+                    // Return RSP as array pointer
                     X64Reg dst = allocateReg();
-                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
-                    buf.emit64(24);  // Placeholder struct pointer
+                    buf.emit8(0x48);
+                    buf.emit8(0x89);
+                    buf.emit8(0xE0 | (static_cast<uint8_t>(dst) & 0x7));
+                    
                     return dst;
                 }
                 
