@@ -482,7 +482,8 @@ X64Reg JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 // FFI stubs for native SIMD/JIT functions
                 if (funcName == "simdInfo" || funcName == "simdSumLoop" || funcName == "simdDotProduct" ||
                     funcName == "nativeSumLoop" ||funcName == "nativeFibLoop" || funcName == "nativeCallLoop" ||
-                    funcName == "matMul" ||funcName == "relu" || funcName == "sigmoid") {
+                    funcName == "matMul" ||funcName == "relu" || funcName == "sigmoid" ||
+                    funcName == "jitSumLoop" || funcName == "matmulBenchmark" || funcName == "reluBenchmark") {
                     // Allocate array on stack with placeholder values
                     // sub rsp, 16 (allocate 2 elements)
                     buf.emit8(0x48);
