@@ -14,13 +14,23 @@
 #include <fstream>
 #include <filesystem>
 
-// Helper for JIT to call for float printing
+// Helper for JIT to call for float printing (with newline)
 extern "C" void jit_print_double(double val) {
     if (val == (int64_t)val) {
         printf("%.1f\n", val); // Print 1.0 as 1.0 not 1
     } else {
         printf("%g\n", val);
     }
+}
+
+// Helper for JIT to call for float printing (no newline - for multiple args)
+extern "C" void jit_print_double_no_newline(double val) {
+    if (val == (int64_t)val) {
+        printf("%.1f", val);
+    } else {
+        printf("%g", val);
+    }
+    fflush(stdout);
 }
 
 // Helper for JIT to get nanosecond timestamp (for t.nanos())
@@ -3050,7 +3060,7 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
                 
                 // mov rax, func_ptr
                 buf.emit8(0x48); buf.emit8(0xB8);
-                buf.emit64(reinterpret_cast<uint64_t>(jit_print_double));
+                buf.emit64(reinterpret_cast<uint64_t>(jit_print_double_no_newline));
                 
                 // Save RBX and align stack
                 // push rbx
