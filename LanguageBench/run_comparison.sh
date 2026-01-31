@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# Build Sanarize first to ensure it's fresh
-# Build Sanarize first
-# Build Sanarize first
+# Build Nevaarize first
 make -s
 
 REPORT_FILE="LanguageBench/battle_report.txt"
@@ -37,9 +35,9 @@ function print_sep() {
 }
 
 print_sep
-echo "--- Sanarize ---"
-echo "Arch: Bytecode (Register-based) - Custom C++ VM"
-run_bench ./Bin/sanarize LanguageBench/bench_sanarize.sna
+echo "--- Nevaarize ---"
+echo "Arch: JIT Compiled (x86-64 Native) - High Performance"
+run_bench ./bin/nevaarize LanguageBench/bench_nevaarize.nva
 
 # C++
 print_sep
