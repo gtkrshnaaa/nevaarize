@@ -1,7 +1,7 @@
 ================================================================================
                    ULTIMATE LANGUAGE BENCHMARK BATTLE
 ================================================================================
-Execution Date: Sun Feb  1 04:16:04 AM WIB 2026
+Execution Date: Sun Feb  1 05:02:35 AM WIB 2026
 
 SYSTEM SPECIFICATIONS:
   OS:  Ubuntu 24.04.3 LTS
@@ -12,3 +12,293 @@ SYSTEM SPECIFICATIONS:
 ================================================================================
 --- Nevaarize ---
 Arch: JIT Compiled (x86-64 Native) - High Performance
+>>> Nevaarize Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     |  698,528,815 ops/sec |  1.43s
+  Double Arith    |  424,184,216 ops/sec |  0.24s
+  String Concat   |   36,386,685 ops/sec |  0.001s
+  Array Push      |  775,599,033 ops/sec |  0.001s
+  Struct Access   |  459,530,267 ops/sec |  0.11s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 5,856 KB (Lowest!)
+  CPU Load : 99%
+  Total Time: 1.78 s
+
+================================================================================
+--- C++ (GCC -O3) ---
+Arch: Native Machine Code (Compiled)
+>>> C++23 Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     | 2,202,716,424 OPS/sec | 0.45s
+  Double Arith    |   410,067,056 OPS/sec | 0.24s
+  String Concat   |   424,397,779 OPS/sec | 0.0001s
+  Array Push      |   383,735,596 OPS/sec | 0.003s
+  Struct Access   | 2,506,732,456 OPS/sec | 0.02s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 11,400 KB
+  CPU Load : 99%
+  Total Time: 0.72 s
+
+================================================================================
+--- C (GCC -O3) ---
+Arch: Native Machine Code (Compiled)
+>>> C (GCC optimized) Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     | 2,404,224,680 OPS/sec | 0.42s
+  Double Arith    |   424,139,096 OPS/sec | 0.24s
+  String Concat   | 1,053,341,197 OPS/sec | 0.00s
+  Array Push      |   410,261,796 OPS/sec | 0.002s
+  Struct Access   | 2,064,147,767 OPS/sec | 0.02s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 9,556 KB
+  CPU Load : 100%
+  Total Time: 0.67 s
+
+================================================================================
+--- Go 1.21 ---
+Arch: Native Machine Code (Compiled + GC)
+>>> Go 1.21 Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     | 3,324,060,523 OPS/sec | 0.30s
+  Double Arith    | 3,385,389,565 OPS/sec | 0.03s
+  String Concat   |       353,745 OPS/sec | 0.14s
+  Array Push      |    53,910,526 OPS/sec | 0.02s
+  Struct Access   | 3,445,040,137 OPS/sec | 0.01s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 44,388 KB
+  CPU Load : 134%
+  Total Time: 0.58 s
+
+================================================================================
+--- Java 21 ---
+Arch: JIT Compiled - HotSpot VM (Machine Code)
+>>> Java 21 Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     | 3,296,142,691 OPS/sec | 0.30s
+  Double Arith    |   466,655,397 OPS/sec | 0.21s
+  String Concat   |       178,493 OPS/sec | 0.28s
+  Array Push      |    35,636,246 OPS/sec | 0.03s
+  Struct Access   |   915,589,228 OPS/sec | 0.05s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 255,504 KB (Highest!)
+  CPU Load : 106%
+  Total Time: 0.95 s
+
+================================================================================
+--- Node.js (V8 JIT) ---
+Arch: JIT Compiled - V8 Engine (Machine Code)
+>>> Node.js Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     | 1,117,899,852 OPS/sec | 0.89s
+  Double Arith    |   872,757,871 OPS/sec | 0.11s
+  String Concat   |    13,729,033 OPS/sec | 0.004s
+  Array Push      |    20,713,570 OPS/sec | 0.05s
+  Struct Access   | 1,002,537,824 OPS/sec | 0.05s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 81,864 KB
+  CPU Load : 91%
+  Total Time: 1.26 s
+
+================================================================================
+--- PHP 8 (Standard) ---
+Arch: Bytecode (Stack-based) - Zend (OpCache Only)
+>>> PHP 8 Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     |   410,401,525 OPS/sec | 2.44s
+  Double Arith    |   205,418,462 OPS/sec | 0.49s
+  String Concat   |    70,921,609 OPS/sec | 0.0007s
+  Array Push      |    50,292,017 OPS/sec | 0.02s
+  Struct Access   |    89,260,831 OPS/sec | 0.56s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 46,120 KB
+  CPU Load : 99%
+  Total Time: 3.52 s
+
+================================================================================
+--- PHP 8 (JIT) ---
+Arch: Zend Engine + JIT Enabled (Max Power)
+>>> PHP 8 Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     | 2,829,038,372 OPS/sec | 0.35s
+  Double Arith    |   934,020,696 OPS/sec | 0.11s
+  String Concat   |    85,180,828 OPS/sec | 0.0006s
+  Array Push      |    58,472,682 OPS/sec | 0.02s
+  Struct Access   |   382,318,024 OPS/sec | 0.13s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 49,544 KB
+  CPU Load : 99%
+  Total Time: 0.63 s
+
+================================================================================
+--- Lua 5.4 ---
+Arch: Bytecode (Register-based) - Standard Interpreter
+>>> Lua 5.4 Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     |   183,332,239 OPS/sec | 5.45s
+  Double Arith    |   127,162,073 OPS/sec | 0.79s
+  String Concat   |       735,921 OPS/sec | 0.07s
+  Array Push      |    41,003,772 OPS/sec | 0.02s
+  Struct Access   |    74,083,951 OPS/sec | 0.67s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 19,692 KB
+  CPU Load : 99%
+  Total Time: 7.01 s
+
+================================================================================
+--- LuaJIT (2.1-dev) ---
+Arch: JIT Compiled - Trace-based Compiler
+>>> LuaJIT Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     |   767,903,477 OPS/sec | 1.30s
+  Double Arith    |   772,594,526 OPS/sec | 0.13s
+  String Concat   |       751,280 OPS/sec | 0.07s
+  Array Push      |   220,022,002 OPS/sec | 0.004s
+  Struct Access   |   820,559,950 OPS/sec | 0.06s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 11,956 KB
+  CPU Load : 99%
+  Total Time: 1.56 s
+
+================================================================================
+--- Python 3 ---
+Arch: Bytecode (Stack-based) - CPython Interpreter
+>>> Python 3 Benchmark Suite <<<
+  -------------------------------------------------------------
+  Benchmark       |     Performance     | Time
+  -------------------------------------------------------------
+  Integer Add     |    44,478,419 OPS/sec | 22.48s
+  Double Arith    |    31,073,528 OPS/sec | 3.22s
+  String Concat   |    21,275,763 OPS/sec | 0.002s
+  Array Push      |    23,740,761 OPS/sec | 0.04s
+  Struct Access   |    29,555,014 OPS/sec | 1.69s
+  -------------------------------------------------------------
+
+[System Resources]
+  Peak RAM : 49,056 KB
+  CPU Load : 99%
+  Total Time: 27.46 s (Slowest!)
+
+================================================================================
+                         PERFORMANCE SUMMARY
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        INTEGER ADD (1 Billion ops)                          │
+├───────────────┬───────────────────┬─────────────────────────────────────────┤
+│ Rank │ Language       │ Performance      │ Notes                           │
+├──────┼────────────────┼──────────────────┼─────────────────────────────────┤
+│  1   │ Go             │ 3,324M ops/sec   │ 🥇 Loop optimization            │
+│  2   │ Java           │ 3,296M ops/sec   │ HotSpot JIT optimization        │
+│  3   │ PHP JIT        │ 2,829M ops/sec   │ JIT tracing mode                │
+│  4   │ C              │ 2,404M ops/sec   │ Native -O3                      │
+│  5   │ C++            │ 2,202M ops/sec   │ Native -O3                      │
+│  6   │ Node.js        │ 1,117M ops/sec   │ V8 JIT                          │
+│  7   │ LuaJIT         │   767M ops/sec   │ Trace-based JIT                 │
+│  8   │ NEVAARIZE      │   698M ops/sec   │ 🔥 Custom x86-64 JIT            │
+│  9   │ PHP Standard   │   410M ops/sec   │ OpCache only                    │
+│ 10   │ Lua            │   183M ops/sec   │ Interpreter                     │
+│ 11   │ Python         │    44M ops/sec   │ CPython interpreter             │
+└──────┴────────────────┴──────────────────┴─────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        ARRAY PUSH (1 Million ops)                           │
+├───────────────┬───────────────────┬─────────────────────────────────────────┤
+│ Rank │ Language       │ Performance      │ Notes                           │
+├──────┼────────────────┼──────────────────┼─────────────────────────────────┤
+│  1   │ NEVAARIZE      │   775M ops/sec   │ 🥇🔥 Heap-allocated arrays      │
+│  2   │ C              │   410M ops/sec   │ Vector push                     │
+│  3   │ C++            │   383M ops/sec   │ std::vector                     │
+│  4   │ LuaJIT         │   220M ops/sec   │ Table insert                    │
+│  5   │ PHP JIT        │    58M ops/sec   │ Array push                      │
+│  6   │ Go             │    53M ops/sec   │ Slice append                    │
+│  7   │ PHP Standard   │    50M ops/sec   │ Array push                      │
+│  8   │ Lua            │    41M ops/sec   │ Table insert                    │
+│  9   │ Java           │    35M ops/sec   │ ArrayList                       │
+│ 10   │ Python         │    23M ops/sec   │ List append                     │
+│ 11   │ Node.js        │    20M ops/sec   │ Array push                      │
+└──────┴────────────────┴──────────────────┴─────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        MEMORY EFFICIENCY                                    │
+├───────────────┬───────────────────┬─────────────────────────────────────────┤
+│ Rank │ Language       │ Peak RAM         │ Notes                           │
+├──────┼────────────────┼──────────────────┼─────────────────────────────────┤
+│  1   │ NEVAARIZE      │     5.8 MB       │ 🥇🔥 Minimal footprint          │
+│  2   │ C              │     9.5 MB       │ Low-level efficiency            │
+│  3   │ C++            │    11.4 MB       │ STL overhead                    │
+│  4   │ LuaJIT         │    12.0 MB       │ Lightweight runtime             │
+│  5   │ Lua            │    19.7 MB       │ Interpreter footprint           │
+│  6   │ Go             │    44.4 MB       │ GC + runtime                    │
+│  7   │ PHP Standard   │    46.1 MB       │ Zend engine                     │
+│  8   │ Python         │    49.1 MB       │ CPython runtime                 │
+│  9   │ PHP JIT        │    49.5 MB       │ JIT buffers                     │
+│ 10   │ Node.js        │    81.9 MB       │ V8 engine                       │
+│ 11   │ Java           │   255.5 MB       │ JVM + GC heap                   │
+└──────┴────────────────┴──────────────────┴─────────────────────────────────┘
+
+================================================================================
+                           KEY INSIGHTS
+================================================================================
+
+🔥 NEVAARIZE ACHIEVEMENTS:
+   • #1 in Array Push Performance (775M ops/sec) - beats all languages!
+   • #1 in Memory Efficiency (5.8 MB) - smallest footprint!
+   • Competitive with Node.js/LuaJIT in most benchmarks
+   • Zero external dependencies, pure x86-64 JIT
+   
+📊 OVERALL RANKING (by total benchmark time):
+   1. Go         0.58s (fastest overall)
+   2. PHP JIT    0.63s 
+   3. C          0.67s
+   4. C++        0.72s
+   5. Java       0.95s
+   6. Node.js    1.26s
+   7. LuaJIT     1.56s
+   8. Nevaarize  1.78s ← Great for a new JIT language!
+   9. PHP Std    3.52s
+  10. Lua        7.01s
+  11. Python    27.46s (slowest)
+
+================================================================================
+Benchmark Complete.
+================================================================================
