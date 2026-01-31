@@ -54,6 +54,30 @@ gcc -O3 -o bench_c bench_c.c
 run_bench ./bench_c
 rm bench_c
 
+# Rust
+print_sep
+echo "--- Rust ---"
+echo "Arch: Native Machine Code (LLVM Optimized)"
+if command -v rustc &> /dev/null; then
+    rustc -O -o bench_rust bench_rust.rs
+    run_bench ./bench_rust
+    rm bench_rust
+else
+    echo "Rust not found."
+fi
+
+# Zig
+print_sep
+echo "--- Zig ---"
+echo "Arch: Native Machine Code (LLVM Optimized)"
+if command -v zig &> /dev/null; then
+    zig build-exe bench_zig.zig -O ReleaseFast -fno-lto
+    run_bench ./bench_zig
+    rm bench_zig bench_zig.o 2>/dev/null
+else
+    echo "Zig not found."
+fi
+
 # Go
 print_sep
 echo "--- Go 1.21 ---"

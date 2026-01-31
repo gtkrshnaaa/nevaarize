@@ -17,16 +17,15 @@
 
 ## ⚡ Performance Highlights
 
-Nevaarize delivers **exceptional performance** in key areas:
+Nevaarize delivers **exceptional performance**, outperforming even native languages in specific workloads:
 
-| Category | Performance | vs Python | vs Node.js |
-|----------|------------|-----------|------------|
-| **Array Push** | **750M ops/sec** | 🏆 **32x faster** | 🏆 **36x faster** |
-| **Integer Ops** | **752M ops/sec** | 17x faster | 0.64x |
-| **Struct Access** | **453M ops/sec** | 15x faster | 0.45x |
-| **Memory Usage** | **5.9 MB** | 🏆 **8x less** | 🏆 **14x less** |
+| Category | Performance | vs Rust | vs Zig | vs Node.js |
+|----------|------------|---------|--------|------------|
+| **Array Push** | **781M ops/sec** | 🏆 **2.2x faster** | 🏆 **1.8x faster** | 🏆 **22x faster** |
+| **Integer Ops** | **772M ops/sec** | 0.22x | 0.21x | 0.65x |
+| **Memory Usage** | **5.9 MB** | 🏆 **40% less** | 🏆 **25% less** | 🏆 **14x less** |
 
-> 💡 **Key Achievement**: Nevaarize beats C++ and Go in Array Push operations while using the least memory of all tested languages!
+> 💡 **Key Achievement**: Nevaarize's JIT implementation of dynamic arrays is **faster than Rust's `Vec` and Zig's `ArrayList`**, while using significantly less memory!
 
 ---
 
@@ -39,7 +38,7 @@ cd languagebench
 ./run_comparison.sh
 ```
 
-### Full Benchmark Results (11 Languages)
+### Full Benchmark Results (13 Languages)
 
 ```
 ================================================================================
@@ -50,13 +49,13 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  NEVAARIZE (JIT Compiled - x86-64 Native)                                   │
 ├─────────────────┬──────────────────┬─────────────────────────────────────────┤
-│  Integer Add    │ 752,020,502 ops/sec │ 1.33s                               │
-│  Double Arith   │ 445,531,330 ops/sec │ 0.22s                               │
-│  String Concat  │  34,572,671 ops/sec │ 0.001s                              │
-│  Array Push     │ 750,835,304 ops/sec │ 0.001s  ← #1 of ALL languages!      │
-│  Struct Access  │ 453,322,875 ops/sec │ 0.11s                               │
+│  Integer Add    │ 772,026,201 ops/sec │ 1.30s                               │
+│  Double Arith   │ 485,909,763 ops/sec │ 0.21s                               │
+│  String Concat  │  34,455,052 ops/sec │ 0.001s                              │
+│  Array Push     │ 781,154,796 ops/sec │ 0.001s  ← #1 of ALL languages!      │
+│  Struct Access  │ 454,984,406 ops/sec │ 0.11s                               │
 ├─────────────────┴──────────────────┴─────────────────────────────────────────┤
-│  Peak RAM: 5,920 KB (LOWEST) │ Total Time: 1.66s                            │
+│  Peak RAM: 5,920 KB (LOWEST) │ Total Time: 1.61s                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -64,17 +63,19 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 | Language | Integer Add | Array Push | Struct Access | Peak RAM |
 |----------|------------|------------|---------------|----------|
-| **Nevaarize** | 752M | **751M** 🥇 | 453M | **5.9MB** 🥇 |
-| Go | 3,516M | 69M | 3,627M | 46MB |
-| Java 21 | 3,342M | 40M | 901M | 356MB |
-| PHP 8 JIT | 2,961M | 71M | 384M | 50MB |
-| C++ (GCC -O3) | 2,315M | 328M | 2,360M | 11.5MB |
-| C (GCC -O3) | 2,440M | 411M | 2,327M | 9.4MB |
-| Node.js (V8) | 1,182M | 24M | 942M | 83MB |
-| LuaJIT | 940M | 207M | 962M | 12MB |
-| Lua 5.4 | 195M | 60M | 88M | 20MB |
-| PHP 8 Std | 419M | 54M | 77M | 46MB |
-| Python 3 | 45M | 26M | 32M | 49MB |
+| **Nevaarize** | 772M | **781M** 🥇 | 455M | **5.9MB** 🥇 |
+| Zig (ReleaseFast) | 3,696M 🥇 | 419M | **3,753M** 🥇 | 7.8MB |
+| Rust (LLVM -O) | 3,566M | 347M | 3,495M | 10.0MB |
+| Go 1.21 | 3,357M | 67M | 3,012M | 46MB |
+| Java 21 | 3,422M | 50M | 804M | 341MB |
+| PHP 8 JIT | 2,832M | 65M | 391M | 49MB |
+| C++ (GCC -O3) | 2,586M | 345M | 2,473M | 11.5MB |
+| C (GCC -O3) | 2,621M | 342M | 2,139M | 9.5MB |
+| Node.js (V8) | 1,195M | 35M | 964M | 82MB |
+| LuaJIT | 851M | 205M | 969M | 12MB |
+| Lua 5.4 | 186M | 58M | 85M | 19.5MB |
+| PHP 8 Std | 410M | 52M | 89M | 46MB |
+| Python 3 | 46M | 25M | 30M | 49MB |
 
 > See full results in [`languagebench/battle_report.txt`](languagebench/battle_report.txt)
 
