@@ -148,7 +148,7 @@ list:
 	@echo "================================================================================" >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "This document contains a comprehensive listing of all source code files within" >> z_listing/listing.txt
-	@echo "the Nevaarize project, including core, stdlib, examples, and LanguageBench." >> z_listing/listing.txt
+	@echo "the Nevaarize project, including core, stdlib, examples, and languagebench." >> z_listing/listing.txt
 	@echo "Nevaarize is a high-performance, native JIT compiler language built with C++23." >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "Directory Structure Overview:" >> z_listing/listing.txt
@@ -156,11 +156,11 @@ list:
 	@echo "2. core/src: Implementation of the native JIT engine and x86-64 code generator." >> z_listing/listing.txt
 	@echo "3. stdlib: Standard library implementations (Math, IO, Time)." >> z_listing/listing.txt
 	@echo "4. examples: Collection of example scripts demonstrating language features." >> z_listing/listing.txt
-	@echo "5. LanguageBench: Performance benchmarks across various languages." >> z_listing/listing.txt
+	@echo "5. languagebench: Performance benchmarks across various languages." >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "================================================================================" >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
-	@for f in $$(find core stdlib examples LanguageBench -type f | sort) Makefile; do \
+	@for f in $$(find core stdlib examples languagebench -type f | sort) Makefile; do \
 		echo "FILE: $$f" >> z_listing/listing.txt; \
 		echo "--------------------------------------------------------------------------------" >> z_listing/listing.txt; \
 		cat "$$f" >> z_listing/listing.txt; \

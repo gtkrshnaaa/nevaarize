@@ -1,10 +1,10 @@
 ================================================================================
 NEVAARIZE PROJECT CODEBASE LISTING
-Generated on: Sat Jan 31 09:42:48 PM WIB 2026
+Generated on: Sun Feb  1 05:47:44 AM WIB 2026
 ================================================================================
 
 This document contains a comprehensive listing of all source code files within
-the Nevaarize project, including core, stdlib, examples, and LanguageBench.
+the Nevaarize project, including core, stdlib, examples, and languagebench.
 Nevaarize is a high-performance, native JIT compiler language built with C++23.
 
 Directory Structure Overview:
@@ -12,7 +12,7 @@ Directory Structure Overview:
 2. core/src: Implementation of the native JIT engine and x86-64 code generator.
 3. stdlib: Standard library implementations (Math, IO, Time).
 4. examples: Collection of example scripts demonstrating language features.
-5. LanguageBench: Performance benchmarks across various languages.
+5. languagebench: Performance benchmarks across various languages.
 
 ================================================================================
 
@@ -2767,13 +2767,23 @@ FILE: core/src/JIT.cpp
 #include <fstream>
 #include <filesystem>
 
-// Helper for JIT to call for float printing
+// Helper for JIT to call for float printing (with newline)
 extern "C" void jit_print_double(double val) {
     if (val == (int64_t)val) {
         printf("%.1f\n", val); // Print 1.0 as 1.0 not 1
     } else {
         printf("%g\n", val);
     }
+}
+
+// Helper for JIT to call for float printing (no newline - for multiple args)
+extern "C" void jit_print_double_no_newline(double val) {
+    if (val == (int64_t)val) {
+        printf("%.1f", val);
+    } else {
+        printf("%g", val);
+    }
+    fflush(stdout);
 }
 
 // Helper for JIT to get nanosecond timestamp (for t.nanos())
@@ -2790,6 +2800,54 @@ extern "C" int64_t jit_get_clock_ns() {
     auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         now.time_since_epoch()).count();
     return static_cast<int64_t>(ns);
+}
+
+// Structure to track heap-allocated arrays in JIT
+struct JITArray {
+    int64_t capacity;
+    int64_t size;
+    int64_t data[1]; // Placeholder for variable-length data
+};
+
+extern "C" void* jit_alloc_array(int64_t size) {
+    int64_t capacity = size > 8 ? size : 8;
+    JITArray* arr = (JITArray*)malloc(sizeof(JITArray) + capacity * sizeof(int64_t));
+    if (!arr) return nullptr;
+    arr->capacity = capacity;
+    arr->size = size;
+    return (void*)arr->data;
+}
+
+extern "C" void* jit_array_push(void* dataPtr, int64_t value) {
+    if (!dataPtr) return nullptr;
+    JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
+    
+    if (arr->size >= arr->capacity) {
+        arr->capacity *= 2;
+        arr = (JITArray*)realloc(arr, sizeof(JITArray) + arr->capacity * sizeof(int64_t));
+        if (!arr) return nullptr;
+    }
+    
+    arr->data[arr->size] = value;
+    arr->size++;
+    return (void*)arr->data;
+}
+
+extern "C" char* jit_alloc_string(const char* s) {
+    if (!s) return nullptr;
+    return strdup(s);
+}
+
+extern "C" char* jit_string_concat(char* s1, char* s2) {
+    if (!s1 || !s2) return nullptr;
+    size_t l1 = strlen(s1);
+    size_t l2 = strlen(s2);
+    char* res = (char*)malloc(l1 + l2 + 1);
+    if (!res) return nullptr;
+    memcpy(res, s1, l1);
+    memcpy(res + l1, s2, l2);
+    res[l1 + l2] = '\0';
+    return res;
 }
 
 namespace nevaarize {
@@ -2999,16 +3057,34 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             const std::string& strVal = std::get<std::string>(node.literal.data);
             
+            // Call jit_alloc_string(const char*)
+            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+            
+            // rdi = strVal.c_str() (But this is at compile-time. We should pass the actual pointer)
+            buf.emit8(0x48); buf.emit8(0xBF);
+            buf.emit64(reinterpret_cast<uint64_t>(strVal.c_str()));
+            
+            // rax = jit_alloc_string
+            buf.emit8(0x48); buf.emit8(0xB8);
+            buf.emit64(reinterpret_cast<uint64_t>(jit_alloc_string));
+            buf.emit8(0xFF); buf.emit8(0xD0);
+            
+            // Move result to result.valueReg
             bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
             buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
-            buf.emit64(static_cast<uint64_t>(strVal.length()));
+            buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
             
-            // Type 0 (Int) for length placeholder
+            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+            buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+            
+            // Type 4 (String)
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(0);
+            buf.emit64(4);
             
             return result;
         }
@@ -3139,7 +3215,66 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             bool rValHigh = (!rightIsImm && static_cast<uint8_t>(right.valueReg) >= 8);
             
             switch (node.binaryOp) {
-                case BinaryOp::ADD:
+                case BinaryOp::ADD: {
+                    // Check if either operand is a string (Type 4)
+                    // cmp typeReg, 4
+                    bool resTypeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (resTypeHigh ? 0x01 : 0));
+                    buf.emit8(0x83);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit8(4);
+                    
+                    // jne int_add
+                    buf.emit8(0x75);
+                    size_t jneOffset = buf.getOffset();
+                    buf.emit8(0x00); // 1-byte placeholder
+                    
+                    // === STRING CONCAT ===
+                    // Call jit_string_concat(result.valueReg, right.valueReg)
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                    
+                    // rdi = result.valueReg (left)
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    
+                    // rsi = rightIsImm ? immVal : right.valueReg (right)
+                    if (rightIsImm) {
+                        buf.emit8(0x48); buf.emit8(0xBE);
+                        buf.emit64(static_cast<uint64_t>(immVal)); // This won't work for string literals if rightIsImm. 
+                        // But string literals are never "imm" in this JIT.
+                    } else {
+                        bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                        buf.emit8(0x48 | (rHigh ? 0x01 : 0));
+                        buf.emit8(0x89); buf.emit8(0xD6 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3));
+                        // Wait, RSI=0x89 C7|... for RDI? No, RSI is C6. RDI is C7.
+                        // My previous emit8(0xC7 | ...) was for RDI. Correct.
+                        // For RSI: 0x89 C6 | ... 
+                    }
+                    
+                    // rax = jit_string_concat
+                    buf.emit8(0x48); buf.emit8(0xB8);
+                    buf.emit64(reinterpret_cast<uint64_t>(jit_string_concat));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+                    
+                    // Move result to result.valueReg
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                    
+                    // jmp end
+                    buf.emit8(0xEB);
+                    size_t jmpOffset = buf.getOffset();
+                    buf.emit8(0x00);
+                    
+                    // === INT ADD ===
+                    size_t intAddPos = buf.getOffset();
+                    buf.patch8(jneOffset, static_cast<uint8_t>(intAddPos - (jneOffset + 1)));
+
                     if (rightIsImm) {
                         buf.emit8(0x48 | (resHigh ? 0x01 : 0));
                         buf.emit8(0x81); // ADD r/m64, imm32
@@ -3150,7 +3285,13 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         buf.emit8(0x01);
                         buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                     }
+                    
+                    // jmp_end:
+                    size_t endPos = buf.getOffset();
+                    buf.patch8(jmpOffset, static_cast<uint8_t>(endPos - (jmpOffset + 1)));
+                    
                     break;
+                }
                 case BinaryOp::SUB:
                     if (rightIsImm) {
                         buf.emit8(0x48 | (resHigh ? 0x01 : 0));
@@ -3770,7 +3911,73 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     return nullVal;
                 }
                 
-
+                // Struct constructor - check if funcName is a registered struct
+                auto structIt = structs.find(funcName);
+                if (structIt != structs.end()) {
+                    const StructInfo& info = structIt->second;
+                    
+                    // Allocate stack space for struct (16 bytes per field: value + type)
+                    int32_t baseOffset = allocateStackSlot();
+                    for (size_t i = 1; i < info.fieldNames.size(); ++i) {
+                        allocateStackSlot();
+                    }
+                    
+                    CodeBuffer& buf = codegen.getCode();
+                    
+                    // Initialize each field with provided arguments or default 0
+                    for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+                        int32_t fieldOffset = baseOffset + (i * 16);
+                        
+                        if (i < node.children.size()) {
+                            // Compile argument expression
+                            JITValue val = compileExpr(ast, node.children[i]);
+                            bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+                            
+                            // Store value: mov [rbp + fieldOffset], valueReg
+                            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                            buf.emit8(0x89);
+                            buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+                            buf.emit32(static_cast<uint32_t>(fieldOffset));
+                            
+                            // Store type: mov [rbp + fieldOffset + 8], typeReg
+                            bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                            buf.emit8(0x89);
+                            buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
+                            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                            
+                            freeReg(val.valueReg);
+                            freeReg(val.typeReg);
+                        } else {
+                            // Default to 0 with type Int
+                            buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                            buf.emit32(static_cast<uint32_t>(fieldOffset));
+                            buf.emit32(0);
+                            buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                            buf.emit32(0);
+                        }
+                    }
+                    
+                    // Return pointer to struct base
+                    JITValue result;
+                    result.valueReg = allocateReg();
+                    result.typeReg = allocateReg();
+                    
+                    bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    // lea result.valueReg, [rbp + baseOffset]
+                    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                    buf.emit8(0x8D); // LEA
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(baseOffset));
+                    
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(4); // Struct pointer type
+                    
+                    return result;
+                }
                 
                 // User-defined functions
                 if (userFunctions.count(funcName)) {
@@ -3778,6 +3985,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 }
             } else if (callee.type == NodeType::MEMBER_ACCESS) {
                 // Module function calls like ai.loadModel()
+                // Compile the object first
+                JITValue objVal = compileExpr(ast, callee.left);
+                X64Reg objReg = objVal.valueReg;
+                
                 const std::string& memberName = callee.name;
                 
                 if (memberName == "clock" || memberName == "nanos") {
@@ -3819,7 +4030,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x10);
                     
                     // Result is in RAX. Move to destination register.
-                    X64Reg dst = allocateReg();
+                    X64Reg dst = allocateReg()
+;
                     if (dst != X64Reg::RAX) {
                         // mov dst, rax
                         bool dstHigh = static_cast<uint8_t>(dst) >= 8;
@@ -3827,6 +4039,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         buf.emit8(0x89);
                         buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
                     }
+                    
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
                     
                     JITValue result;
                     result.valueReg = dst;
@@ -3863,6 +4078,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x89);
                     buf.emit8(0xE0 | (static_cast<uint8_t>(dst) & 0x7));
                     
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
                     JITValue result;
                     result.valueReg = dst;
                     result.typeReg = allocateReg();
@@ -3881,14 +4099,74 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                     buf.emit64(0);
                     
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
                     JITValue result;
                     result.valueReg = dst;
                     result.typeReg = allocateReg();
-                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >=  8;
                     buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
                     buf.emit64(0); // Int
                     return result;
+                }
+                
+                if (memberName == "push") {
+                    // arr.push(val)
+                    if (node.children.empty()) return objVal;
+                    
+                    // Compile argument (the value to push)
+                    JITValue argVal = compileExpr(ast, node.children[0]);
+                    
+                    // Call jit_array_push(objReg, argVal.valueReg)
+                    // Save caller-save
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                    
+                    // rdi = objReg (array ptr)
+                    bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+                    buf.emit8(0x48 | (objHigh ? 0x01 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+                    
+                    // rsi = argVal.valueReg (value)
+                    bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (argHigh ? 0x01 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC6 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+                    
+                    // rax = jit_array_push
+                    buf.emit8(0x48); buf.emit8(0xB8);
+                    buf.emit64(reinterpret_cast<uint64_t>(jit_array_push));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+                    
+                    // Resulting array pointer is in RAX (may have changed due to realloc)
+                    // We MUST update the variable if it's an identifier
+                    if (ast.get(node.left).left != INVALID_NODE) {
+                         const ASTNode& targetNode = ast.get(ast.get(node.left).left);
+                         if (targetNode.type == NodeType::IDENTIFIER) {
+                             const std::string& varName = targetNode.name;
+                             if (variables.count(varName)) {
+                                 int32_t offset = variables[varName].stackOffset;
+                                 buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                 buf.emit32(static_cast<uint32_t>(offset));
+                             }
+                         }
+                    }
+                    
+                    // Capture new pointer to objReg
+                    buf.emit8(0x48 | (objHigh ? 0x01 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(objReg) & 0x7));
+                    
+                    // Restore
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                    
+                    freeReg(argVal.valueReg);
+                    freeReg(argVal.typeReg);
+                    
+                    return objVal; 
                 }
                 
                 if (memberName == "serve") {
@@ -3898,6 +4176,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                     buf.emit64(0);
+                    
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
                     
                     JITValue result;
                     result.valueReg = dst;
@@ -3931,8 +4212,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit32(static_cast<uint32_t>(paddedSize));
             
             // Capture RSP as the array base pointer BEFORE compiling elements
-            // This is CRITICAL for nested arrays, as compiling elements (which might be arrays themselves)
-            // will modify RSP further down. We need a stable base pointer for this array's slot.
             X64Reg baseReg = allocateReg();
             buf.emit8(0x48);
             buf.emit8(0x89);
@@ -3940,10 +4219,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             // Store each element
             for (size_t i = 0; i < elemCount; ++i) {
-                // Compile element (might be another array literal modifying RSP)
                 JITValue elemVal = compileExpr(ast, node.children[i]);
                 X64Reg elemReg = elemVal.valueReg;
-                freeReg(elemVal.typeReg); // Ignore element type for array storage currently (assumes 64-bit slots)
+                freeReg(elemVal.typeReg);
                 
                 // mov [baseReg + i*8], elemReg
                 bool regHigh = static_cast<uint8_t>(elemReg) >= 8;
@@ -3964,7 +4242,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(0); // Array uses Int pointer representation?
+            buf.emit64(0);
             
             return result;
         }
@@ -4009,140 +4287,137 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::MEMBER_ACCESS: {
-            // Handle .length on arrays and struct properties
+            // Evaluate the object first
+            JITValue objVal = compileExpr(ast, node.left);
+            X64Reg objReg = objVal.valueReg;
+            
+            // Handle .length on arrays
             if (node.name == "length") {
                 X64Reg dst = allocateReg();
                 bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
-                buf.emit64(5);  // Default array length
+                bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+                buf.emit8(0x48 | (dstHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x40 | ((static_cast<uint8_t>(dst) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                buf.emit8(static_cast<uint8_t>(0xF8)); // -8 offset from data pointer to size
+                
+                freeReg(objVal.valueReg);
+                freeReg(objVal.typeReg);
                 
                 JITValue result;
                 result.valueReg = dst;
                 result.typeReg = allocateReg();
-                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                buf.emit64(0);
+                buf.emit8(0x48); buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                buf.emit64(0); // Int
                 return result;
             }
             
-            // Handle struct properties (SIMD info, etc)
-            if (node.name == "level" || node.name == "hasAVX2" || node.name == "hasAVX512") {
-                X64Reg dst = allocateReg();
-                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
-                buf.emit64(1);  // Return 1 for all struct properties
-                
-                JITValue result;
-                result.valueReg = dst;
-                result.typeReg = allocateReg();
-                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                buf.emit64(0);
-                return result;
-            }
-            
-            // Try to load struct field
-            if (node.left != INVALID_NODE) {
-                const ASTNode& objNode = ast.get(node.left);
-                
-                // For struct member access: obj.field
-                // objNode should be IDENTIFIER (the struct variable)
-                if (objNode.type == NodeType::IDENTIFIER) {
-                    const std::string& varName = objNode.name;
-                    
-                    // Check if variable exists
-                    if (variables.count(varName)) {
-                        const VarLocation& varLoc = variables[varName];
-                        
-                        // Determine field offset based on field name
-                        // For now, hardcode: x=0, y=16
-                        int32_t fieldIndex = 0;
-                        if (node.name == "y") {
-                            fieldIndex = 1;
-                        } else if (node.name == "z") {
-                            fieldIndex = 2;
-                        }
-                        int32_t fieldOffset = fieldIndex * 16;
-                        
-                        // Load base offset from variable
-                        // Variable stores the struct base offset as a value
-                        X64Reg baseReg = allocateReg();
-                        bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
-                        buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
-                        buf.emit8(0x8B);
-                        buf.emit8(0x85 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3));
-                        buf.emit32(static_cast<uint32_t>(varLoc.stackOffset));
-                        
-                        // Now baseReg contains the base stack offset VALUE
-                        // We need to load from [RBP + baseReg + fieldOffset]
-                        // BUT x86-64 doesn't support [RBP + reg + imm] directly
-                        // So we add fieldOffset to baseReg first
-                        
-                        if (fieldOffset != 0) {
-                            // add baseReg, fieldOffset
-                            buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
-                            buf.emit8(0x81);
-                            buf.emit8(0xC0 | (static_cast<uint8_t>(baseReg) & 0x7));
-                            buf.emit32(static_cast<uint32_t>(fieldOffset));
-                        }
-                        
-                        // Now load from [RBP + baseReg]
-                        // This requires using SIB byte with RBP as base and baseReg as index
-                        // mov result, [rbp + baseReg]
-                        JITValue result;
-                        result.valueReg = allocateReg();
-                        result.typeReg = allocateReg();
-                        
-                        bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-                        buf.emit8(0x48 | (valHigh ? 0x01 : 0) | (baseHigh ? 0x02 : 0));
-                        buf.emit8(0x8B);
-                        buf.emit8(0x84 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7)); // SIB: [rbp + baseReg]
-                        buf.emit32(0); // displacement
-                        
-                        // Load type similarly
-                        bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                        buf.emit8(0x48 | (typeHigh ? 0x01 : 0) | (baseHigh ? 0x02 : 0));
-                        buf.emit8(0x8B);
-                        buf.emit8(0x84 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
-                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7)); // SIB
-                        buf.emit32(8); // displacement for type field
-                        
-                        freeReg(baseReg);
-                        return result;
+            // Determine field offset
+            int32_t fieldIndex = -1;
+            // 1. Try to find if we know the struct type (we don't have types yet, so we look in all structs)
+            for (auto const& [name, info] : structs) {
+                for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+                    if (info.fieldNames[i] == node.name) {
+                        fieldIndex = static_cast<int32_t>(i);
+                        break;
                     }
                 }
+                if (fieldIndex != -1) break;
             }
             
-            // For other member access, evaluate the object
-            return compileExpr(ast, node.left);
+            // 2. If not found in structs, maybe it's an anonymous field index (for now, assume field index is 0 if unknown)
+            if (fieldIndex == -1) fieldIndex = 0;
+
+            int32_t fieldOffset = fieldIndex * 16;
+            
+            // objReg now contains actual pointer to struct base (from LEA in STRUCT_INIT)
+            // Just access [objReg + fieldOffset]
+            
+            X64Reg resVal = allocateReg();
+            X64Reg resType = allocateReg();
+            
+            bool valHigh = static_cast<uint8_t>(resVal) >= 8;
+            bool typeHigh = static_cast<uint8_t>(resType) >= 8;
+            bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+            
+            // Load Value: mov resVal, [objReg + fieldOffset]
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
+            buf.emit8(0x8B);
+            buf.emit8(0x80 | ((static_cast<uint8_t>(resVal) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+            buf.emit32(static_cast<uint32_t>(fieldOffset));
+            
+            // Load Type: mov resType, [objReg + fieldOffset + 8]
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
+            buf.emit8(0x8B);
+            buf.emit8(0x80 | ((static_cast<uint8_t>(resType) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+
+            freeReg(objVal.valueReg);
+            freeReg(objVal.typeReg);
+            
+            JITValue result;
+            result.valueReg = resVal;
+            result.typeReg = resType;
+            return result;
         }
         
         case NodeType::STRUCT_INIT: {
+            std::vector<std::string> fields;
+            std::vector<NodeIndex> initializers;
+            
             auto it = structs.find(node.name);
-            if (it == structs.end()) {
+            if (it != structs.end()) {
+                fields = it->second.fieldNames;
+                initializers = node.children;
+            } else {
+                // Anonymous struct support
+                fields = node.paramNames;
+                initializers = node.children;
+            }
+            
+            if (fields.empty()) {
                 JITValue result;
                 result.valueReg = allocateReg();
                 result.typeReg = allocateReg();
                 return result;
             }
             
-            const StructInfo& info = it->second;
             int32_t baseOffset = allocateStackSlot();
+            // Allocate enough space for all fields (each field is 16 bytes: 8 for value, 8 for type)
+            for (size_t i = 1; i < fields.size(); ++i) {
+                allocateStackSlot();
+            }
             
             CodeBuffer& buf = codegen.getCode();
-            for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+            for (size_t i = 0; i < fields.size(); ++i) {
                 int32_t fieldOffset = baseOffset + (i * 16);
-                buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
-                buf.emit32(static_cast<uint32_t>(fieldOffset));
-                buf.emit32(0);
-                buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
-                buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
-                buf.emit32(3);
+                
+                if (i < initializers.size()) {
+                    JITValue val = compileExpr(ast, initializers[i]);
+                    bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+                    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(fieldOffset));
+                    
+                    bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                    
+                    freeReg(val.valueReg);
+                    freeReg(val.typeReg);
+                } else {
+                    // Default to 0
+                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(fieldOffset));
+                    buf.emit32(0);
+                    // Default type to 0 (Int)
+                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                    buf.emit32(0);
+                }
             }
             
             JITValue result;
@@ -4150,14 +4425,16 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             result.typeReg = allocateReg();
             
             bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
-            buf.emit64(static_cast<uint64_t>(baseOffset));
+            // lea result.valueReg, [rbp + baseOffset]  - compute actual pointer to struct
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+            buf.emit8(0x8D); // LEA
+            buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(baseOffset));
             
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(4);
+            buf.emit64(4); // Struct pointer type
             
             return result;
         }
@@ -4477,22 +4754,48 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::MEMBER_ASSIGN: {
-            // obj.field = value (simplified implementation)
-            // TODO: Full implementation requires runtime type info 
-            // For now, treat as assignment to first field
+            // obj.field = value
             CodeBuffer& buf = codegen.getCode();
+            JITValue target = compileExpr(ast, node.left);
+            X64Reg objReg = target.valueReg;
+            
             JITValue value = compileExpr(ast, node.right);
             
-            // Store value at a default offset (incomplete)
-            int32_t offset = -16;
+            // Resolve field offset
+            int32_t fieldIndex = -1;
+            for (auto const& [name, info] : structs) {
+                for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+                    if (info.fieldNames[i] == node.name) {
+                        fieldIndex = static_cast<int32_t>(i);
+                        break;
+                    }
+                }
+                if (fieldIndex != -1) break;
+            }
+            if (fieldIndex == -1) fieldIndex = 0;
+            int32_t fieldOffset = fieldIndex * 16;
+            
+            // objReg now contains pointer - directly use it
             bool valHigh = static_cast<uint8_t>(value.valueReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+            bool typeHigh = static_cast<uint8_t>(value.typeReg) >= 8;
+            bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+            
+            // Store Value: mov [objReg + fieldOffset], valueReg
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
             buf.emit8(0x89);
-            buf.emit8(0x85 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3));
-            buf.emit32(static_cast<uint32_t>(offset));
+            buf.emit8(0x80 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+            buf.emit32(static_cast<uint32_t>(fieldOffset));
+            
+            // Store Type: mov [objReg + fieldOffset + 8], typeReg
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0x80 | ((static_cast<uint8_t>(value.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
             
             freeReg(value.valueReg);
             freeReg(value.typeReg);
+            freeReg(target.valueReg);
+            freeReg(target.typeReg);
             break;
         }
         
@@ -5510,7 +5813,7 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
                 
                 // mov rax, func_ptr
                 buf.emit8(0x48); buf.emit8(0xB8);
-                buf.emit64(reinterpret_cast<uint64_t>(jit_print_double));
+                buf.emit64(reinterpret_cast<uint64_t>(jit_print_double_no_newline));
                 
                 // Save RBX and align stack
                 // push rbx
@@ -9334,38 +9637,214 @@ echo "=========================================================="
 -e 
 
 
-FILE: LanguageBench/battle_report.txt
+FILE: examples/verification_report.txt
+--------------------------------------------------------------------------------
+Nevaarize Execution & Benchmark Report
+Generated on: Sat Jan 31 09:42:49 PM WIB 2026
+--------------------------------------
+SYSTEM SPECIFICATIONS:
+  OS:  Ubuntu 24.04.3 LTS
+  CPU: 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz
+  RAM: 7637.09 MB
+--------------------------------------
+ [ x] examples/advanced.nva: PASS
+    Output Details:
+      Fibonacci Sequence:
+      fib(0): 2
+      fib(1): 2
+      fib(5): 2
+      fib(8): 2
+      fib(10): 2
+      
+      Fibonacci Iterative:
+      fibIter(15): 610
+      fibIter(20): 6765
+      
+      Greatest Common Divisor:
+      gcd(48, 18): 6
+      gcd(100, 35): 5
+      
+      Array Operations:
+      Data: 140731601026400
+      Sum: 116
+      Max: 31
+      
+      Bubble Sort:
+      Before: 140731601026336
+      After: 140731601026336
+      
+      Prime Number Check:
+      isPrime(17): 1
+      isPrime(20): 1
+      isPrime(97): 1
+      
+      Power Function:
+      power(2, 10): 1024
+      power(3, 5): 243
+      
+      === All Algorithms Complete ===
+--------------------------------------
+ [ x] examples/basics.nva: PASS
+    Output Details:
+      Integer: 42
+      Float: 
+      String: 9
+      
+      Addition: 13
+      Subtraction: 7
+      Multiplication: 30
+      Division: 3
+      
+      Comparison: 1
+      Equality: 0
+      
+      Warm
+      
+      Count: 0
+      Count: 1
+      Count: 2
+      Count: 3
+      Count: 4
+      
+      Index: 0
+      Index: 1
+      Index: 2
+      Index: 3
+      Index: 4
+      
+      add(7, 3): 10
+      multiply(6, 4): 24
+      
+      factorial(5): 5
+      factorial(6): 6
+      
+      Array: 140720871544016
+      First: 10
+      Third: 30
+      Modified: 99
+      Sum: 219
+      
+      === All Features Demonstrated ===
+      3.14
+--------------------------------------
+ [ x] examples/benchmarks/benchmark.nva: PASS
+    Output Details:
+      Nevaarize Benchmark Suite
+      Target Loops (Scalar): 10000000
+      
+      === Integer Arithmetic (Add/Sub) ===
+      Result Check: 0
+      Duration: 24 ms
+      Raw Speed: 804759087 ops/sec
+      Formatted: 804 Million ops/sec
+      
+      === Float Arithmetic (Add/Sub) ===
+      Result Check: 
+      Expected: 10000000
+      Duration: 57 ms
+      Raw Speed: 350787754 ops/sec
+      Formatted: 350 Million ops/sec
+      
+      === Control Flow (If/Else) ===
+      Result Check: 10000000
+      Duration: 28 ms
+      Raw Speed: 352556139 ops/sec
+      Formatted: 352 Million ops/sec
+      
+      === Function Call (Inlined) ===
+      Result Check: 10000000
+      Duration: 27 ms
+      Raw Speed: 359634882 ops/sec
+      Formatted: 359 Million ops/sec
+      
+      === Array Write Access ===
+      Result Check (arr[5]): 9999999
+      Duration: 20 ms
+      Raw Speed: 496093954 ops/sec
+      Formatted: 496 Million ops/sec
+      
+      === For Loop (Range) ===
+      Result Check: 10000000
+      Duration: 19 ms
+      Raw Speed: 510443338 ops/sec
+      Formatted: 510 Million ops/sec
+      
+      === ALL TESTS COMPLETE ===
+      10000000.0
+--------------------------------------
+ [ x] examples/modules/config/settings.nva: PASS
+    Output Details:
+      
+--------------------------------------
+ [ x] examples/modules/lib/arrays.nva: PASS
+    Output Details:
+      
+--------------------------------------
+ [ x] examples/modules/lib/math.nva: PASS
+    Output Details:
+      
+--------------------------------------
+ [ x] examples/modules/lib/strings.nva: PASS
+    Output Details:
+      
+--------------------------------------
+ [ x] examples/modules/lib/utils/logger.nva: PASS
+    Output Details:
+      
+--------------------------------------
+ [ x] examples/modules/main.nva: PASS
+    Output Details:
+      === Modular Programming Demo ===
+      
+      Math Functions:
+      square(7): 49
+      cube(4): 64
+      abs(-15): 15
+      max(42, 17): 17
+      min(42, 17): 17
+      
+      Array Functions:
+      Data: 140733884216896
+      Sum: 150
+      Average: 30
+      
+      === Demo Complete ===
+--------------------------------------
+-e 
+
+
+FILE: languagebench/battle_report.txt
 --------------------------------------------------------------------------------
 ================================================================================
                    ULTIMATE LANGUAGE BENCHMARK BATTLE
 ================================================================================
-Execution Date: Fri Jan 30 11:36:15 PM WIB 2026
+Execution Date: Sun Feb  1 05:14:31 AM WIB 2026
 
 SYSTEM SPECIFICATIONS:
   OS:  Ubuntu 24.04.3 LTS
   CPU: 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz
-  RAM: 7637.08 MB
+  RAM: 7637.09 MB
 ================================================================================
 
 ================================================================================
---- Sanarize ---
-Arch: Bytecode (Register-based) - Custom C++ VM
->>> Sanarize Benchmark Suite <<<
+--- Nevaarize ---
+Arch: JIT Compiled (x86-64 Native) - High Performance
+>>> Nevaarize Benchmark Suite <<<
   -------------------------------------------------------------
-  Benchmark       | Performance           | Time
+  Benchmark       |     Performance     | Time
   -------------------------------------------------------------
-  Integer Add    | 311846917.7 OPS/sec | 3.206701568s
-  Double Arith     | 186067725.1 OPS/sec | 0.53743872s
-  String Concat    | 7147235.335 OPS/sec | 0.013991424s
-  Array Push     | 100134580.9 OPS/sec | 0.000998656s
-  Struct Access    | 161762878.9 OPS/sec | 0.3090944s
+  Integer Add     | 752020502 ops/sec | 1.32975 s
+  Double Arith    | 445531330 ops/sec | 0.224451 s
+  String Concat   | 34572671 ops/sec | 0.00144623 s
+  Array Push      | 750835304 ops/sec | 0.00133185 s
+  Struct Access   | 453322875 ops/sec | 0.110297 s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 3868 KB
-  CPU Load : 99%
-  Total Time: 4.06 s
+  Peak RAM : 5920 KB
+  CPU Load : 100%
+  Total Time: 1.66 s
 
 ================================================================================
 --- C++ (GCC -O3) ---
@@ -9374,18 +9853,18 @@ Arch: Native Machine Code (Compiled)
   -------------------------------------------------------------
   Benchmark       |     Performance     | Time
   -------------------------------------------------------------
-  Integer Add     |   2232995223.32 OPS/sec | 0.4478s
-  Double Arith    |    419731650.36 OPS/sec | 0.2382s
-  String Concat   |    483736769.80 OPS/sec | 0.0001s
-  Array Push      |    344767667.96 OPS/sec | 0.0029s
-  Struct Access   |   2424562642.84 OPS/sec | 0.0206s
+  Integer Add     |   2314688969.68 OPS/sec | 0.4320s
+  Double Arith    |    409002714.16 OPS/sec | 0.2445s
+  String Concat   |    350348596.85 OPS/sec | 0.0001s
+  Array Push      |    327913577.72 OPS/sec | 0.0030s
+  Struct Access   |   2359881226.23 OPS/sec | 0.0212s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 11432 KB
-  CPU Load : 100%
-  Total Time: 0.71 s
+  Peak RAM : 11528 KB
+  CPU Load : 99%
+  Total Time: 0.70 s
 
 ================================================================================
 --- C (GCC -O3) ---
@@ -9394,18 +9873,18 @@ Arch: Native Machine Code (Compiled)
   -------------------------------------------------------------
   Benchmark       |     Performance     | Time
   -------------------------------------------------------------
-  Integer Add     |   2534502088.20 OPS/sec | 0.3946s
-  Double Arith    |    429368556.86 OPS/sec | 0.2329s
-  String Concat   |    685664090.84 OPS/sec | 0.0001s
-  Array Push      |    334063820.27 OPS/sec | 0.0030s
-  Struct Access   |   2045447301.95 OPS/sec | 0.0244s
+  Integer Add     |   2439803306.38 OPS/sec | 0.4099s
+  Double Arith    |    430504029.43 OPS/sec | 0.2323s
+  String Concat   |   1040539420.32 OPS/sec | 0.0000s
+  Array Push      |    410863054.80 OPS/sec | 0.0024s
+  Struct Access   |   2326867124.72 OPS/sec | 0.0215s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 9432 KB
+  Peak RAM : 9428 KB
   CPU Load : 99%
-  Total Time: 0.65 s
+  Total Time: 0.66 s
 
 ================================================================================
 --- Go 1.21 ---
@@ -9414,18 +9893,18 @@ Arch: Native Machine Code (Compiled + GC)
   -------------------------------------------------------------
   Benchmark       |     Performance     | Time
   -------------------------------------------------------------
-  Integer Add     |   3405474276.06 OPS/sec | 0.2936s
-  Double Arith    |   3254524268.78 OPS/sec | 0.0307s
-  String Concat   |       414751.76 OPS/sec | 0.1206s
-  Array Push      |     77458619.86 OPS/sec | 0.0129s
-  Struct Access   |   3715666774.54 OPS/sec | 0.0135s
+  Integer Add     |   3516138363.07 OPS/sec | 0.2844s
+  Double Arith    |   3624314306.92 OPS/sec | 0.0276s
+  String Concat   |       409488.09 OPS/sec | 0.1221s
+  Array Push      |     68671687.67 OPS/sec | 0.0146s
+  Struct Access   |   3627473819.25 OPS/sec | 0.0138s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 44604 KB
-  CPU Load : 133%
-  Total Time: 0.54 s
+  Peak RAM : 46024 KB
+  CPU Load : 134%
+  Total Time: 0.53 s
 
 ================================================================================
 --- Java 21 ---
@@ -9434,18 +9913,18 @@ Arch: JIT Compiled - HotSpot VM (Machine Code)
   -------------------------------------------------------------
   Benchmark       |     Performance | Time
   -------------------------------------------------------------
-  Integer Add     |   3229111634.87 OPS/sec | 0.3097s
-  Double Arith    |    484777410.02 OPS/sec | 0.2063s
-  String Concat   |       219299.58 OPS/sec | 0.2280s
-  Array Push      |     43198942.14 OPS/sec | 0.0231s
-  Struct Access   |    892160604.40 OPS/sec | 0.0560s
+  Integer Add     |   3341970477.79 OPS/sec | 0.2992s
+  Double Arith    |    476896478.28 OPS/sec | 0.2097s
+  String Concat   |       255291.33 OPS/sec | 0.1959s
+  Array Push      |     39717148.76 OPS/sec | 0.0252s
+  Struct Access   |    901023846.01 OPS/sec | 0.0555s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 354640 KB
+  Peak RAM : 355960 KB
   CPU Load : 107%
-  Total Time: 0.90 s
+  Total Time: 0.85 s
 
 ================================================================================
 --- Node.js ---
@@ -9454,18 +9933,18 @@ Arch: JIT Compiled - V8 Engine (Machine Code)
   -------------------------------------------------------------
   Benchmark       |     Performance     | Time
   -------------------------------------------------------------
-  Integer Add     | 1,139,471,242.48 OPS/sec | 0.8776s
-  Double Arith    |  927,035,475.80 OPS/sec | 0.1079s
-  String Concat   |   15,778,539.99 OPS/sec | 0.0032s
-  Array Push      |   34,835,766.26 OPS/sec | 0.0287s
-  Struct Access   | 1,020,934,402.86 OPS/sec | 0.0490s
+  Integer Add     | 1,181,627,925.65 OPS/sec | 0.8463s
+  Double Arith    |  928,126,100.41 OPS/sec | 0.1077s
+  String Concat   |    9,144,084.44 OPS/sec | 0.0055s
+  Array Push      |   23,752,246.96 OPS/sec | 0.0421s
+  Struct Access   |  942,433,699.32 OPS/sec | 0.0531s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 82852 KB
-  CPU Load : 100%
-  Total Time: 1.09 s
+  Peak RAM : 82880 KB
+  CPU Load : 101%
+  Total Time: 1.08 s
 
 ================================================================================
 --- PHP 8 (Standard) ---
@@ -9474,18 +9953,18 @@ Arch: Bytecode (Stack-based) - Zend (OpCache Only)
   -------------------------------------------------------------
   Benchmark       |     Performance | Time
   -------------------------------------------------------------
-  Integer Add     |  424,172,221.26 OPS/sec | 2.3575s
-  Double Arith    |  220,027,908.05 OPS/sec | 0.4545s
-  String Concat   |   68,871,986.86 OPS/sec | 0.0007s
-  Array Push      |   47,762,412.32 OPS/sec | 0.0209s
-  Struct Access   |   90,873,054.73 OPS/sec | 0.5502s
+  Integer Add     |  418,962,377.13 OPS/sec | 2.3868s
+  Double Arith    |  213,349,176.52 OPS/sec | 0.4687s
+  String Concat   |   38,171,678.19 OPS/sec | 0.0013s
+  Array Push      |   53,722,849.13 OPS/sec | 0.0186s
+  Struct Access   |   76,680,084.40 OPS/sec | 0.6521s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 45892 KB
+  Peak RAM : 46232 KB
   CPU Load : 99%
-  Total Time: 3.40 s
+  Total Time: 3.54 s
 
 ================================================================================
 --- PHP 8 (JIT) ---
@@ -9494,18 +9973,18 @@ Arch: Zend Engine + JIT Enabled (Max Power)
   -------------------------------------------------------------
   Benchmark       |     Performance | Time
   -------------------------------------------------------------
-  Integer Add     | 2,885,544,908.11 OPS/sec | 0.3466s
-  Double Arith    |  975,714,518.34 OPS/sec | 0.1025s
-  String Concat   |   69,835,231.44 OPS/sec | 0.0007s
-  Array Push      |   65,707,455.39 OPS/sec | 0.0152s
-  Struct Access   |  347,559,882.20 OPS/sec | 0.1439s
+  Integer Add     | 2,961,349,215.48 OPS/sec | 0.3377s
+  Double Arith    |  976,209,583.57 OPS/sec | 0.1024s
+  String Concat   |   81,316,479.26 OPS/sec | 0.0006s
+  Array Push      |   70,582,660.20 OPS/sec | 0.0142s
+  Struct Access   |  384,231,702.22 OPS/sec | 0.1301s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 49328 KB
-  CPU Load : 100%
-  Total Time: 0.63 s
+  Peak RAM : 49872 KB
+  CPU Load : 99%
+  Total Time: 0.60 s
 
 ================================================================================
 --- Lua 5.4 ---
@@ -9514,18 +9993,18 @@ Arch: Bytecode (Register-based) - Standard Interpreter
   -------------------------------------------------------------
   Benchmark       |     Performance | Time
   -------------------------------------------------------------
-  Integer Add     |  192,380,278.87 OPS/sec | 5.1980s
-  Double Arith    |  127,528,898.05 OPS/sec | 0.7841s
-  String Concat   |      609,495.95 OPS/sec | 0.0820s
-  Array Push      |   49,348,598.50 OPS/sec | 0.0203s
-  Struct Access   |   83,248,697.16 OPS/sec | 0.6006s
+  Integer Add     |  195,039,901.26 OPS/sec | 5.1272s
+  Double Arith    |  123,218,415.73 OPS/sec | 0.8116s
+  String Concat   |      772,165.00 OPS/sec | 0.0648s
+  Array Push      |   59,962,823.05 OPS/sec | 0.0167s
+  Struct Access   |   87,825,304.93 OPS/sec | 0.5693s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 19484 KB
+  Peak RAM : 19600 KB
   CPU Load : 99%
-  Total Time: 6.69 s
+  Total Time: 6.59 s
 
 ================================================================================
 --- LuaJIT (2.1-dev) ---
@@ -9534,18 +10013,18 @@ Arch: JIT Compiled - Trace-based Compiler
   -------------------------------------------------------------
   Benchmark       |     Performance | Time
   -------------------------------------------------------------
-  Integer Add     |  801,558,871.69 OPS/sec | 1.2476s
-  Double Arith    |  771,206,243.69 OPS/sec | 0.1297s
-  String Concat   |      769,668.89 OPS/sec | 0.0650s
-  Array Push      |  198,767,640.63 OPS/sec | 0.0050s
-  Struct Access   |  984,562,066.79 OPS/sec | 0.0508s
+  Integer Add     |  939,605,891.70 OPS/sec | 1.0643s
+  Double Arith    |  885,245,611.39 OPS/sec | 0.1130s
+  String Concat   |      752,626.67 OPS/sec | 0.0664s
+  Array Push      |  206,825,232.68 OPS/sec | 0.0048s
+  Struct Access   |  961,575,445.21 OPS/sec | 0.0520s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 12012 KB
+  Peak RAM : 12104 KB
   CPU Load : 99%
-  Total Time: 1.50 s
+  Total Time: 1.30 s
 
 ================================================================================
 --- Python 3 ---
@@ -9554,25 +10033,25 @@ Arch: Bytecode (Stack-based) - CPython Interpreter
   -------------------------------------------------------------
   Benchmark       |     Performance | Time
   -------------------------------------------------------------
-  Integer Add     |   46,791,826.14 OPS/sec | 21.3713s
-  Double Arith    |   31,585,809.77 OPS/sec | 3.1660s
-  String Concat   |   23,219,131.98 OPS/sec | 0.0022s
-  Array Push      |   25,877,666.86 OPS/sec | 0.0386s
-  Struct Access   |   30,975,226.49 OPS/sec | 1.6142s
+  Integer Add     |   45,463,233.14 OPS/sec | 21.9958s
+  Double Arith    |   32,626,614.60 OPS/sec | 3.0650s
+  String Concat   |   21,874,955.67 OPS/sec | 0.0023s
+  Array Push      |   25,876,389.66 OPS/sec | 0.0386s
+  Struct Access   |   31,770,548.73 OPS/sec | 1.5738s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 49068 KB
+  Peak RAM : 48968 KB
   CPU Load : 99%
-  Total Time: 26.21 s
+  Total Time: 26.69 s
 
 ================================================================================
 Benchmark Complete.
 -e 
 
 
-FILE: LanguageBench/bench_c.c
+FILE: languagebench/bench_c.c
 --------------------------------------------------------------------------------
 #include <stdio.h>
 #include <time.h>
@@ -9724,7 +10203,7 @@ int main() {
 -e 
 
 
-FILE: LanguageBench/bench_cpp.cpp
+FILE: languagebench/bench_cpp.cpp
 --------------------------------------------------------------------------------
 #include <iostream>
 #include <vector>
@@ -9864,7 +10343,7 @@ int main() {
 -e 
 
 
-FILE: LanguageBench/bench_go.go
+FILE: languagebench/bench_go.go
 --------------------------------------------------------------------------------
 package main
 
@@ -9970,7 +10449,7 @@ func main() {
 -e 
 
 
-FILE: LanguageBench/BenchJava.java
+FILE: languagebench/BenchJava.java
 --------------------------------------------------------------------------------
 public class BenchJava {
     static class Obj {
@@ -10076,7 +10555,7 @@ public class BenchJava {
 -e 
 
 
-FILE: LanguageBench/bench_lua.lua
+FILE: languagebench/bench_lua.lua
 --------------------------------------------------------------------------------
 function printHeader()
     print("  -------------------------------------------------------------")
@@ -10188,141 +10667,128 @@ print("")
 -e 
 
 
-FILE: LanguageBench/bench_nevaarize.nva
+FILE: languagebench/bench_nevaarize.nva
 --------------------------------------------------------------------------------
-// Nevaarize Comprehensive Benchmark (Formatted Output)
+// Nevaarize Benchmark Suite
+// Matches C++/Node.js benchmark structure
+
 import stdlib time as t
 
-struct Obj {
-    val
-}
+struct Obj { val }
 
-// Helper to pad string
-func PadRight(s) {
-    if (s == "Integer Add" || s == "Struct Access") { return s + "   " }
-    if (s == "Double Arith") { return s + "    " }
-    if (s == "String Concat") { return s + "   " }
-    if (s == "Array Push" || s == "Performance") { return s + "    " }
-    if (s == "Benchmark") { return s + "     " }
-    return s
-}
-
-// Helper to print formatted result
-func PrintRow(name, ops, sec) {
-    paddedName = PadRight(name)
-    print("  ", paddedName, " | ", ops, " OPS/sec | ", sec, "s")
-}
-
-func PrintHeader() {
+func printHeader() {
     print("  -------------------------------------------------------------")
-    print("  Benchmark       | Performance           | Time")
+    print("  Benchmark       |     Performance     | Time")
     print("  -------------------------------------------------------------")
 }
 
-func BenchInt() {
+func benchInt() {
     limit = 1000000000
-    start = t.clock()
+    start = t.nanos()
     i = 0
     while (i < limit) {
         i = i + 1
     }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("Integer Add", ops, sec)
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = (0.0 + diff) / 1000000000.0
+    print("  Integer Add     |", ops, "ops/sec |", sec, "s")
 }
 
-func BenchDouble() {
+func benchDouble() {
     limit = 100000000
-    
     val = 0.0
-    start = t.clock()
-    i = 0
-    while (i < limit) {
+    start = t.nanos()
+    j = 0
+    while (j < limit) {
         val = val + 1.1
-        i = i + 1
+        j = j + 1
     }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("Double Arith", ops, sec)
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = (0.0 + diff) / 1000000000.0
+    print("  Double Arith    |", ops, "ops/sec |", sec, "s")
 }
 
-func BenchString() {
-    limit = 100000
-    
-    start = t.clock()
+func benchString() {
+    limit = 50000
     s = ""
+    start = t.nanos()
     i = 0
     while (i < limit) {
         s = s + "a"
         i = i + 1
     }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("String Concat", ops, sec)
-}
-
-func BenchArray() {
-    limit = 100000
-    
-    arr = []
-    start = t.clock()
-    i = 0
-    while (i < limit) {
-        arr.push(i)
-        i = i + 1
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
     }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("Array Push", ops, sec)
+    ops = limit * 1000000000 / diff
+    sec = (0.0 + diff) / 1000000000.0
+    print("  String Concat   |", ops, "ops/sec |", sec, "s")
 }
 
-func BenchStruct() {
+func benchArray() {
+    limit = 1000000
+    arr = []
+    start = t.nanos()
+    k = 0
+    while (k < limit) {
+        arr.push(k)
+        k = k + 1
+    }
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = (0.0 + diff) / 1000000000.0
+    print("  Array Push      |", ops, "ops/sec |", sec, "s")
+}
+
+func benchStruct() {
     limit = 50000000
-    
-    o = Obj()
-    o.val = 0
-    
-    start = t.clock()
+    o = Obj(0)
+    start = t.nanos()
     i = 0
     while (i < limit) {
         o.val = i
         x = o.val
         i = i + 1
     }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("Struct Access", ops, sec)
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = (0.0 + diff) / 1000000000.0
+    print("  Struct Access   |", ops, "ops/sec |", sec, "s")
 }
 
 print(">>> Nevaarize Benchmark Suite <<<")
-PrintHeader()
-BenchInt()
-BenchDouble()
-BenchString()
-BenchArray()
-BenchStruct()
+printHeader()
+benchInt()
+benchDouble()
+benchString()
+benchArray()
+benchStruct()
 print("  -------------------------------------------------------------")
-echo = ""
-print(echo)
+print("")
 -e 
 
 
-FILE: LanguageBench/bench_node.js
+FILE: languagebench/bench_node.js
 --------------------------------------------------------------------------------
 function printHeader() {
     console.log("  -------------------------------------------------------------");
@@ -10424,7 +10890,7 @@ console.log("");
 -e 
 
 
-FILE: LanguageBench/bench_php.php
+FILE: languagebench/bench_php.php
 --------------------------------------------------------------------------------
 <?php
 
@@ -10533,7 +10999,7 @@ echo "\n";
 -e 
 
 
-FILE: LanguageBench/bench_python.py
+FILE: languagebench/bench_python.py
 --------------------------------------------------------------------------------
 import time
 
@@ -10627,14 +11093,14 @@ if __name__ == "__main__":
 -e 
 
 
-FILE: LanguageBench/run_comparison.sh
+FILE: languagebench/run_comparison.sh
 --------------------------------------------------------------------------------
 #!/bin/bash
 
 # Build Nevaarize first
-make -s
+cd .. && make -s && cd languagebench
 
-REPORT_FILE="LanguageBench/battle_report.txt"
+REPORT_FILE="battle_report.txt"
 
 # Detect System Specs
 CPU_INFO=$(grep "model name" /proc/cpuinfo | head -n 1 | cut -d ':' -f 2 | xargs)
@@ -10643,7 +11109,6 @@ OS_INFO=$(cat /etc/os-release | grep PRETTY_NAME | cut -d '"' -f 2)
 
 # Resource Monitor Wrapper function
 function run_bench() {
-    # -f writes to stderr by default. Redirect stderr to stdout to capture it in the pipe/file.
     /usr/bin/time -f "\n[System Resources]\n  Peak RAM : %M KB\n  CPU Load : %P\n  Total Time: %e s" "$@" 2>&1
 }
 
@@ -10668,30 +11133,30 @@ function print_sep() {
 print_sep
 echo "--- Nevaarize ---"
 echo "Arch: JIT Compiled (x86-64 Native) - High Performance"
-run_bench ./bin/nevaarize LanguageBench/bench_nevaarize.nva
+run_bench ../bin/nevaarize bench_nevaarize.nva
 
 # C++
 print_sep
 echo "--- C++ (GCC -O3) ---"
 echo "Arch: Native Machine Code (Compiled)"
-g++ -O3 -std=c++20 -o LanguageBench/bench_cpp LanguageBench/bench_cpp.cpp
-run_bench ./LanguageBench/bench_cpp
-rm LanguageBench/bench_cpp
+g++ -O3 -std=c++20 -o bench_cpp bench_cpp.cpp
+run_bench ./bench_cpp
+rm bench_cpp
 
 # C
 print_sep
 echo "--- C (GCC -O3) ---"
 echo "Arch: Native Machine Code (Compiled)"
-gcc -O3 -o LanguageBench/bench_c LanguageBench/bench_c.c
-run_bench ./LanguageBench/bench_c
-rm LanguageBench/bench_c
+gcc -O3 -o bench_c bench_c.c
+run_bench ./bench_c
+rm bench_c
 
 # Go
 print_sep
 echo "--- Go 1.21 ---"
 echo "Arch: Native Machine Code (Compiled + GC)"
 if command -v go &> /dev/null; then
-    run_bench go run LanguageBench/bench_go.go
+    run_bench go run bench_go.go
 else
     echo "Go not found. Please install: sudo apt install golang-go"
 fi
@@ -10701,9 +11166,9 @@ print_sep
 echo "--- Java 21 ---"
 echo "Arch: JIT Compiled - HotSpot VM (Machine Code)"
 if command -v java &> /dev/null; then
-    javac LanguageBench/BenchJava.java
-    run_bench java -cp LanguageBench BenchJava
-    rm LanguageBench/BenchJava.class LanguageBench/BenchJava\$Obj.class
+    javac BenchJava.java
+    run_bench java BenchJava
+    rm BenchJava.class BenchJava\$Obj.class
 else
     echo "Java not found. Please install: sudo apt install default-jdk"
 fi
@@ -10712,26 +11177,26 @@ fi
 print_sep
 echo "--- Node.js ---"
 echo "Arch: JIT Compiled - V8 Engine (Machine Code)"
-run_bench node LanguageBench/bench_node.js
+run_bench node bench_node.js
 
 # PHP (Standard)
 print_sep
 echo "--- PHP 8 (Standard) ---"
 echo "Arch: Bytecode (Stack-based) - Zend (OpCache Only)"
-run_bench php -d opcache.jit_buffer_size=0 LanguageBench/bench_php.php
+run_bench php -d opcache.jit_buffer_size=0 bench_php.php
 
 # PHP (JIT)
 print_sep
 echo "--- PHP 8 (JIT) ---"
 echo "Arch: Zend Engine + JIT Enabled (Max Power)"
-run_bench php -d opcache.enable_cli=1 -d opcache.jit=1255 -d opcache.jit_buffer_size=128M LanguageBench/bench_php.php
+run_bench php -d opcache.enable_cli=1 -d opcache.jit=1255 -d opcache.jit_buffer_size=128M bench_php.php
 
 # Lua (Standard)
 print_sep
 echo "--- Lua 5.4 ---"
 echo "Arch: Bytecode (Register-based) - Standard Interpreter"
 if command -v lua &> /dev/null; then
-    run_bench lua LanguageBench/bench_lua.lua
+    run_bench lua bench_lua.lua
 else
     echo "Lua not found. Please install: sudo apt install lua5.4"
 fi
@@ -10741,7 +11206,7 @@ print_sep
 echo "--- LuaJIT (2.1-dev) ---"
 echo "Arch: JIT Compiled - Trace-based Compiler"
 if command -v luajit &> /dev/null; then
-    run_bench luajit LanguageBench/bench_lua.lua
+    run_bench luajit bench_lua.lua
 else
     echo "LuaJIT not found. Please install: sudo apt install luajit"
 fi
@@ -10750,7 +11215,7 @@ fi
 print_sep
 echo "--- Python 3 ---"
 echo "Arch: Bytecode (Stack-based) - CPython Interpreter"
-run_bench python3 LanguageBench/bench_python.py
+run_bench python3 bench_python.py
 
 print_sep
 echo "Benchmark Complete."
@@ -12948,7 +13413,7 @@ list:
 	@echo "================================================================================" >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "This document contains a comprehensive listing of all source code files within" >> z_listing/listing.txt
-	@echo "the Nevaarize project, including core, stdlib, examples, and LanguageBench." >> z_listing/listing.txt
+	@echo "the Nevaarize project, including core, stdlib, examples, and languagebench." >> z_listing/listing.txt
 	@echo "Nevaarize is a high-performance, native JIT compiler language built with C++23." >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "Directory Structure Overview:" >> z_listing/listing.txt
@@ -12956,11 +13421,11 @@ list:
 	@echo "2. core/src: Implementation of the native JIT engine and x86-64 code generator." >> z_listing/listing.txt
 	@echo "3. stdlib: Standard library implementations (Math, IO, Time)." >> z_listing/listing.txt
 	@echo "4. examples: Collection of example scripts demonstrating language features." >> z_listing/listing.txt
-	@echo "5. LanguageBench: Performance benchmarks across various languages." >> z_listing/listing.txt
+	@echo "5. languagebench: Performance benchmarks across various languages." >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "================================================================================" >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
-	@for f in $$(find core stdlib examples LanguageBench -type f | sort) Makefile; do \
+	@for f in $$(find core stdlib examples languagebench -type f | sort) Makefile; do \
 		echo "FILE: $$f" >> z_listing/listing.txt; \
 		echo "--------------------------------------------------------------------------------" >> z_listing/listing.txt; \
 		cat "$$f" >> z_listing/listing.txt; \
