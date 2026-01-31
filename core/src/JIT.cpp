@@ -1501,22 +1501,23 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
 
             int32_t fieldOffset = fieldIndex * 16;
             
-            // objReg contains the base offset from RBP (negative value)
-            // We need absolute address: rbp + objReg
-            // Use LEA into temp register to avoid corrupting objReg (which might be a stored variable)
+            // objReg contains the stack offset VALUE (e.g., -16, -32)
+            // We need: [rbp + objReg_value + fieldOffset]
+            // Strategy: mov tempAddr, rbp; add tempAddr, objReg; then access [tempAddr + fieldOffset]
             
             X64Reg tempAddr = allocateReg();
             bool tempHigh = static_cast<uint8_t>(tempAddr) >= 8;
             bool objHigh = static_cast<uint8_t>(objReg) >= 8;
             
-            // lea tempAddr, [rbp + objReg] = rbp + offset
-            // Encoding: REX.W LEA tempAddr, [rbp + objReg*1]
-            // Use SIB: base=rbp(5), index=objReg, scale=1
-            buf.emit8(0x48 | (tempHigh ? 0x04 : 0) | (objHigh ? 0x02 : 0));
-            buf.emit8(0x8D); // LEA
-            buf.emit8(0x44 | ((static_cast<uint8_t>(tempAddr) & 0x7) << 3)); // ModR/M: [SIB + disp8]
-            buf.emit8(0x28 | (static_cast<uint8_t>(objReg) & 0x7)); // SIB: scale=1, index=objReg, base=rbp(5)
-            buf.emit8(0x00); // disp8 = 0
+            // mov tempAddr, rbp (copy rbp to temp)
+            buf.emit8(0x48 | (tempHigh ? 0x04 : 0));
+            buf.emit8(0x89); // MOV r/m64, r64
+            buf.emit8(0xC0 | (5 << 3) | (static_cast<uint8_t>(tempAddr) & 0x7)); // rbp(5) -> tempAddr
+            
+            // add tempAddr, objReg (tempAddr += offset)
+            buf.emit8(0x48 | (tempHigh ? 0x05 : 0) | (objHigh ? 0x01 : 0));
+            buf.emit8(0x01); // ADD r/m64, r64
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(objReg) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
             
             X64Reg resVal = allocateReg();
             X64Reg resType = allocateReg();
@@ -1958,17 +1959,20 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             if (fieldIndex == -1) fieldIndex = 0;
             int32_t fieldOffset = fieldIndex * 16;
             
-            // Use LEA to compute address without corrupting objReg
+            // objReg contains offset VALUE - use MOV+ADD to compute address
             X64Reg tempAddr = allocateReg();
             bool tempHigh = static_cast<uint8_t>(tempAddr) >= 8;
             bool objHigh = static_cast<uint8_t>(objReg) >= 8;
             
-            // lea tempAddr, [rbp + objReg]
-            buf.emit8(0x48 | (tempHigh ? 0x04 : 0) | (objHigh ? 0x02 : 0));
-            buf.emit8(0x8D); // LEA
-            buf.emit8(0x44 | ((static_cast<uint8_t>(tempAddr) & 0x7) << 3));
-            buf.emit8(0x28 | (static_cast<uint8_t>(objReg) & 0x7));
-            buf.emit8(0x00);
+            // mov tempAddr, rbp
+            buf.emit8(0x48 | (tempHigh ? 0x04 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | (5 << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            
+            // add tempAddr, objReg
+            buf.emit8(0x48 | (tempHigh ? 0x05 : 0) | (objHigh ? 0x01 : 0));
+            buf.emit8(0x01);
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(objReg) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
             
             bool valHigh = static_cast<uint8_t>(value.valueReg) >= 8;
             bool typeHigh = static_cast<uint8_t>(value.typeReg) >= 8;

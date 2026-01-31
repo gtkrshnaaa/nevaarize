@@ -1,0 +1,6 @@
+// Test struct variable load
+struct Point { x }
+p = Point(10)
+print("Created struct")
+p2 = p
+print("Loaded variable p")

@@ -1,17 +1,7 @@
 // Nevaarize Benchmark Suite
-// Clean, function-based structure matching other language benchmarks
+// Workaround version without string parameters
 
 import stdlib time as t
-
-func printHeader() {
-    print("  -------------------------------------------------------------")
-    print("  Benchmark       |     Performance     | Time")
-    print("  -------------------------------------------------------------")
-}
-
-func printResult(name, ops, sec) {
-    print("  ", name, " | ", ops, " ops/sec | ", sec, " s")
-}
 
 func benchInt() {
     limit = 100000000
@@ -27,7 +17,8 @@ func benchInt() {
     }
     ops = limit * 1000000000 / diff
     sec = diff / 1000000000
-    printResult("Integer Add", ops, sec)
+    print("  Integer Add     | ", ops, " ops/sec | ", sec, " s")
+    return ops
 }
 
 func benchDouble() {
@@ -46,11 +37,12 @@ func benchDouble() {
     }
     ops = limit * 1000000000 / diff
     sec = diff / 1000000000
-    printResult("Double Arith", ops, sec)
+    print("  Double Arith    | ", ops, " ops/sec | ", sec, " s")
+    return ops
 }
 
 func benchArray() {
-    limit = 1000
+    limit = 10000
     arr = []
     start = t.nanos()
     k = 0
@@ -65,14 +57,19 @@ func benchArray() {
     }
     ops = limit * 1000000000 / diff
     sec = diff / 1000000000
-    printResult("Array Push", ops, sec)
+    print("  Array Push      | ", ops, " ops/sec | ", sec, " s")
+    return ops
 }
 
 print(">>> Nevaarize Benchmark Suite <<<")
-printHeader()
+print("  -------------------------------------------------------------")
+print("  Benchmark       |     Performance     | Time")
+print("  -------------------------------------------------------------")
+
 benchInt()
 benchDouble()
 benchArray()
+
 print("  Struct Access   | (in progress)       | N/A")
 print("  -------------------------------------------------------------")
 print("")

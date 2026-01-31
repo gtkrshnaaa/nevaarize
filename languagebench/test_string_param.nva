@@ -1,0 +1,13 @@
+// Test string parameter in function
+func testString(msg) {
+    print("Message:", msg)
+}
+
+testString("Hello")
+testString("World")
+
+func testMulti(name, value) {
+    print("Name:", name, "Value:", value)
+}
+
+testMulti("Test", 42)

@@ -1,0 +1,6 @@
+// Test member access only
+struct Point { x }
+p = Point(10)
+print("Before access")
+val = p.x
+print("After access, val:", val)
