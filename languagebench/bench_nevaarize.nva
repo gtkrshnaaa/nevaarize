@@ -24,8 +24,9 @@ func benchInt() {
         diff = 1
     }
     ops = limit * 1000000000 / diff
-    sec = diff / 1000000000.0
-    print("  Integer Add     | ", ops, " ops/sec | ", sec, "s")
+    sec = (0.0 + diff) / 1000000000.0
+    print("  Integer Add     |", ops, "ops/sec |")
+    print(sec)
 }
 
 func benchDouble() {
@@ -43,8 +44,9 @@ func benchDouble() {
         diff = 1
     }
     ops = limit * 1000000000 / diff
-    sec = diff / 1000000000.0
-    print("  Double Arith    | ", ops, " ops/sec | ", sec, "s")
+    sec = (0.0 + diff) / 1000000000.0
+    print("  Double Arith    |", ops, "ops/sec |")
+    print(sec)
 }
 
 func benchString() {
@@ -62,8 +64,9 @@ func benchString() {
         diff = 1
     }
     ops = limit * 1000000000 / diff
-    sec = diff / 1000000000.0
-    print("  String Concat   | ", ops, " ops/sec | ", sec, "s")
+    sec = (0.0 + diff) / 1000000000.0
+    print("  String Concat   |", ops, "ops/sec |")
+    print(sec)
 }
 
 func benchArray() {
@@ -81,8 +84,9 @@ func benchArray() {
         diff = 1
     }
     ops = limit * 1000000000 / diff
-    sec = diff / 1000000000.0
-    print("  Array Push      | ", ops, " ops/sec | ", sec, "s")
+    sec = (0.0 + diff) / 1000000000.0
+    print("  Array Push      |", ops, "ops/sec |")
+    print(sec)
 }
 
 func benchStruct() {
@@ -101,8 +105,9 @@ func benchStruct() {
         diff = 1
     }
     ops = limit * 1000000000 / diff
-    sec = diff / 1000000000.0
-    print("  Struct Access   | ", ops, " ops/sec | ", sec, "s")
+    sec = (0.0 + diff) / 1000000000.0
+    print("  Struct Access   |", ops, "ops/sec |")
+    print(sec)
 }
 
 print(">>> Nevaarize Benchmark Suite <<<")
