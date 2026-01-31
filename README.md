@@ -73,21 +73,21 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 ### Comparison Table
 
-| Language | Integer Add | Array Push | Struct Access | Peak RAM |
-|----------|------------|------------|---------------|----------|
-| **Nevaarize** | 772M | **781M** 🥇 | 455M | **5.9MB** 🥇 |
-| Zig (ReleaseFast) | 3,696M 🥇 | 419M | **3,753M** 🥇 | 7.8MB |
-| Rust (LLVM -O) | 3,566M | 347M | 3,495M | 10.0MB |
-| Go 1.21 | 3,357M | 67M | 3,012M | 46MB |
-| Java 21 | 3,422M | 50M | 804M | 341MB |
-| PHP 8 JIT | 2,832M | 65M | 391M | 49MB |
-| C++ (GCC -O3) | 2,586M | 345M | 2,473M | 11.5MB |
-| C (GCC -O3) | 2,621M | 342M | 2,139M | 9.5MB |
-| Node.js (V8) | 1,195M | 35M | 964M | 82MB |
-| LuaJIT | 851M | 205M | 969M | 12MB |
-| Lua 5.4 | 186M | 58M | 85M | 19.5MB |
-| PHP 8 Std | 410M | 52M | 89M | 46MB |
-| Python 3 | 46M | 25M | 30M | 49MB |
+| Language | Integer Add | Double Arith | String Concat | Array Push | Struct Access | Peak RAM |
+|----------|------------|--------------|---------------|------------|---------------|----------|
+| **Nevaarize** | 772M | 486M | **34M** | **781M** 🥇 | 455M | **5.9MB** 🥇 |
+| Zig (ReleaseFast) | 3,696M 🥇 | 766M | 664M | 419M | **3,753M** 🥇 | 7.8MB |
+| Rust (LLVM -O) | 3,566M | 960M | 778M | 347M | 3,495M | 10.0MB |
+| Go 1.21 | 3,357M | **3,373M** 🥇 | 0.4M | 67M | 3,012M | 46MB |
+| Java 21 | 3,422M | 490M | 0.2M | 50M | 804M | 341MB |
+| PHP 8 JIT | 2,832M | 932M | 81M | 65M | 391M | 49MB |
+| C++ (GCC -O3) | 2,586M | 418M | 471M | 345M | 2,473M | 11.5MB |
+| C (GCC -O3) | 2,621M | 430M | 547M | 342M | 2,139M | 9.5MB |
+| Node.js (V8) | 1,195M | 935M | 13M | 35M | 964M | 82MB |
+| LuaJIT | 851M | 894M | 0.7M | 205M | 969M | 12MB |
+| Lua 5.4 | 186M | 123M | 0.7M | 58M | 85M | 19.5MB |
+| PHP 8 Std | 410M | 222M | 69M | 52M | 89M | 46MB |
+| Python 3 | 46M | 31M | 21M | 25M | 30M | 49MB |
 
 > See full results in [`languagebench/battle_report.txt`](languagebench/battle_report.txt)
 
