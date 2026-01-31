@@ -1,0 +1,10 @@
+// Simple inline test
+x = 10
+y = 20
+print("X:", x, "Y:", y)
+
+struct Point { a, b }
+p = Point(100, 200)
+print("Point created")
+print("Field a:", p.a)
+print("Field b:", p.b)

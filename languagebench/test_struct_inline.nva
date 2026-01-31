@@ -1,0 +1,3 @@
+// Test inline zonder variable
+struct Point { x }
+print("Val:", Point(42).x)

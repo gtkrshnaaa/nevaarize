@@ -1501,43 +1501,28 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
 
             int32_t fieldOffset = fieldIndex * 16;
             
-            // objReg contains the stack offset VALUE (e.g., -16, -32)
-            // We need: [rbp + objReg_value + fieldOffset]
-            // Strategy: mov tempAddr, rbp; add tempAddr, objReg; then access [tempAddr + fieldOffset]
-            
-            X64Reg tempAddr = allocateReg();
-            bool tempHigh = static_cast<uint8_t>(tempAddr) >= 8;
-            bool objHigh = static_cast<uint8_t>(objReg) >= 8;
-            
-            // mov tempAddr, rbp (copy rbp to temp)
-            buf.emit8(0x48 | (tempHigh ? 0x04 : 0));
-            buf.emit8(0x89); // MOV r/m64, r64
-            buf.emit8(0xC0 | (5 << 3) | (static_cast<uint8_t>(tempAddr) & 0x7)); // rbp(5) -> tempAddr
-            
-            // add tempAddr, objReg (tempAddr += offset)
-            buf.emit8(0x48 | (tempHigh ? 0x05 : 0) | (objHigh ? 0x01 : 0));
-            buf.emit8(0x01); // ADD r/m64, r64
-            buf.emit8(0xC0 | ((static_cast<uint8_t>(objReg) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            // objReg now contains actual pointer to struct base (from LEA in STRUCT_INIT)
+            // Just access [objReg + fieldOffset]
             
             X64Reg resVal = allocateReg();
             X64Reg resType = allocateReg();
             
             bool valHigh = static_cast<uint8_t>(resVal) >= 8;
             bool typeHigh = static_cast<uint8_t>(resType) >= 8;
+            bool objHigh = static_cast<uint8_t>(objReg) >= 8;
             
-            // Load Value: mov resVal, [tempAddr + fieldOffset]
-            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (tempHigh ? 0x01 : 0));
+            // Load Value: mov resVal, [objReg + fieldOffset]
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
             buf.emit8(0x8B);
-            buf.emit8(0x80 | ((static_cast<uint8_t>(resVal) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            buf.emit8(0x80 | ((static_cast<uint8_t>(resVal) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
             buf.emit32(static_cast<uint32_t>(fieldOffset));
             
-            // Load Type: mov resType, [tempAddr + fieldOffset + 8]
-            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (tempHigh ? 0x01 : 0));
+            // Load Type: mov resType, [objReg + fieldOffset + 8]
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
             buf.emit8(0x8B);
-            buf.emit8(0x80 | ((static_cast<uint8_t>(resType) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            buf.emit8(0x80 | ((static_cast<uint8_t>(resType) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
             buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
 
-            freeReg(tempAddr);
             freeReg(objVal.valueReg);
             freeReg(objVal.typeReg);
             
@@ -1611,9 +1596,11 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             result.typeReg = allocateReg();
             
             bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
-            buf.emit64(static_cast<uint64_t>(baseOffset));
+            // lea result.valueReg, [rbp + baseOffset]  - compute actual pointer to struct
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+            buf.emit8(0x8D); // LEA
+            buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(baseOffset));
             
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
@@ -1959,37 +1946,22 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             if (fieldIndex == -1) fieldIndex = 0;
             int32_t fieldOffset = fieldIndex * 16;
             
-            // objReg contains offset VALUE - use MOV+ADD to compute address
-            X64Reg tempAddr = allocateReg();
-            bool tempHigh = static_cast<uint8_t>(tempAddr) >= 8;
-            bool objHigh = static_cast<uint8_t>(objReg) >= 8;
-            
-            // mov tempAddr, rbp
-            buf.emit8(0x48 | (tempHigh ? 0x04 : 0));
-            buf.emit8(0x89);
-            buf.emit8(0xC0 | (5 << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
-            
-            // add tempAddr, objReg
-            buf.emit8(0x48 | (tempHigh ? 0x05 : 0) | (objHigh ? 0x01 : 0));
-            buf.emit8(0x01);
-            buf.emit8(0xC0 | ((static_cast<uint8_t>(objReg) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
-            
+            // objReg now contains pointer - directly use it
             bool valHigh = static_cast<uint8_t>(value.valueReg) >= 8;
             bool typeHigh = static_cast<uint8_t>(value.typeReg) >= 8;
+            bool objHigh = static_cast<uint8_t>(objReg) >= 8;
             
-            // Store Value: mov [tempAddr + fieldOffset], valueReg
-            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (tempHigh ? 0x01 : 0));
+            // Store Value: mov [objReg + fieldOffset], valueReg
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
             buf.emit8(0x89);
-            buf.emit8(0x80 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            buf.emit8(0x80 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
             buf.emit32(static_cast<uint32_t>(fieldOffset));
             
-            // Store Type: mov [tempAddr + fieldOffset + 8], typeReg
-            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (tempHigh ? 0x01 : 0));
+            // Store Type: mov [objReg + fieldOffset + 8], typeReg
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
             buf.emit8(0x89);
-            buf.emit8(0x80 | ((static_cast<uint8_t>(value.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            buf.emit8(0x80 | ((static_cast<uint8_t>(value.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
             buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
-            
-            freeReg(tempAddr);
             
             freeReg(value.valueReg);
             freeReg(value.typeReg);
