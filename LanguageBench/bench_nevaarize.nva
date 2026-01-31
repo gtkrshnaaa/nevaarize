@@ -7,10 +7,10 @@ struct Obj {
 
 // Helper to pad string
 func PadRight(s) {
-    if (s == "Integer Add" || s == "Struct Access") { return s + "   " }
+    if (s == "Integer Add" or s == "Struct Access") { return s + "   " }
     if (s == "Double Arith") { return s + "    " }
     if (s == "String Concat") { return s + "   " }
-    if (s == "Array Push" || s == "Performance") { return s + "    " }
+    if (s == "Array Push" or s == "Performance") { return s + "    " }
     if (s == "Benchmark") { return s + "     " }
     return s
 }
