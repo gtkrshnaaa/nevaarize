@@ -1,3 +1,0 @@
-// Test: array without print
-data = [15, 7, 23]
-print("Array created successfully")

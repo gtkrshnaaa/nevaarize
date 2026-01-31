@@ -1,0 +1,4 @@
+// Minimal struct test - just assignment
+obj = { val: 0 }
+obj.val = 42
+print("Val: ", obj.val)

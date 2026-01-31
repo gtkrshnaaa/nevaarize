@@ -43,7 +43,7 @@ extern "C" int64_t jit_get_clock_ns() {
 struct JITArray {
     int64_t capacity;
     int64_t size;
-    int64_t data[];
+    int64_t data[1]; // Placeholder for variable-length data
 };
 
 extern "C" void* jit_alloc_array(int64_t size) {
@@ -1462,19 +1462,15 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             JITValue objVal = compileExpr(ast, node.left);
             X64Reg objReg = objVal.valueReg;
             
-            // Handle .length on arrays (assuming heap-allocated JITArray)
+            // Handle .length on arrays
             if (node.name == "length") {
                 X64Reg dst = allocateReg();
                 bool dstHigh = static_cast<uint8_t>(dst) >= 8;
                 bool objHigh = static_cast<uint8_t>(objReg) >= 8;
-                
-                // mov dst, [objReg - 8] (Size is at offset 8 in JITArray, but objReg points to data)
-                // Offset calculation: JITArray { capacity(8), size(8), data[] }
-                // data starts at offset 16. So size is at data - 8.
                 buf.emit8(0x48 | (dstHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
                 buf.emit8(0x8B);
                 buf.emit8(0x40 | ((static_cast<uint8_t>(dst) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
-                buf.emit8(static_cast<uint8_t>(0xF8)); // -8 offset
+                buf.emit8(static_cast<uint8_t>(0xF8)); // -8 offset from data pointer to size
                 
                 freeReg(objVal.valueReg);
                 freeReg(objVal.typeReg);
@@ -1482,115 +1478,131 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 JITValue result;
                 result.valueReg = dst;
                 result.typeReg = allocateReg();
-                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                buf.emit8(0x48); buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
                 buf.emit64(0); // Int
                 return result;
             }
             
-            // Handle struct properties (SIMD info, etc) - Keep as fallback
-            if (node.name == "level" || node.name == "hasAVX2" || node.name == "hasAVX512") {
-                freeReg(objVal.valueReg);
-                freeReg(objVal.typeReg);
-                X64Reg dst = allocateReg();
-                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
-                buf.emit64(1);
-                JITValue result;
-                result.valueReg = dst;
-                result.typeReg = allocateReg();
-                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                buf.emit64(0);
-                return result;
-            }
-            
-            // Try to load struct field dynamically
-            const ASTNode& objNode = ast.get(node.left);
-            if (objNode.type == NodeType::IDENTIFIER) {
-                const std::string& varName = objNode.name;
-                if (variables.count(varName)) {
-                    // We need the type of the variable to find the struct definition
-                    // But our JIT is currently untyped during compilation.
-                    // Fallback to searching all structs for this field name.
-                    int32_t fieldIndex = -1;
-                    for (auto const& [name, info] : structs) {
-                        for (size_t i = 0; i < info.fieldNames.size(); ++i) {
-                            if (info.fieldNames[i] == node.name) {
-                                fieldIndex = static_cast<int32_t>(i);
-                                break;
-                            }
-                        }
-                        if (fieldIndex != -1) break;
-                    }
-                    
-                    if (fieldIndex != -1) {
-                        int32_t fieldOffset = fieldIndex * 16;
-                        X64Reg baseReg = objReg;
-                        bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
-                        
-                        // baseReg contains baseOffset (relative to RBP for current implementation)
-                        // This JIT seems to store structs on the stack and objReg is the RBP offset?
-                        // Let's stick to the existing logic of [rbp + baseReg + fieldOffset]
-                        
-                        if (fieldOffset != 0) {
-                            buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
-                            buf.emit8(0x81);
-                            buf.emit8(0xC0 | (static_cast<uint8_t>(baseReg) & 0x7));
-                            buf.emit32(static_cast<uint32_t>(fieldOffset));
-                        }
-                        
-                        JITValue result;
-                        result.valueReg = allocateReg();
-                        result.typeReg = allocateReg();
-                        bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-                        buf.emit8(0x48 | (valHigh ? 0x01 : 0) | (baseHigh ? 0x02 : 0));
-                        buf.emit8(0x8B);
-                        buf.emit8(0x84 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7)); 
-                        buf.emit32(0);
-                        
-                        bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                        buf.emit8(0x48 | (typeHigh ? 0x01 : 0) | (baseHigh ? 0x02 : 0));
-                        buf.emit8(0x8B);
-                        buf.emit8(0x84 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
-                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7));
-                        buf.emit32(8);
-                        
-                        freeReg(objReg);
-                        freeReg(objVal.typeReg);
-                        return result;
+            // Determine field offset
+            int32_t fieldIndex = -1;
+            // 1. Try to find if we know the struct type (we don't have types yet, so we look in all structs)
+            for (auto const& [name, info] : structs) {
+                for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+                    if (info.fieldNames[i] == node.name) {
+                        fieldIndex = static_cast<int32_t>(i);
+                        break;
                     }
                 }
+                if (fieldIndex != -1) break;
             }
             
-            return objVal;
+            // 2. If not found in structs, maybe it's an anonymous field index (for now, assume field index is 0 if unknown)
+            if (fieldIndex == -1) fieldIndex = 0;
+
+            int32_t fieldOffset = fieldIndex * 16;
+            
+            // objReg contains the base offset from RBP (negative value)
+            // We need absolute address: rbp + objReg
+            // Use LEA into temp register to avoid corrupting objReg (which might be a stored variable)
+            
+            X64Reg tempAddr = allocateReg();
+            bool tempHigh = static_cast<uint8_t>(tempAddr) >= 8;
+            bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+            
+            // lea tempAddr, [rbp + objReg] = rbp + offset
+            // Encoding: REX.W LEA tempAddr, [rbp + objReg*1]
+            // Use SIB: base=rbp(5), index=objReg, scale=1
+            buf.emit8(0x48 | (tempHigh ? 0x04 : 0) | (objHigh ? 0x02 : 0));
+            buf.emit8(0x8D); // LEA
+            buf.emit8(0x44 | ((static_cast<uint8_t>(tempAddr) & 0x7) << 3)); // ModR/M: [SIB + disp8]
+            buf.emit8(0x28 | (static_cast<uint8_t>(objReg) & 0x7)); // SIB: scale=1, index=objReg, base=rbp(5)
+            buf.emit8(0x00); // disp8 = 0
+            
+            X64Reg resVal = allocateReg();
+            X64Reg resType = allocateReg();
+            
+            bool valHigh = static_cast<uint8_t>(resVal) >= 8;
+            bool typeHigh = static_cast<uint8_t>(resType) >= 8;
+            
+            // Load Value: mov resVal, [tempAddr + fieldOffset]
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (tempHigh ? 0x01 : 0));
+            buf.emit8(0x8B);
+            buf.emit8(0x80 | ((static_cast<uint8_t>(resVal) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            buf.emit32(static_cast<uint32_t>(fieldOffset));
+            
+            // Load Type: mov resType, [tempAddr + fieldOffset + 8]
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (tempHigh ? 0x01 : 0));
+            buf.emit8(0x8B);
+            buf.emit8(0x80 | ((static_cast<uint8_t>(resType) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+
+            freeReg(tempAddr);
+            freeReg(objVal.valueReg);
+            freeReg(objVal.typeReg);
+            
+            JITValue result;
+            result.valueReg = resVal;
+            result.typeReg = resType;
+            return result;
         }
         
         case NodeType::STRUCT_INIT: {
+            std::vector<std::string> fields;
+            std::vector<NodeIndex> initializers;
+            
             auto it = structs.find(node.name);
-            if (it == structs.end()) {
+            if (it != structs.end()) {
+                fields = it->second.fieldNames;
+                initializers = node.children;
+            } else {
+                // Anonymous struct support
+                fields = node.paramNames;
+                initializers = node.children;
+            }
+            
+            if (fields.empty()) {
                 JITValue result;
                 result.valueReg = allocateReg();
                 result.typeReg = allocateReg();
                 return result;
             }
             
-            const StructInfo& info = it->second;
             int32_t baseOffset = allocateStackSlot();
+            // Allocate enough space for all fields (each field is 16 bytes: 8 for value, 8 for type)
+            for (size_t i = 1; i < fields.size(); ++i) {
+                allocateStackSlot();
+            }
             
             CodeBuffer& buf = codegen.getCode();
-            for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+            for (size_t i = 0; i < fields.size(); ++i) {
                 int32_t fieldOffset = baseOffset + (i * 16);
-                buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
-                buf.emit32(static_cast<uint32_t>(fieldOffset));
-                buf.emit32(0);
-                buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
-                buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
-                buf.emit32(3);
+                
+                if (i < initializers.size()) {
+                    JITValue val = compileExpr(ast, initializers[i]);
+                    bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+                    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(fieldOffset));
+                    
+                    bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                    
+                    freeReg(val.valueReg);
+                    freeReg(val.typeReg);
+                } else {
+                    // Default to 0
+                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(fieldOffset));
+                    buf.emit32(0);
+                    // Default type to 0 (Int)
+                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                    buf.emit32(0);
+                }
             }
             
             JITValue result;
@@ -1605,7 +1617,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(4);
+            buf.emit64(4); // Struct pointer type
             
             return result;
         }
@@ -1925,22 +1937,60 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::MEMBER_ASSIGN: {
-            // obj.field = value (simplified implementation)
-            // TODO: Full implementation requires runtime type info 
-            // For now, treat as assignment to first field
+            // obj.field = value
             CodeBuffer& buf = codegen.getCode();
+            JITValue target = compileExpr(ast, node.left);
+            X64Reg objReg = target.valueReg;
+            
             JITValue value = compileExpr(ast, node.right);
             
-            // Store value at a default offset (incomplete)
-            int32_t offset = -16;
+            // Resolve field offset
+            int32_t fieldIndex = -1;
+            for (auto const& [name, info] : structs) {
+                for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+                    if (info.fieldNames[i] == node.name) {
+                        fieldIndex = static_cast<int32_t>(i);
+                        break;
+                    }
+                }
+                if (fieldIndex != -1) break;
+            }
+            if (fieldIndex == -1) fieldIndex = 0;
+            int32_t fieldOffset = fieldIndex * 16;
+            
+            // Use LEA to compute address without corrupting objReg
+            X64Reg tempAddr = allocateReg();
+            bool tempHigh = static_cast<uint8_t>(tempAddr) >= 8;
+            bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+            
+            // lea tempAddr, [rbp + objReg]
+            buf.emit8(0x48 | (tempHigh ? 0x04 : 0) | (objHigh ? 0x02 : 0));
+            buf.emit8(0x8D); // LEA
+            buf.emit8(0x44 | ((static_cast<uint8_t>(tempAddr) & 0x7) << 3));
+            buf.emit8(0x28 | (static_cast<uint8_t>(objReg) & 0x7));
+            buf.emit8(0x00);
+            
             bool valHigh = static_cast<uint8_t>(value.valueReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+            bool typeHigh = static_cast<uint8_t>(value.typeReg) >= 8;
+            
+            // Store Value: mov [tempAddr + fieldOffset], valueReg
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (tempHigh ? 0x01 : 0));
             buf.emit8(0x89);
-            buf.emit8(0x85 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3));
-            buf.emit32(static_cast<uint32_t>(offset));
+            buf.emit8(0x80 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            buf.emit32(static_cast<uint32_t>(fieldOffset));
+            
+            // Store Type: mov [tempAddr + fieldOffset + 8], typeReg
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (tempHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0x80 | ((static_cast<uint8_t>(value.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(tempAddr) & 0x7));
+            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+            
+            freeReg(tempAddr);
             
             freeReg(value.valueReg);
             freeReg(value.typeReg);
+            freeReg(target.valueReg);
+            freeReg(target.typeReg);
             break;
         }
         

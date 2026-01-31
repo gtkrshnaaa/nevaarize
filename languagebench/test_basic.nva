@@ -1,4 +1,0 @@
-// Even simpler test - no arrays, just print
-print("Hello from Nevaarize")
-x = 42
-print(x)

@@ -1,3 +1,0 @@
-// Test array literal only (no push)
-arr = [1, 2, 3]
-print("Array created")
