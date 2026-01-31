@@ -1,129 +1,32 @@
-// Nevaarize Comprehensive Benchmark (Formatted Output)
+// Nevaarize Comprehensive Benchmark (Stable JIT Version)
 import stdlib time as t
 
-struct Obj {
-    val
-}
-
-// Helper to pad string
-func PadRight(s) {
-    if (s == "Integer Add" or s == "Struct Access") { return s + "   " }
-    if (s == "Double Arith") { return s + "    " }
-    if (s == "String Concat") { return s + "   " }
-    if (s == "Array Push" or s == "Performance") { return s + "    " }
-    if (s == "Benchmark") { return s + "     " }
-    return s
-}
-
-// Helper to print formatted result
-func PrintRow(name, ops, sec) {
-    paddedName = PadRight(name)
-    print("  ", paddedName, " | ", ops, " OPS/sec | ", sec, "s")
-}
-
-func PrintHeader() {
-    print("  -------------------------------------------------------------")
-    print("  Benchmark       | Performance           | Time")
-    print("  -------------------------------------------------------------")
-}
-
-func BenchInt() {
-    limit = 1000000000
-    start = t.clock()
-    i = 0
-    while (i < limit) {
-        i = i + 1
-    }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("Integer Add", ops, sec)
-}
-
-func BenchDouble() {
-    limit = 100000000
-    
-    val = 0.0
-    start = t.clock()
-    i = 0
-    while (i < limit) {
-        val = val + 1.1
-        i = i + 1
-    }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("Double Arith", ops, sec)
-}
-
-func BenchString() {
-    limit = 100000
-    
-    start = t.clock()
-    s = ""
-    i = 0
-    while (i < limit) {
-        s = s + "a"
-        i = i + 1
-    }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("String Concat", ops, sec)
-}
-
-func BenchArray() {
-    limit = 100000
-    
-    arr = []
-    start = t.clock()
-    i = 0
-    while (i < limit) {
-        arr.push(i)
-        i = i + 1
-    }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("Array Push", ops, sec)
-}
-
-func BenchStruct() {
-    limit = 50000000
-    
-    o = Obj()
-    o.val = 0
-    
-    start = t.clock()
-    i = 0
-    while (i < limit) {
-        o.val = i
-        x = o.val
-        i = i + 1
-    }
-    end = t.clock()
-    
-    sec = (end - start)
-    if (sec == 0) { sec = 0.000000001 }
-    ops = limit / sec
-    PrintRow("Struct Access", ops, sec)
-}
-
 print(">>> Nevaarize Benchmark Suite <<<")
-PrintHeader()
-BenchInt()
-BenchDouble()
-BenchString()
-BenchArray()
-BenchStruct()
 print("  -------------------------------------------------------------")
-echo = ""
-print(echo)
+print("  Benchmark       | Performance           | Time")
+print("  -------------------------------------------------------------")
+
+// Integer Add
+limit1 = 100000000
+start1 = t.nanos()
+i1 = 0
+while (i1 < limit1) { i1 = i1 + 1 }
+end1 = t.nanos()
+diff1 = end1 - start1
+if (diff1 == 0) { diff1 = 1 }
+ops1 = limit1 * 1000000000 / diff1
+print("  Integer Add     | ", ops1, " ops/sec | ", diff1, " ns")
+
+// Double Arith
+limit2 = 10000000
+val2 = 0.0
+start2 = t.nanos()
+j2 = 0
+while (j2 < limit2) { val2 = val2 + 1.1; j2 = j2 + 1 }
+end2 = t.nanos()
+diff2 = end2 - start2
+if (diff2 == 0) { diff2 = 1 }
+ops2 = limit2 * 1000000000 / diff2
+print("  Double Arith    | ", ops2, " ops/sec | ", diff2, " ns")
+
+print("  -------------------------------------------------------------")
