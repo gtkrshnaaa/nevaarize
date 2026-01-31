@@ -1,5 +1,0 @@
-// Test with declared struct
-struct Point { x, y }
-p = Point(10, 20)
-print("X: ", p.x)
-print("Y: ", p.y)

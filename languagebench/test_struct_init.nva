@@ -1,4 +1,0 @@
-// Test struct init only
-struct Point { x }
-p = Point(10)
-print("Created struct")

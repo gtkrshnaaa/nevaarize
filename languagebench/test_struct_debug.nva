@@ -1,6 +1,0 @@
-// Debug test - print offset value
-struct Point { x }
-p = Point(42)
-print("Struct created, accessing...")
-// Direct print without assignment
-print(p.x)

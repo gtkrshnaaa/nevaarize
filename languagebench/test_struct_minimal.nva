@@ -1,5 +1,0 @@
-// Minimal struct test - single field access
-struct Point { x }
-p = Point(10)
-val = p.x
-print("Value:", val)
