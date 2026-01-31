@@ -1,0 +1,5 @@
+// Test empty array with push
+arr = []
+print("Empty array created")
+arr.push(1)
+print("Pushed 1")

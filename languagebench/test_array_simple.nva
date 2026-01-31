@@ -1,0 +1,9 @@
+// Simple array test - minimal test to verify array operations work safely
+arr = []
+arr.push(1)
+arr.push(2)
+arr.push(3)
+print("Array test:")
+print(arr[0])
+print(arr[1])
+print(arr[2])

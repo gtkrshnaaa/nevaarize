@@ -1156,6 +1156,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 }
             } else if (callee.type == NodeType::MEMBER_ACCESS) {
                 // Module function calls like ai.loadModel()
+                // Compile the object first
+                JITValue objVal = compileExpr(ast, callee.left);
+                X64Reg objReg = objVal.valueReg;
+                
                 const std::string& memberName = callee.name;
                 
                 if (memberName == "clock" || memberName == "nanos") {
@@ -1197,7 +1201,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x10);
                     
                     // Result is in RAX. Move to destination register.
-                    X64Reg dst = allocateReg();
+                    X64Reg dst = allocateReg()
+;
                     if (dst != X64Reg::RAX) {
                         // mov dst, rax
                         bool dstHigh = static_cast<uint8_t>(dst) >= 8;
@@ -1205,6 +1210,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         buf.emit8(0x89);
                         buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
                     }
+                    
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
                     
                     JITValue result;
                     result.valueReg = dst;
@@ -1241,6 +1249,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x89);
                     buf.emit8(0xE0 | (static_cast<uint8_t>(dst) & 0x7));
                     
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
                     JITValue result;
                     result.valueReg = dst;
                     result.typeReg = allocateReg();
@@ -1259,10 +1270,13 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
                     buf.emit64(0);
                     
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
                     JITValue result;
                     result.valueReg = dst;
                     result.typeReg = allocateReg();
-                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >=  8;
                     buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
                     buf.emit64(0); // Int
@@ -1327,6 +1341,26 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 }
                 
                 if (memberName == "serve") {
+                    // http.serve() - mock implementation
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
+                    buf.emit64(0);
+                    
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0);
+                    return result;
+                }
+            }
 
             JITValue nullVal;
             nullVal.valueReg = X64Reg::RAX;
@@ -1335,44 +1369,24 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::ARRAY_LITERAL: {
+            // Store array on stack: allocate space for elements
             size_t elemCount = node.children.size();
+            size_t arraySize = elemCount * 8; // 8 bytes per element
+            size_t paddedSize = ((arraySize + 15) & ~15);
+            
             CodeBuffer& buf = codegen.getCode();
             
-            // Call jit_alloc_array(elemCount)
-            // Save caller-save registers
-            buf.emit8(0x50); // push rax
-            buf.emit8(0x51); // push rcx
-            buf.emit8(0x52); // push rdx
-            buf.emit8(0x41); buf.emit8(0x50); // push r8
-            buf.emit8(0x41); buf.emit8(0x51); // push r9
-            buf.emit8(0x41); buf.emit8(0x52); // push r10
-            buf.emit8(0x41); buf.emit8(0x53); // push r11
+            // sub rsp, paddedSize
+            buf.emit8(0x48);
+            buf.emit8(0x81);
+            buf.emit8(0xEC);
+            buf.emit32(static_cast<uint32_t>(paddedSize));
             
-            // mov rdi, elemCount
-            buf.emit8(0x48); buf.emit8(0xBF);
-            buf.emit64(static_cast<uint64_t>(elemCount));
-            
-            // mov rax, jit_alloc_array
-            buf.emit8(0x48); buf.emit8(0xB8);
-            buf.emit64(reinterpret_cast<uint64_t>(jit_alloc_array));
-            
-            // call rax
-            buf.emit8(0xFF); buf.emit8(0xD0);
-            
-            // Capture base pointer from RAX before popping others
+            // Capture RSP as the array base pointer BEFORE compiling elements
             X64Reg baseReg = allocateReg();
-            bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
-            buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
-            buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(baseReg) & 0x7));
-            
-            // Restore registers (reverse order)
-            buf.emit8(0x41); buf.emit8(0x5B); // pop r11
-            buf.emit8(0x41); buf.emit8(0x5A); // pop r10
-            buf.emit8(0x41); buf.emit8(0x59); // pop r9
-            buf.emit8(0x41); buf.emit8(0x58); // pop r8
-            buf.emit8(0x5A); // pop rdx
-            buf.emit8(0x59); // pop rcx
-            buf.emit8(0x58); // pop rax
+            buf.emit8(0x48);
+            buf.emit8(0x89);
+            buf.emit8(0xE0 | (static_cast<uint8_t>(baseReg) & 0x7)); // mov baseReg, rsp
             
             // Store each element
             for (size_t i = 0; i < elemCount; ++i) {
@@ -1382,6 +1396,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 
                 // mov [baseReg + i*8], elemReg
                 bool regHigh = static_cast<uint8_t>(elemReg) >= 8;
+                bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
+                
                 buf.emit8(0x48 | (regHigh ? 0x04 : 0) | (baseHigh ? 0x01 : 0));
                 buf.emit8(0x89);
                 buf.emit8(0x40 | ((static_cast<uint8_t>(elemReg) & 0x7) << 3) | (static_cast<uint8_t>(baseReg) & 0x7));
@@ -1390,13 +1406,14 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 freeReg(elemReg);
             }
             
+            // Return baseReg as array pointer
             JITValue result;
             result.valueReg = baseReg;
             result.typeReg = allocateReg();
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(0); // Type Int (Array Data Pointer)
+            buf.emit64(0);
             
             return result;
         }

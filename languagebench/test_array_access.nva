@@ -1,0 +1,4 @@
+// Test: array access without print
+data = [15, 7, 23]
+x = data[0]
+print("Got element:", x)
