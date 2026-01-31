@@ -47,6 +47,25 @@ func benchDouble() {
     print("  Double Arith    | ", ops, " ops/sec | ", sec, "s")
 }
 
+func benchString() {
+    limit = 50000
+    s = ""
+    start = t.nanos()
+    i = 0
+    while (i < limit) {
+        s = s + "a"
+        i = i + 1
+    }
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = diff / 1000000000.0
+    print("  String Concat   | ", ops, " ops/sec | ", sec, "s")
+}
+
 func benchArray() {
     limit = 1000000
     arr = []
@@ -90,6 +109,7 @@ print(">>> Nevaarize Benchmark Suite <<<")
 printHeader()
 benchInt()
 benchDouble()
+benchString()
 benchArray()
 benchStruct()
 print("  -------------------------------------------------------------")
