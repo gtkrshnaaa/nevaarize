@@ -1,37 +1,78 @@
-// Minimal working benchmark - just integer and double
+// Nevaarize Benchmark Suite
+// Clean, function-based structure matching other language benchmarks
+
 import stdlib time as t
 
+func printHeader() {
+    print("  -------------------------------------------------------------")
+    print("  Benchmark       |     Performance     | Time")
+    print("  -------------------------------------------------------------")
+}
+
+func printResult(name, ops, sec) {
+    print("  ", name, " | ", ops, " ops/sec | ", sec, " s")
+}
+
+func benchInt() {
+    limit = 100000000
+    start = t.nanos()
+    i = 0
+    while (i < limit) {
+        i = i + 1
+    }
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = diff / 1000000000
+    printResult("Integer Add", ops, sec)
+}
+
+func benchDouble() {
+    limit = 10000000
+    val = 0.0
+    start = t.nanos()
+    j = 0
+    while (j < limit) {
+        val = val + 1.1
+        j = j + 1
+    }
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = diff / 1000000000
+    printResult("Double Arith", ops, sec)
+}
+
+func benchArray() {
+    limit = 1000
+    arr = []
+    start = t.nanos()
+    k = 0
+    while (k < limit) {
+        arr.push(k)
+        k = k + 1
+    }
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = diff / 1000000000
+    printResult("Array Push", ops, sec)
+}
+
 print(">>> Nevaarize Benchmark Suite <<<")
-print("  -------------------------------------------------------------")
-print("  Benchmark       |     Performance     | Time")
-print("  -------------------------------------------------------------")
-
-// Benchmark 1: Integer Addition
-limit1 = 100000000
-start1 = t.nanos()
-i = 0
-while (i < limit1) { i = i + 1 }
-end1 = t.nanos()
-diff1 = end1 - start1
-if (diff1 == 0) { diff1 = 1 }
-ops1 = limit1 * 1000000000 / diff1
-sec1 = diff1 / 1000000000
-print("  Integer Add     | ", ops1, " ops/sec | ", sec1, " s")
-
-// Benchmark 2: Double Arithmetic
-limit2 = 10000000
-val = 0.0
-start2 = t.nanos()
-j = 0
-while (j < limit2) { val = val + 1.1; j = j + 1 }
-end2 = t.nanos()
-diff2 = end2 - start2
-if (diff2 == 0) { diff2 = 1 }
-ops2 = limit2 * 1000000000 / diff2
-sec2 = diff2 / 1000000000
-print("  Double Arith    | ", ops2, " ops/sec | ", sec2, " s")
-
-print("  Array Push      | (disabled)          | N/A")
-print("  Struct Access   | (disabled)          | N/A")
+printHeader()
+benchInt()
+benchDouble()
+benchArray()
+print("  Struct Access   | (in progress)       | N/A")
 print("  -------------------------------------------------------------")
 print("")
