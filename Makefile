@@ -139,8 +139,37 @@ uninstall:
 	rm -f /usr/local/bin/nevaarize
 	@echo "✓ Uninstalled nevaarize"
 
+# Listing Target
+list:
+	@mkdir -p z_listing
+	@echo "================================================================================" > z_listing/listing.txt
+	@echo "NEVAARIZE PROJECT CODEBASE LISTING" >> z_listing/listing.txt
+	@echo "Generated on: $$(date)" >> z_listing/listing.txt
+	@echo "================================================================================" >> z_listing/listing.txt
+	@echo "" >> z_listing/listing.txt
+	@echo "This document contains a comprehensive listing of all source code files within" >> z_listing/listing.txt
+	@echo "the Nevaarize project, including core, stdlib, examples, and LanguageBench." >> z_listing/listing.txt
+	@echo "Nevaarize is a high-performance, native JIT compiler language built with C++23." >> z_listing/listing.txt
+	@echo "" >> z_listing/listing.txt
+	@echo "Directory Structure Overview:" >> z_listing/listing.txt
+	@echo "1. core/include: Header files for the JIT compiler, Lexer, Parser, and IR." >> z_listing/listing.txt
+	@echo "2. core/src: Implementation of the native JIT engine and x86-64 code generator." >> z_listing/listing.txt
+	@echo "3. stdlib: Standard library implementations (Math, IO, Time)." >> z_listing/listing.txt
+	@echo "4. examples: Collection of example scripts demonstrating language features." >> z_listing/listing.txt
+	@echo "5. LanguageBench: Performance benchmarks across various languages." >> z_listing/listing.txt
+	@echo "" >> z_listing/listing.txt
+	@echo "================================================================================" >> z_listing/listing.txt
+	@echo "" >> z_listing/listing.txt
+	@for f in $$(find core stdlib examples LanguageBench -type f | sort) Makefile; do \
+		echo "FILE: $$f" >> z_listing/listing.txt; \
+		echo "--------------------------------------------------------------------------------" >> z_listing/listing.txt; \
+		cat "$$f" >> z_listing/listing.txt; \
+		echo -e "\n\n" >> z_listing/listing.txt; \
+	done
+	@echo "Codebase listing generated at z_listing/listing.txt"
+
 # Help
-.PHONY: help
+.PHONY: all release debug clean rebuild run run-script run-examples benchmark install uninstall help list
 help:
 	@echo "Nevaarize Build System"
 	@echo ""
@@ -154,6 +183,7 @@ help:
 	@echo "  run-script   Run script: make run-script SCRIPT=file.nva"
 	@echo "  run-examples Run all example scripts"
 	@echo "  benchmark    Run performance benchmarks"
+	@echo "  list         Generate codebase listing"
 	@echo "  install      Install to /usr/local/bin"
 	@echo "  uninstall    Remove from /usr/local/bin"
 	@echo "  help         Show this help"
