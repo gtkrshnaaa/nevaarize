@@ -1,0 +1,5 @@
+// Test if pointer value is reasonable
+struct Point { x }
+p = Point(42)
+// Just print the pointer value (should be a stack address)
+print("Pointer value:", p)

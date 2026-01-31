@@ -1148,7 +1148,73 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     return nullVal;
                 }
                 
-
+                // Struct constructor - check if funcName is a registered struct
+                auto structIt = structs.find(funcName);
+                if (structIt != structs.end()) {
+                    const StructInfo& info = structIt->second;
+                    
+                    // Allocate stack space for struct (16 bytes per field: value + type)
+                    int32_t baseOffset = allocateStackSlot();
+                    for (size_t i = 1; i < info.fieldNames.size(); ++i) {
+                        allocateStackSlot();
+                    }
+                    
+                    CodeBuffer& buf = codegen.getCode();
+                    
+                    // Initialize each field with provided arguments or default 0
+                    for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+                        int32_t fieldOffset = baseOffset + (i * 16);
+                        
+                        if (i < node.children.size()) {
+                            // Compile argument expression
+                            JITValue val = compileExpr(ast, node.children[i]);
+                            bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+                            
+                            // Store value: mov [rbp + fieldOffset], valueReg
+                            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                            buf.emit8(0x89);
+                            buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+                            buf.emit32(static_cast<uint32_t>(fieldOffset));
+                            
+                            // Store type: mov [rbp + fieldOffset + 8], typeReg
+                            bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                            buf.emit8(0x89);
+                            buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
+                            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                            
+                            freeReg(val.valueReg);
+                            freeReg(val.typeReg);
+                        } else {
+                            // Default to 0 with type Int
+                            buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                            buf.emit32(static_cast<uint32_t>(fieldOffset));
+                            buf.emit32(0);
+                            buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                            buf.emit32(0);
+                        }
+                    }
+                    
+                    // Return pointer to struct base
+                    JITValue result;
+                    result.valueReg = allocateReg();
+                    result.typeReg = allocateReg();
+                    
+                    bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    // lea result.valueReg, [rbp + baseOffset]
+                    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                    buf.emit8(0x8D); // LEA
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(baseOffset));
+                    
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(4); // Struct pointer type
+                    
+                    return result;
+                }
                 
                 // User-defined functions
                 if (userFunctions.count(funcName)) {

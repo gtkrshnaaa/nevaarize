@@ -1,0 +1,8 @@
+// Test member assign
+struct Point { x }
+p = Point(0)
+print("Before assign")
+p.x = 42
+print("After assign, before read")
+val = p.x
+print("Val:", val)

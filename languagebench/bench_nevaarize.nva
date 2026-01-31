@@ -1,10 +1,18 @@
 // Nevaarize Benchmark Suite
-// Workaround version without string parameters
+// Matches C++/Node.js benchmark structure
 
 import stdlib time as t
 
+struct Obj { val }
+
+func printHeader() {
+    print("  -------------------------------------------------------------")
+    print("  Benchmark       |     Performance     | Time")
+    print("  -------------------------------------------------------------")
+}
+
 func benchInt() {
-    limit = 100000000
+    limit = 1000000000
     start = t.nanos()
     i = 0
     while (i < limit) {
@@ -16,13 +24,12 @@ func benchInt() {
         diff = 1
     }
     ops = limit * 1000000000 / diff
-    sec = diff / 1000000000
-    print("  Integer Add     | ", ops, " ops/sec | ", sec, " s")
-    return ops
+    sec = diff / 1000000000.0
+    print("  Integer Add     | ", ops, " ops/sec | ", sec, "s")
 }
 
 func benchDouble() {
-    limit = 10000000
+    limit = 100000000
     val = 0.0
     start = t.nanos()
     j = 0
@@ -36,13 +43,12 @@ func benchDouble() {
         diff = 1
     }
     ops = limit * 1000000000 / diff
-    sec = diff / 1000000000
-    print("  Double Arith    | ", ops, " ops/sec | ", sec, " s")
-    return ops
+    sec = diff / 1000000000.0
+    print("  Double Arith    | ", ops, " ops/sec | ", sec, "s")
 }
 
 func benchArray() {
-    limit = 10000
+    limit = 1000000
     arr = []
     start = t.nanos()
     k = 0
@@ -56,20 +62,35 @@ func benchArray() {
         diff = 1
     }
     ops = limit * 1000000000 / diff
-    sec = diff / 1000000000
-    print("  Array Push      | ", ops, " ops/sec | ", sec, " s")
-    return ops
+    sec = diff / 1000000000.0
+    print("  Array Push      | ", ops, " ops/sec | ", sec, "s")
+}
+
+func benchStruct() {
+    limit = 50000000
+    o = Obj(0)
+    start = t.nanos()
+    i = 0
+    while (i < limit) {
+        o.val = i
+        x = o.val
+        i = i + 1
+    }
+    end = t.nanos()
+    diff = end - start
+    if (diff == 0) {
+        diff = 1
+    }
+    ops = limit * 1000000000 / diff
+    sec = diff / 1000000000.0
+    print("  Struct Access   | ", ops, " ops/sec | ", sec, "s")
 }
 
 print(">>> Nevaarize Benchmark Suite <<<")
-print("  -------------------------------------------------------------")
-print("  Benchmark       |     Performance     | Time")
-print("  -------------------------------------------------------------")
-
+printHeader()
 benchInt()
 benchDouble()
 benchArray()
-
-print("  Struct Access   | (in progress)       | N/A")
+benchStruct()
 print("  -------------------------------------------------------------")
 print("")
