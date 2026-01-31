@@ -39,6 +39,37 @@ extern "C" int64_t jit_get_clock_ns() {
     return static_cast<int64_t>(ns);
 }
 
+// Structure to track heap-allocated arrays in JIT
+struct JITArray {
+    int64_t capacity;
+    int64_t size;
+    int64_t data[];
+};
+
+extern "C" void* jit_alloc_array(int64_t size) {
+    int64_t capacity = size > 8 ? size : 8;
+    JITArray* arr = (JITArray*)malloc(sizeof(JITArray) + capacity * sizeof(int64_t));
+    if (!arr) return nullptr;
+    arr->capacity = capacity;
+    arr->size = size;
+    return (void*)arr->data;
+}
+
+extern "C" void* jit_array_push(void* dataPtr, int64_t value) {
+    if (!dataPtr) return nullptr;
+    JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
+    
+    if (arr->size >= arr->capacity) {
+        arr->capacity *= 2;
+        arr = (JITArray*)realloc(arr, sizeof(JITArray) + arr->capacity * sizeof(int64_t));
+        if (!arr) return nullptr;
+    }
+    
+    arr->data[arr->size] = value;
+    arr->size++;
+    return (void*)arr->data;
+}
+
 namespace nevaarize {
 
 JIT::JIT() 
@@ -1138,24 +1169,64 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     return result;
                 }
                 
-                if (memberName == "serve") {
-                    // http.serve() - mock implementation
-                    X64Reg dst = allocateReg();
-                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
-                    buf.emit64(0);
+                if (memberName == "push") {
+                    // arr.push(val)
+                    if (node.children.empty()) return objVal;
                     
-                    JITValue result;
-                    result.valueReg = dst;
-                    result.typeReg = allocateReg();
-                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(0);
-                    return result;
+                    // Compile argument (the value to push)
+                    JITValue argVal = compileExpr(ast, node.children[0]);
+                    
+                    // Call jit_array_push(objReg, argVal.valueReg)
+                    // Save caller-save
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                    
+                    // rdi = objReg (array ptr)
+                    bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+                    buf.emit8(0x48 | (objHigh ? 0x01 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+                    
+                    // rsi = argVal.valueReg (value)
+                    bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (argHigh ? 0x01 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC6 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+                    
+                    // rax = jit_array_push
+                    buf.emit8(0x48); buf.emit8(0xB8);
+                    buf.emit64(reinterpret_cast<uint64_t>(jit_array_push));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+                    
+                    // Resulting array pointer is in RAX (may have changed due to realloc)
+                    // We MUST update the variable if it's an identifier
+                    if (ast.get(node.left).left != INVALID_NODE) {
+                         const ASTNode& targetNode = ast.get(ast.get(node.left).left);
+                         if (targetNode.type == NodeType::IDENTIFIER) {
+                             const std::string& varName = targetNode.name;
+                             if (variables.count(varName)) {
+                                 int32_t offset = variables[varName].stackOffset;
+                                 buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                 buf.emit32(static_cast<uint32_t>(offset));
+                             }
+                         }
+                    }
+                    
+                    // Capture new pointer to objReg
+                    buf.emit8(0x48 | (objHigh ? 0x01 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(objReg) & 0x7));
+                    
+                    // Restore
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                    
+                    freeReg(argVal.valueReg);
+                    freeReg(argVal.typeReg);
+                    
+                    return objVal; 
                 }
-            }
+                
+                if (memberName == "serve") {
 
             JITValue nullVal;
             nullVal.valueReg = X64Reg::RAX;
@@ -1164,38 +1235,53 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::ARRAY_LITERAL: {
-            // Store array on stack: allocate space for elements
             size_t elemCount = node.children.size();
-            size_t arraySize = elemCount * 8; // 8 bytes per element
-            size_t paddedSize = ((arraySize + 15) & ~15);
-            
             CodeBuffer& buf = codegen.getCode();
             
-            // sub rsp, paddedSize
-            buf.emit8(0x48);
-            buf.emit8(0x81);
-            buf.emit8(0xEC);
-            buf.emit32(static_cast<uint32_t>(paddedSize));
+            // Call jit_alloc_array(elemCount)
+            // Save caller-save registers
+            buf.emit8(0x50); // push rax
+            buf.emit8(0x51); // push rcx
+            buf.emit8(0x52); // push rdx
+            buf.emit8(0x41); buf.emit8(0x50); // push r8
+            buf.emit8(0x41); buf.emit8(0x51); // push r9
+            buf.emit8(0x41); buf.emit8(0x52); // push r10
+            buf.emit8(0x41); buf.emit8(0x53); // push r11
             
-            // Capture RSP as the array base pointer BEFORE compiling elements
-            // This is CRITICAL for nested arrays, as compiling elements (which might be arrays themselves)
-            // will modify RSP further down. We need a stable base pointer for this array's slot.
+            // mov rdi, elemCount
+            buf.emit8(0x48); buf.emit8(0xBF);
+            buf.emit64(static_cast<uint64_t>(elemCount));
+            
+            // mov rax, jit_alloc_array
+            buf.emit8(0x48); buf.emit8(0xB8);
+            buf.emit64(reinterpret_cast<uint64_t>(jit_alloc_array));
+            
+            // call rax
+            buf.emit8(0xFF); buf.emit8(0xD0);
+            
+            // Capture base pointer from RAX before popping others
             X64Reg baseReg = allocateReg();
-            buf.emit8(0x48);
-            buf.emit8(0x89);
-            buf.emit8(0xE0 | (static_cast<uint8_t>(baseReg) & 0x7)); // mov baseReg, rsp
+            bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
+            buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
+            buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(baseReg) & 0x7));
+            
+            // Restore registers (reverse order)
+            buf.emit8(0x41); buf.emit8(0x5B); // pop r11
+            buf.emit8(0x41); buf.emit8(0x5A); // pop r10
+            buf.emit8(0x41); buf.emit8(0x59); // pop r9
+            buf.emit8(0x41); buf.emit8(0x58); // pop r8
+            buf.emit8(0x5A); // pop rdx
+            buf.emit8(0x59); // pop rcx
+            buf.emit8(0x58); // pop rax
             
             // Store each element
             for (size_t i = 0; i < elemCount; ++i) {
-                // Compile element (might be another array literal modifying RSP)
                 JITValue elemVal = compileExpr(ast, node.children[i]);
                 X64Reg elemReg = elemVal.valueReg;
-                freeReg(elemVal.typeReg); // Ignore element type for array storage currently (assumes 64-bit slots)
+                freeReg(elemVal.typeReg);
                 
                 // mov [baseReg + i*8], elemReg
                 bool regHigh = static_cast<uint8_t>(elemReg) >= 8;
-                bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
-                
                 buf.emit8(0x48 | (regHigh ? 0x04 : 0) | (baseHigh ? 0x01 : 0));
                 buf.emit8(0x89);
                 buf.emit8(0x40 | ((static_cast<uint8_t>(elemReg) & 0x7) << 3) | (static_cast<uint8_t>(baseReg) & 0x7));
@@ -1204,14 +1290,13 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 freeReg(elemReg);
             }
             
-            // Return baseReg as array pointer
             JITValue result;
             result.valueReg = baseReg;
             result.typeReg = allocateReg();
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(0); // Array uses Int pointer representation?
+            buf.emit64(0); // Type Int (Array Data Pointer)
             
             return result;
         }
@@ -1256,13 +1341,26 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::MEMBER_ACCESS: {
-            // Handle .length on arrays and struct properties
+            // Evaluate the object first
+            JITValue objVal = compileExpr(ast, node.left);
+            X64Reg objReg = objVal.valueReg;
+            
+            // Handle .length on arrays (assuming heap-allocated JITArray)
             if (node.name == "length") {
                 X64Reg dst = allocateReg();
                 bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
-                buf.emit64(5);  // Default array length
+                bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+                
+                // mov dst, [objReg - 8] (Size is at offset 8 in JITArray, but objReg points to data)
+                // Offset calculation: JITArray { capacity(8), size(8), data[] }
+                // data starts at offset 16. So size is at data - 8.
+                buf.emit8(0x48 | (dstHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x40 | ((static_cast<uint8_t>(dst) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                buf.emit8(static_cast<uint8_t>(0xF8)); // -8 offset
+                
+                freeReg(objVal.valueReg);
+                freeReg(objVal.typeReg);
                 
                 JITValue result;
                 result.valueReg = dst;
@@ -1270,18 +1368,19 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
                 buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
                 buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                buf.emit64(0);
+                buf.emit64(0); // Int
                 return result;
             }
             
-            // Handle struct properties (SIMD info, etc)
+            // Handle struct properties (SIMD info, etc) - Keep as fallback
             if (node.name == "level" || node.name == "hasAVX2" || node.name == "hasAVX512") {
+                freeReg(objVal.valueReg);
+                freeReg(objVal.typeReg);
                 X64Reg dst = allocateReg();
                 bool dstHigh = static_cast<uint8_t>(dst) >= 8;
                 buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
                 buf.emit8(0xB8 + (static_cast<uint8_t>(dst) & 0x7));
-                buf.emit64(1);  // Return 1 for all struct properties
-                
+                buf.emit64(1);
                 JITValue result;
                 result.valueReg = dst;
                 result.typeReg = allocateReg();
@@ -1292,81 +1391,66 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 return result;
             }
             
-            // Try to load struct field
-            if (node.left != INVALID_NODE) {
-                const ASTNode& objNode = ast.get(node.left);
-                
-                // For struct member access: obj.field
-                // objNode should be IDENTIFIER (the struct variable)
-                if (objNode.type == NodeType::IDENTIFIER) {
-                    const std::string& varName = objNode.name;
-                    
-                    // Check if variable exists
-                    if (variables.count(varName)) {
-                        const VarLocation& varLoc = variables[varName];
-                        
-                        // Determine field offset based on field name
-                        // For now, hardcode: x=0, y=16
-                        int32_t fieldIndex = 0;
-                        if (node.name == "y") {
-                            fieldIndex = 1;
-                        } else if (node.name == "z") {
-                            fieldIndex = 2;
+            // Try to load struct field dynamically
+            const ASTNode& objNode = ast.get(node.left);
+            if (objNode.type == NodeType::IDENTIFIER) {
+                const std::string& varName = objNode.name;
+                if (variables.count(varName)) {
+                    // We need the type of the variable to find the struct definition
+                    // But our JIT is currently untyped during compilation.
+                    // Fallback to searching all structs for this field name.
+                    int32_t fieldIndex = -1;
+                    for (auto const& [name, info] : structs) {
+                        for (size_t i = 0; i < info.fieldNames.size(); ++i) {
+                            if (info.fieldNames[i] == node.name) {
+                                fieldIndex = static_cast<int32_t>(i);
+                                break;
+                            }
                         }
+                        if (fieldIndex != -1) break;
+                    }
+                    
+                    if (fieldIndex != -1) {
                         int32_t fieldOffset = fieldIndex * 16;
-                        
-                        // Load base offset from variable
-                        // Variable stores the struct base offset as a value
-                        X64Reg baseReg = allocateReg();
+                        X64Reg baseReg = objReg;
                         bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
-                        buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
-                        buf.emit8(0x8B);
-                        buf.emit8(0x85 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3));
-                        buf.emit32(static_cast<uint32_t>(varLoc.stackOffset));
                         
-                        // Now baseReg contains the base stack offset VALUE
-                        // We need to load from [RBP + baseReg + fieldOffset]
-                        // BUT x86-64 doesn't support [RBP + reg + imm] directly
-                        // So we add fieldOffset to baseReg first
+                        // baseReg contains baseOffset (relative to RBP for current implementation)
+                        // This JIT seems to store structs on the stack and objReg is the RBP offset?
+                        // Let's stick to the existing logic of [rbp + baseReg + fieldOffset]
                         
                         if (fieldOffset != 0) {
-                            // add baseReg, fieldOffset
                             buf.emit8(0x48 | (baseHigh ? 0x01 : 0));
                             buf.emit8(0x81);
                             buf.emit8(0xC0 | (static_cast<uint8_t>(baseReg) & 0x7));
                             buf.emit32(static_cast<uint32_t>(fieldOffset));
                         }
                         
-                        // Now load from [RBP + baseReg]
-                        // This requires using SIB byte with RBP as base and baseReg as index
-                        // mov result, [rbp + baseReg]
                         JITValue result;
                         result.valueReg = allocateReg();
                         result.typeReg = allocateReg();
-                        
                         bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                         buf.emit8(0x48 | (valHigh ? 0x01 : 0) | (baseHigh ? 0x02 : 0));
                         buf.emit8(0x8B);
                         buf.emit8(0x84 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7)); // SIB: [rbp + baseReg]
-                        buf.emit32(0); // displacement
+                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7)); 
+                        buf.emit32(0);
                         
-                        // Load type similarly
                         bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
                         buf.emit8(0x48 | (typeHigh ? 0x01 : 0) | (baseHigh ? 0x02 : 0));
                         buf.emit8(0x8B);
                         buf.emit8(0x84 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
-                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7)); // SIB
-                        buf.emit32(8); // displacement for type field
+                        buf.emit8(0x28 | (static_cast<uint8_t>(baseReg) & 0x7));
+                        buf.emit32(8);
                         
-                        freeReg(baseReg);
+                        freeReg(objReg);
+                        freeReg(objVal.typeReg);
                         return result;
                     }
                 }
             }
             
-            // For other member access, evaluate the object
-            return compileExpr(ast, node.left);
+            return objVal;
         }
         
         case NodeType::STRUCT_INIT: {
