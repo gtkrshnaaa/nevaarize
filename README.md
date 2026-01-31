@@ -38,6 +38,18 @@ cd languagebench
 ./run_comparison.sh
 ```
 
+### Benchmark Methodology
+
+Each benchmark is designed to test a specific aspect of the language runtime. The tests are consistent across all languages (C++, Rust, Go, Node.js, Zig, etc.).
+
+| Benchmark | Iterations | Description |
+|-----------|------------|-------------|
+| **Integer Add** | 1,000,000,000 | A tight loop performing 1 billion integer increments. Tests basic loop overhead and integer arithmetic performance. |
+| **Double Arith** | 100,000,000 | 100 million floating-point additions. Tests FPU performance and JIT handling of float types. |
+| **String Concat** | 50,000 | Appends a character to a string 50k times. Tests dynamic string allocation and resizing strategies. |
+| **Array Push** | 1,000,000 | Pushes 1 million integers into a dynamic array. Tests memory allocator efficiency and array growth algorithms. |
+| **Struct Access** | 50,000,000 | Writes and reads a field in a struct 50 million times. Tests property access overhead and inline caching. |
+
 ### Full Benchmark Results (13 Languages)
 
 ```
