@@ -120,6 +120,11 @@ void JIT::emitPrologue() {
     // push rbp
     buf.emit8(0x55);
     
+    // push r12
+    buf.emit8(0x41); buf.emit8(0x54);
+    // push r13
+    buf.emit8(0x41); buf.emit8(0x55);
+    
     // mov rbp, rsp
     buf.emit8(0x48);
     buf.emit8(0x89);
@@ -139,6 +144,11 @@ void JIT::emitEpilogue() {
     buf.emit8(0x48);
     buf.emit8(0x89);
     buf.emit8(0xEC);
+
+    // pop r13
+    buf.emit8(0x41); buf.emit8(0x5D);
+    // pop r12
+    buf.emit8(0x41); buf.emit8(0x5C);
     
     // pop rbp
     buf.emit8(0x5D);
@@ -362,21 +372,37 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             auto it = variables.find(node.name);
             if (it != variables.end()) {
-                int32_t offset = it->second.stackOffset;
-                
-                // Load Value
-                bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-                buf.emit8(0x8B);
-                buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-                buf.emit32(static_cast<uint32_t>(offset));
-                
-                // Load Type
-                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
-                buf.emit8(0x8B);
-                buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
-                buf.emit32(static_cast<uint32_t>(offset + 8));
+                if (it->second.isRegister) {
+                    // Move from assigned register
+                    bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool srcHigh = static_cast<uint8_t>(it->second.reg) >= 8;
+                    buf.emit8(0x48 | (valHigh ? 0x01 : 0) | (srcHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(it->second.reg) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // Pinned variables are currently always integers (Type 0)
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0);
+                } else {
+                    int32_t offset = it->second.stackOffset;
+                    
+                    // Load Value
+                    bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                    buf.emit8(0x8B);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(offset));
+                    
+                    // Load Type
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                    buf.emit8(0x8B);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(offset + 8));
+                }
             }
             return result;
         }
@@ -1765,21 +1791,34 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
         it = variables.find(node.name);
     }
     
-    int32_t offset = it->second.stackOffset;
-    
-    // Store Value at [rbp + offset]
-    bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
-    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-    buf.emit8(0x89);
-    buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
-    buf.emit32(static_cast<uint32_t>(offset));
-    
-    // Store Type Tag at [rbp + offset + 8]
-    bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
-    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
-    buf.emit8(0x89);
-    buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
-    buf.emit32(static_cast<uint32_t>(offset + 8));
+    if (it->second.isRegister) {
+        // Store into the assigned register
+        bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+        bool dstHigh = static_cast<uint8_t>(it->second.reg) >= 8;
+        buf.emit8(0x48 | (dstHigh ? 0x01 : 0) | (valHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0xC0 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3) | 
+                  (static_cast<uint8_t>(it->second.reg) & 0x7));
+        
+        // Pinned variables are assumed integers, but if they weren't, 
+        // we'd need to handle the type tag. Loops currently pin only ints.
+    } else {
+        int32_t offset = it->second.stackOffset;
+        
+        // Store Value at [rbp + offset]
+        bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+        buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(offset));
+        
+        // Store Type Tag at [rbp + offset + 8]
+        bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+        buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(offset + 8));
+    }
     
     freeReg(val.valueReg);
     freeReg(val.typeReg);
@@ -2301,6 +2340,54 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
+    // Simple Loop Variable Pinning (e.g. while (i < limit))
+    std::string pinnedCounter, pinnedLimit;
+    VarLocation oldCounterLoc, oldLimitLoc;
+    bool counterPinned = false, limitPinned = false;
+
+    // Detect i < limit or i < literal pattern
+    const ASTNode& cond = ast.get(node.left);
+    if (cond.type == NodeType::BINARY_OP && (cond.binaryOp == BinaryOp::LT || cond.binaryOp == BinaryOp::GT)) {
+        const ASTNode& leftNode = ast.get(cond.left);
+        const ASTNode& rightNode = ast.get(cond.right);
+        
+        if (leftNode.type == NodeType::IDENTIFIER && variables.count(leftNode.name)) {
+            pinnedCounter = leftNode.name;
+            if (!variables[pinnedCounter].isRegister) { // Only pin if not already pinned
+                oldCounterLoc = variables[pinnedCounter];
+                VarLocation pinnedLoc = oldCounterLoc;
+                pinnedLoc.isRegister = true;
+                pinnedLoc.reg = X64Reg::R12;
+                variables[pinnedCounter] = pinnedLoc;
+                counterPinned = true;
+                
+                // mov r12, [rbp + offset]
+                buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xA5);
+                buf.emit32(static_cast<uint32_t>(oldCounterLoc.stackOffset));
+                
+                regInUse[static_cast<int>(X64Reg::R12)] = true;
+            }
+        }
+        
+        if (rightNode.type == NodeType::IDENTIFIER && variables.count(rightNode.name)) {
+            pinnedLimit = rightNode.name;
+            if (!variables[pinnedLimit].isRegister) {
+                oldLimitLoc = variables[pinnedLimit];
+                VarLocation pinnedLoc = oldLimitLoc;
+                pinnedLoc.isRegister = true;
+                pinnedLoc.reg = X64Reg::R13;
+                variables[pinnedLimit] = pinnedLoc;
+                limitPinned = true;
+                
+                // mov r13, [rbp + offset]
+                buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xAD);
+                buf.emit32(static_cast<uint32_t>(oldLimitLoc.stackOffset));
+                
+                regInUse[static_cast<int>(X64Reg::R13)] = true;
+            }
+        }
+    }
+
     // Align loop start
     while (buf.getOffset() % 16 != 0) {
         buf.emit8(0x90); // NOP
@@ -2310,18 +2397,17 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     size_t loopStart = buf.getOffset();
     
     // Compile condition
-    JITValue cond = compileExpr(ast, node.left);
-    X64Reg condReg = cond.valueReg;
+    JITValue cv = compileExpr(ast, node.left);
+    X64Reg condReg = cv.valueReg;
     
     // test condReg, condReg
     bool condHigh = static_cast<uint8_t>(condReg) >= 8;
     buf.emit8(0x48 | (condHigh ? 0x05 : 0));
     buf.emit8(0x85);
-    buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | 
-              (static_cast<uint8_t>(condReg) & 0x7));
+    buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | (static_cast<uint8_t>(condReg) & 0x7));
     
-    freeReg(cond.valueReg);
-    freeReg(cond.typeReg);
+    freeReg(cv.valueReg);
+    freeReg(cv.typeReg);
     
     // jz loop_end (exit if condition is false)
     buf.emit8(0x0F);
@@ -2343,6 +2429,22 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     size_t loopEnd = buf.getOffset();
     int32_t jzOffset = static_cast<int32_t>(loopEnd - (jzPatch + 4));
     buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+
+    // Restore Pinned Variables and Store back to stack
+    if (counterPinned) {
+        // mov [rbp + offset], r12
+        buf.emit8(0x4C); buf.emit8(0x89); buf.emit8(0xA5);
+        buf.emit32(static_cast<uint32_t>(oldCounterLoc.stackOffset));
+        variables[pinnedCounter] = oldCounterLoc;
+        regInUse[static_cast<int>(X64Reg::R12)] = false;
+    }
+    if (limitPinned) {
+        // mov [rbp + offset], r13
+        buf.emit8(0x4C); buf.emit8(0x89); buf.emit8(0xAD);
+        buf.emit32(static_cast<uint32_t>(oldLimitLoc.stackOffset));
+        variables[pinnedLimit] = oldLimitLoc;
+        regInUse[static_cast<int>(X64Reg::R13)] = false;
+    }
 }
 
 // Compile for loop (supports Range iteration)
