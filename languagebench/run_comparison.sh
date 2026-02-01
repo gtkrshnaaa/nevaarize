@@ -1,7 +1,12 @@
 #!/bin/bash
 
+# Determine script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Build Nevaarize first
-cd .. && make -s && cd languagebench
+cd "$ROOT_DIR" && make -s
+cd "$SCRIPT_DIR"
 
 REPORT_FILE="battle_report.txt"
 
