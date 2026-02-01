@@ -382,6 +382,49 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::BINARY_OP: {
+            // Constant Folding Optimization
+            const ASTNode& lNodeFold = ast.get(node.left);
+            const ASTNode& rNodeFold = ast.get(node.right);
+            
+            if (lNodeFold.type == NodeType::LITERAL_INT && rNodeFold.type == NodeType::LITERAL_INT) {
+                int64_t leftVal = std::get<int64_t>(lNodeFold.literal.data);
+                int64_t rightVal = std::get<int64_t>(rNodeFold.literal.data);
+                int64_t resFold = 0;
+                bool folded = true;
+
+                switch (node.binaryOp) {
+                    case BinaryOp::ADD: resFold = leftVal + rightVal; break;
+                    case BinaryOp::SUB: resFold = leftVal - rightVal; break;
+                    case BinaryOp::MUL: resFold = leftVal * rightVal; break;
+                    case BinaryOp::DIV: if (rightVal != 0) resFold = leftVal / rightVal; else folded = false; break;
+                    case BinaryOp::MOD: if (rightVal != 0) resFold = leftVal % rightVal; else folded = false; break;
+                    case BinaryOp::EQ:  resFold = (leftVal == rightVal); break;
+                    case BinaryOp::NEQ: resFold = (leftVal != rightVal); break;
+                    case BinaryOp::LT:  resFold = (leftVal < rightVal); break;
+                    case BinaryOp::LTE: resFold = (leftVal <= rightVal); break;
+                    case BinaryOp::GT:  resFold = (leftVal > rightVal); break;
+                    case BinaryOp::GTE: resFold = (leftVal >= rightVal); break;
+                    default: folded = false; break;
+                }
+
+                if (folded) {
+                    JITValue result;
+                    result.valueReg = allocateReg();
+                    result.typeReg = allocateReg();
+                    
+                    bool vh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    buf.emit8(0x48 | (vh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    buf.emit64(resFold);
+
+                    bool th = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (th ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0); // Int
+                    return result;
+                }
+            }
+
             JITValue left = compileExpr(ast, node.left);
             JITValue right = {X64Reg::RAX, X64Reg::RAX}; // Initialize to silence warning
             bool rightIsImm = false;
