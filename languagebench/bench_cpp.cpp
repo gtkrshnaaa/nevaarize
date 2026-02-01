@@ -31,7 +31,7 @@ void benchInt() {
     // Volatile to prevent compiler from optimizing away the loop completely
     volatile long long i = 0;
     while (i < limit) {
-        i++;
+        i = i + 1;
     }
     
     auto end = high_resolution_clock::now();
@@ -48,7 +48,7 @@ void benchDouble() {
     volatile double v = 0.0;
     long long i = 0;
     while (i < limit) {
-        v += 1.1;
+        v = v + 1.1;
         i++;
     }
     
