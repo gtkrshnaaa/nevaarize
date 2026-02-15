@@ -115,7 +115,7 @@ private:
     std::unordered_set<std::string> currentlyCompiling;
     const AST* currentAST;
     bool inFunctionCall;
-    
+
     // Compile-time type tracking for optimization
     std::unordered_set<std::string> knownIntVars;
 
