@@ -8,6 +8,7 @@
 #include "JIT.hpp"
 #include "Parser.hpp"
 #include "Lexer.hpp"
+#include "GC.hpp"
 #include <cstring>
 #include <cstdio>
 #include <chrono>
@@ -52,6 +53,9 @@ extern "C" int64_t jit_get_clock_ns() {
     return static_cast<int64_t>(ns);
 }
 
+// Global garbage collector instance for JIT heap allocations
+static nevaarize::GarbageCollector jitGC;
+
 // Structure to track heap-allocated arrays in JIT
 struct JITArray {
     int64_t capacity;
@@ -61,11 +65,20 @@ struct JITArray {
 
 extern "C" void* jit_alloc_array(int64_t size) {
     int64_t capacity = size > 8 ? size : 8;
-    JITArray* arr = (JITArray*)malloc(sizeof(JITArray) + capacity * sizeof(int64_t));
-    if (!arr) return nullptr;
+    size_t totalBytes = sizeof(JITArray) + capacity * sizeof(int64_t);
+    
+    // Attempt GC-managed allocation
+    void* mem = jitGC.allocate(totalBytes);
+    if (!mem) {
+        // Fallback to direct heap allocation
+        mem = malloc(totalBytes);
+    }
+    if (!mem) return nullptr;
+    
+    JITArray* arr = static_cast<JITArray*>(mem);
     arr->capacity = capacity;
     arr->size = size;
-    return (void*)arr->data;
+    return static_cast<void*>(arr->data);
 }
 
 extern "C" void* jit_array_push(void* dataPtr, int64_t value) {
@@ -85,7 +98,21 @@ extern "C" void* jit_array_push(void* dataPtr, int64_t value) {
 
 extern "C" char* jit_alloc_string(const char* s) {
     if (!s) return nullptr;
+    size_t len = strlen(s) + 1;
+    
+    // Attempt GC-managed allocation
+    void* mem = jitGC.allocate(len);
+    if (mem) {
+        memcpy(mem, s, len);
+        return static_cast<char*>(mem);
+    }
+    
+    // Fallback to direct heap allocation
     return strdup(s);
+}
+
+extern "C" void jit_gc_collect() {
+    jitGC.collectYoung();
 }
 
 extern "C" char* jit_string_concat(char* s1, char* s2) {
