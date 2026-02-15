@@ -321,9 +321,6 @@ make uninstall    # Remove from system
 - [x] **AI Core** - Tensor operations and model serving
 - [/] **Garbage Collector** - Generational GC (In Development)
 - [/] **Async/Await** - Coroutine-based concurrency (In Development)
-- [ ] **Module System** - Package management
-- [ ] **Windows Support** - Cross-platform builds
-- [ ] **REPL Improvements** - Better interactive mode
 
 ---
 
