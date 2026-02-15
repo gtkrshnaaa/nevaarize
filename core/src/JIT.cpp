@@ -1840,61 +1840,11 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::AWAIT_EXPR: {
-            // Compile inner expression to get task handle pointer
-            JITValue taskVal = compileExpr(ast, node.left);
-            X64Reg taskReg = taskVal.valueReg;
-            freeReg(taskVal.typeReg);
-            
-            CodeBuffer& buf = codegen.getCode();
-            
-            // Move task pointer to RDI (first argument)
-            bool taskHigh = static_cast<uint8_t>(taskReg) >= 8;
-            if (taskReg != X64Reg::RDI) {
-                buf.emit8(0x48 | (taskHigh ? 0x04 : 0));
-                buf.emit8(0x89);
-                buf.emit8(0xC0 | ((static_cast<uint8_t>(taskReg) & 0x7) << 3) | 0x07); // mov rdi, taskReg
-            }
-            freeReg(taskReg);
-            
-            // Save caller-saved registers
-            buf.emit8(0x51); // push rcx
-            buf.emit8(0x52); // push rdx
-            
-            // Align stack to 16 bytes
-            buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xEC); buf.emit8(0x08);
-            
-            // movabs rax, jit_await_task
-            buf.emit8(0x48); buf.emit8(0xB8);
-            buf.emit64(reinterpret_cast<uint64_t>(jit_await_task));
-            
-            // call rax
-            buf.emit8(0xFF); buf.emit8(0xD0);
-            
-            // Restore stack alignment
-            buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x08);
-            
-            // Restore caller-saved registers
-            buf.emit8(0x5A); // pop rdx
-            buf.emit8(0x59); // pop rcx
-            
-            // Result is in RAX
-            X64Reg resultReg = allocateReg();
-            if (resultReg != X64Reg::RAX) {
-                bool resHigh = static_cast<uint8_t>(resultReg) >= 8;
-                buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                buf.emit8(0x89);
-                buf.emit8(0xC0 | (static_cast<uint8_t>(resultReg) & 0x7)); // mov resultReg, rax
-            }
-            
-            JITValue result;
-            result.valueReg = resultReg;
-            result.typeReg = allocateReg();
-            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(0); // INT type
-            
-            return result;
+            // Synchronous evaluation: current single-pass JIT inlines function bodies,
+            // so there is no compiled function pointer to spawn on a thread.
+            // The jit_async_spawn/jit_await_task helpers are available for future
+            // IR pipeline integration (Nevaarize 2.0).
+            return compileExpr(ast, node.left);
         }
         
         default: {
