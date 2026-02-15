@@ -608,42 +608,48 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             result.valueReg = left.valueReg;
             result.typeReg = left.typeReg;
             
-            // Check types: Is either a float? (tag != 0)
-            X64Reg typeScratch = allocateReg();
+            // Static type inference: skip runtime type dispatch for pure-int operations
+            bool staticIntPath = isStaticInt(ast, node.left) && 
+                                 (rightIsImm || isStaticInt(ast, node.right));
             
-            bool tempHigh = static_cast<uint8_t>(typeScratch) >= 8;
+            size_t jnzPatch = 0;
             bool lTypeHigh = static_cast<uint8_t>(left.typeReg) >= 8;
             
-            // mov scratch, left.type
-            buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (lTypeHigh ? 0x04 : 0));
-            buf.emit8(0x89);
-            buf.emit8(0xC0 | ((static_cast<uint8_t>(left.typeReg) & 0x7) << 3) | 
-                      (static_cast<uint8_t>(typeScratch) & 0x7));
-            
-            if (!rightIsImm) {
-                // or scratch, right.type
-                bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
-                buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (rTypeHigh ? 0x04 : 0));
-                buf.emit8(0x09);
-                buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | 
+            if (!staticIntPath) {
+                // Dynamic type dispatch: check if either operand is float
+                X64Reg typeScratch = allocateReg();
+                
+                bool tempHigh = static_cast<uint8_t>(typeScratch) >= 8;
+                
+                // mov scratch, left.type
+                buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (lTypeHigh ? 0x04 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC0 | ((static_cast<uint8_t>(left.typeReg) & 0x7) << 3) | 
                           (static_cast<uint8_t>(typeScratch) & 0x7));
+                
+                if (!rightIsImm) {
+                    // or scratch, right.type
+                    bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                    buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (rTypeHigh ? 0x04 : 0));
+                    buf.emit8(0x09);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | 
+                              (static_cast<uint8_t>(typeScratch) & 0x7));
+                }
+                          
+                // Check if scratch is 0
+                buf.emit8(0x48 | (tempHigh ? 0x01 : 0)); // REX.W
+                buf.emit8(0x85); // test r/m64, r64
+                buf.emit8(0xC0 | ((static_cast<uint8_t>(typeScratch) & 0x7) << 3) | 
+                          (static_cast<uint8_t>(typeScratch) & 0x7));
+                
+                freeReg(typeScratch);
+                          
+                // jnz float_path (if not zero, one of them is float)
+                buf.emit8(0x0F);
+                buf.emit8(0x85); // jnz far
+                jnzPatch = buf.getOffset();
+                buf.emit32(0);
             }
-            // If rightIsImm, right.type is 0 (Int), so 'or scratch, 0' is nop.
-                      
-            // Check if scratch is 0
-            buf.emit8(0x48 | (tempHigh ? 0x01 : 0)); // REX.W
-            buf.emit8(0x85); // test r/m64, r64
-            buf.emit8(0xC0 | ((static_cast<uint8_t>(typeScratch) & 0x7) << 3) | 
-                      (static_cast<uint8_t>(typeScratch) & 0x7));
-            
-            // Free scratch
-            freeReg(typeScratch);
-                      
-            // jnz float_path (if not zero, one of them is float)
-            buf.emit8(0x0F);
-            buf.emit8(0x85); // jnz far
-            size_t jnzPatch = buf.getOffset();
-            buf.emit32(0);
             
             // === INTEGER PATH ===
             // Copy left value to result value register if needed
@@ -1000,179 +1006,161 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 default: break;
             }
             
-            // Set Result Type to INT (which it already should be if result.typeReg was used as temp and result was 0)
-            // Wait, we modified result.typeReg with OR. If we are here, it is 0! No need to reset.
+            // Set Result Type to INT for static int path
+            if (staticIntPath) {
+                emitXorReg(buf, result.typeReg);
+            }
             
-            // jmp end
-            buf.emit8(0xE9);
-            size_t jmpPatch = buf.getOffset();
-            buf.emit32(0);
-            
-            // === FLOAT PATH ===
-            size_t floatStart = buf.getOffset();
-            int32_t jnzOffset = static_cast<int32_t>(floatStart - (jnzPatch + 4));
-            buf.patch32(jnzPatch, static_cast<uint32_t>(jnzOffset));
-            
-            // Strategy: Convert BOTH to Double then OP
-            // Use XMM0 and XMM1 as scratch
-            
-            // Load Left to XMM0
-            // Check left.type (if 0, cvtsi2sd)
-            // cmp left.type, 0
-            buf.emit8(0x48 | (lTypeHigh ? 0x01 : 0));
-            buf.emit8(0x83);
-            buf.emit8(0xF8 | (static_cast<uint8_t>(left.typeReg) & 0x7));
-            buf.emit8(0x00);
-            
-            // jnz left_is_float
-            buf.emit8(0x75);
-            buf.emit8(0x07); // Skip 7 bytes (cvtsi2sd (5) + jmp (2))
-            
-            // cvtsi2sd xmm0, left.val
-            bool lValHigh = static_cast<uint8_t>(left.valueReg) >= 8;
-            buf.emit8(0xF2); 
-            buf.emit8(0x48 | (lValHigh ? 0x01 : 0)); // REX.W | REX.B
-            buf.emit8(0x0F); buf.emit8(0x2A);
-            buf.emit8(0xC0 | (static_cast<uint8_t>(left.valueReg) & 0x7));
-            
-            // jmp left_ready
-            buf.emit8(0xEB); buf.emit8(0x05); // Skip 5 bytes (movq)
-            
-            // left_is_float: movq xmm0, left.val
-            buf.emit8(0x66); buf.emit8(0x48 | (lValHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
-            buf.emit8(0xC0 | (static_cast<uint8_t>(left.valueReg) & 0x7));
-            
-            // Similar for Right to XMM1
-            if (rightIsImm) {
-                // If immediate, it's INT (0). Load to XMM1.
-                // Need a scratch reg
-                X64Reg rScratch = allocateReg();
-                bool rScHigh = static_cast<uint8_t>(rScratch) >= 8;
+            if (!staticIntPath) {
+                // jmp end (skip float path)
+                buf.emit8(0xE9);
+                size_t jmpPatch = buf.getOffset();
+                buf.emit32(0);
                 
-                // mov scratch, imm64
-                buf.emit8(0x48 | (rScHigh ? 0x01 : 0));
-                buf.emit8(0xB8 + (static_cast<uint8_t>(rScratch) & 0x7));
-                buf.emit64(static_cast<uint64_t>(immVal));
+                // === FLOAT PATH ===
+                size_t floatStart = buf.getOffset();
+                int32_t jnzOffset = static_cast<int32_t>(floatStart - (jnzPatch + 4));
+                buf.patch32(jnzPatch, static_cast<uint32_t>(jnzOffset));
                 
-                // cvtsi2sd xmm1, scratch
-                buf.emit8(0xF2);
-                buf.emit8(0x48 | (rScHigh ? 0x01 : 0));
-                buf.emit8(0x0F); buf.emit8(0x2A);
-                buf.emit8(0xC8 | (static_cast<uint8_t>(rScratch) & 0x7)); // XMM1
+                // Strategy: Convert BOTH to Double then OP
+                // Use XMM0 and XMM1 as scratch
                 
-                freeReg(rScratch);
-            } else {
-                // cmp right.type, 0
-                bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
-                buf.emit8(0x48 | (rTypeHigh ? 0x01 : 0));
+                // Load Left to XMM0
+                // Check left.type (if 0, cvtsi2sd)
+                // cmp left.type, 0
+                buf.emit8(0x48 | (lTypeHigh ? 0x01 : 0));
                 buf.emit8(0x83);
-                buf.emit8(0xF8 | (static_cast<uint8_t>(right.typeReg) & 0x7));
+                buf.emit8(0xF8 | (static_cast<uint8_t>(left.typeReg) & 0x7));
                 buf.emit8(0x00);
                 
-                // jnz right_is_float
+                // jnz left_is_float
                 buf.emit8(0x75);
                 buf.emit8(0x07); // Skip 7 bytes (cvtsi2sd (5) + jmp (2))
                 
-                // cvtsi2sd xmm1, right.val
-                bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
-                buf.emit8(0xF2);
-                buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); // REX.W | REX.B
+                // cvtsi2sd xmm0, left.val
+                bool lValHigh = static_cast<uint8_t>(left.valueReg) >= 8;
+                buf.emit8(0xF2); 
+                buf.emit8(0x48 | (lValHigh ? 0x01 : 0)); // REX.W | REX.B
                 buf.emit8(0x0F); buf.emit8(0x2A);
-                buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
+                buf.emit8(0xC0 | (static_cast<uint8_t>(left.valueReg) & 0x7));
                 
-                // jmp right_ready
-                buf.emit8(0xEB); buf.emit8(0x05);
+                // jmp left_ready
+                buf.emit8(0xEB); buf.emit8(0x05); // Skip 5 bytes (movq)
                 
-                // right_is_float: movq xmm1, right.val
-                buf.emit8(0x66); buf.emit8(0x48 | (rValHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
-                buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
-            }
-            
-            // Perform Float Op
-            switch (node.binaryOp) {
-                case BinaryOp::ADD: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58); buf.emit8(0xC1); break; // addsd xmm0, xmm1
-                case BinaryOp::SUB: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1); break; // subsd xmm0, xmm1
-                case BinaryOp::MUL: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x59); buf.emit8(0xC1); break; // mulsd xmm0, xmm1
-                case BinaryOp::DIV: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5E); buf.emit8(0xC1); break; // divsd xmm0, xmm1
-                case BinaryOp::LT: {
-                    // UCOMISD xmm0, xmm1 (compare floats, sets CF if xmm0 < xmm1)
-                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                // left_is_float: movq xmm0, left.val
+                buf.emit8(0x66); buf.emit8(0x48 | (lValHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
+                buf.emit8(0xC0 | (static_cast<uint8_t>(left.valueReg) & 0x7));
+                
+                // Similar for Right to XMM1
+                if (rightIsImm) {
+                    // If immediate, it's INT (0). Load to XMM1.
+                    // Need a scratch reg
+                    X64Reg rScratch = allocateReg();
+                    bool rScHigh = static_cast<uint8_t>(rScratch) >= 8;
                     
-                    // XOR rax, rax (clear for setb)
-                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                    // mov scratch, imm64
+                    emitMovImm64(buf, rScratch, static_cast<uint64_t>(immVal));
                     
-                    // SETB al (set byte if CF=1, i.e. unordered or less than)
-                    buf.emit8(0x0F); buf.emit8(0x92); buf.emit8(0xC0);
+                    // cvtsi2sd xmm1, scratch
+                    buf.emit8(0xF2);
+                    buf.emit8(0x48 | (rScHigh ? 0x01 : 0));
+                    buf.emit8(0x0F); buf.emit8(0x2A);
+                    buf.emit8(0xC8 | (static_cast<uint8_t>(rScratch) & 0x7)); // XMM1
                     
-                    // CVTSI2SD xmm0, rax (convert 0/1 to 0.0/1.0)
-                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
-                    break;
+                    freeReg(rScratch);
+                } else {
+                    // cmp right.type, 0
+                    bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                    buf.emit8(0x48 | (rTypeHigh ? 0x01 : 0));
+                    buf.emit8(0x83);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(right.typeReg) & 0x7));
+                    buf.emit8(0x00);
+                    
+                    // jnz right_is_float
+                    buf.emit8(0x75);
+                    buf.emit8(0x07); // Skip 7 bytes (cvtsi2sd (5) + jmp (2))
+                    
+                    // cvtsi2sd xmm1, right.val
+                    bool rValHighF = static_cast<uint8_t>(right.valueReg) >= 8;
+                    buf.emit8(0xF2);
+                    buf.emit8(0x48 | (rValHighF ? 0x01 : 0)); // REX.W | REX.B
+                    buf.emit8(0x0F); buf.emit8(0x2A);
+                    buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
+                    
+                    // jmp right_ready
+                    buf.emit8(0xEB); buf.emit8(0x05);
+                    
+                    // right_is_float: movq xmm1, right.val
+                    buf.emit8(0x66); buf.emit8(0x48 | (rValHighF ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
+                    buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // XMM1
                 }
-                case BinaryOp::GT: {
-                    // UCOMISD xmm0, xmm1
-                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
-                    // SETA al (above = CF=0 AND ZF=0)
-                    buf.emit8(0x0F); buf.emit8(0x97); buf.emit8(0xC0);
-                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
-                    break;
+                
+                // Perform Float Op
+                switch (node.binaryOp) {
+                    case BinaryOp::ADD: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58); buf.emit8(0xC1); break;
+                    case BinaryOp::SUB: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1); break;
+                    case BinaryOp::MUL: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x59); buf.emit8(0xC1); break;
+                    case BinaryOp::DIV: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5E); buf.emit8(0xC1); break;
+                    case BinaryOp::LT: {
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x92); buf.emit8(0xC0);
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    }
+                    case BinaryOp::GT: {
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x97); buf.emit8(0xC0);
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    }
+                    case BinaryOp::LTE: {
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x96); buf.emit8(0xC0);
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    }
+                    case BinaryOp::GTE: {
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x93); buf.emit8(0xC0);
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    }
+                    case BinaryOp::EQ: {
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x94); buf.emit8(0xC0);
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    }
+                    case BinaryOp::NEQ: {
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0);
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    }
+                    default: break;
                 }
-                case BinaryOp::LTE: {
-                    // UCOMISD xmm0, xmm1
-                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
-                    // SETBE al (below or equal = CF=1 OR ZF=1)
-                    buf.emit8(0x0F); buf.emit8(0x96); buf.emit8(0xC0);
-                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
-                    break;
-                }
-                case BinaryOp::GTE: {
-                    // UCOMISD xmm0, xmm1
-                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
-                    // SETAE al (above or equal = CF=0)
-                    buf.emit8(0x0F); buf.emit8(0x93); buf.emit8(0xC0);
-                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
-                    break;
-                }
-                case BinaryOp::EQ: {
-                    // UCOMISD xmm0, xmm1
-                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
-                    // SETE al (equal = ZF=1)
-                    buf.emit8(0x0F); buf.emit8(0x94); buf.emit8(0xC0);
-                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
-                    break;
-                }
-                case BinaryOp::NEQ: {
-                    // UCOMISD xmm0, xmm1
-                    buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                    buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
-                    // SETNE al (not equal = ZF=0)
-                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0);
-                    buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
-                    break;
-                }
-                default: break;
-            }
-            
-            // Move result back to resultReg: movq result.valueReg, xmm0
-            // 66 REX 0F 7E C0 (movd r/m64, xmm)
-            buf.emit8(0x66);
-            buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-            buf.emit8(0x0F);
-            buf.emit8(0x7E);
-            buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
-            
-            // === END ===
-            buf.emit8(0x48 | (static_cast<uint8_t>(result.typeReg) >= 8 ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(1);
-            
-            // === END ===
-            size_t endPos = buf.getOffset();
-            int32_t jmpOffset = static_cast<int32_t>(endPos - (jmpPatch + 4));
-            buf.patch32(jmpPatch, static_cast<uint32_t>(jmpOffset));
+                
+                // Move result back to resultReg: movq result.valueReg, xmm0
+                buf.emit8(0x66);
+                buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                buf.emit8(0x0F);
+                buf.emit8(0x7E);
+                buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                
+                // Set type to Float (1)
+                emitLoadImm(buf, result.typeReg, 1);
+                
+                // Patch jmp end
+                size_t endPos = buf.getOffset();
+                int32_t jmpOffset = static_cast<int32_t>(endPos - (jmpPatch + 4));
+                buf.patch32(jmpPatch, static_cast<uint32_t>(jmpOffset));
+            } // end if (!staticIntPath)
             
             // freeReg(left.valueReg); freeReg(left.typeReg); // Reused as result
             if (!rightIsImm) {
