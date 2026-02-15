@@ -667,80 +667,85 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             switch (node.binaryOp) {
                 case BinaryOp::ADD: {
-                    // Check if either operand is a string (Type 4)
-                    // cmp typeReg, 4
-                    bool resTypeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                    buf.emit8(0x48 | (resTypeHigh ? 0x01 : 0));
-                    buf.emit8(0x83);
-                    buf.emit8(0xF8 | (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit8(4);
-                    
-                    // jne int_add
-                    buf.emit8(0x75);
-                    size_t jneOffset = buf.getOffset();
-                    buf.emit8(0x00); // 1-byte placeholder
-                    
-                    // === STRING CONCAT ===
-                    // Call jit_string_concat(result.valueReg, right.valueReg)
-                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
-                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
-                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
-                    
-                    // rdi = result.valueReg (left)
-                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-                    
-                    // rsi = rightIsImm ? immVal : right.valueReg (right)
-                    if (rightIsImm) {
-                        buf.emit8(0x48); buf.emit8(0xBE);
-                        buf.emit64(static_cast<uint64_t>(immVal)); // This won't work for string literals if rightIsImm. 
-                        // But string literals are never "imm" in this JIT.
+                    if (staticIntPath) {
+                        // Fast path: skip string concat check entirely
+                        if (rightIsImm && immVal == 1) {
+                            // INC reg (3 bytes vs 7 for add imm32)
+                            buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                            buf.emit8(0xFF);
+                            buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        } else if (rightIsImm) {
+                            buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                            buf.emit8(0x81);
+                            buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                            buf.emit32(static_cast<uint32_t>(immVal));
+                        } else {
+                            buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                            buf.emit8(0x01);
+                            buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        }
                     } else {
-                        bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
-                        buf.emit8(0x48 | (rHigh ? 0x01 : 0));
-                        buf.emit8(0x89); buf.emit8(0xD6 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3));
-                        // Wait, RSI=0x89 C7|... for RDI? No, RSI is C6. RDI is C7.
-                        // My previous emit8(0xC7 | ...) was for RDI. Correct.
-                        // For RSI: 0x89 C6 | ... 
-                    }
-                    
-                    // rax = jit_string_concat
-                    buf.emit8(0x48); buf.emit8(0xB8);
-                    buf.emit64(reinterpret_cast<uint64_t>(jit_string_concat));
-                    buf.emit8(0xFF); buf.emit8(0xD0);
-                    
-                    // Move result to result.valueReg
-                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                    
-                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
-                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
-                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
-                    
-                    // jmp end
-                    buf.emit8(0xEB);
-                    size_t jmpOffset = buf.getOffset();
-                    buf.emit8(0x00);
-                    
-                    // === INT ADD ===
-                    size_t intAddPos = buf.getOffset();
-                    buf.patch8(jneOffset, static_cast<uint8_t>(intAddPos - (jneOffset + 1)));
-
-                    if (rightIsImm) {
+                        // Dynamic path: check for string concat
+                        bool resTypeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                        buf.emit8(0x48 | (resTypeHigh ? 0x01 : 0));
+                        buf.emit8(0x83);
+                        buf.emit8(0xF8 | (static_cast<uint8_t>(result.typeReg) & 0x7));
+                        buf.emit8(4);
+                        
+                        buf.emit8(0x75);
+                        size_t jneOffset = buf.getOffset();
+                        buf.emit8(0x00);
+                        
+                        // === STRING CONCAT ===
+                        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                        
                         buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                        buf.emit8(0x81); // ADD r/m64, imm32
-                        buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                        buf.emit32(static_cast<uint32_t>(immVal));
-                    } else {
-                        buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                        buf.emit8(0x01);
-                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                        
+                        if (rightIsImm) {
+                            buf.emit8(0x48); buf.emit8(0xBE);
+                            buf.emit64(static_cast<uint64_t>(immVal));
+                        } else {
+                            bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                            buf.emit8(0x48 | (rHigh ? 0x01 : 0));
+                            buf.emit8(0x89); buf.emit8(0xD6 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3));
+                        }
+                        
+                        buf.emit8(0x48); buf.emit8(0xB8);
+                        buf.emit64(reinterpret_cast<uint64_t>(jit_string_concat));
+                        buf.emit8(0xFF); buf.emit8(0xD0);
+                        
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        
+                        buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                        buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                        buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                        
+                        buf.emit8(0xEB);
+                        size_t jmpOffset = buf.getOffset();
+                        buf.emit8(0x00);
+                        
+                        // === INT ADD ===
+                        size_t intAddPos = buf.getOffset();
+                        buf.patch8(jneOffset, static_cast<uint8_t>(intAddPos - (jneOffset + 1)));
+
+                        if (rightIsImm) {
+                            buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                            buf.emit8(0x81);
+                            buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                            buf.emit32(static_cast<uint32_t>(immVal));
+                        } else {
+                            buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                            buf.emit8(0x01);
+                            buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        }
+                        
+                        size_t endPos = buf.getOffset();
+                        buf.patch8(jmpOffset, static_cast<uint8_t>(endPos - (jmpOffset + 1)));
                     }
-                    
-                    // jmp_end:
-                    size_t endPos = buf.getOffset();
-                    buf.patch8(jmpOffset, static_cast<uint8_t>(endPos - (jmpOffset + 1)));
-                    
                     break;
                 }
                 case BinaryOp::SUB:
