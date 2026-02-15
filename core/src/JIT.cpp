@@ -271,6 +271,8 @@ JIT::JIT()
     regInUse[static_cast<int>(X64Reg::RBX)] = true;  // Callee-saved, used by main()
     regInUse[static_cast<int>(X64Reg::RSI)] = true;  // Argument register
     regInUse[static_cast<int>(X64Reg::RDI)] = true;  // Argument register
+    regInUse[static_cast<int>(X64Reg::R14)] = true;  // Callee-saved
+    regInUse[static_cast<int>(X64Reg::R15)] = true;  // Callee-saved
 }
 
 JIT::~JIT() = default;
