@@ -224,6 +224,37 @@ static inline void emitLoadImm(CodeBuffer& buf, X64Reg reg, int64_t imm) {
     }
 }
 
+/**
+ * Determine at compile time if an AST expression is statically typed as INT.
+ * Allows skipping runtime type dispatch in BINARY_OP for pure integer operations.
+ */
+static bool isStaticInt(const AST& ast, NodeIndex idx) {
+    if (idx == INVALID_NODE) return false;
+    const ASTNode& node = ast.get(idx);
+    switch (node.type) {
+        case NodeType::LITERAL_INT:
+        case NodeType::LITERAL_BOOL:
+            return true;
+        case NodeType::BINARY_OP: {
+            // INT op INT produces INT (for arithmetic/comparison ops)
+            if (node.binaryOp == BinaryOp::ADD || node.binaryOp == BinaryOp::SUB ||
+                node.binaryOp == BinaryOp::MUL || node.binaryOp == BinaryOp::DIV ||
+                node.binaryOp == BinaryOp::MOD ||
+                node.binaryOp == BinaryOp::LT  || node.binaryOp == BinaryOp::GT  ||
+                node.binaryOp == BinaryOp::LTE || node.binaryOp == BinaryOp::GTE ||
+                node.binaryOp == BinaryOp::EQ  || node.binaryOp == BinaryOp::NEQ ||
+                node.binaryOp == BinaryOp::AND || node.binaryOp == BinaryOp::OR) {
+                return isStaticInt(ast, node.left) && isStaticInt(ast, node.right);
+            }
+            return false;
+        }
+        case NodeType::UNARY_OP:
+            return isStaticInt(ast, node.left);
+        default:
+            return false;
+    }
+}
+
 JIT::JIT() 
     : stackSize(0)
     , nextStackSlot(0)
