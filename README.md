@@ -4,8 +4,8 @@
     <strong>Native JIT Performance • Zero Dependencies • Pure C++23</strong>
   </p>
   <p align="center">
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-775M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-750M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
+    <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-781M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
+    <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-772M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
     <a href="#benchmarks"><img src="https://img.shields.io/badge/Memory-5.9MB_Peak-orange?style=flat-square" alt="Memory"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   </p>
