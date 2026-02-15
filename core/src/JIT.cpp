@@ -183,6 +183,47 @@ extern "C" void jit_task_free(void* taskPtr) {
 
 namespace nevaarize {
 
+/**
+ * Emit xor reg, reg to zero a register.
+ * 3 bytes instead of 10-byte movabs reg, 0. Also breaks false dependencies.
+ */
+static inline void emitXorReg(CodeBuffer& buf, X64Reg reg) {
+    uint8_t r = static_cast<uint8_t>(reg);
+    bool high = r >= 8;
+    buf.emit8(0x48 | (high ? 0x05 : 0)); // REX.W + REX.R/B if needed
+    buf.emit8(0x31);
+    buf.emit8(0xC0 | ((r & 0x7) << 3) | (r & 0x7));
+}
+
+/**
+ * Emit movabs reg, imm64 for non-zero values.
+ */
+static inline void emitMovImm64(CodeBuffer& buf, X64Reg reg, uint64_t imm) {
+    uint8_t r = static_cast<uint8_t>(reg);
+    bool high = r >= 8;
+    buf.emit8(0x48 | (high ? 0x01 : 0));
+    buf.emit8(0xB8 + (r & 0x7));
+    buf.emit64(imm);
+}
+
+/**
+ * Emit optimal immediate load: xor for 0, mov32 for small, movabs for large.
+ */
+static inline void emitLoadImm(CodeBuffer& buf, X64Reg reg, int64_t imm) {
+    if (imm == 0) {
+        emitXorReg(buf, reg);
+    } else if (imm > 0 && imm <= 0x7FFFFFFF) {
+        // mov reg, imm32 (5 or 6 bytes, zero-extends to 64-bit)
+        uint8_t r = static_cast<uint8_t>(reg);
+        bool high = r >= 8;
+        if (high) buf.emit8(0x41);
+        buf.emit8(0xB8 + (r & 0x7));
+        buf.emit32(static_cast<uint32_t>(imm));
+    } else {
+        emitMovImm64(buf, reg, static_cast<uint64_t>(imm));
+    }
+}
+
 JIT::JIT() 
     : stackSize(0)
     , nextStackSlot(0)
@@ -331,17 +372,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             result.valueReg = allocateReg();
             result.typeReg = allocateReg();
             
-            // Value
-            bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
-            buf.emit64(std::get<int64_t>(node.literal.data));
-            
-            // Type (0 for Int)
-            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(0);
+            int64_t val = std::get<int64_t>(node.literal.data);
+            emitLoadImm(buf, result.valueReg, val);
+            emitXorReg(buf, result.typeReg); // Type 0 = INT
             
             return result;
         }
@@ -376,17 +409,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             result.typeReg = allocateReg();
             
             bool value = std::get<bool>(node.literal.data);
-            
-            bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
-            buf.emit64(value ? 1 : 0);
-            
-            // Type 0 (Int) for Bool for now (simplification)
-            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(0);
+            emitLoadImm(buf, result.valueReg, value ? 1 : 0);
+            emitXorReg(buf, result.typeReg); // Type 0 = INT (Bool stored as Int)
             
             return result;
         }
@@ -466,10 +490,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                               (static_cast<uint8_t>(result.valueReg) & 0x7));
                     
                     // Pinned variables are currently always integers (Type 0)
-                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(0);
+                    emitXorReg(buf, result.typeReg);
                 } else {
                     int32_t offset = it->second.stackOffset;
                     
@@ -522,15 +543,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     result.valueReg = allocateReg();
                     result.typeReg = allocateReg();
                     
-                    bool vh = static_cast<uint8_t>(result.valueReg) >= 8;
-                    buf.emit8(0x48 | (vh ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
-                    buf.emit64(resFold);
-
-                    bool th = static_cast<uint8_t>(result.typeReg) >= 8;
-                    buf.emit8(0x48 | (th ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(0); // Int
+                    emitLoadImm(buf, result.valueReg, resFold);
+                    emitXorReg(buf, result.typeReg); // INT
                     return result;
                 }
             }
