@@ -89,6 +89,7 @@ private:
         std::vector<std::string> paramNames;
         size_t compiledOffset;
         bool isCompiled;
+        bool isAsync;
         const AST* sourceAST;  // Which AST contains this function (nullptr = currentAST)
     };
     std::unordered_map<std::string, FuncInfo> userFunctions;
