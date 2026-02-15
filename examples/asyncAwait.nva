@@ -1,0 +1,42 @@
+// Async/Await Demonstration
+// Shows task-based concurrency with async functions
+
+// Regular synchronous function
+func computeSum(n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + i
+        i = i + 1
+    }
+    return total
+}
+
+// Async function - runs on a separate thread
+async func asyncCompute(n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + i
+        i = i + 1
+    }
+    return total
+}
+
+print("=== Async/Await Demo ===")
+print("")
+
+// Synchronous execution
+print("Synchronous computation:")
+result = computeSum(1000)
+print("Sum 1..999 =", result)
+print("")
+
+// Async execution with await
+print("Async computation:")
+task = asyncCompute(1000)
+value = await task
+print("Async Sum 1..999 =", value)
+print("")
+
+print("=== Async/Await Complete ===")
