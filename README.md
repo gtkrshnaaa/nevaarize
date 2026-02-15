@@ -13,7 +13,7 @@
 
 ---
 
-**Nevaarize** is a high-performance programming language with a **native JIT compiler** that generates x86-64 machine code at runtime. Built entirely in C++23 with zero external dependencies.
+**Nevaarize** is a high-performance programming language with a **native JIT compiler** that generates x86-64 machine code at runtime. Features include **async/await** concurrency, an integrated **generational garbage collector**, and a modular standard library. Built entirely in C++23 with zero external dependencies.
 
 ## ⚡ Performance Highlights
 
@@ -164,6 +164,20 @@ start = t.nanos()
 // ... computation ...
 elapsed = (0.0 + (t.nanos() - start)) / 1000000000.0
 print("Elapsed:", elapsed, "seconds")
+
+// Async/Await
+async func computeSum(n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + i
+        i = i + 1
+    }
+    return total
+}
+task = computeSum(1000)
+result = await task
+print("Sum:", result)
 ```
 
 ---
@@ -178,24 +192,32 @@ nevaarize/
 │   │   ├── Parser.hpp      # AST builder
 │   │   ├── AST.hpp         # Abstract syntax tree
 │   │   ├── JIT.hpp         # JIT compiler
-│   │   └── Value.hpp       # Runtime values
+│   │   ├── GC.hpp          # Generational garbage collector
+│   │   ├── Value.hpp       # Runtime values
+│   │   ├── CodeGen.hpp     # x86-64 code buffer
+│   │   └── IR.hpp          # Intermediate representation
 │   └── src/
 │       ├── Lexer.cpp
 │       ├── Parser.cpp
-│       ├── JIT.cpp         # x86-64 code generation
+│       ├── JIT.cpp         # x86-64 code generation + async/GC runtime
 │       └── Main.cpp        # Entry point
 ├── stdlib/                  # Standard library
 │   ├── include/
 │   └── src/
 │       ├── Math.cpp        # Math functions
 │       ├── IO.cpp          # Input/Output
-│       └── Time.cpp        # Timing functions
+│       ├── Time.cpp        # Timing functions
+│       ├── AI.cpp          # Tensor ops & model serving
+│       └── HTTP.cpp        # HTTP server
 ├── examples/                # Example programs
+│   ├── basics.nva          # Language basics
+│   ├── advanced.nva        # Algorithms & data structures
+│   ├── asyncAwait.nva      # Async/await concurrency
+│   └── gcDemo.nva          # Garbage collector demo
 ├── languagebench/           # Benchmark suite
 │   ├── run_comparison.sh   # Run all benchmarks
 │   ├── bench_*.nva/cpp/... # Language-specific benchmarks
 │   └── battle_report.txt   # Latest results
-├── docs/                    # Documentation
 ├── Makefile
 └── README.md
 ```
@@ -225,6 +247,8 @@ Source Code (.nva)
 - **Direct code generation**: No interpreter, pure machine code
 - **Type specialization**: Runtime type-based optimization
 - **Nanosecond timing**: `clock_gettime(CLOCK_MONOTONIC)` syscall
+- **Generational GC**: Bump-pointer allocation with young/old generation collection, integrated transparently into all heap allocations (arrays, strings)
+- **Async/Await**: Task-based concurrency model with `async func` declarations and `await` expressions, available by default with no flags required
 
 ---
 
@@ -319,8 +343,8 @@ make uninstall    # Remove from system
 - [x] **Arrays** - Dynamic arrays with push/pop
 - [x] **Benchmark Suite** - Multi-language comparison
 - [x] **AI Core** - Tensor operations and model serving
-- [/] **Garbage Collector** - Generational GC (In Development)
-- [/] **Async/Await** - Coroutine-based concurrency (In Development)
+- [x] **Garbage Collector** - Generational GC integrated into JIT allocations
+- [x] **Async/Await** - Task-based concurrency with async functions
 
 ---
 
