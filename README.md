@@ -318,8 +318,9 @@ make uninstall    # Remove from system
 - [x] **Structs** - User-defined data types
 - [x] **Arrays** - Dynamic arrays with push/pop
 - [x] **Benchmark Suite** - Multi-language comparison
-- [ ] **Garbage Collector** - Generational GC
-- [ ] **Async/Await** - Coroutine-based concurrency
+- [x] **AI Core** - Tensor operations and model serving
+- [/] **Garbage Collector** - Generational GC (In Development)
+- [/] **Async/Await** - Coroutine-based concurrency (In Development)
 - [ ] **Module System** - Package management
 - [ ] **Windows Support** - Cross-platform builds
 - [ ] **REPL Improvements** - Better interactive mode
