@@ -265,9 +265,12 @@ JIT::JIT()
     execMem = std::make_unique<ExecutableMemory>(65536);
     std::memset(regInUse, 0, sizeof(regInUse));
     
-    // Reserve some registers
+    // Reserve registers that must not be used by JIT generated code
     regInUse[static_cast<int>(X64Reg::RSP)] = true;
     regInUse[static_cast<int>(X64Reg::RBP)] = true;
+    regInUse[static_cast<int>(X64Reg::RBX)] = true;  // Callee-saved, used by main()
+    regInUse[static_cast<int>(X64Reg::RSI)] = true;  // Argument register
+    regInUse[static_cast<int>(X64Reg::RDI)] = true;  // Argument register
 }
 
 JIT::~JIT() = default;
