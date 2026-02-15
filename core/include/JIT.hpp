@@ -135,7 +135,7 @@ private:
     void compileFor(const AST& ast, NodeIndex idx);
     void compileReturn(const AST& ast, NodeIndex idx);
     void compileCall(const AST& ast, NodeIndex idx);
-    void compileFuncDecl(const AST& ast, NodeIndex idx);
+    void compileFuncDecl(const AST& ast, NodeIndex idx, bool isAsync = false);
     JITValue compileUserCall(const AST& ast, NodeIndex idx, const std::string& funcName);
     
     // Native function call emission

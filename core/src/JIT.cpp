@@ -2321,11 +2321,7 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::ASYNC_FUNC_DECL: {
-            // Async function support (synchronous execution model)
-            // Current: Compiles as regular function (immediate execution)
-            // Future: Wrap return in Promise, integrate with event loop
-            // Note: True async requires CPS transformation or IR-level state machine
-            compileFuncDecl(ast, idx);
+            compileFuncDecl(ast, idx, true);
             break;
         }
         
@@ -2987,7 +2983,7 @@ void JIT::emitPrintIntNoNewline(X64Reg valueReg) {
 }
 
 // Register a user-defined function
-void JIT::compileFuncDecl(const AST& ast, NodeIndex idx) {
+void JIT::compileFuncDecl(const AST& ast, NodeIndex idx, bool isAsync) {
     const ASTNode& node = ast.get(idx);
     
     // Store function info for later use
@@ -2996,6 +2992,7 @@ void JIT::compileFuncDecl(const AST& ast, NodeIndex idx) {
     info.paramNames = node.paramNames;
     info.compiledOffset = 0;
     info.isCompiled = false;
+    info.isAsync = isAsync;
     info.sourceAST = nullptr;  // Local function uses currentAST
     userFunctions[node.name] = info;
 }
