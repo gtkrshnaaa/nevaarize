@@ -115,6 +115,9 @@ private:
     std::unordered_set<std::string> currentlyCompiling;
     const AST* currentAST;
     bool inFunctionCall;
+    
+    // Compile-time type tracking for optimization
+    std::unordered_set<std::string> knownIntVars;
 
     // Code generation helpers
     void emitPrologue();
@@ -125,6 +128,7 @@ private:
 
     // AST compilation - expressions
     JITValue compileExpr(const AST& ast, NodeIndex idx);
+    bool isStaticInt(const AST& ast, NodeIndex idx) const;
     
     // AST compilation - statements
     void compileStatement(const AST& ast, NodeIndex idx);

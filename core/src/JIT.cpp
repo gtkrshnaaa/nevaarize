@@ -226,17 +226,19 @@ static inline void emitLoadImm(CodeBuffer& buf, X64Reg reg, int64_t imm) {
 
 /**
  * Determine at compile time if an AST expression is statically typed as INT.
- * Allows skipping runtime type dispatch in BINARY_OP for pure integer operations.
+ * Checks literals, binary ops of known-int operands, and variables tracked in knownIntVars.
  */
-static bool isStaticInt(const AST& ast, NodeIndex idx) {
+bool JIT::isStaticInt(const AST& ast, NodeIndex idx) const {
     if (idx == INVALID_NODE) return false;
     const ASTNode& node = ast.get(idx);
     switch (node.type) {
         case NodeType::LITERAL_INT:
         case NodeType::LITERAL_BOOL:
             return true;
+        case NodeType::IDENTIFIER: {
+            return knownIntVars.count(node.name) > 0;
+        }
         case NodeType::BINARY_OP: {
-            // INT op INT produces INT (for arithmetic/comparison ops)
             if (node.binaryOp == BinaryOp::ADD || node.binaryOp == BinaryOp::SUB ||
                 node.binaryOp == BinaryOp::MUL || node.binaryOp == BinaryOp::DIV ||
                 node.binaryOp == BinaryOp::MOD ||
@@ -1902,6 +1904,13 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
     
     // Compile the value (returns pair: valueReg, typeReg)
     JITValue val = compileExpr(ast, node.left);
+    
+    // Track variable type for compile-time optimization
+    if (isStaticInt(ast, node.left)) {
+        knownIntVars.insert(node.name);
+    } else {
+        knownIntVars.erase(node.name);
+    }
     
     // Allocate stack slot if needed
     auto it = variables.find(node.name);
