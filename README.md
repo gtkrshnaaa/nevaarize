@@ -263,6 +263,23 @@ io.Print("Hello,", name)
 io.Write("No newline")
 ```
 
+### AI Module
+
+```nva
+import stdlib ai as ai
+
+// SIMD-accelerated tensor operations
+// activations, loss functions, and inference
+```
+
+### HTTP Module
+
+```nva
+import stdlib http as http
+
+// High-performance HTTP server for model serving
+```
+
 ---
 
 ## 🎨 Code Style
