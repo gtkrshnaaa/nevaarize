@@ -5,7 +5,7 @@
  * strength reduction, and function inlining.
  */
 
-#include "Optimizer.hpp"
+#include "optimizer.hpp"
 #include <cmath>
 #include <algorithm>
 

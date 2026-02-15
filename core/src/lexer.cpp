@@ -4,7 +4,7 @@
  * Full implementation with underscore validation and fast keyword lookup.
  */
 
-#include "Lexer.hpp"
+#include "lexer.hpp"
 #include <charconv>
 #include <array>
 #include <algorithm>

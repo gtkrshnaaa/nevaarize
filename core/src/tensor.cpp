@@ -4,7 +4,7 @@
  * SIMD-accelerated tensor operations.
  */
 
-#include "Tensor.hpp"
+#include "tensor.hpp"
 #include <cstring>
 #include <cmath>
 #include <algorithm>

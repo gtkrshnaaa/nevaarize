@@ -8,7 +8,7 @@
 #ifndef NEVAARIZE_IR_HPP
 #define NEVAARIZE_IR_HPP
 
-#include "Value.hpp"
+#include "value.hpp"
 #include <cstdint>
 #include <string>
 #include <vector>

@@ -5,10 +5,10 @@
  * All execution uses native x86-64 JIT compilation.
  */
 
-#include "Lexer.hpp"
-#include "Parser.hpp"
-#include "JIT.hpp"
-#include "Model.hpp"
+#include "lexer.hpp"
+#include "parser.hpp"
+#include "jit.hpp"
+#include "model.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>

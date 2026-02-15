@@ -5,10 +5,10 @@
  * This compiles ACTUAL Nevaarize code, not pre-written assembly.
  */
 
-#include "JIT.hpp"
-#include "Parser.hpp"
-#include "Lexer.hpp"
-#include "GC.hpp"
+#include "jit.hpp"
+#include "parser.hpp"
+#include "lexer.hpp"
+#include "gc.hpp"
 #include <cstring>
 #include <cstdio>
 #include <chrono>

@@ -7,8 +7,8 @@
 #ifndef NEVAARIZE_TENSOR_HPP
 #define NEVAARIZE_TENSOR_HPP
 
-#include "SIMD.hpp"
-#include "VectorOps.hpp"
+#include "simd.hpp"
+#include "vectorOps.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <vector>

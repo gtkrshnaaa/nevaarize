@@ -8,9 +8,9 @@
 #ifndef NEVAARIZE_JIT_HPP
 #define NEVAARIZE_JIT_HPP
 
-#include "AST.hpp"
-#include "CodeGen.hpp"
-#include "Value.hpp"
+#include "ast.hpp"
+#include "codeGen.hpp"
+#include "value.hpp"
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>

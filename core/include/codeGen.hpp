@@ -8,7 +8,7 @@
 #ifndef NEVAARIZE_CODEGEN_HPP
 #define NEVAARIZE_CODEGEN_HPP
 
-#include "IR.hpp"
+#include "ir.hpp"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>

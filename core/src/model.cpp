@@ -5,7 +5,7 @@
  * and .nmod serialization.
  */
 
-#include "Model.hpp"
+#include "model.hpp"
 #include <cmath>
 #include <algorithm>
 #include <random>

@@ -8,7 +8,7 @@
 #ifndef NEVAARIZE_VECTOR_OPS_HPP
 #define NEVAARIZE_VECTOR_OPS_HPP
 
-#include "SIMD.hpp"
+#include "simd.hpp"
 #include <cstddef>
 
 namespace nevaarize {

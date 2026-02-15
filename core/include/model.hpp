@@ -7,7 +7,7 @@
 #ifndef NEVAARIZE_MODEL_HPP
 #define NEVAARIZE_MODEL_HPP
 
-#include "Value.hpp"
+#include "value.hpp"
 #include <vector>
 #include <string>
 #include <memory>

@@ -8,7 +8,7 @@
 #ifndef NEVAARIZE_OPTIMIZER_HPP
 #define NEVAARIZE_OPTIMIZER_HPP
 
-#include "IR.hpp"
+#include "ir.hpp"
 #include <vector>
 #include <memory>
 

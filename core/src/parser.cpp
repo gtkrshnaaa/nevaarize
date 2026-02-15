@@ -4,7 +4,7 @@
  * Full parser implementation with expression precedence handling.
  */
 
-#include "Parser.hpp"
+#include "parser.hpp"
 #include <sstream>
 
 namespace nevaarize {

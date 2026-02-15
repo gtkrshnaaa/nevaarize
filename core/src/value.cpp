@@ -4,7 +4,7 @@
  * Implementation of Value methods.
  */
 
-#include "Value.hpp"
+#include "value.hpp"
 #include <sstream>
 
 namespace nevaarize {

@@ -4,7 +4,7 @@
  * AVX2 and AVX-512 optimized vector operations.
  */
 
-#include "VectorOps.hpp"
+#include "vectorOps.hpp"
 #include <cmath>
 
 #if defined(__x86_64__) || defined(_M_X64)

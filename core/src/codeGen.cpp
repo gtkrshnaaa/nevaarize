@@ -4,7 +4,7 @@
  * Direct machine code emission for x86-64.
  */
 
-#include "CodeGen.hpp"
+#include "codeGen.hpp"
 
 #ifdef __linux__
 #include <sys/mman.h>

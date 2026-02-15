@@ -8,7 +8,7 @@
 #ifndef NEVAARIZE_LEXER_HPP
 #define NEVAARIZE_LEXER_HPP
 
-#include "Token.hpp"
+#include "token.hpp"
 #include <string>
 #include <string_view>
 #include <vector>

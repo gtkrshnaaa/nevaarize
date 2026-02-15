@@ -8,8 +8,8 @@
 #ifndef NEVAARIZE_IR_GENERATOR_HPP
 #define NEVAARIZE_IR_GENERATOR_HPP
 
-#include "AST.hpp"
-#include "IR.hpp"
+#include "ast.hpp"
+#include "ir.hpp"
 #include <memory>
 #include <unordered_map>
 

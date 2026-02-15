@@ -7,8 +7,8 @@
 #ifndef NEVAARIZE_PARSER_HPP
 #define NEVAARIZE_PARSER_HPP
 
-#include "Token.hpp"
-#include "AST.hpp"
+#include "token.hpp"
+#include "ast.hpp"
 #include <vector>
 #include <string>
 #include <initializer_list>

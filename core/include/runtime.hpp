@@ -8,8 +8,8 @@
 #ifndef NEVAARIZE_RUNTIME_HPP
 #define NEVAARIZE_RUNTIME_HPP
 
-#include "Value.hpp"
-#include "AST.hpp"
+#include "value.hpp"
+#include "ast.hpp"
 #include <string>
 #include <unordered_map>
 #include <memory>

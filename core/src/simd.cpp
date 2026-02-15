@@ -4,7 +4,7 @@
  * Runtime detection of CPU SIMD capabilities using CPUID.
  */
 
-#include "SIMD.hpp"
+#include "simd.hpp"
 #include <cstdlib>
 #include <cstring>
 
