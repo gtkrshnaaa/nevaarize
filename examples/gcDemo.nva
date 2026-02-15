@@ -1,0 +1,61 @@
+// Garbage Collector Demonstration
+// Shows GC working transparently during heavy allocation
+
+print("=== Garbage Collector Demo ===")
+print("")
+
+// Heavy array allocation to trigger GC
+print("Creating arrays with GC-managed memory...")
+
+func allocateArrays(count) {
+    i = 0
+    while (i < count) {
+        arr = [1, 2, 3, 4, 5, 6, 7, 8]
+        i = i + 1
+    }
+    return count
+}
+
+result = allocateArrays(100)
+print("Allocated", result, "arrays successfully")
+print("")
+
+// Heavy string allocation
+print("Creating strings with GC-managed memory...")
+
+func allocateStrings(count) {
+    i = 0
+    while (i < count) {
+        s = "nevaarize"
+        i = i + 1
+    }
+    return count
+}
+
+result = allocateStrings(100)
+print("Allocated", result, "strings successfully")
+print("")
+
+// Nested allocation stress test
+print("Nested allocation stress test...")
+
+func stressTest(outer, inner) {
+    i = 0
+    total = 0
+    while (i < outer) {
+        j = 0
+        while (j < inner) {
+            arr = [i, j, i + j]
+            total = total + 1
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return total
+}
+
+result = stressTest(10, 10)
+print("Stress test:", result, "allocations completed")
+print("")
+
+print("=== GC Demo Complete ===")
