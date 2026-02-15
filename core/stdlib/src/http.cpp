@@ -4,7 +4,7 @@
  * Simple HTTP/1.1 server for model serving.
  */
 
-#include "HTTP.hpp"
+#include "http.hpp"
 #include <iostream>
 #include <sstream>
 #include <cstring>

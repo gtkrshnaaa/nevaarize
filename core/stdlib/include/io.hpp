@@ -7,7 +7,7 @@
 #ifndef NEVAARIZE_STDLIB_IO_HPP
 #define NEVAARIZE_STDLIB_IO_HPP
 
-#include "../../core/include/Value.hpp"
+#include "value.hpp"
 #include <unordered_map>
 
 namespace nevaarize {

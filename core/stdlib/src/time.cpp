@@ -4,7 +4,7 @@
  * Time and timing functions.
  */
 
-#include "Time.hpp"
+#include "time.hpp"
 #include <chrono>
 #include <thread>
 #include <ctime>

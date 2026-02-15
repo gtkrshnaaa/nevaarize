@@ -4,8 +4,8 @@
  * Comprehensive AI/ML primitives with SIMD acceleration.
  */
 
-#include "AI.hpp"
-#include "../../core/include/JIT.hpp"
+#include "ai.hpp"
+#include "jit.hpp"
 #include <cmath>
 #include <algorithm>
 #include <numeric>

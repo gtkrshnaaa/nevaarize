@@ -4,7 +4,7 @@
  * Input/Output functions.
  */
 
-#include "IO.hpp"
+#include "io.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>

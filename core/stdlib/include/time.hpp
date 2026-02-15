@@ -7,7 +7,7 @@
 #ifndef NEVAARIZE_STDLIB_TIME_HPP
 #define NEVAARIZE_STDLIB_TIME_HPP
 
-#include "../../core/include/Value.hpp"
+#include "value.hpp"
 #include <unordered_map>
 
 namespace nevaarize {

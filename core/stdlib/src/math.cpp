@@ -4,7 +4,7 @@
  * All mathematical functions.
  */
 
-#include "Math.hpp"
+#include "math.hpp"
 #include <cmath>
 #include <random>
 #include <limits>

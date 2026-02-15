@@ -11,8 +11,8 @@
 #ifndef NEVAARIZE_STDLIB_AI_HPP
 #define NEVAARIZE_STDLIB_AI_HPP
 
-#include "../../core/include/Value.hpp"
-#include "../../core/include/Model.hpp"
+#include "value.hpp"
+#include "model.hpp"
 #include <unordered_map>
 #include <vector>
 #include <cstdint>
