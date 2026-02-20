@@ -375,11 +375,11 @@ async func parallelFetch() {
 > Underscores `_` are **FORBIDDEN** in all identifiers.
 
 ```nva
-// ❌ REJECTED
+// REJECTED
 my_variable = 10
 func calculate_sum(a, b) { }
 
-// ✅ ACCEPTED
+// ACCEPTED
 myVariable = 10
 func calculateSum(a, b) { }
 ```
