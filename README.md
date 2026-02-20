@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🚀 NEVAARIZE</h1>
+  <h1 align="center">NEVAARIZE</h1>
   <p align="center">
     <strong>Native JIT Performance • Zero Dependencies • Pure C++23</strong>
   </p>
@@ -15,7 +15,7 @@
 
 **Nevaarize** is a high-performance programming language with a **native JIT compiler** that generates x86-64 machine code at runtime. Features include **async/await** concurrency, an integrated **generational garbage collector**, and a modular standard library. Built entirely in C++23 with zero external dependencies.
 
-## ⚡ Performance Highlights
+## Performance Highlights
 
 Nevaarize delivers **exceptional performance**, outperforming even native languages in specific workloads:
 
@@ -29,7 +29,7 @@ Nevaarize delivers **exceptional performance**, outperforming even native langua
 
 ---
 
-## 📊 Benchmarks
+## Benchmarks
 
 All benchmarks are **reproducible** and included in this repository. Run them yourself:
 
@@ -93,7 +93,7 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 ---
 
-## 🛠 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -182,7 +182,7 @@ print("Sum:", result)
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 nevaarize/
@@ -224,7 +224,7 @@ nevaarize/
 
 ---
 
-## 🔧 Architecture
+## Architecture
 
 ### JIT Compilation Pipeline
 
@@ -242,7 +242,7 @@ Source Code (.nva)
 
 ### Key Features
 
-- **Zero-copy tokenization**: SIMD-accelerated lexer
+- **SIMD-accelerated lexer**
 - **Flattened AST**: Cache-optimized tree structure  
 - **Direct code generation**: No interpreter, pure machine code
 - **Type specialization**: Runtime type-based optimization
@@ -252,7 +252,7 @@ Source Code (.nva)
 
 ---
 
-## 📚 Standard Library
+## Standard Library
 
 ### Math Module
 
@@ -306,23 +306,23 @@ import stdlib http as http
 
 ---
 
-## 🎨 Code Style
+## Code Style
 
 Nevaarize enforces **clean code** through the **No-Underscore Policy**:
 
 ```nva
-// ✅ Accepted
+// Accepted
 myVariable = 10
 func calculateSum(a, b) { return a + b }
 
-// ❌ Rejected at compile-time
+// Rejected at compile-time
 my_variable = 10
 func calculate_sum(a, b) { }
 ```
 
 ---
 
-## 🏗 Build Targets
+## Build Targets
 
 ```bash
 make              # Build optimized JIT compiler
@@ -335,7 +335,7 @@ make uninstall    # Remove from system
 
 ---
 
-## 🗺 Roadmap
+## Roadmap
 
 - [x] **Core JIT Compiler** - x86-64 code generation
 - [x] **Standard Library** - Math, IO, Time modules
@@ -348,7 +348,7 @@ make uninstall    # Remove from system
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please ensure:
 
@@ -359,13 +359,13 @@ Contributions are welcome! Please ensure:
 
 ---
 
-## 📄 License
+## License
 
 MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-## 🔗 Links
+## Links
 
 - **Repository**: [github.com/gtkrshnaaa/nevaarize](https://github.com/gtkrshnaaa/nevaarize)
 - **Issues**: [github.com/gtkrshnaaa/nevaarize/issues](https://github.com/gtkrshnaaa/nevaarize/issues)
