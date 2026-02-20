@@ -1,14 +1,14 @@
-# 🚀 Nevaarize 2.0: The Path to 1.5 Billion Ops/Sec
+# Nevaarize 2.0: The Path to 1.5 Billion Ops/Sec
 **Status:** DRAFT | **Target:** Monster Speed (>1.5B/s) | **Stack:** Pure C++23 (No external deps)
 
-## 📌 Executive Summary
+## Executive Summary
 Current Nevaarize JIT (~870M ops/sec) operates as a **Single-Pass AST-to-MachineCode** compiler. This architecture hits a hard ceiling because it cannot perform global analysis (e.g., keeping a variable in a register across an entire function or loop).
 
 To breach the **1.5 Billion ops/sec** barrier (equivalent to GCC `-O2`/`-O3`), we must transition to a **Multi-Pass Architecture** centered around **Intermediate Representation (IR)** with **Static Single Assignment (SSA)** form and **Global Register Allocation**.
 
 ---
 
-## 🏗️ Architectural Evolution
+## Architectural Evolution
 
 ### Current Architecture (v0.1)
 `AST -> CodeGen (Single Pass) -> x86-64 Machine Code`
@@ -24,7 +24,7 @@ To breach the **1.5 Billion ops/sec** barrier (equivalent to GCC `-O2`/`-O3`), w
 
 ---
 
-## 🔧 Core Components Roadmap
+## Core Components Roadmap
 
 ### 1. The Intermediate Representation (IR)
 We need a linear, instruction-based IR (not tree-based).
@@ -75,7 +75,7 @@ Translates optimized LIR (Low-Level IR) to machine bytes.
 
 ---
 
-## 📅 Implementation Plan
+## Implementation Plan
 
 ### Phase 1: IR & Basic Blocks Framework
 - [ ] Define `IR.hpp` (Instructions, Opcodes).
@@ -103,10 +103,10 @@ Translates optimized LIR (Low-Level IR) to machine bytes.
 
 ---
 
-## 📉 Risk Assessment
+## Risk Assessment
 *   **Complexity**: High. Debugging JIT bugs involving Register Allocation is notoriously difficult (e.g. Heisenbugs).
 *   **Compile Time**: Will increase. Is it acceptable for a script engine? (Yes, if runtime speed is paramount).
 *   **Maintenance**: Requires rigorous unit testing of the IR layer.
 
-## 🎯 Conclusion
+## Conclusion
 This plan transitions Nevaarize from a "Toy JIT" to a **Production-Grade Compiler Engine**. It adheres to the "Pure C++" philosophy but adopts standard compiler engineering principles used by V8, LuaJIT, and JVM.
