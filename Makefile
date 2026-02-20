@@ -8,9 +8,9 @@ CXXFLAGS_DEBUG := -std=c++23 -Wall -Wextra -Wpedantic -g -O0 -DDEBUG
 
 # Directories
 SRC_DIR := core/src
-STDLIB_SRC := stdlib/src
+STDLIB_SRC := core/stdlib/src
 INC_DIR := core/include
-STDLIB_INC := stdlib/include
+STDLIB_INC := core/stdlib/include
 BUILD_DIR = build
 BIN_DIR := bin
 
@@ -41,7 +41,7 @@ release: $(TARGET)
 
 $(TARGET): $(OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $(OBJECTS) -o $@
-	@echo "✓ Build complete: $@"
+	@echo "Build complete: $@"
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
@@ -55,7 +55,7 @@ debug: $(TARGET_DEBUG)
 
 $(TARGET_DEBUG): $(OBJECTS_DEBUG) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS_DEBUG) $(OBJECTS_DEBUG) -o $@
-	@echo "✓ Debug build complete: $@"
+	@echo "Debug build complete: $@"
 
 $(BUILD_DIR)/debug/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)/debug
 	$(CXX) $(CXXFLAGS_DEBUG) $(INCLUDES) -c $< -o $@
@@ -83,7 +83,7 @@ $(BIN_DIR):
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)
-	@echo "✓ Clean complete"
+	@echo "Clean complete"
 
 # Rebuild
 .PHONY: rebuild
@@ -107,37 +107,25 @@ run-script: $(TARGET)
 .PHONY: run-examples
 run-examples: $(TARGET)
 	@echo "Running examples..."
-	@for f in examples/**/*.nva; do \
-		if [ -f "$$f" ]; then \
-			echo "=== $$f ==="; \
-			./$(TARGET) "$$f" || true; \
-			echo ""; \
-		fi; \
-	done
+	@bash examples/runExamples.sh
 
 # Run benchmarks
 .PHONY: benchmark
 benchmark: $(TARGET)
 	@echo "Running benchmarks..."
-	@for f in examples/06_benchmarks/*.nva; do \
-		if [ -f "$$f" ]; then \
-			echo "=== $$f ==="; \
-			./$(TARGET) "$$f"; \
-			echo ""; \
-		fi; \
-	done
+	@bash languagebench/runComparison.sh
 
 # Install to /usr/local/bin
 .PHONY: install
 install: clean release
 	install -m 755 $(TARGET) /usr/local/bin/nevaarize
-	@echo "✓ Installed to /usr/local/bin/nevaarize"
+	@echo "Installed to /usr/local/bin/nevaarize"
 
 # Uninstall
 .PHONY: uninstall
 uninstall:
 	rm -f /usr/local/bin/nevaarize
-	@echo "✓ Uninstalled nevaarize"
+	@echo "Uninstalled nevaarize"
 
 # Listing Target
 list:
@@ -148,19 +136,19 @@ list:
 	@echo "================================================================================" >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "This document contains a comprehensive listing of all source code files within" >> z_listing/listing.txt
-	@echo "the Nevaarize project, including core, stdlib, examples, and languagebench." >> z_listing/listing.txt
+	@echo "the Nevaarize project, including core, examples, and languagebench." >> z_listing/listing.txt
 	@echo "Nevaarize is a high-performance, native JIT compiler language built with C++23." >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "Directory Structure Overview:" >> z_listing/listing.txt
 	@echo "1. core/include: Header files for the JIT compiler, Lexer, Parser, and IR." >> z_listing/listing.txt
 	@echo "2. core/src: Implementation of the native JIT engine and x86-64 code generator." >> z_listing/listing.txt
-	@echo "3. stdlib: Standard library implementations (Math, IO, Time)." >> z_listing/listing.txt
+	@echo "3. core/stdlib: Standard library implementations (Math, IO, Time)." >> z_listing/listing.txt
 	@echo "4. examples: Collection of example scripts demonstrating language features." >> z_listing/listing.txt
 	@echo "5. languagebench: Performance benchmarks across various languages." >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
 	@echo "================================================================================" >> z_listing/listing.txt
 	@echo "" >> z_listing/listing.txt
-	@for f in $$(find core stdlib examples languagebench -type f | sort) Makefile; do \
+	@for f in $$(find core examples languagebench -type f | sort) Makefile; do \
 		echo "FILE: $$f" >> z_listing/listing.txt; \
 		echo "--------------------------------------------------------------------------------" >> z_listing/listing.txt; \
 		cat "$$f" >> z_listing/listing.txt; \

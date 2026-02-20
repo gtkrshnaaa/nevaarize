@@ -1,11 +1,11 @@
 <p align="center">
-  <h1 align="center">🚀 NEVAARIZE</h1>
+  <h1 align="center">NEVAARIZE</h1>
   <p align="center">
     <strong>Native JIT Performance • Zero Dependencies • Pure C++23</strong>
   </p>
   <p align="center">
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-775M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-750M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
+    <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-781M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
+    <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-772M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
     <a href="#benchmarks"><img src="https://img.shields.io/badge/Memory-5.9MB_Peak-orange?style=flat-square" alt="Memory"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   </p>
@@ -13,23 +13,23 @@
 
 ---
 
-**Nevaarize** is a high-performance programming language with a **native JIT compiler** that generates x86-64 machine code at runtime. Built entirely in C++23 with zero external dependencies.
+**Nevaarize** is a high-performance programming language with a **native JIT compiler** that generates x86-64 machine code at runtime. Features include **async/await** concurrency, an integrated **generational garbage collector**, and a modular standard library. Built entirely in C++23 with zero external dependencies.
 
-## ⚡ Performance Highlights
+## Performance Highlights
 
 Nevaarize delivers **exceptional performance**, outperforming even native languages in specific workloads:
 
 | Category | Performance | vs Rust | vs Zig | vs Node.js |
 |----------|------------|---------|--------|------------|
-| **Array Push** | **781M ops/sec** | 🏆 **2.2x faster** | 🏆 **1.8x faster** | 🏆 **22x faster** |
+| **Array Push** | **781M ops/sec** | **2.2x faster** | **1.8x faster** | **22x faster** |
 | **Integer Ops** | **772M ops/sec** | 0.22x | 0.21x | 0.65x |
-| **Memory Usage** | **5.9 MB** | 🏆 **40% less** | 🏆 **25% less** | 🏆 **14x less** |
+| **Memory Usage** | **5.9 MB** | **40% less** | **25% less** | **14x less** |
 
-> 💡 **Key Achievement**: Nevaarize's JIT implementation of dynamic arrays is **faster than Rust's `Vec` and Zig's `ArrayList`**, while using significantly less memory!
+> **Key Achievement**: Nevaarize's JIT implementation of dynamic arrays is **faster than Rust's `Vec` and Zig's `ArrayList`**, while using significantly less memory!
 
 ---
 
-## 📊 Benchmarks
+## Benchmarks
 
 All benchmarks are **reproducible** and included in this repository. Run them yourself:
 
@@ -75,10 +75,10 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 | Language | Integer Add | Double Arith | String Concat | Array Push | Struct Access | Peak RAM |
 |----------|------------|--------------|---------------|------------|---------------|----------|
-| **Nevaarize** | 772M | 486M | **34M** | **781M** 🥇 | 455M | **5.9MB** 🥇 |
-| Zig (ReleaseFast) | 3,696M 🥇 | 766M | 664M | 419M | **3,753M** 🥇 | 7.8MB |
+| **Nevaarize** | 772M | 486M | **34M** | **781M** | 455M | **5.9MB** |
+| Zig (ReleaseFast) | 3,696M | 766M | 664M | 419M | **3,753M** | 7.8MB |
 | Rust (LLVM -O) | 3,566M | 960M | 778M | 347M | 3,495M | 10.0MB |
-| Go 1.21 | 3,357M | **3,373M** 🥇 | 0.4M | 67M | 3,012M | 46MB |
+| Go 1.21 | 3,357M | **3,373M** | 0.4M | 67M | 3,012M | 46MB |
 | Java 21 | 3,422M | 490M | 0.2M | 50M | 804M | 341MB |
 | PHP 8 JIT | 2,832M | 932M | 81M | 65M | 391M | 49MB |
 | C++ (GCC -O3) | 2,586M | 418M | 471M | 345M | 2,473M | 11.5MB |
@@ -93,7 +93,7 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 ---
 
-## 🛠 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -164,11 +164,25 @@ start = t.nanos()
 // ... computation ...
 elapsed = (0.0 + (t.nanos() - start)) / 1000000000.0
 print("Elapsed:", elapsed, "seconds")
+
+// Async/Await
+async func computeSum(n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + i
+        i = i + 1
+    }
+    return total
+}
+task = computeSum(1000)
+result = await task
+print("Sum:", result)
 ```
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 nevaarize/
@@ -178,31 +192,39 @@ nevaarize/
 │   │   ├── Parser.hpp      # AST builder
 │   │   ├── AST.hpp         # Abstract syntax tree
 │   │   ├── JIT.hpp         # JIT compiler
-│   │   └── Value.hpp       # Runtime values
+│   │   ├── GC.hpp          # Generational garbage collector
+│   │   ├── Value.hpp       # Runtime values
+│   │   ├── CodeGen.hpp     # x86-64 code buffer
+│   │   └── IR.hpp          # Intermediate representation
 │   └── src/
 │       ├── Lexer.cpp
 │       ├── Parser.cpp
-│       ├── JIT.cpp         # x86-64 code generation
+│       ├── JIT.cpp         # x86-64 code generation + async/GC runtime
 │       └── Main.cpp        # Entry point
 ├── stdlib/                  # Standard library
 │   ├── include/
 │   └── src/
 │       ├── Math.cpp        # Math functions
 │       ├── IO.cpp          # Input/Output
-│       └── Time.cpp        # Timing functions
+│       ├── Time.cpp        # Timing functions
+│       ├── AI.cpp          # Tensor ops & model serving
+│       └── HTTP.cpp        # HTTP server
 ├── examples/                # Example programs
+│   ├── basics.nva          # Language basics
+│   ├── advanced.nva        # Algorithms & data structures
+│   ├── asyncAwait.nva      # Async/await concurrency
+│   └── gcDemo.nva          # Garbage collector demo
 ├── languagebench/           # Benchmark suite
 │   ├── run_comparison.sh   # Run all benchmarks
 │   ├── bench_*.nva/cpp/... # Language-specific benchmarks
 │   └── battle_report.txt   # Latest results
-├── docs/                    # Documentation
 ├── Makefile
 └── README.md
 ```
 
 ---
 
-## 🔧 Architecture
+## Architecture
 
 ### JIT Compilation Pipeline
 
@@ -220,15 +242,17 @@ Source Code (.nva)
 
 ### Key Features
 
-- **Zero-copy tokenization**: SIMD-accelerated lexer
+- **SIMD-accelerated lexer**
 - **Flattened AST**: Cache-optimized tree structure  
 - **Direct code generation**: No interpreter, pure machine code
 - **Type specialization**: Runtime type-based optimization
 - **Nanosecond timing**: `clock_gettime(CLOCK_MONOTONIC)` syscall
+- **Generational GC**: Bump-pointer allocation with young/old generation collection, integrated transparently into all heap allocations (arrays, strings)
+- **Async/Await**: Task-based concurrency model with `async func` declarations and `await` expressions, available by default with no flags required
 
 ---
 
-## 📚 Standard Library
+## Standard Library
 
 ### Math Module
 
@@ -263,25 +287,42 @@ io.Print("Hello,", name)
 io.Write("No newline")
 ```
 
+### AI Module
+
+```nva
+import stdlib ai as ai
+
+// SIMD-accelerated tensor operations
+// activations, loss functions, and inference
+```
+
+### HTTP Module
+
+```nva
+import stdlib http as http
+
+// High-performance HTTP server for model serving
+```
+
 ---
 
-## 🎨 Code Style
+## Code Style
 
 Nevaarize enforces **clean code** through the **No-Underscore Policy**:
 
 ```nva
-// ✅ Accepted
+// Accepted
 myVariable = 10
 func calculateSum(a, b) { return a + b }
 
-// ❌ Rejected at compile-time
+// Rejected at compile-time
 my_variable = 10
 func calculate_sum(a, b) { }
 ```
 
 ---
 
-## 🏗 Build Targets
+## Build Targets
 
 ```bash
 make              # Build optimized JIT compiler
@@ -294,22 +335,20 @@ make uninstall    # Remove from system
 
 ---
 
-## 🗺 Roadmap
+## Roadmap
 
 - [x] **Core JIT Compiler** - x86-64 code generation
 - [x] **Standard Library** - Math, IO, Time modules
 - [x] **Structs** - User-defined data types
 - [x] **Arrays** - Dynamic arrays with push/pop
 - [x] **Benchmark Suite** - Multi-language comparison
-- [ ] **Garbage Collector** - Generational GC
-- [ ] **Async/Await** - Coroutine-based concurrency
-- [ ] **Module System** - Package management
-- [ ] **Windows Support** - Cross-platform builds
-- [ ] **REPL Improvements** - Better interactive mode
+- [x] **AI Core** - Tensor operations and model serving
+- [x] **Garbage Collector** - Generational GC integrated into JIT allocations
+- [x] **Async/Await** - Task-based concurrency with async functions
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please ensure:
 
@@ -320,13 +359,13 @@ Contributions are welcome! Please ensure:
 
 ---
 
-## 📄 License
+## License
 
 MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-## 🔗 Links
+## Links
 
 - **Repository**: [github.com/gtkrshnaaa/nevaarize](https://github.com/gtkrshnaaa/nevaarize)
 - **Issues**: [github.com/gtkrshnaaa/nevaarize/issues](https://github.com/gtkrshnaaa/nevaarize/issues)
