@@ -44,7 +44,7 @@ project/
 // File: project/main.nva
 import "utils.nva" as utils
 ```
-✅ Resolves to: `project/utils.nva`
+Resolves to: `project/utils.nva`
 
 #### Example 2: Subdirectory
 ```
@@ -58,7 +58,7 @@ project/
 // File: project/main.nva
 import "lib/helper.nva" as helper
 ```
-✅ Resolves to: `project/lib/helper.nva`
+Resolves to: `project/lib/helper.nva`
 
 #### Example 3: Parent Directory
 ```
@@ -72,7 +72,7 @@ project/
 // File: project/src/main.nva
 import "../config.nva" as config
 ```
-✅ Resolves to: `project/config.nva`
+Resolves to: `project/config.nva`
 
 #### Example 4: Nested Imports
 ```
@@ -88,7 +88,7 @@ project/
 // File: project/modules/importer.nva
 import "utils/helper.nva" as helper
 ```
-✅ Resolves to: `project/modules/utils/helper.nva`
+Resolves to: `project/modules/utils/helper.nva`
 
 ### Working Directory Independence
 

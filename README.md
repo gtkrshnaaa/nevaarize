@@ -21,11 +21,11 @@ Nevaarize delivers **exceptional performance**, outperforming even native langua
 
 | Category | Performance | vs Rust | vs Zig | vs Node.js |
 |----------|------------|---------|--------|------------|
-| **Array Push** | **781M ops/sec** | 🏆 **2.2x faster** | 🏆 **1.8x faster** | 🏆 **22x faster** |
+| **Array Push** | **781M ops/sec** | **2.2x faster** | **1.8x faster** | **22x faster** |
 | **Integer Ops** | **772M ops/sec** | 0.22x | 0.21x | 0.65x |
-| **Memory Usage** | **5.9 MB** | 🏆 **40% less** | 🏆 **25% less** | 🏆 **14x less** |
+| **Memory Usage** | **5.9 MB** | **40% less** | **25% less** | **14x less** |
 
-> 💡 **Key Achievement**: Nevaarize's JIT implementation of dynamic arrays is **faster than Rust's `Vec` and Zig's `ArrayList`**, while using significantly less memory!
+> **Key Achievement**: Nevaarize's JIT implementation of dynamic arrays is **faster than Rust's `Vec` and Zig's `ArrayList`**, while using significantly less memory!
 
 ---
 
@@ -75,10 +75,10 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 | Language | Integer Add | Double Arith | String Concat | Array Push | Struct Access | Peak RAM |
 |----------|------------|--------------|---------------|------------|---------------|----------|
-| **Nevaarize** | 772M | 486M | **34M** | **781M** 🥇 | 455M | **5.9MB** 🥇 |
-| Zig (ReleaseFast) | 3,696M 🥇 | 766M | 664M | 419M | **3,753M** 🥇 | 7.8MB |
+| **Nevaarize** | 772M | 486M | **34M** | **781M** | 455M | **5.9MB** |
+| Zig (ReleaseFast) | 3,696M | 766M | 664M | 419M | **3,753M** | 7.8MB |
 | Rust (LLVM -O) | 3,566M | 960M | 778M | 347M | 3,495M | 10.0MB |
-| Go 1.21 | 3,357M | **3,373M** 🥇 | 0.4M | 67M | 3,012M | 46MB |
+| Go 1.21 | 3,357M | **3,373M** | 0.4M | 67M | 3,012M | 46MB |
 | Java 21 | 3,422M | 490M | 0.2M | 50M | 804M | 341MB |
 | PHP 8 JIT | 2,832M | 932M | 81M | 65M | 391M | 49MB |
 | C++ (GCC -O3) | 2,586M | 418M | 471M | 345M | 2,473M | 11.5MB |
