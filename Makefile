@@ -41,7 +41,7 @@ release: $(TARGET)
 
 $(TARGET): $(OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $(OBJECTS) -o $@
-	@echo "✓ Build complete: $@"
+	@echo "Build complete: $@"
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
@@ -55,7 +55,7 @@ debug: $(TARGET_DEBUG)
 
 $(TARGET_DEBUG): $(OBJECTS_DEBUG) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS_DEBUG) $(OBJECTS_DEBUG) -o $@
-	@echo "✓ Debug build complete: $@"
+	@echo "Debug build complete: $@"
 
 $(BUILD_DIR)/debug/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)/debug
 	$(CXX) $(CXXFLAGS_DEBUG) $(INCLUDES) -c $< -o $@
