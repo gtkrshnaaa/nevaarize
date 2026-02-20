@@ -84,6 +84,13 @@ body {
     color: var(--color-gray-200);
     background-color: var(--color-black);
     min-height: 100vh;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+img, video, canvas {
+    max-width: 100%;
+    height: auto;
 }
 
 ::selection {
@@ -209,6 +216,7 @@ pre {
     padding: var(--space-lg);
     margin: var(--space-xl) 0;
     overflow-x: auto;
+    max-width: 100%;
     position: relative;
 }
 
@@ -415,11 +423,21 @@ pre::before {
 }
 
 /* Tables */
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: var(--space-xl) 0;
+    border: 1px solid var(--color-gray-800);
+    border-radius: 8px;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
-    margin: var(--space-xl) 0;
+    margin: 0;
     font-size: 0.95rem;
+    min-width: 500px; /* Force scroll on very small screens if needed */
 }
 
 th, td {
@@ -895,11 +913,8 @@ tr:hover td {
         margin-right: calc(-1 * var(--space-sm));
     }
     
-    /* Table horizontal scroll on mobile */
+    /* Table horizontal scroll handled by .table-wrapper */
     table {
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
         font-size: 0.8rem;
     }
     

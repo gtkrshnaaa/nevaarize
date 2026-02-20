@@ -100,7 +100,7 @@
                 
                 <h2>Tensor Creation</h2>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -130,7 +130,7 @@
                             <td><code>ai.RandU(100, -1, 1)</code></td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <h3>Example</h3>
                 
@@ -149,7 +149,7 @@ print("Normal sample:", normal)</code></pre>
                 
                 <h2>Element-wise Operations</h2>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -178,7 +178,7 @@ print("Normal sample:", normal)</code></pre>
                             <td>Multiply by scalar</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <pre data-lang="nevaarize"><code>a = [1.0, 2.0, 3.0, 4.0]
 b = [0.5, 0.5, 0.5, 0.5]
@@ -191,7 +191,7 @@ scaled = ai.Scale(a, 2) // [2.0, 4.0, 6.0, 8.0]</code></pre>
                 
                 <h2>Reduction Operations</h2>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -224,13 +224,13 @@ scaled = ai.Scale(a, 2) // [2.0, 4.0, 6.0, 8.0]</code></pre>
                             <td>Index of minimum</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <hr>
                 
                 <h2>Matrix Operations</h2>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -251,7 +251,7 @@ scaled = ai.Scale(a, 2) // [2.0, 4.0, 6.0, 8.0]</code></pre>
                             <td>Matrix transpose</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <h3>Matrix Multiplication Example</h3>
                 
@@ -276,7 +276,7 @@ print("Result:", C)  // [58, 64, 139, 154]</code></pre>
                 
                 <p>All activations are applied element-wise:</p>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -313,7 +313,7 @@ print("Result:", C)  // [58, 64, 139, 154]</code></pre>
                             <td>Swish: x * sigmoid(x)</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <pre data-lang="nevaarize"><code>x = [-2, -1, 0, 1, 2]
 
@@ -325,7 +325,7 @@ softmax = ai.Softmax(x) // Probability distribution</code></pre>
                 
                 <h2>Loss Functions</h2>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -354,7 +354,7 @@ softmax = ai.Softmax(x) // Probability distribution</code></pre>
                             <td>Outlier-robust regression</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <pre data-lang="nevaarize"><code>pred = [0.9, 0.1, 0.0]
 target = [1.0, 0.0, 0.0]
@@ -431,7 +431,7 @@ print("Clipped grad:", clipped)</code></pre>
                 
                 <h2>Weight Initialization</h2>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -448,7 +448,7 @@ print("Clipped grad:", clipped)</code></pre>
                             <td>ReLU activations</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <pre data-lang="nevaarize"><code>// For ReLU network
 w1 = ai.HeInit(784, 256)   // Input to hidden
@@ -461,7 +461,7 @@ w = ai.XavierInit(100, 50)</code></pre>
                 
                 <h2>Utility Functions</h2>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -482,7 +482,7 @@ w = ai.XavierInit(100, 50)</code></pre>
                             <td>One-hot encoding</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <pre data-lang="nevaarize"><code>// One-hot encoding
 label = 2
@@ -496,7 +496,7 @@ print(encoded)  // [0, 0, 1, 0, 0]</code></pre>
                 
                 <p>Build neural networks using a sequential API:</p>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -513,11 +513,11 @@ print(encoded)  // [0, 0, 1, 0, 0]</code></pre>
                             <td>Define a layer (linear, relu, softmax, etc.)</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <h3>Layer Types</h3>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Type</th>
@@ -547,7 +547,7 @@ print(encoded)  // [0, 0, 1, 0, 0]</code></pre>
                             <td>Softmax output layer</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <pre data-lang="nevaarize"><code>import stdlib ai as ai
 
@@ -565,7 +565,7 @@ print("Model created with ID:", model)</code></pre>
                 
                 <h2>Model Training</h2>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -582,7 +582,7 @@ print("Model created with ID:", model)</code></pre>
                             <td>Run inference on input</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <h3>Training Config</h3>
                 
@@ -617,7 +617,7 @@ print("Predicted class:", predicted)</code></pre>
                 
                 <p>Save and load trained models to <code>.nmod</code> files:</p>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Function</th>
@@ -634,7 +634,7 @@ print("Predicted class:", predicted)</code></pre>
                             <td>Load model from file, returns model ID or -1</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <div class="callout callout-note">
                     <div class="callout-title">Path Resolution</div>
@@ -728,7 +728,7 @@ Prediction: 1</code></pre>
                 
                 <p>All SIMD-accelerated functions use AVX2 instructions:</p>
                 
-                <table>
+                <div class="table-wrapper"><table>
                     <thead>
                         <tr>
                             <th>Operation</th>
@@ -753,7 +753,7 @@ Prediction: 1</code></pre>
                             <td>4B+ ops/sec</td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
                 
                 <hr>
                 
