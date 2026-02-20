@@ -83,7 +83,7 @@ $(BIN_DIR):
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)
-	@echo "✓ Clean complete"
+	@echo "Clean complete"
 
 # Rebuild
 .PHONY: rebuild
@@ -119,13 +119,13 @@ benchmark: $(TARGET)
 .PHONY: install
 install: clean release
 	install -m 755 $(TARGET) /usr/local/bin/nevaarize
-	@echo "✓ Installed to /usr/local/bin/nevaarize"
+	@echo "Installed to /usr/local/bin/nevaarize"
 
 # Uninstall
 .PHONY: uninstall
 uninstall:
 	rm -f /usr/local/bin/nevaarize
-	@echo "✓ Uninstalled nevaarize"
+	@echo "Uninstalled nevaarize"
 
 # Listing Target
 list:
