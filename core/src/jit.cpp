@@ -3085,7 +3085,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         
         if (leftNode.type == NodeType::IDENTIFIER && variables.count(leftNode.name)) {
             pinnedCounter = leftNode.name;
-            if (!variables[pinnedCounter].isRegister) { // Only pin if not already pinned
+            if (!variables[pinnedCounter].isRegister && !regInUse[static_cast<int>(X64Reg::R12)]) { // Only pin if not already pinned and R12 is free
                 oldCounterLoc = variables[pinnedCounter];
                 VarLocation pinnedLoc = oldCounterLoc;
                 pinnedLoc.isRegister = true;
@@ -3103,7 +3103,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         
         if (rightNode.type == NodeType::IDENTIFIER && variables.count(rightNode.name)) {
             pinnedLimit = rightNode.name;
-            if (!variables[pinnedLimit].isRegister) {
+            if (!variables[pinnedLimit].isRegister && !regInUse[static_cast<int>(X64Reg::R13)]) {
                 oldLimitLoc = variables[pinnedLimit];
                 VarLocation pinnedLoc = oldLimitLoc;
                 pinnedLoc.isRegister = true;
@@ -3760,10 +3760,10 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
         }
         
         // Push recursive continuation address (dynamic return)
-        buf.emit8(0x48); buf.emit8(0x8D); buf.emit8(0x05); // lea rax, [rip + disp]
+        buf.emit8(0x48); buf.emit8(0x8D); buf.emit8(0x0D); // lea rcx, [rip + disp]
         size_t leaPatch = buf.getOffset();
         buf.emit32(0); // patched later
-        buf.emit8(0x50); // push rax
+        buf.emit8(0x51); // push rcx
         
         // Jump to function body
         buf.emit8(0xE9); // jmp rel32
@@ -3844,10 +3844,10 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     CodeBuffer& buf = codegen.getCode();
     
     // Push continuation address for the outermost call
-    buf.emit8(0x48); buf.emit8(0x8D); buf.emit8(0x05); // lea rax, [rip + disp]
+    buf.emit8(0x48); buf.emit8(0x8D); buf.emit8(0x0D); // lea rcx, [rip + disp]
     size_t outerLeaPatch = buf.getOffset();
     buf.emit32(0); // patched later
-    buf.emit8(0x50); // push rax
+    buf.emit8(0x51); // push rcx
     
     // Record start of the function body for recursive jumps
     funcInfo.compiledOffset = buf.getOffset();
@@ -3876,8 +3876,8 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     }
     
     // Resolve continuation address dynamically
-    buf.emit8(0x58); // pop rax
-    buf.emit8(0xFF); buf.emit8(0xE0); // jmp rax
+    buf.emit8(0x59); // pop rcx
+    buf.emit8(0xFF); buf.emit8(0xE1); // jmp rcx
     
     // Patch outermost continuation displacement
     int32_t outerLeaDisp = static_cast<int32_t>(buf.getOffset() - (outerLeaPatch + 4));
