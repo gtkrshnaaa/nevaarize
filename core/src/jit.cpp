@@ -2717,11 +2717,14 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
                 break; // Already imported
             }
             
-            // Resolve path (relative to current file or CWD)
+            // Resolve path relative to the source file's directory
             fs::path fullPath = filePath;
             if (!fullPath.is_absolute()) {
-                // For now, use CWD-relative (can enhance to file-relative later)
-                fullPath = fs::current_path() / filePath;
+                if (!sourceDir.empty()) {
+                    fullPath = fs::path(sourceDir) / filePath;
+                } else {
+                    fullPath = fs::current_path() / filePath;
+                }
             }
             
             // Check if file exists

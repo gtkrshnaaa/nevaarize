@@ -72,6 +72,11 @@ public:
     int64_t execute(CompiledFunc fn);
 
     /**
+     * Set the source file directory for resolving relative import paths.
+     */
+    void setSourceDir(const std::string& dir) { sourceDir = dir; }
+
+    /**
      * Check if a loop can be compiled directly.
      */
     bool canCompileLoop(const AST& ast, NodeIndex forNode);
@@ -118,6 +123,9 @@ private:
 
     // Compile-time type tracking for optimization
     std::unordered_set<std::string> knownIntVars;
+
+    // Source file directory for resolving relative import paths
+    std::string sourceDir;
 
     // Code generation helpers
     void emitPrologue();

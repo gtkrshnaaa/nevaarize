@@ -68,6 +68,13 @@ int runScript(const std::string& scriptPath) {
         auto ast = std::make_shared<AST>(std::move(parser.getAST()));
         
         JIT jit;
+        fs::path scriptDir = fs::path(scriptPath).parent_path();
+        if (scriptDir.empty()) {
+            scriptDir = fs::current_path();
+        } else if (!scriptDir.is_absolute()) {
+            scriptDir = fs::current_path() / scriptDir;
+        }
+        jit.setSourceDir(scriptDir.string());
         auto compiledFn = jit.compile(*ast);
         jit.execute(compiledFn);
         
