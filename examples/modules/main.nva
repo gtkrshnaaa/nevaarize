@@ -1,69 +1,40 @@
-func square(x) {
-    return x * x
-}
+// Modular Programming Demo
+// Demonstrates file import system with relative paths
 
-func cube(x) {
-    return x * x * x
-}
-
-func abs(x) {
-    if (x < 0) {
-        return -x
-    }
-    return x
-}
-
-func max(a, b) {
-    if (a > b) {
-        return a
-    }
-    return b
-}
-
-func min(a, b) {
-    if (a < b) {
-        return a
-    }
-    return b
-}
-
-
-func arraySum(arr, length) {
-    total = 0
-    i = 0
-    while (i < length) {
-        total = total + arr[i]
-        i = i + 1
-    }
-    return total
-}
-
-func arrayAverage(arr, length) {
-    if (length == 0) {
-        return 0
-    }
-    return arraySum(arr, length) / length
-}
-
+import "lib/math.nva" as math
+import "lib/arrays.nva" as arrays
+import "lib/utils/logger.nva" as log
 
 print("=== Modular Programming Demo ===")
 print("")
 
-print("Math Functions:")
-print("square(7):", square(7))
-print("cube(4):", cube(4))
-print("abs(-15):", abs(-15))
-print("max(42, 17):", max(42, 17))
-print("min(42, 17):", min(42, 17))
+// Using logger module
+log.info("Starting module demo")
 print("")
 
+// Using math module
+print("Math Functions:")
+print("square(7):", math.square(7))
+print("cube(4):", math.cube(4))
+print("abs(-15):", math.abs(-15))
+print("max(42, 17):", math.max(42, 17))
+print("min(42, 17):", math.min(42, 17))
+print("clamp(150, 0, 100):", math.clamp(150, 0, 100))
+print("")
+
+// Using arrays module
 print("Array Functions:")
 data = [10, 20, 30, 40, 50]
 length = 5
 
 print("Data:", data)
-print("Sum:", arraySum(data, length))
-print("Average:", arrayAverage(data, length))
+print("Sum:", arrays.sum(data, length))
+print("Average:", arrays.average(data, length))
+print("Max:", arrays.findMax(data, length))
+print("Min:", arrays.findMin(data, length))
 print("")
 
+// Final status
+log.success("Module demo complete")
+print("")
 print("=== Demo Complete ===")
