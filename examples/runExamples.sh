@@ -78,3 +78,12 @@ echo "Failed:      $((TOTAL - PASSED))"
 echo ""
 echo "Detailed report saved to: $REPORT_FILE"
 echo "=========================================================="
+
+# Append summary to report file
+echo "" >> "$REPORT_FILE"
+echo "==========================================================" >> "$REPORT_FILE"
+echo "RESULTS SUMMARY:" >> "$REPORT_FILE"
+echo "Total Tests: $TOTAL" >> "$REPORT_FILE"
+echo "Passed:      $PASSED" >> "$REPORT_FILE"
+echo "Failed:      $((TOTAL - PASSED))" >> "$REPORT_FILE"
+echo "==========================================================" >> "$REPORT_FILE"
