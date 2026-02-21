@@ -96,6 +96,7 @@ private:
         bool isCompiled;
         bool isAsync;
         const AST* sourceAST;  // Which AST contains this function (nullptr = currentAST)
+        std::vector<size_t> recursiveCallPatches; // Track locations of recursive calls that need patching
     };
     std::unordered_map<std::string, FuncInfo> userFunctions;
     
