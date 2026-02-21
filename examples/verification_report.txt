@@ -1,29 +1,126 @@
 Nevaarize Execution & Benchmark Report
-Generated on: Sun Feb 15 08:32:27 AM WIB 2026
+Generated on: Sat Feb 21 07:35:20 AM WIB 2026
 --------------------------------------
 SYSTEM SPECIFICATIONS:
-  OS:  Ubuntu 24.04.3 LTS
+  OS:  Ubuntu 24.04.4 LTS
   CPU: 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz
-  RAM: 7637.08 MB
+  RAM: 7637.09 MB
 --------------------------------------
  [  ] examples/advanced.nva: FAIL (Timeout)
     Error Details: Execution timed out after 10s
 --------------------------------------
- [  ] examples/asyncAwait.nva: FAIL (Exit Code: 139)
-    Error Details:
-      timeout: the monitored command dumped core
+ [ x] examples/asyncAwait.nva: PASS
+    Output Details:
+      === Async/Await Demo ===
+      
+      Synchronous computation:
+      Sum 1..999 = 499500
+      
+      Async computation:
+      Async Sum 1..999 = 499500
+      
+      === Async/Await Complete ===
 --------------------------------------
- [  ] examples/basics.nva: FAIL (Exit Code: 132)
-    Error Details:
-      timeout: the monitored command dumped core
+ [ x] examples/basics.nva: PASS
+    Output Details:
+      Integer: 42
+      Float: 3.14
+      String: 3.14
+      
+      Addition: 13
+      Subtraction: 7
+      Multiplication: 30
+      Division: 3
+      
+      Comparison: 1
+      Equality: 0
+      
+      Warm
+      
+      Count: 0
+      Count: 1
+      Count: 2
+      Count: 3
+      Count: 4
+      
+      Index: 0
+      Index: 1
+      Index: 2
+      Index: 3
+      Index: 4
+      
+      add(7, 3): 10
+      multiply(6, 4): 24
+      
+      factorial(5): 5
+      factorial(6): 6
+      
+      Array: 140721531394992
+      First: 10
+      Third: 30
+      Modified: 99
+      Sum: 219
+      
+      === All Features Demonstrated ===
 --------------------------------------
- [  ] examples/benchmarks/benchmark.nva: FAIL (Exit Code: 132)
-    Error Details:
-      timeout: the monitored command dumped core
+ [ x] examples/benchmarks/benchmark.nva: PASS
+    Output Details:
+      Nevaarize Benchmark Suite
+      Target Loops (Scalar): 10000000
+      
+      === Integer Arithmetic (Add/Sub) ===
+      Result Check: 0
+      Duration: 14 ms
+      Raw Speed: 1356411131 ops/sec
+      Formatted: 1 Billion ops/sec
+      
+      === Float Arithmetic (Add/Sub) ===
+      Result Check: 10000000.0
+      Expected: 10000000
+      Duration: 41 ms
+      Raw Speed: 477220966 ops/sec
+      Formatted: 477 Million ops/sec
+      
+      === Control Flow (If/Else) ===
+      Result Check: 10000000
+      Duration: 20 ms
+      Raw Speed: 496276634 ops/sec
+      Formatted: 496 Million ops/sec
+      
+      === Function Call (Inlined) ===
+      Result Check: 10000000
+      Duration: 17 ms
+      Raw Speed: 565812542 ops/sec
+      Formatted: 565 Million ops/sec
+      
+      === Array Write Access ===
+      Result Check (arr[5]): 9999999
+      Duration: 14 ms
+      Raw Speed: 673967668 ops/sec
+      Formatted: 673 Million ops/sec
+      
+      === For Loop (Range) ===
+      Result Check: 10000000
+      Duration: 18 ms
+      Raw Speed: 551105987 ops/sec
+      Formatted: 551 Million ops/sec
+      
+      === ALL TESTS COMPLETE ===
 --------------------------------------
- [  ] examples/gcDemo.nva: FAIL (Exit Code: 139)
-    Error Details:
-      timeout: the monitored command dumped core
+ [ x] examples/gcDemo.nva: PASS
+    Output Details:
+      === Garbage Collector Demo ===
+      
+      Creating arrays with GC-managed memory...
+      Allocated 100 arrays successfully
+      
+      Creating strings with GC-managed memory...
+      Allocated 100 strings successfully
+      
+      Nested allocation stress test...
+      Stress test: 10 allocations completed
+      
+      === GC Demo Complete ===
 --------------------------------------
  [ x] examples/modules/config/settings.nva: PASS
     Output Details:
@@ -45,7 +142,27 @@ SYSTEM SPECIFICATIONS:
     Output Details:
       
 --------------------------------------
- [  ] examples/modules/main.nva: FAIL (Exit Code: 132)
-    Error Details:
-      timeout: the monitored command dumped core
+ [ x] examples/modules/main.nva: PASS
+    Output Details:
+      === Nevaarize Module System Demo ===
+      
+      --- Math Functions ---
+        square(7): 49
+        cube(3): 27
+        abs(-15): 15
+        max(42, 17): 42
+        min(42, 17): 17
+        clamp(150, 0, 100): 100
+      
+      --- Array Functions ---
+        Sum: 150
+        Max: 50
+        Min: 10
+      
+      === Done ===
+--------------------------------------
+ [ x] examples/modules/test_basic_import.nva: PASS
+    Output Details:
+      test: 25
+      done
 --------------------------------------
