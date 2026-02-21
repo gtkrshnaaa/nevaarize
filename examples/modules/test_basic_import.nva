@@ -1,0 +1,3 @@
+import "lib/math.nva" as math
+print("test:", math.square(5))
+print("done")

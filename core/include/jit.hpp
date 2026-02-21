@@ -127,6 +127,9 @@ private:
     // Source file directory for resolving relative import paths
     std::string sourceDir;
 
+    // Jump patches for return statements inside inlined function bodies
+    std::vector<size_t> inlinedReturnPatches;
+
     // Code generation helpers
     void emitPrologue();
     void emitEpilogue();

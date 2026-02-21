@@ -3232,6 +3232,11 @@ void JIT::compileReturn(const AST& ast, NodeIndex idx) {
     
     if (!inFunctionCall) {
         emitEpilogue();
+    } else {
+        // Emit JMP to end of inlined function body (patched later)
+        buf.emit8(0xE9); // JMP rel32
+        inlinedReturnPatches.push_back(buf.getOffset());
+        buf.emit32(0); // Placeholder
     }
 }
 
@@ -3656,6 +3661,10 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     bool savedInFunctionCall = inFunctionCall;
     inFunctionCall = true;
     
+    // Save and reset return jump patches for this function scope
+    auto savedReturnPatches = std::move(inlinedReturnPatches);
+    inlinedReturnPatches.clear();
+    
     // Use source AST for imported functions, otherwise use current AST
     const AST& funcAST = (funcInfo.sourceAST != nullptr) ? *funcInfo.sourceAST : ast;
     
@@ -3663,6 +3672,19 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     if (funcInfo.bodyIndex != INVALID_NODE) {
         compileStatement(funcAST, funcInfo.bodyIndex);
     }
+    
+    // Patch all inlined return jumps to point here (end of function body)
+    {
+        CodeBuffer& buf = codegen.getCode();
+        size_t endPos = buf.getOffset();
+        for (size_t patchOffset : inlinedReturnPatches) {
+            int32_t jmpDist = static_cast<int32_t>(endPos - (patchOffset + 4));
+            buf.patch32(patchOffset, static_cast<uint32_t>(jmpDist));
+        }
+    }
+    
+    // Restore saved patches from outer scope
+    inlinedReturnPatches = std::move(savedReturnPatches);
     
     inFunctionCall = savedInFunctionCall;
     variables = savedVars;
