@@ -1920,12 +1920,23 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     return compileUserCall(ast, idx, funcName);
                 }
             } else if (callee.type == NodeType::MEMBER_ACCESS) {
+                const std::string& memberName = callee.name;
+                
+                // Check for module namespace calls (e.g., math.square())
+                if (callee.left != INVALID_NODE) {
+                    const ASTNode& moduleNode = ast.get(callee.left);
+                    if (moduleNode.type == NodeType::IDENTIFIER && modules.count(moduleNode.name)) {
+                        std::string namespacedName = moduleNode.name + "_" + memberName;
+                        if (userFunctions.count(namespacedName)) {
+                            return compileUserCall(ast, idx, namespacedName);
+                        }
+                    }
+                }
+                
                 // Module function calls like ai.loadModel()
                 // Compile the object first
                 JITValue objVal = compileExpr(ast, callee.left);
                 X64Reg objReg = objVal.valueReg;
-                
-                const std::string& memberName = callee.name;
                 
                 if (memberName == "clock" || memberName == "nanos") {
                     CodeBuffer& buf = codegen.getCode();
