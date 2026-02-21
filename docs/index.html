@@ -118,7 +118,7 @@
                         <h3 class="feature-title">TRUE JIT Compilation</h3>
                         <p class="feature-description">
                             Compiles Nevaarize code directly to x86-64 machine code at runtime. 
-                            Achieves 500M+ operations per second.
+                            Achieves 900M+ operations per second.
                         </p>
                     </div>
                     
@@ -207,7 +207,7 @@ print("Results:", result1, result2)</code></pre>
 
                 <h3>Native JIT Performance</h3>
                 
-                <pre data-lang="nevaarize"><code>// Benchmark: 500M+ operations per second
+                <pre data-lang="nevaarize"><code>// Benchmark: 900M+ operations per second
 iterations = 100000000
 
 result = nativeSumLoop(iterations)
@@ -231,14 +231,14 @@ print("Performance:", int(opsPerSec / 1000000), "M ops/sec")</code></pre>
                     </thead>
                     <tbody>
                         <tr>
-                            <td>Native JIT Loop</td>
-                            <td>505M ops/sec</td>
+                            <td>Native JIT Integer Add</td>
+                            <td>973M ops/sec</td>
                             <td>Pure x86-64 machine code</td>
                         </tr>
                         <tr>
-                            <td>SIMD Sum Loop</td>
-                            <td>4B+ ops/sec</td>
-                            <td>AVX2 vectorization</td>
+                            <td>Dynamic Array Push</td>
+                            <td>897M ops/sec</td>
+                            <td>GC-backed memory allocation</td>
                         </tr>
                         <tr>
                             <td>Interpreter</td>
