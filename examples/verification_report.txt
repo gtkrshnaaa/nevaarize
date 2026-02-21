@@ -1,15 +1,15 @@
 Nevaarize Execution & Benchmark Report
-Generated on: Sat Feb 21 07:50:47 AM WIB 2026
+Generated on: Sat Feb 21 07:52:43 AM WIB 2026
 --------------------------------------
 SYSTEM SPECIFICATIONS:
   OS:  Ubuntu 24.04.4 LTS
   CPU: 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz
   RAM: 7637.09 MB
 --------------------------------------
- [  ] examples/advanced.nva: FAIL (Timeout)
+ [  ] examples/advanced.nva: FAIL (Timeout) (RAM: 4256KB, CPU: 99%)
     Error Details: Execution timed out after 10s
 --------------------------------------
- [ x] examples/asyncAwait.nva: PASS
+ [ x] examples/asyncAwait.nva: PASS (RAM: 4272KB, CPU: 100%)
     Output Details:
       === Async/Await Demo ===
       
@@ -21,7 +21,7 @@ SYSTEM SPECIFICATIONS:
       
       === Async/Await Complete ===
 --------------------------------------
- [ x] examples/basics.nva: PASS
+ [ x] examples/basics.nva: PASS (RAM: 4664KB, CPU: 50%)
     Output Details:
       Integer: 42
       Float: 3.14
@@ -55,7 +55,7 @@ SYSTEM SPECIFICATIONS:
       factorial(5): 5
       factorial(6): 6
       
-      Array: 140722734527328
+      Array: 140728882741696
       First: 10
       Third: 30
       Modified: 99
@@ -63,51 +63,51 @@ SYSTEM SPECIFICATIONS:
       
       === All Features Demonstrated ===
 --------------------------------------
- [ x] examples/benchmarks/benchmark.nva: PASS
+ [ x] examples/benchmarks/benchmark.nva: PASS (RAM: 4696KB, CPU: 99%)
     Output Details:
       Nevaarize Benchmark Suite
       Target Loops (Scalar): 10000000
       
       === Integer Arithmetic (Add/Sub) ===
       Result Check: 0
-      Duration: 15 ms
-      Raw Speed: 1264143154 ops/sec
+      Duration: 16 ms
+      Raw Speed: 1242663238 ops/sec
       Formatted: 1 Billion ops/sec
       
       === Float Arithmetic (Add/Sub) ===
       Result Check: 10000000.0
       Expected: 10000000
       Duration: 42 ms
-      Raw Speed: 467904762 ops/sec
-      Formatted: 467 Million ops/sec
+      Raw Speed: 470103740 ops/sec
+      Formatted: 470 Million ops/sec
       
       === Control Flow (If/Else) ===
       Result Check: 10000000
-      Duration: 22 ms
-      Raw Speed: 446717721 ops/sec
-      Formatted: 446 Million ops/sec
+      Duration: 17 ms
+      Raw Speed: 564219235 ops/sec
+      Formatted: 564 Million ops/sec
       
       === Function Call (Inlined) ===
       Result Check: 10000000
-      Duration: 22 ms
-      Raw Speed: 443903316 ops/sec
-      Formatted: 443 Million ops/sec
+      Duration: 18 ms
+      Raw Speed: 553008337 ops/sec
+      Formatted: 553 Million ops/sec
       
       === Array Write Access ===
       Result Check (arr[5]): 9999999
-      Duration: 16 ms
-      Raw Speed: 624853042 ops/sec
-      Formatted: 624 Million ops/sec
+      Duration: 15 ms
+      Raw Speed: 632733666 ops/sec
+      Formatted: 632 Million ops/sec
       
       === For Loop (Range) ===
       Result Check: 10000000
-      Duration: 20 ms
-      Raw Speed: 499841900 ops/sec
-      Formatted: 499 Million ops/sec
+      Duration: 19 ms
+      Raw Speed: 515363421 ops/sec
+      Formatted: 515 Million ops/sec
       
       === ALL TESTS COMPLETE ===
 --------------------------------------
- [ x] examples/gcDemo.nva: PASS
+ [ x] examples/gcDemo.nva: PASS (RAM: 4260KB, CPU: 100%)
     Output Details:
       === Garbage Collector Demo ===
       
@@ -122,27 +122,27 @@ SYSTEM SPECIFICATIONS:
       
       === GC Demo Complete ===
 --------------------------------------
- [ x] examples/modules/config/settings.nva: PASS
+ [ x] examples/modules/config/settings.nva: PASS (RAM: 4240KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/lib/arrays.nva: PASS
+ [ x] examples/modules/lib/arrays.nva: PASS (RAM: 4412KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/lib/math.nva: PASS
+ [ x] examples/modules/lib/math.nva: PASS (RAM: 4372KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/lib/strings.nva: PASS
+ [ x] examples/modules/lib/strings.nva: PASS (RAM: 4088KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/lib/utils/logger.nva: PASS
+ [ x] examples/modules/lib/utils/logger.nva: PASS (RAM: 4172KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/main.nva: PASS
+ [ x] examples/modules/main.nva: PASS (RAM: 4344KB, CPU: 100%)
     Output Details:
       === Nevaarize Module System Demo ===
       
@@ -161,7 +161,7 @@ SYSTEM SPECIFICATIONS:
       
       === Done ===
 --------------------------------------
- [ x] examples/modules/test_basic_import.nva: PASS
+ [ x] examples/modules/test_basic_import.nva: PASS (RAM: 4444KB, CPU: 100%)
     Output Details:
       test: 25
       done
@@ -172,4 +172,8 @@ RESULTS SUMMARY:
 Total Tests: 12
 Passed:      11
 Failed:      1
+--------------------------------------
+PERFORMANCE METRICS:
+Peak RAM:    4696 KB (by examples/benchmarks/benchmark.nva)
+Peak CPU:    100% (by examples/asyncAwait.nva)
 ==========================================================
