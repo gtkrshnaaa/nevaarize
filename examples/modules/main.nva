@@ -1,40 +1,47 @@
-// Modular Programming Demo
-// Demonstrates file import system with relative paths
+// =============================================================
+// Nevaarize Module System Demo
+// Demonstrates file-based imports with relative path resolution
+// =============================================================
 
+// --- Module Imports ---
 import "lib/math.nva" as math
 import "lib/arrays.nva" as arrays
 import "lib/utils/logger.nva" as log
 
-print("=== Modular Programming Demo ===")
-print("")
+// --- Main Entry Point ---
+func main() {
+    log.info("Starting module demo")
+    print("")
 
-// Using logger module
-log.info("Starting module demo")
-print("")
+    // Math module showcase
+    print("--- Math Functions ---")
+    print("  square(7):", math.square(7))
+    print("  cube(4):", math.cube(4))
+    print("  abs(-15):", math.abs(-15))
+    print("  max(42, 17):", math.max(42, 17))
+    print("  min(42, 17):", math.min(42, 17))
+    print("  clamp(150, 0, 100):", math.clamp(150, 0, 100))
+    print("")
 
-// Using math module
-print("Math Functions:")
-print("square(7):", math.square(7))
-print("cube(4):", math.cube(4))
-print("abs(-15):", math.abs(-15))
-print("max(42, 17):", math.max(42, 17))
-print("min(42, 17):", math.min(42, 17))
-print("clamp(150, 0, 100):", math.clamp(150, 0, 100))
-print("")
+    // Arrays module showcase
+    print("--- Array Functions ---")
+    data = [10, 20, 30, 40, 50]
+    length = 5
 
-// Using arrays module
-print("Array Functions:")
-data = [10, 20, 30, 40, 50]
-length = 5
+    print("  Data:", data)
+    print("  Sum:", arrays.sum(data, length))
+    print("  Average:", arrays.average(data, length))
+    print("  Max:", arrays.findMax(data, length))
+    print("  Min:", arrays.findMin(data, length))
+    print("")
 
-print("Data:", data)
-print("Sum:", arrays.sum(data, length))
-print("Average:", arrays.average(data, length))
-print("Max:", arrays.findMax(data, length))
-print("Min:", arrays.findMin(data, length))
-print("")
+    log.success("All modules executed successfully")
+    return 0
+}
 
-// Final status
-log.success("Module demo complete")
+// --- Run ---
+print("=== Nevaarize Module System Demo ===")
 print("")
-print("=== Demo Complete ===")
+main()
+print("")
+print("=== Done ===")
