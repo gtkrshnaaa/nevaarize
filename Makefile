@@ -3,8 +3,8 @@
 
 # Compiler settings
 CXX := g++
-CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -O3 -march=native -fno-rtti -fno-stack-protector
-CXXFLAGS_DEBUG := -std=c++23 -Wall -Wextra -Wpedantic -g -O0 -DDEBUG
+CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -O3 -march=native -fno-rtti -fno-stack-protector -MMD -MP
+CXXFLAGS_DEBUG := -std=c++23 -Wall -Wextra -Wpedantic -g -O0 -DDEBUG -MMD -MP
 
 # Directories
 SRC_DIR := core/src
@@ -173,5 +173,8 @@ help:
 	@echo "  benchmark    Run performance benchmarks"
 	@echo "  list         Generate codebase listing"
 	@echo "  install      Install to /usr/local/bin"
-	@echo "  uninstall    Remove from /usr/local/bin"
 	@echo "  help         Show this help"
+
+# Include generated dependencies
+-include $(OBJECTS:.o=.d)
+-include $(OBJECTS_DEBUG:.o=.d)
