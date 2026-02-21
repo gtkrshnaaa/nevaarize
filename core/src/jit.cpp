@@ -766,18 +766,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                         buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
                         buf.emit8(0x29); // SUB r/m64, r64
-                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | 
-                                          (static_cast<uint8_t>(result.valueReg) & 0x7)); // MR encoding? No wait: 29 /r => SUB r/m64, r64. Reg is Operand 2 (src). RM is Operand 1 (dst).
-                                          // Op2 = Result (Wait, 29 is SUB r/m64, r64. 2B is SUB r64, r/m64)
-                                          // 29 /r:  SUB r/m, r.  r writes to r/m.
-                                          // We want R = L - R.  Result=L. Right=R.
-                                          // So we want SUB Result, Right.
-                                          // dest=Result, src=Right.
-                                          // Instruction 29: SUB r/m, r.
-                                          // modrm.reg = Right.
-                                          // modrm.rm = Result.
-                                          // buf.emit8(0xC0 | (Right << 3) | Result);
-                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) |
+                                          (static_cast<uint8_t>(result.valueReg) & 0x7));
                     }
                     break;
                 case BinaryOp::MUL:
@@ -837,6 +827,84 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                      buf.emit8(0xB6);
                      buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // movzx dst, al
                      break;
+                }
+                case BinaryOp::DIV: {
+                    bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                    buf.emit8(0x51); // push rcx
+                    buf.emit8(0x52); // push rdx
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0xC1 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3)); // mov rcx, right
+                    if (result.valueReg != X64Reg::RAX) {
+                        buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // mov rax, result
+                    }
+                    buf.emit8(0x48); buf.emit8(0x99); // cqo
+                    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0xF9); // idiv rcx
+                    if (result.valueReg != X64Reg::RAX) {
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // mov result, rax
+                    }
+                    buf.emit8(0x5A); // pop rdx
+                    buf.emit8(0x59); // pop rcx
+                    break;
+                }
+                case BinaryOp::MOD: {
+                    bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                    buf.emit8(0x51); // push rcx
+                    buf.emit8(0x52); // push rdx
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0xC1 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3)); // mov rcx, right
+                    if (result.valueReg != X64Reg::RAX) {
+                        buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // mov rax, result
+                    }
+                    buf.emit8(0x48); buf.emit8(0x99); // cqo
+                    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0xF9); // idiv rcx
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0xD0 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // mov result, rdx (remainder)
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x08); // add rsp, 8
+                    buf.emit8(0x59); // pop rcx
+                    break;
+                }
+                case BinaryOp::AND: {
+                    bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7)); // test result, result
+                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0); // setne al
+                    buf.emit8(0x48 | (rValHigh ? 0x01 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7)); // test right, right
+                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC1); // setne cl
+                    buf.emit8(0x20); buf.emit8(0xC8); // and al, cl
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F); buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // movzx result, al
+                    break;
+                }
+                case BinaryOp::OR: {
+                    bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x09);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7)); // or result, right
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7)); // test result, result
+                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0); // setne al
+                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                    buf.emit8(0x0F); buf.emit8(0xB6);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // movzx result, al
+                    break;
                 }
                 default: break;
             }
@@ -1001,7 +1069,42 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     case BinaryOp::DIV: 
                         buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5E); buf.emit8(0xC1); // divsd xmm0, xmm1
                         break;
-                    // TODO: Valid Comparisons for float
+                    case BinaryOp::LT:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0); // xor rax, rax
+                        buf.emit8(0x0F); buf.emit8(0x92); buf.emit8(0xC0); // setb al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
+                        break;
+                    case BinaryOp::GT:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x97); buf.emit8(0xC0); // seta al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    case BinaryOp::LTE:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x96); buf.emit8(0xC0); // setbe al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    case BinaryOp::GTE:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x93); buf.emit8(0xC0); // setae al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    case BinaryOp::EQ:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x94); buf.emit8(0xC0); // sete al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
+                    case BinaryOp::NEQ:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
+                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0); // setne al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        break;
                     default: break;
                 }
                 
@@ -1029,6 +1132,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.patch8(jmpPatch, static_cast<uint8_t>(jmpOffset));
             } // end if (!staticIntPath)
             
+            if (!rightIsImm) {
+                freeReg(right.valueReg); freeReg(right.typeReg);
+            }
+            return result;
             // === INTEGER PATH ===
             // Copy left value to result value register if needed
             if (result.valueReg != left.valueReg) {
