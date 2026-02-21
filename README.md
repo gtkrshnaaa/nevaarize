@@ -21,9 +21,9 @@ Nevaarize delivers **exceptional performance**, outperforming even native langua
 
 | Category | Performance | vs Rust | vs Zig | vs Node.js |
 |----------|------------|---------|--------|------------|
-| **Array Push** | **781M ops/sec** | **2.2x faster** | **1.8x faster** | **22x faster** |
-| **Integer Ops** | **772M ops/sec** | 0.22x | 0.21x | 0.65x |
-| **Memory Usage** | **5.9 MB** | **40% less** | **25% less** | **14x less** |
+| **Array Push** | **897M ops/sec** | **2.8x faster** | **2.4x faster** | **21x faster** |
+| **Integer Ops** | **973M ops/sec** | 0.26x | 0.24x | 0.78x |
+| **Memory Usage** | **5.05 MB** | **49% less** | **35% less** | **16x less** |
 
 > **Key Achievement**: Nevaarize's JIT implementation of dynamic arrays is **faster than Rust's `Vec` and Zig's `ArrayList`**, while using significantly less memory!
 
@@ -54,7 +54,7 @@ Each benchmark is designed to test a specific aspect of the language runtime. Th
 
 > **Verified Performance Data**
 > Executed on: **Sat Feb 21 08:35:27 AM WIB 2026**
-> Commit Hash: `6ebde9081c1272302f8627a6c5e0c5838ae695ae`
+> Commit Hash: [`6ebde9081c1272302f8627a6c5e0c5838ae695ae`](https://github.com/gtkrshnaaa/nevaarize/commit/6ebde9081c1272302f8627a6c5e0c5838ae695ae)
 > System: **Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04.4 LTS | 8GB RAM**
 
 ```
