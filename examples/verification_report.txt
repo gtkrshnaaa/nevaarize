@@ -1,5 +1,5 @@
 Nevaarize Execution & Benchmark Report
-Generated on: Sat Feb 21 07:35:20 AM WIB 2026
+Generated on: Sat Feb 21 07:44:57 AM WIB 2026
 --------------------------------------
 SYSTEM SPECIFICATIONS:
   OS:  Ubuntu 24.04.4 LTS
@@ -43,11 +43,11 @@ SYSTEM SPECIFICATIONS:
       Count: 3
       Count: 4
       
-      Index: 0
-      Index: 1
-      Index: 2
-      Index: 3
-      Index: 4
+      Index: 0.0
+      Index: 4.94066e-324
+      Index: 9.88131e-324
+      Index: 1.4822e-323
+      Index: 1.97626e-323
       
       add(7, 3): 10
       multiply(6, 4): 24
@@ -55,7 +55,7 @@ SYSTEM SPECIFICATIONS:
       factorial(5): 5
       factorial(6): 6
       
-      Array: 140721531394992
+      Array: 140729267483712
       First: 10
       Third: 30
       Modified: 99
@@ -70,40 +70,40 @@ SYSTEM SPECIFICATIONS:
       
       === Integer Arithmetic (Add/Sub) ===
       Result Check: 0
-      Duration: 14 ms
-      Raw Speed: 1356411131 ops/sec
+      Duration: 15 ms
+      Raw Speed: 1293135024 ops/sec
       Formatted: 1 Billion ops/sec
       
       === Float Arithmetic (Add/Sub) ===
       Result Check: 10000000.0
       Expected: 10000000
-      Duration: 41 ms
-      Raw Speed: 477220966 ops/sec
-      Formatted: 477 Million ops/sec
+      Duration: 42 ms
+      Raw Speed: 467021455 ops/sec
+      Formatted: 467 Million ops/sec
       
       === Control Flow (If/Else) ===
       Result Check: 10000000
-      Duration: 20 ms
-      Raw Speed: 496276634 ops/sec
-      Formatted: 496 Million ops/sec
+      Duration: 18 ms
+      Raw Speed: 542361644 ops/sec
+      Formatted: 542 Million ops/sec
       
       === Function Call (Inlined) ===
       Result Check: 10000000
-      Duration: 17 ms
-      Raw Speed: 565812542 ops/sec
-      Formatted: 565 Million ops/sec
+      Duration: 18 ms
+      Raw Speed: 534863785 ops/sec
+      Formatted: 534 Million ops/sec
       
       === Array Write Access ===
       Result Check (arr[5]): 9999999
-      Duration: 14 ms
-      Raw Speed: 673967668 ops/sec
-      Formatted: 673 Million ops/sec
+      Duration: 16 ms
+      Raw Speed: 619545290 ops/sec
+      Formatted: 619 Million ops/sec
       
       === For Loop (Range) ===
       Result Check: 10000000
       Duration: 18 ms
-      Raw Speed: 551105987 ops/sec
-      Formatted: 551 Million ops/sec
+      Raw Speed: 537653660 ops/sec
+      Formatted: 537 Million ops/sec
       
       === ALL TESTS COMPLETE ===
 --------------------------------------
