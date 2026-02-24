@@ -699,10 +699,14 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             bool staticIntPath = isStaticInt(ast, node.left) && 
                                  (rightIsImm || isStaticInt(ast, node.right));
             
+            // Static float inference: skip runtime dispatch for pure-float operations
+            bool staticFloatPath = !staticIntPath && isStaticFloat(ast, node.left) &&
+                                   (isStaticFloat(ast, node.right) || isStaticInt(ast, node.right));
+            
             size_t jnzPatch = 0;
             bool lTypeHigh = static_cast<uint8_t>(left.typeReg) >= 8;
             
-            if (!staticIntPath) {
+            if (!staticIntPath && !staticFloatPath) {
                 // Check types: Is either a float? (tag != 0)
                 // We need a scratch reg for the OR operation to not destroy left.typeReg
                 // But wait, we can just use a scratch register.
@@ -736,8 +740,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit32(0);
             }
             
-            // === INTEGER PATH ===
+            // === INTEGER PATH (skipped when staticFloatPath) ===
             
+            if (!staticFloatPath) {
             switch (node.binaryOp) {
                 case BinaryOp::ADD: {
                     if (staticIntPath) {
@@ -996,13 +1001,77 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
 
             if (staticIntPath) {
                 // IMPORTANT: In fast path, we must ensure typeReg is 0 (INT)
-                // Since result.typeReg reused left.typeReg, and left was static INT (type 0), 
-                // it SHOULD be 0. But to be safe and ensure no dirty state:
-                // We use emitXorReg here.
                 emitXorReg(buf, result.typeReg);
             }
+            } // end if (!staticFloatPath)
             
-            if (!staticIntPath) {
+            if (staticFloatPath) {
+                // === STATIC FLOAT FAST PATH ===
+                // Both operands are known float at compile-time.
+                // Emit direct XMM operations without any type-check dispatch.
+                bool lValHigh = static_cast<uint8_t>(left.valueReg) >= 8;
+                
+                // movq xmm0, left.valueReg
+                buf.emit8(0x66);
+                buf.emit8(0x48 | (lValHigh ? 0x01 : 0));
+                buf.emit8(0x0F); buf.emit8(0x6E);
+                buf.emit8(0xC0 | (static_cast<uint8_t>(left.valueReg) & 0x7));
+                
+                if (!rightIsImm) {
+                    bool rValHigh2 = static_cast<uint8_t>(right.valueReg) >= 8;
+                    
+                    // Check if right operand is int (needs conversion)
+                    bool rightIsIntType = isStaticInt(ast, node.right);
+                    if (rightIsIntType) {
+                        // cvtsi2sd xmm1, right.valueReg
+                        buf.emit8(0xF2);
+                        buf.emit8(0x48 | (rValHigh2 ? 0x01 : 0));
+                        buf.emit8(0x0F); buf.emit8(0x2A);
+                        buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7));
+                    } else {
+                        // movq xmm1, right.valueReg
+                        buf.emit8(0x66);
+                        buf.emit8(0x48 | (rValHigh2 ? 0x01 : 0));
+                        buf.emit8(0x0F); buf.emit8(0x6E);
+                        buf.emit8(0xC8 | (static_cast<uint8_t>(right.valueReg) & 0x7));
+                    }
+                } else {
+                    // Immediate int -> convert to double in XMM1
+                    bool tHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (tHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(static_cast<uint64_t>(immVal));
+                    
+                    buf.emit8(0xF2);
+                    buf.emit8(0x48 | (tHigh ? 0x01 : 0));
+                    buf.emit8(0x0F); buf.emit8(0x2A);
+                    buf.emit8(0xC8 | (static_cast<uint8_t>(result.typeReg) & 0x7));
+                }
+                
+                // Perform float operation
+                switch (node.binaryOp) {
+                    case BinaryOp::ADD: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58); buf.emit8(0xC1); break;
+                    case BinaryOp::SUB: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1); break;
+                    case BinaryOp::MUL: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x59); buf.emit8(0xC1); break;
+                    case BinaryOp::DIV: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5E); buf.emit8(0xC1); break;
+                    default: break;
+                }
+                
+                // movq result.valueReg, xmm0
+                bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                buf.emit8(0x66);
+                buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                buf.emit8(0x0F); buf.emit8(0x7E);
+                buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                
+                // Set type to FLOAT (1)
+                bool resTypeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                buf.emit8(0x48 | (resTypeHigh ? 0x01 : 0));
+                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                buf.emit64(1);
+            }
+            
+            if (!staticIntPath && !staticFloatPath) {
                 // Jump over float path
                 // jmp end
                 buf.emit8(0xEB);
@@ -1215,7 +1284,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 // Ah, above I used buf.emit8(0xEB); size_t jmpPatch = buf.getOffset(); buf.emit8(0x00);
                 // So patch8(jmpPatch, ...)
                 buf.patch8(jmpPatch, static_cast<uint8_t>(jmpOffset));
-            } // end if (!staticIntPath)
+            } // end if (!staticIntPath && !staticFloatPath)
             
             if (!rightIsImm) {
                 freeReg(right.valueReg); freeReg(right.typeReg);
