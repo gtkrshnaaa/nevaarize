@@ -124,6 +124,7 @@ private:
 
     // Compile-time type tracking for optimization
     std::unordered_set<std::string> knownIntVars;
+    std::unordered_set<std::string> knownFloatVars;
 
     // Source file directory for resolving relative import paths
     std::string sourceDir;
@@ -141,6 +142,7 @@ private:
     // AST compilation - expressions
     JITValue compileExpr(const AST& ast, NodeIndex idx);
     bool isStaticInt(const AST& ast, NodeIndex idx) const;
+    bool isStaticFloat(const AST& ast, NodeIndex idx) const;
     
     // AST compilation - statements
     void compileStatement(const AST& ast, NodeIndex idx);
