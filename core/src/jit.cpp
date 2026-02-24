@@ -265,6 +265,35 @@ bool JIT::isStaticInt(const AST& ast, NodeIndex idx) const {
     }
 }
 
+// Check if an AST node is statically known to be a Float
+bool JIT::isStaticFloat(const AST& ast, NodeIndex idx) const {
+    if (idx == INVALID_NODE) return false;
+    const ASTNode& node = ast.get(idx);
+    switch (node.type) {
+        case NodeType::LITERAL_FLOAT:
+            return true;
+        case NodeType::IDENTIFIER:
+            return knownFloatVars.count(node.name) > 0;
+        case NodeType::BINARY_OP: {
+            // Float if either operand is float (type promotion)
+            bool leftFloat = isStaticFloat(ast, node.left);
+            bool rightFloat = isStaticFloat(ast, node.right);
+            if (leftFloat || rightFloat) {
+                // At least one operand is float, result is float
+                // (unless the other is a non-numeric type, which we ignore here)
+                bool leftNumeric = leftFloat || isStaticInt(ast, node.left);
+                bool rightNumeric = rightFloat || isStaticInt(ast, node.right);
+                return leftNumeric && rightNumeric;
+            }
+            return false;
+        }
+        case NodeType::UNARY_OP:
+            return isStaticFloat(ast, node.left);
+        default:
+            return false;
+    }
+}
+
 void JIT::emitPrologue() {
     CodeBuffer& buf = codegen.getCode();
     
