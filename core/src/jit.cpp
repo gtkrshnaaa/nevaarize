@@ -2628,6 +2628,53 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
+    // Peephole Optimization: Direct Arithmetic for Accumulators (Registers & Stack)
+    bool peepholeOptimized = false;
+    if (node.left != INVALID_NODE) {
+        const ASTNode& exprNode = ast.get(node.left);
+        if (exprNode.type == NodeType::BINARY_OP && 
+            (exprNode.binaryOp == BinaryOp::ADD || exprNode.binaryOp == BinaryOp::SUB)) {
+            
+            const ASTNode& leftOperand = ast.get(exprNode.left);
+            const ASTNode& rightOperand = ast.get(exprNode.right);
+            
+            if (leftOperand.type == NodeType::IDENTIFIER && leftOperand.name == node.name && 
+                rightOperand.type == NodeType::LITERAL_INT) {
+                
+                auto it = variables.find(node.name);
+                if (it != variables.end()) {
+                    int64_t immVal = std::get<int64_t>(rightOperand.literal.data);
+                    if (immVal >= -2147483648LL && immVal <= 2147483647LL) {
+                        CodeBuffer& buf = codegen.getCode();
+                        if (it->second.isRegister) {
+                            X64Reg targetReg = it->second.reg;
+                            bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
+                            if (immVal == 1 && exprNode.binaryOp == BinaryOp::ADD) {
+                                buf.emit8(0x48 | (regHigh ? 0x01 : 0)); buf.emit8(0xFF); buf.emit8(0xC0 | (static_cast<uint8_t>(targetReg) & 0x7));
+                            } else if (immVal == 1 && exprNode.binaryOp == BinaryOp::SUB) {
+                                buf.emit8(0x48 | (regHigh ? 0x01 : 0)); buf.emit8(0xFF); buf.emit8(0xC8 | (static_cast<uint8_t>(targetReg) & 0x7));
+                            } else {
+                                buf.emit8(0x48 | (regHigh ? 0x01 : 0)); buf.emit8(0x81);
+                                buf.emit8((exprNode.binaryOp == BinaryOp::ADD ? 0xC0 : 0xE8) | (static_cast<uint8_t>(targetReg) & 0x7));
+                                buf.emit32(static_cast<uint32_t>(immVal));
+                            }
+                        } else {
+                            int32_t offset = it->second.stackOffset;
+                            buf.emit8(0x48); buf.emit8(0x81);
+                            buf.emit8(exprNode.binaryOp == BinaryOp::ADD ? 0x85 : 0xAD);
+                            buf.emit32(static_cast<uint32_t>(offset));
+                            buf.emit32(static_cast<uint32_t>(immVal));
+                        }
+                        peepholeOptimized = true;
+                    }
+                }
+            }
+        }
+    }
+    
+    if (peepholeOptimized) return;
+
+    // Standard compilation path
     // Compile the value (returns pair: valueReg, typeReg)
     JITValue val = compileExpr(ast, node.left);
 
@@ -3259,6 +3306,59 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         }
     }
 
+    // Dynamic Frequency-Based Register Allocation
+    std::unordered_map<std::string, int> varFreq;
+    std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
+        if (currIdx == INVALID_NODE) return;
+        const ASTNode& currNode = ast.get(currIdx);
+        if (currNode.type == NodeType::IDENTIFIER || currNode.type == NodeType::VAR_ASSIGN) {
+            varFreq[currNode.name]++;
+        }
+        scanAST(currNode.left);
+        scanAST(currNode.right);
+        scanAST(currNode.extra);
+        for (NodeIndex child : currNode.children) {
+            scanAST(child);
+        }
+    };
+    scanAST(node.right);
+    varFreq.erase(pinnedCounter);
+    varFreq.erase(pinnedLimit);
+    
+    std::vector<std::pair<std::string, int>> sortedVars(varFreq.begin(), varFreq.end());
+    std::sort(sortedVars.begin(), sortedVars.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+    
+    X64Reg pinRegs[] = {X64Reg::R14, X64Reg::R15, X64Reg::RBX};
+    struct PinnedVar { std::string name; VarLocation oldLoc; X64Reg reg; };
+    std::vector<PinnedVar> dynamicPins;
+    
+    size_t regIdx = 0;
+    for (const auto& pair : sortedVars) {
+        if (regIdx >= 3) break;
+        const std::string& varName = pair.first;
+        if (variables.count(varName) && !variables[varName].isRegister && !regInUse[static_cast<int>(pinRegs[regIdx])]) {
+            X64Reg targetReg = pinRegs[regIdx];
+            PinnedVar pv = {varName, variables[varName], targetReg};
+            dynamicPins.push_back(pv);
+            
+            VarLocation newLoc = pv.oldLoc;
+            newLoc.isRegister = true;
+            newLoc.reg = targetReg;
+            variables[varName] = newLoc;
+            regInUse[static_cast<int>(targetReg)] = true;
+            
+            bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
+            buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+            buf.emit8(0x8B);
+            buf.emit8(0x85 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
+            
+            regIdx++;
+        }
+    }
+
     // Align loop start
     while (buf.getOffset() % 16 != 0) {
         buf.emit8(0x90); // NOP
@@ -3315,6 +3415,17 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         buf.emit32(static_cast<uint32_t>(oldLimitLoc.stackOffset));
         variables[pinnedLimit] = oldLimitLoc;
         regInUse[static_cast<int>(X64Reg::R13)] = false;
+    }
+
+    // Restore dynamically pinned variables to stack context
+    for (const auto& pv : dynamicPins) {
+        bool regHigh = static_cast<uint8_t>(pv.reg) >= 8;
+        buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(pv.reg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
+        variables[pv.name] = pv.oldLoc;
+        regInUse[static_cast<int>(pv.reg)] = false;
     }
 }
 
