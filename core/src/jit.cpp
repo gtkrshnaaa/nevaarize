@@ -2529,8 +2529,13 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
     // Track variable type for compile-time optimization
     if (isStaticInt(ast, node.left)) {
         knownIntVars.insert(node.name);
+        knownFloatVars.erase(node.name);
+    } else if (isStaticFloat(ast, node.left)) {
+        knownFloatVars.insert(node.name);
+        knownIntVars.erase(node.name);
     } else {
         knownIntVars.erase(node.name);
+        knownFloatVars.erase(node.name);
     }
     
     // Allocate stack slot if needed
