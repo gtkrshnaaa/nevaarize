@@ -3411,6 +3411,9 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 variables[pinnedCounter] = pinnedLoc;
                 counterPinned = true;
                 
+                // push r12 (preserve callee-saved)
+                buf.emit8(0x41); buf.emit8(0x54);
+                
                 // mov r12, [rbp + offset]
                 buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xA5);
                 buf.emit32(static_cast<uint32_t>(oldCounterLoc.stackOffset));
@@ -3428,6 +3431,9 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 pinnedLoc.reg = X64Reg::R13;
                 variables[pinnedLimit] = pinnedLoc;
                 limitPinned = true;
+                
+                // push r13 (preserve callee-saved)
+                buf.emit8(0x41); buf.emit8(0x55);
                 
                 // mov r13, [rbp + offset]
                 buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xAD);
@@ -3481,7 +3487,15 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
             variables[varName] = newLoc;
             regInUse[static_cast<int>(targetReg)] = true;
             
+            // push reg (preserve callee-saved)
             bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
+            if (regHigh) {
+                buf.emit8(0x41); buf.emit8(0x50 | (static_cast<uint8_t>(targetReg) & 0x7));
+            } else {
+                buf.emit8(0x50 | static_cast<uint8_t>(targetReg));
+            }
+            
+            // mov reg, [rbp + offset]
             buf.emit8(0x48 | (regHigh ? 0x04 : 0));
             buf.emit8(0x8B);
             buf.emit8(0x85 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
@@ -3788,6 +3802,25 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
         variables[pv.name] = pv.oldLoc;
         regInUse[static_cast<int>(pv.reg)] = false;
+    }
+
+    // Pop callee-saved registers in reverse order of push
+    for (int pi = static_cast<int>(dynamicPins.size()) - 1; pi >= 0; --pi) {
+        X64Reg reg = dynamicPins[pi].reg;
+        bool regHigh = static_cast<uint8_t>(reg) >= 8;
+        if (regHigh) {
+            buf.emit8(0x41); buf.emit8(0x58 | (static_cast<uint8_t>(reg) & 0x7));
+        } else {
+            buf.emit8(0x58 | static_cast<uint8_t>(reg));
+        }
+    }
+    if (limitPinned) {
+        // pop r13
+        buf.emit8(0x41); buf.emit8(0x5D);
+    }
+    if (counterPinned) {
+        // pop r12
+        buf.emit8(0x41); buf.emit8(0x5C);
     }
 
     // Restore XMM-pinned float variables to stack
