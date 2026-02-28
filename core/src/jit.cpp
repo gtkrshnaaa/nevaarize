@@ -3650,9 +3650,52 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         buf.emit32(0); // Placeholder
     }
     
-    // Compile loop body
-    if (node.right != INVALID_NODE) {
-        compileStatement(ast, node.right);
+    // Compile loop body (with optional unrolling)
+    constexpr int UNROLL_FACTOR = 4;
+    
+    if (inlineCondition && counterPinned && limitPinned) {
+        // Unrolled loop body: compile the body UNROLL_FACTOR times per condition check
+        // This amortizes the CMP/Jcc/JMP overhead across multiple iterations
+        for (int u = 0; u < UNROLL_FACTOR; ++u) {
+            if (node.right != INVALID_NODE) {
+                compileStatement(ast, node.right);
+            }
+            // After each unrolled body except the last, check if we've exceeded limit
+            if (u < UNROLL_FACTOR - 1) {
+                X64Reg lReg = variables[ast.get(cond.left).name].reg;
+                X64Reg rReg = variables[ast.get(cond.right).name].reg;
+                bool lHigh = static_cast<uint8_t>(lReg) >= 8;
+                bool rHigh = static_cast<uint8_t>(rReg) >= 8;
+                
+                // CMP lReg, rReg
+                buf.emit8(0x48 | (rHigh ? 0x04 : 0) | (lHigh ? 0x01 : 0));
+                buf.emit8(0x39);
+                buf.emit8(0xC0 | ((static_cast<uint8_t>(rReg) & 0x7) << 3) | (static_cast<uint8_t>(lReg) & 0x7));
+                
+                // Re-use same exit jump opcode
+                uint8_t jccOpcode2 = 0;
+                switch (cond.binaryOp) {
+                    case BinaryOp::LT:  jccOpcode2 = 0x8D; break;
+                    case BinaryOp::GT:  jccOpcode2 = 0x8E; break;
+                    case BinaryOp::LTE: jccOpcode2 = 0x8F; break;
+                    case BinaryOp::GTE: jccOpcode2 = 0x8C; break;
+                    default: break;
+                }
+                
+                buf.emit8(0x0F);
+                buf.emit8(jccOpcode2);
+                size_t earlyExitPatch = buf.getOffset();
+                buf.emit32(0);
+                
+                // Store this patch point to resolve later at loop_end
+                // We'll use a vector to track all exit patches
+                inlinedReturnPatches.push_back(earlyExitPatch);
+            }
+        }
+    } else {
+        if (node.right != INVALID_NODE) {
+            compileStatement(ast, node.right);
+        }
     }
     
     // jmp loop_start
@@ -3664,6 +3707,13 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     size_t loopEnd = buf.getOffset();
     int32_t jzOffset = static_cast<int32_t>(loopEnd - (jzPatch + 4));
     buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
+
+    // Patch early exit points from unrolled loop iterations
+    for (size_t patchOffset : inlinedReturnPatches) {
+        int32_t earlyExitOffset = static_cast<int32_t>(loopEnd - (patchOffset + 4));
+        buf.patch32(patchOffset, static_cast<uint32_t>(earlyExitOffset));
+    }
+    inlinedReturnPatches.clear();
 
     // Restore Pinned Variables and Store back to stack
     if (counterPinned) {
