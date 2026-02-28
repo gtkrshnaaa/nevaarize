@@ -3434,6 +3434,87 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         }
     }
 
+    // XMM Register Pinning for float variables
+    struct XMMPinnedVar { std::string name; VarLocation oldLoc; X64Reg xmmReg; };
+    std::vector<XMMPinnedVar> xmmPins;
+
+    for (const auto& pair : sortedVars) {
+        const std::string& varName = pair.first;
+        if (variables.count(varName) && !variables[varName].isRegister &&
+            !variables[varName].isXMMRegister && knownFloatVars.count(varName) > 0) {
+            
+            X64Reg xmmTarget = allocateXMMReg();
+            if (xmmTarget == X64Reg::XMM0) break; // No free XMM regs
+
+            XMMPinnedVar xpv = {varName, variables[varName], xmmTarget};
+            xmmPins.push_back(xpv);
+
+            VarLocation newLoc = xpv.oldLoc;
+            newLoc.isXMMRegister = true;
+            newLoc.isRegister = false;
+            newLoc.reg = xmmTarget;
+            variables[varName] = newLoc;
+
+            int32_t offset = xpv.oldLoc.stackOffset;
+            uint8_t xmmIdx = static_cast<uint8_t>(xmmTarget) - static_cast<uint8_t>(X64Reg::XMM0);
+
+            // movsd xmmN, [rbp + offset]
+            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x10);
+            buf.emit8(0x85 | (xmmIdx << 3));
+            buf.emit32(static_cast<uint32_t>(offset));
+        }
+    }
+
+    // Float Constant Hoisting — scan loop body for accumulator patterns
+    // Detects `var = var + <float_literal>` and hoists the constant to an XMM register
+    hoistedFloatConstants.clear();
+    if (node.right != INVALID_NODE) {
+        std::function<void(NodeIndex)> scanConstants = [&](NodeIndex scanIdx) {
+            if (scanIdx == INVALID_NODE) return;
+            const ASTNode& scanNode = ast.get(scanIdx);
+            
+            if (scanNode.type == NodeType::VAR_ASSIGN && scanNode.left != INVALID_NODE) {
+                const ASTNode& expr = ast.get(scanNode.left);
+                if (expr.type == NodeType::BINARY_OP &&
+                    (expr.binaryOp == BinaryOp::ADD || expr.binaryOp == BinaryOp::SUB ||
+                     expr.binaryOp == BinaryOp::MUL || expr.binaryOp == BinaryOp::DIV)) {
+                    const ASTNode& lOp = ast.get(expr.left);
+                    const ASTNode& rOp = ast.get(expr.right);
+                    if (lOp.type == NodeType::IDENTIFIER && lOp.name == scanNode.name &&
+                        rOp.type == NodeType::LITERAL_FLOAT) {
+                        double constVal = std::get<double>(rOp.literal.data);
+                        uint64_t bits;
+                        std::memcpy(&bits, &constVal, sizeof(bits));
+                        std::string key = std::to_string(bits);
+                        
+                        if (hoistedFloatConstants.find(key) == hoistedFloatConstants.end()) {
+                            X64Reg constXMM = allocateXMMReg();
+                            if (constXMM != X64Reg::XMM0) {
+                                hoistedFloatConstants[key] = constXMM;
+                                uint8_t xmmIdx = static_cast<uint8_t>(constXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+
+                                // Load constant bits into RAX, then movq xmmN, rax
+                                buf.emit8(0x48); buf.emit8(0xB8);
+                                buf.emit64(bits);
+                                // movq xmmN, rax
+                                buf.emit8(0x66); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x6E);
+                                buf.emit8(0xC0 | (xmmIdx << 3));
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Recurse into block children
+            for (NodeIndex child : scanNode.children) {
+                scanConstants(child);
+            }
+            scanConstants(scanNode.left);
+            scanConstants(scanNode.right);
+        };
+        scanConstants(node.right);
+    }
+
     // Align loop start
     while (buf.getOffset() % 16 != 0) {
         buf.emit8(0x90); // NOP
@@ -3502,6 +3583,26 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         variables[pv.name] = pv.oldLoc;
         regInUse[static_cast<int>(pv.reg)] = false;
     }
+
+    // Restore XMM-pinned float variables to stack
+    for (const auto& xpv : xmmPins) {
+        uint8_t xmmIdx = static_cast<uint8_t>(xpv.xmmReg) - static_cast<uint8_t>(X64Reg::XMM0);
+        int32_t offset = xpv.oldLoc.stackOffset;
+
+        // movsd [rbp + offset], xmmN
+        buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x11);
+        buf.emit8(0x85 | (xmmIdx << 3));
+        buf.emit32(static_cast<uint32_t>(offset));
+
+        variables[xpv.name] = xpv.oldLoc;
+        freeXMMReg(xpv.xmmReg);
+    }
+
+    // Release hoisted float constant XMM registers
+    for (const auto& hc : hoistedFloatConstants) {
+        freeXMMReg(hc.second);
+    }
+    hoistedFloatConstants.clear();
 }
 
 // Compile for loop (supports Range iteration)
