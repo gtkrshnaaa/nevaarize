@@ -210,10 +210,15 @@ JIT::JIT()
     , inFunctionCall(false) {
     execMem = std::make_unique<ExecutableMemory>(65536);
     std::memset(regInUse, 0, sizeof(regInUse));
+    std::memset(xmmInUse, 0, sizeof(xmmInUse));
     
     // Reserve some registers
     regInUse[static_cast<int>(X64Reg::RSP)] = true;
     regInUse[static_cast<int>(X64Reg::RBP)] = true;
+
+    // Reserve XMM0/XMM1 as scratch registers for float arithmetic
+    xmmInUse[0] = true;
+    xmmInUse[1] = true;
 }
 
 JIT::~JIT() = default;
@@ -368,6 +373,24 @@ void JIT::freeReg(X64Reg reg) {
     if (idx != static_cast<int>(X64Reg::RSP) && 
         idx != static_cast<int>(X64Reg::RBP)) {
         regInUse[idx] = false;
+    }
+}
+
+X64Reg JIT::allocateXMMReg() {
+    // XMM0/XMM1 reserved for scratch, XMM2-XMM7 available for pinning
+    for (int i = 2; i < 8; ++i) {
+        if (!xmmInUse[i]) {
+            xmmInUse[i] = true;
+            return static_cast<X64Reg>(static_cast<int>(X64Reg::XMM0) + i);
+        }
+    }
+    return X64Reg::XMM0; // Fallback (should not happen)
+}
+
+void JIT::freeXMMReg(X64Reg reg) {
+    int idx = static_cast<int>(reg) - static_cast<int>(X64Reg::XMM0);
+    if (idx >= 2 && idx < 8) {
+        xmmInUse[idx] = false;
     }
 }
 
@@ -2668,6 +2691,58 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
                         peepholeOptimized = true;
                     }
                 }
+            } else if (leftOperand.type == NodeType::IDENTIFIER && leftOperand.name == node.name && 
+                   rightOperand.type == NodeType::LITERAL_FLOAT) {
+                
+                auto it = variables.find(node.name);
+                if (it != variables.end()) {
+                    double immVal = std::get<double>(rightOperand.literal.data);
+                    uint64_t bits;
+                    std::memcpy(&bits, &immVal, sizeof(bits));
+
+                    CodeBuffer& buf = codegen.getCode();
+
+                    if (it->second.isRegister) {
+                        X64Reg targetReg = it->second.reg;
+                        bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
+
+                        buf.emit8(0x66); buf.emit8(0x48 | (regHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
+                        buf.emit8(0xC0 | (static_cast<uint8_t>(targetReg) & 0x7));
+
+                        buf.emit8(0x48); buf.emit8(0xB8);
+                        buf.emit64(bits);
+
+                        buf.emit8(0x66); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x6E);
+                        buf.emit8(0xC8);
+
+                        if (exprNode.binaryOp == BinaryOp::ADD) {
+                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58); buf.emit8(0xC1);
+                        } else if (exprNode.binaryOp == BinaryOp::SUB) {
+                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1);
+                        }
+
+                        buf.emit8(0x66); buf.emit8(0x48 | (regHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x7E);
+                        buf.emit8(0xC0 | (static_cast<uint8_t>(targetReg) & 0x7));
+                    } else {
+                        int32_t offset = it->second.stackOffset;
+
+                        buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x10);
+                        buf.emit8(0x85); buf.emit32(static_cast<uint32_t>(offset));
+
+                        buf.emit8(0x48); buf.emit8(0xB8); buf.emit64(bits);
+                        buf.emit8(0x66); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x6E); buf.emit8(0xC8);
+
+                        if (exprNode.binaryOp == BinaryOp::ADD) {
+                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58); buf.emit8(0xC1);
+                        } else if (exprNode.binaryOp == BinaryOp::SUB) {
+                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1);
+                        }
+
+                        buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x11);
+                        buf.emit8(0x85); buf.emit32(static_cast<uint32_t>(offset));
+                    }
+                    peepholeOptimized = true;
+                }
             }
         }
     }
@@ -3338,7 +3413,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     for (const auto& pair : sortedVars) {
         if (regIdx >= 3) break;
         const std::string& varName = pair.first;
-        if (variables.count(varName) && !variables[varName].isRegister && !regInUse[static_cast<int>(pinRegs[regIdx])]) {
+        if (variables.count(varName) && !variables[varName].isRegister && !regInUse[static_cast<int>(pinRegs[regIdx])] && knownFloatVars.count(varName) == 0) {
             X64Reg targetReg = pinRegs[regIdx];
             PinnedVar pv = {varName, variables[varName], targetReg};
             dynamicPins.push_back(pv);
