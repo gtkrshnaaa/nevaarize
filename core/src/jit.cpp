@@ -2702,7 +2702,43 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
 
                     CodeBuffer& buf = codegen.getCode();
 
-                    if (it->second.isRegister) {
+                    // Determine the SSE opcode for the binary operation
+                    uint8_t sseOpcode = 0;
+                    switch (exprNode.binaryOp) {
+                        case BinaryOp::ADD: sseOpcode = 0x58; break; // addsd
+                        case BinaryOp::SUB: sseOpcode = 0x5C; break; // subsd
+                        case BinaryOp::MUL: sseOpcode = 0x59; break; // mulsd
+                        case BinaryOp::DIV: sseOpcode = 0x5E; break; // divsd
+                        default: break;
+                    }
+
+                    if (it->second.isXMMRegister && sseOpcode != 0) {
+                        // === XMM-NATIVE FAST PATH ===
+                        // Variable is pinned to an XMM register.
+                        X64Reg targetXMM = it->second.reg;
+                        uint8_t tIdx = static_cast<uint8_t>(targetXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+
+                        std::string constKey = std::to_string(bits);
+                        auto hcIt = hoistedFloatConstants.find(constKey);
+
+                        if (hcIt != hoistedFloatConstants.end()) {
+                            // Constant is hoisted to an XMM register.
+                            // Emit: addsd/subsd/mulsd/divsd xmmTarget, xmmConst
+                            uint8_t cIdx = static_cast<uint8_t>(hcIt->second) - static_cast<uint8_t>(X64Reg::XMM0);
+                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(sseOpcode);
+                            buf.emit8(0xC0 | (tIdx << 3) | cIdx);
+                        } else {
+                            // Constant not hoisted — load into XMM1 scratch and operate
+                            buf.emit8(0x48); buf.emit8(0xB8);
+                            buf.emit64(bits);
+                            // movq xmm1, rax
+                            buf.emit8(0x66); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x6E); buf.emit8(0xC8);
+                            // op xmmTarget, xmm1
+                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(sseOpcode);
+                            buf.emit8(0xC0 | (tIdx << 3) | 1);
+                        }
+                    } else if (it->second.isRegister) {
+                        // GPR-pinned variable (legacy path)
                         X64Reg targetReg = it->second.reg;
                         bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
 
@@ -2715,15 +2751,14 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
                         buf.emit8(0x66); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x6E);
                         buf.emit8(0xC8);
 
-                        if (exprNode.binaryOp == BinaryOp::ADD) {
-                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58); buf.emit8(0xC1);
-                        } else if (exprNode.binaryOp == BinaryOp::SUB) {
-                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1);
+                        if (sseOpcode != 0) {
+                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(sseOpcode); buf.emit8(0xC1);
                         }
 
                         buf.emit8(0x66); buf.emit8(0x48 | (regHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x7E);
                         buf.emit8(0xC0 | (static_cast<uint8_t>(targetReg) & 0x7));
                     } else {
+                        // Stack variable (original path)
                         int32_t offset = it->second.stackOffset;
 
                         buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x10);
@@ -2732,10 +2767,8 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
                         buf.emit8(0x48); buf.emit8(0xB8); buf.emit64(bits);
                         buf.emit8(0x66); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x6E); buf.emit8(0xC8);
 
-                        if (exprNode.binaryOp == BinaryOp::ADD) {
-                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58); buf.emit8(0xC1);
-                        } else if (exprNode.binaryOp == BinaryOp::SUB) {
-                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1);
+                        if (sseOpcode != 0) {
+                            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(sseOpcode); buf.emit8(0xC1);
                         }
 
                         buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x11);
