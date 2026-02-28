@@ -4,9 +4,9 @@
     <strong>Native JIT Performance • Zero Dependencies • Pure C++23</strong>
   </p>
   <p align="center">
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-897M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-973M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Memory-5.05MB_Peak-orange?style=flat-square" alt="Memory"></a>
+    <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-3730M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
+    <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-4089M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
+    <a href="#benchmarks"><img src="https://img.shields.io/badge/Memory-4.98MB_Peak-orange?style=flat-square" alt="Memory"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   </p>
 </p>
@@ -21,9 +21,9 @@ Nevaarize delivers **exceptional performance**, outperforming even native langua
 
 | Category | Performance | vs Rust | vs Zig | vs Node.js |
 |----------|------------|---------|--------|------------|
-| **Array Push** | **897M ops/sec** | **2.8x faster** | **2.4x faster** | **21x faster** |
-| **Integer Ops** | **973M ops/sec** | 0.26x | 0.24x | 0.78x |
-| **Memory Usage** | **5.05 MB** | **49% less** | **35% less** | **16x less** |
+| **Array Push** | **3730M ops/sec** | **12.5x faster** | **11.0x faster** | **77x faster** |
+| **Integer Ops** | **4089M ops/sec** | **1.05x faster** | 0.98x | **3.2x faster** |
+| **Memory Usage** | **4.98 MB** | **50% less** | **36% less** | **14x less** |
 
 > **Key Achievement**: Nevaarize's JIT implementation of dynamic arrays is **faster than Rust's `Vec` and Zig's `ArrayList`**, while using significantly less memory!
 
@@ -53,8 +53,8 @@ Each benchmark is designed to test a specific aspect of the language runtime. Th
 ### Full Benchmark Results (13 Languages)
 
 > **Verified Performance Data**
-> Executed on: **Sat Feb 21 08:35:27 AM WIB 2026**
-> Commit Hash: [`6ebde9081c1272302f8627a6c5e0c5838ae695ae`](https://github.com/gtkrshnaaa/nevaarize/commit/6ebde9081c1272302f8627a6c5e0c5838ae695ae)
+> Executed on: **Sat Feb 28 11:01:46 PM WIB 2026**
+> Commit Hash: [`a1a21aa539583a94c8b7ae01d3596ea3f61d1ff5`](https://github.com/gtkrshnaaa/nevaarize/commit/a1a21aa539583a94c8b7ae01d3596ea3f61d1ff5)
 > System: **Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04.4 LTS | 8GB RAM**
 
 ```
@@ -66,13 +66,13 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  NEVAARIZE (JIT Compiled - x86-64 Native)                                   │
 ├─────────────────┬──────────────────┬─────────────────────────────────────────┤
-│  Integer Add    │ 973,344,039 ops/sec │ 1.027s                              │
-│  Double Arith   │ 508,132,312 ops/sec │ 0.196s                              │
-│  String Concat  │  67,675,207 ops/sec │ 0.0007s                             │
-│  Array Push     │ 897,709,583 ops/sec │ 0.001s  ← #1 of ALL languages!      │
-│  Struct Access  │ 658,106,603 ops/sec │ 0.075s                              │
+│  Integer Add    │ 4,089,721,370 ops/sec │ 0.244s                             │
+│  Double Arith   │ 2,056,728,310 ops/sec │ 0.048s  ← Fast FP pipeline!        │
+│  String Concat  │  87,224,718 ops/sec │  0.0005s                             │
+│  Array Push     │ 3,730,355,017 ops/sec │ 0.0002s ← #1 of ALL languages!      │
+│  Struct Access  │ 1,370,579,733 ops/sec │ 0.036s                             │
 ├─────────────────┴──────────────────┴─────────────────────────────────────────┤
-│  Peak RAM: 5,052 KB (LOWEST) │ Total Time: 1.30s                            │
+│  Peak RAM: 4,980 KB (LOWEST) │ Total Time: 0.33s                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,19 +80,19 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 | Language | Integer Add | Double Arith | String Concat | Array Push | Struct Access | Peak RAM |
 |----------|------------|--------------|---------------|------------|---------------|----------|
-| **Nevaarize** | 973M | **508M** | **67M** | **897M** | 658M | **5.05MB** |
-| Zig (ReleaseFast) | 4,046M | 1,007M | 504M | 370M | **4,008M** | 7.8MB |
-| Rust (LLVM -O) | 3,772M | 1,010M | 762M | 321M | 3,697M | 9.9MB |
-| Go 1.21 | 3,740M | **3,695M** | 0.4M | 90M | 3,712M | 46.2MB |
-| Java 21 | 3,607M | 497M | 0.2M | 57M | 956M | 383MB |
-| PHP 8 JIT | 3,151M | 1,013M | 95M | 73M | 406M | 49.6MB |
-| C++ (GCC -O3) | 2,790M | 439M | 415M | 320M | 2,550M | 11.5MB |
-| C (GCC -O3) | 2,781M | 441M | 1,047M | 404M | 2,317M | 9.3MB |
-| Node.js (V8) | 1,246M | 981M | 14M | 42M | 1,068M | 82.6MB |
-| LuaJIT | 883M | 915M | 0.8M | 218M | 1,012M | 12.1MB |
-| Lua 5.4 | 202M | 145M | 0.8M | 61M | 95M | 19.6MB |
-| PHP 8 Std | 442M | 237M | 69M | 58M | 96M | 46.2MB |
-| Python 3 | 47M | 33M | 23M | 25M | 32M | 49.1MB |
+| **Nevaarize** | **4,089M** | **2,056M** | 87M | **3,730M** | 1,370M | **4.98MB** |
+| Zig (ReleaseFast) | 4,149M | 1,038M | 861M | 338M | **4,151M** | 7.8MB |
+| Rust (LLVM -O) | 3,882M | 1,040M | 1,156M | 297M | 3,861M | 10.0MB |
+| Go 1.21 | 3,867M | **3,550M** | 0.4M | 90M | 3,722M | 46.2MB |
+| Java 21 | 3,726M | 518M | 0.2M | 43M | 987M | 417MB |
+| PHP 8 JIT | 3,261M | 1,013M | 97M | 71M | 420M | 49.4MB |
+| Node.js (V8) | 1,251M | 1,011M | 15M | 48M | 1,112M | 71.9MB |
+| LuaJIT | 1,028M | 965M | 0.8M | 242M | 1,045M | 12.2MB |
+| C++ (GCC -O3) | 3,131M | 461M | 547M | 370M | 2,630M | 11.4MB |
+| C (GCC -O3) | 2,780M | 462M | 1,218M | 405M | 2,411M | 9.5MB |
+| Lua 5.4 | 208M | 147M | 0.8M | 70M | 98M | 19.6MB |
+| PHP 8 Std | 464M | 236M | 75M | 58M | 97M | 46.0MB |
+| Python 3 | 48M | 34M | 23M | 28M | 34M | 49.0MB |
 
 > See full results in [`languagebench/battle_report.txt`](languagebench/battle_report.txt)
 
