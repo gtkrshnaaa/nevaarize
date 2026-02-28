@@ -24,11 +24,13 @@ using CompiledFunc = int64_t (*)();
 
 /**
  * Variable location in compiled code.
+ * Supports GPR pinning (isRegister) and XMM pinning (isXMMRegister).
  */
 struct VarLocation {
     int32_t stackOffset; // Base offset (value at offset, type at offset+8)
-    bool isRegister;
-    X64Reg reg;
+    bool isRegister;     // Pinned to a general-purpose register
+    bool isXMMRegister;  // Pinned to an XMM register (for float variables)
+    X64Reg reg;          // GPR or XMM register depending on which flag is set
 };
 
 /**
@@ -132,11 +134,17 @@ private:
     // Jump patches for return statements inside inlined function bodies
     std::vector<size_t> inlinedReturnPatches;
 
+    // XMM register pinning for float variables in hot loops
+    bool xmmInUse[8];  // XMM0-XMM7 usage tracking
+    std::unordered_map<std::string, X64Reg> hoistedFloatConstants; // constant value -> pinned XMM reg
+
     // Code generation helpers
     void emitPrologue();
     void emitEpilogue();
     X64Reg allocateReg();
     void freeReg(X64Reg reg);
+    X64Reg allocateXMMReg();
+    void freeXMMReg(X64Reg reg);
     int32_t allocateStackSlot();
 
     // AST compilation - expressions
