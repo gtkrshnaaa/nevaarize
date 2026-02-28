@@ -3653,13 +3653,48 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     // Compile loop body (with optional unrolling)
     constexpr int UNROLL_FACTOR = 4;
     
+    // Multi-accumulator state for breaking float dependency chains
+    struct ShadowAccum { std::string varName; X64Reg primaryXMM; X64Reg shadowXMM; };
+    std::vector<ShadowAccum> shadowAccums;
+    
     if (inlineCondition && counterPinned && limitPinned) {
-        // Unrolled loop body: compile the body UNROLL_FACTOR times per condition check
-        // This amortizes the CMP/Jcc/JMP overhead across multiple iterations
+        // Allocate shadow accumulators for XMM-pinned float variables
+        for (const auto& xpv : xmmPins) {
+            X64Reg shadowXMM = allocateXMMReg();
+            if (shadowXMM == X64Reg::XMM0) break; // No free XMM
+            
+            shadowAccums.push_back({xpv.name, xpv.xmmReg, shadowXMM});
+            uint8_t sIdx = static_cast<uint8_t>(shadowXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+            
+            // Initialize shadow accumulator: xorpd xmmShadow, xmmShadow (0.0)
+            buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x57);
+            buf.emit8(0xC0 | (sIdx << 3) | sIdx);
+        }
+        
+        // Unrolled loop body with accumulator interleaving
         for (int u = 0; u < UNROLL_FACTOR; ++u) {
+            // Swap XMM pin for even iterations to shadow accumulator
+            if (u % 2 == 1) {
+                for (const auto& sa : shadowAccums) {
+                    auto it = variables.find(sa.varName);
+                    if (it != variables.end() && it->second.isXMMRegister) {
+                        it->second.reg = sa.shadowXMM;
+                    }
+                }
+            } else if (u > 0) {
+                // Swap back for odd iterations
+                for (const auto& sa : shadowAccums) {
+                    auto it = variables.find(sa.varName);
+                    if (it != variables.end() && it->second.isXMMRegister) {
+                        it->second.reg = sa.primaryXMM;
+                    }
+                }
+            }
+            
             if (node.right != INVALID_NODE) {
                 compileStatement(ast, node.right);
             }
+            
             // After each unrolled body except the last, check if we've exceeded limit
             if (u < UNROLL_FACTOR - 1) {
                 X64Reg lReg = variables[ast.get(cond.left).name].reg;
@@ -3667,12 +3702,10 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 bool lHigh = static_cast<uint8_t>(lReg) >= 8;
                 bool rHigh = static_cast<uint8_t>(rReg) >= 8;
                 
-                // CMP lReg, rReg
                 buf.emit8(0x48 | (rHigh ? 0x04 : 0) | (lHigh ? 0x01 : 0));
                 buf.emit8(0x39);
                 buf.emit8(0xC0 | ((static_cast<uint8_t>(rReg) & 0x7) << 3) | (static_cast<uint8_t>(lReg) & 0x7));
                 
-                // Re-use same exit jump opcode
                 uint8_t jccOpcode2 = 0;
                 switch (cond.binaryOp) {
                     case BinaryOp::LT:  jccOpcode2 = 0x8D; break;
@@ -3686,10 +3719,15 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 buf.emit8(jccOpcode2);
                 size_t earlyExitPatch = buf.getOffset();
                 buf.emit32(0);
-                
-                // Store this patch point to resolve later at loop_end
-                // We'll use a vector to track all exit patches
                 inlinedReturnPatches.push_back(earlyExitPatch);
+            }
+        }
+        
+        // Restore primary XMM pins after last unrolled iteration
+        for (const auto& sa : shadowAccums) {
+            auto it = variables.find(sa.varName);
+            if (it != variables.end() && it->second.isXMMRegister) {
+                it->second.reg = sa.primaryXMM;
             }
         }
     } else {
@@ -3714,6 +3752,16 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         buf.patch32(patchOffset, static_cast<uint32_t>(earlyExitOffset));
     }
     inlinedReturnPatches.clear();
+
+    // Merge shadow accumulators into primary: addsd primary, shadow
+    for (const auto& sa : shadowAccums) {
+        uint8_t pIdx = static_cast<uint8_t>(sa.primaryXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+        uint8_t sIdx = static_cast<uint8_t>(sa.shadowXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+        // addsd primary, shadow
+        buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58);
+        buf.emit8(0xC0 | (pIdx << 3) | sIdx);
+        freeXMMReg(sa.shadowXMM);
+    }
 
     // Restore Pinned Variables and Store back to stack
     if (counterPinned) {
