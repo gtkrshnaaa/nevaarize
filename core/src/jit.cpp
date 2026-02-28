@@ -3580,24 +3580,75 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     // loop_start:
     size_t loopStart = buf.getOffset();
     
-    // Compile condition
-    JITValue cv = compileExpr(ast, node.left);
-    X64Reg condReg = cv.valueReg;
+    // Inline condition fast path: direct CMP + conditional jump for register-pinned comparisons
+    bool inlineCondition = false;
+    size_t jzPatch = 0;
     
-    // test condReg, condReg
-    bool condHigh = static_cast<uint8_t>(condReg) >= 8;
-    buf.emit8(0x48 | (condHigh ? 0x05 : 0));
-    buf.emit8(0x85);
-    buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | (static_cast<uint8_t>(condReg) & 0x7));
+    if (cond.type == NodeType::BINARY_OP && 
+        (cond.binaryOp == BinaryOp::LT || cond.binaryOp == BinaryOp::GT ||
+         cond.binaryOp == BinaryOp::LTE || cond.binaryOp == BinaryOp::GTE)) {
+        const ASTNode& leftCond = ast.get(cond.left);
+        const ASTNode& rightCond = ast.get(cond.right);
+        
+        bool leftPinned = leftCond.type == NodeType::IDENTIFIER && 
+                          variables.count(leftCond.name) && variables[leftCond.name].isRegister;
+        bool rightPinned = rightCond.type == NodeType::IDENTIFIER && 
+                           variables.count(rightCond.name) && variables[rightCond.name].isRegister;
+        
+        if (leftPinned && rightPinned) {
+            X64Reg lReg = variables[leftCond.name].reg;
+            X64Reg rReg = variables[rightCond.name].reg;
+            bool lHigh = static_cast<uint8_t>(lReg) >= 8;
+            bool rHigh = static_cast<uint8_t>(rReg) >= 8;
+            
+            // CMP lReg, rReg
+            buf.emit8(0x48 | (rHigh ? 0x04 : 0) | (lHigh ? 0x01 : 0));
+            buf.emit8(0x39);
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(rReg) & 0x7) << 3) | (static_cast<uint8_t>(lReg) & 0x7));
+            
+            // Conditional jump (inverted condition: exit when condition is FALSE)
+            // LT  -> exit on JGE (0x8D)
+            // GT  -> exit on JLE (0x8E)
+            // LTE -> exit on JG  (0x8F)
+            // GTE -> exit on JL  (0x8C)
+            uint8_t jccOpcode = 0;
+            switch (cond.binaryOp) {
+                case BinaryOp::LT:  jccOpcode = 0x8D; break; // jge
+                case BinaryOp::GT:  jccOpcode = 0x8E; break; // jle
+                case BinaryOp::LTE: jccOpcode = 0x8F; break; // jg
+                case BinaryOp::GTE: jccOpcode = 0x8C; break; // jl
+                default: break;
+            }
+            
+            buf.emit8(0x0F);
+            buf.emit8(jccOpcode);
+            jzPatch = buf.getOffset();
+            buf.emit32(0); // Placeholder
+            
+            inlineCondition = true;
+        }
+    }
     
-    freeReg(cv.valueReg);
-    freeReg(cv.typeReg);
-    
-    // jz loop_end (exit if condition is false)
-    buf.emit8(0x0F);
-    buf.emit8(0x84);
-    size_t jzPatch = buf.getOffset();
-    buf.emit32(0); // Placeholder
+    if (!inlineCondition) {
+        // Generic condition evaluation path
+        JITValue cv = compileExpr(ast, node.left);
+        X64Reg condReg = cv.valueReg;
+        
+        // test condReg, condReg
+        bool condHigh = static_cast<uint8_t>(condReg) >= 8;
+        buf.emit8(0x48 | (condHigh ? 0x05 : 0));
+        buf.emit8(0x85);
+        buf.emit8(0xC0 | ((static_cast<uint8_t>(condReg) & 0x7) << 3) | (static_cast<uint8_t>(condReg) & 0x7));
+        
+        freeReg(cv.valueReg);
+        freeReg(cv.typeReg);
+        
+        // jz loop_end (exit if condition is false)
+        buf.emit8(0x0F);
+        buf.emit8(0x84);
+        jzPatch = buf.getOffset();
+        buf.emit32(0); // Placeholder
+    }
     
     // Compile loop body
     if (node.right != INVALID_NODE) {
