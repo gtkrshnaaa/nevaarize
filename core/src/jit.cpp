@@ -575,7 +575,22 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             auto it = variables.find(node.name);
             if (it != variables.end()) {
-                if (it->second.isRegister) {
+                if (it->second.isXMMRegister) {
+                    // XMM-pinned float variable: movq result.valueReg, xmmN
+                    X64Reg srcXMM = it->second.reg;
+                    uint8_t xmmIdx = static_cast<uint8_t>(srcXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+                    bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    buf.emit8(0x66);
+                    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                    buf.emit8(0x0F); buf.emit8(0x7E);
+                    buf.emit8(0xC0 | (xmmIdx << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // Type = Float (1)
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(1);
+                } else if (it->second.isRegister) {
                     // Move from assigned register
                     bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                     bool srcHigh = static_cast<uint8_t>(it->second.reg) >= 8;
@@ -2808,7 +2823,16 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
         it = variables.find(node.name);
     }
     
-    if (it->second.isRegister) {
+    if (it->second.isXMMRegister) {
+        // Store into XMM-pinned register: movq xmmN, val.valueReg
+        X64Reg targetXMM = it->second.reg;
+        uint8_t xmmIdx = static_cast<uint8_t>(targetXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+        bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+        buf.emit8(0x66);
+        buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+        buf.emit8(0x0F); buf.emit8(0x6E);
+        buf.emit8(0xC0 | (xmmIdx << 3) | (static_cast<uint8_t>(val.valueReg) & 0x7));
+    } else if (it->second.isRegister) {
         // Store into the assigned register
         bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
         bool dstHigh = static_cast<uint8_t>(it->second.reg) >= 8;

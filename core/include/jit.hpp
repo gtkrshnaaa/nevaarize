@@ -27,10 +27,10 @@ using CompiledFunc = int64_t (*)();
  * Supports GPR pinning (isRegister) and XMM pinning (isXMMRegister).
  */
 struct VarLocation {
-    int32_t stackOffset; // Base offset (value at offset, type at offset+8)
-    bool isRegister;     // Pinned to a general-purpose register
-    bool isXMMRegister;  // Pinned to an XMM register (for float variables)
-    X64Reg reg;          // GPR or XMM register depending on which flag is set
+    int32_t stackOffset = 0;      // Base offset (value at offset, type at offset+8)
+    bool isRegister = false;      // Pinned to a general-purpose register
+    bool isXMMRegister = false;   // Pinned to an XMM register (for float variables)
+    X64Reg reg = X64Reg::RAX;     // GPR or XMM register depending on which flag is set
 };
 
 /**
