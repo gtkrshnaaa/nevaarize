@@ -3656,6 +3656,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     // Multi-accumulator state for breaking float dependency chains
     struct ShadowAccum { std::string varName; X64Reg primaryXMM; X64Reg shadowXMM; };
     std::vector<ShadowAccum> shadowAccums;
+    std::vector<size_t> unrollExitPatches; // Local vector for unrolled early-exit patch points
     
     if (inlineCondition && counterPinned && limitPinned) {
         // Allocate shadow accumulators for XMM-pinned float variables
@@ -3719,7 +3720,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 buf.emit8(jccOpcode2);
                 size_t earlyExitPatch = buf.getOffset();
                 buf.emit32(0);
-                inlinedReturnPatches.push_back(earlyExitPatch);
+                unrollExitPatches.push_back(earlyExitPatch);
             }
         }
         
@@ -3747,11 +3748,10 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     buf.patch32(jzPatch, static_cast<uint32_t>(jzOffset));
 
     // Patch early exit points from unrolled loop iterations
-    for (size_t patchOffset : inlinedReturnPatches) {
+    for (size_t patchOffset : unrollExitPatches) {
         int32_t earlyExitOffset = static_cast<int32_t>(loopEnd - (patchOffset + 4));
         buf.patch32(patchOffset, static_cast<uint32_t>(earlyExitOffset));
     }
-    inlinedReturnPatches.clear();
 
     // Merge shadow accumulators into primary: addsd primary, shadow
     for (const auto& sa : shadowAccums) {
