@@ -1,7 +1,7 @@
 /**
  * Compiler.cpp - True JIT Compiler Implementation
  *
- * Compiles Nevaarize AST to x86-64 machine code.
+ * Compiles Nevaarize AST to Linux x86-64 machine code.
  * This compiles ACTUAL Nevaarize code, not pre-written assembly.
  */
 

@@ -1,7 +1,7 @@
 /**
  * JIT.hpp - Nevaarize Native Compiler
  *
- * Compiles Nevaarize AST directly to x86-64 machine code.
+ * Compiles Nevaarize AST directly to Linux x86-64 machine code.
  * This is the default execution engine for Nevaarize.
  */
 
@@ -44,7 +44,7 @@ struct JITValue {
 
 /**
  * Native Compiler for Nevaarize.
- * Compiles AST directly to executable x86-64 machine code.
+ * Compiles AST directly to executable Linux x86-64 machine code.
  */
 class JIT {
 public:

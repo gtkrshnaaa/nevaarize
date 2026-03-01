@@ -16,7 +16,7 @@
 namespace nevaarize {
 
 /**
- * x86-64 register enumeration.
+ * Linux x86-64 register enumeration.
  */
 enum class X64Reg : uint8_t {
     RAX = 0, RCX = 1, RDX = 2, RBX = 3,
@@ -82,7 +82,7 @@ private:
 };
 
 /**
- * x86-64 native code generator.
+ * Linux x86-64 native code generator.
  */
 class CodeGenerator {
 public:
@@ -99,7 +99,7 @@ public:
     CodeBuffer& getCode() { return buffer; }
     const CodeBuffer& getCode() const { return buffer; }
 
-    // x86-64 instruction emission helpers
+    // Linux x86-64 instruction emission helpers
     void emitPush(X64Reg reg);
     void emitPop(X64Reg reg);
     void emitMov(X64Reg dst, X64Reg src);

@@ -5,7 +5,7 @@
 ### Prerequisites
 
 - **C++23 Compiler**: GCC 13+ or Clang 16+
-- **x86-64 CPU**: SSE4.2+ required, AVX2 recommended
+- **Linux x86-64 CPU**: SSE4.2+ required, AVX2 recommended
 - **Operating System**: Linux or macOS
 
 ### Building from Source
