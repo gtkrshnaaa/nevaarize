@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/img/logo_pearl.svg" alt="NEVAARIZE" width="900">
+  <img src="docs/assets/img/nvatextlogo.svg" alt="NEVAARIZE" width="900">
 </p>
 
 ---
