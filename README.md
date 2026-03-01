@@ -13,7 +13,7 @@
 
 ---
 
-**Nevaarize** is a high-performance programming language with a **native JIT compiler** that generates x86-64 machine code at runtime. Features include **async/await** concurrency, an integrated **generational garbage collector**, and a modular standard library. Built entirely in C++23 with zero external dependencies.
+**Nevaarize** is a high-performance programming language with a **native JIT compiler** that generates Linux x86-64 machine code at runtime. Features include **async/await** concurrency, an integrated **generational garbage collector**, and a modular standard library. Built entirely in C++23 with zero external dependencies.
 
 ## Performance Highlights
 
@@ -65,7 +65,7 @@ Each benchmark is designed to test a specific aspect of the language runtime. Th
 System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  NEVAARIZE (JIT Compiled - x86-64 Native)                                   │
+│  NEVAARIZE (JIT Compiled - Linux x86-64 Native)                                   │
 ├─────────────────┬──────────────────┬─────────────────────────────────────────┤
 │  Integer Add    │ 4,108,632,101 ops/sec │ 0.243s                             │
 │  Double Arith   │ 2,082,293,444 ops/sec │ 0.048s  ← Insane FP throughput!    │
@@ -102,7 +102,7 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 ### Prerequisites
 
 - **C++23 Compiler**: GCC 13+ or Clang 16+
-- **x86-64 CPU**: SSE4.2+ required
+- **Linux x86-64 CPU**: SSE4.2+ required
 - **Linux**: Primary platform (macOS support planned)
 
 ### Installation
@@ -336,7 +336,7 @@ make uninstall    # Remove from system
 
 ## Roadmap
 
-- [x] **Core JIT Compiler** - x86-64 code generation
+- [x] **Core JIT Compiler** - Linux x86-64 code generation
 - [x] **Standard Library** - Math, IO, Time modules
 - [x] **Structs** - User-defined data types
 - [x] **Arrays** - Dynamic arrays with push/pop
