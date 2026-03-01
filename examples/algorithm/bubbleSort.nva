@@ -1,0 +1,89 @@
+// Bubble Sort — O(n^2) comparison-based sorting
+// Cocktail Shaker Sort — bidirectional variant reduces passes
+
+print("=== Bubble Sort ===")
+
+func printArray(arr, n) {
+    i = 0
+    while (i < n) {
+        print(" ", arr[i])
+        i = i + 1
+    }
+}
+
+func bubbleSort(arr, n) {
+    i = 0
+    while (i < n) {
+        j = 0
+        while (j < n - i - 1) {
+            if (arr[j] > arr[j + 1]) {
+                temp = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = temp
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+data1 = [64, 34, 25, 12, 22, 11, 90]
+print("Before:")
+printArray(data1, 7)
+
+bubbleSort(data1, 7)
+print("After:")
+printArray(data1, 7)
+
+print("")
+print("=== Cocktail Shaker Sort ===")
+
+func cocktailSort(arr, n) {
+    start = 0
+    end = n - 1
+    swapped = 1
+
+    while (swapped == 1) {
+        swapped = 0
+
+        i = start
+        while (i < end) {
+            if (arr[i] > arr[i + 1]) {
+                temp = arr[i]
+                arr[i] = arr[i + 1]
+                arr[i + 1] = temp
+                swapped = 1
+            }
+            i = i + 1
+        }
+        end = end - 1
+
+        if (swapped == 0) {
+            return 0
+        }
+        swapped = 0
+
+        i = end
+        while (i > start) {
+            if (arr[i - 1] > arr[i]) {
+                temp = arr[i]
+                arr[i] = arr[i - 1]
+                arr[i - 1] = temp
+                swapped = 1
+            }
+            i = i - 1
+        }
+        start = start + 1
+    }
+}
+
+data2 = [5, 1, 4, 2, 8, 0, 3]
+print("Before:")
+printArray(data2, 7)
+
+cocktailSort(data2, 7)
+print("After:")
+printArray(data2, 7)
+
+print("")
+print("=== Bubble Sort Complete ===")
