@@ -190,23 +190,9 @@ print("Time:", elapsed, "seconds")
 
 ---
 
-## Project Structure
+## Getting Started
 
-```
-nevaarize/
-├── core/                    # JIT compiler core
-│   ├── include/            # Headers
-│   └── src/
-├── stdlib/                  # Standard library
-├── examples/                # Example programs
-│   ├── algorithm/          # Comprehensive algorithm suite (26/26 PASS)
-│   ├── basics.nva
-│   ├── advanced.nva
-│   └── asyncAwait.nva
-├── languagebench/           # Benchmark suite
-├── Makefile
-└── README.md
-```
+To get started with Nevaarize, follow the [Installation Guide](docs/pages/installation.html) and then try the [Quick Start](docs/pages/quickstart.html).
 
 ## Algorithm Suite (26/26 PASS)
 
