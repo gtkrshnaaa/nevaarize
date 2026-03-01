@@ -3,15 +3,13 @@
 
 import stdlib ai as ai
 
-print("=== Nevaarize Script-Based AI Inference Demo ===")
-print("1. Creating a simple Neural Network (XOR problem)")
-
+// Creating a simple Neural Network (XOR problem)
 // Create a simple Sequential model
 modelId = ai.Sequential([
     ["linear", 2, 4],
     ["relu"],
     ["linear", 4, 1],
-    ["sigmoid"] // Output between 0 and 1
+    ["sigmoid"]
 ])
 
 // Prepare XOR dataset
@@ -25,22 +23,21 @@ xData = [
 // Targets for XOR
 yData = [0.0, 1.0, 1.0, 0.0]
 
-print("2. Training the model...")
 // Train configuration: [epochs, learningRate, optimizer, loss]
-config = [500, 0.05, "adam", "mse"] // Using Mean Squared Error for regression-like binary output
+config = [500, 0.05, "adam", "mse"]
 finalLoss = ai.train(modelId, xData, yData, config)
 print("   Training complete! Final Loss:", finalLoss)
 
-print("\n3. Testing PREDICT before saving (Remote input test):")
+// Testing PREDICT before saving (Remote input test)
 testInput = [1.0, 0.0]
 prediction = ai.predict(modelId, testInput)
 print("   Input:", testInput, "=> Output:", prediction)
 
-print("\n4. Saving Model to remote_xor.nmod")
+// Saving Model to remote_xor.nmod
 saveSuccess = ai.saveModel(modelId, "remote_xor.nmod")
 print("   Save Success:", saveSuccess)
 
-print("\n5. Loading Model from remote_xor.nmod into a NEW inference engine")
+// Loading Model from remote_xor.nmod into a NEW inference engine
 newModelId = ai.loadModel("remote_xor.nmod")
 
 if (newModelId != -1) {
@@ -53,7 +50,7 @@ if (newModelId != -1) {
     out1 = ai.predict(newModelId, inputFromVar1)
     out2 = ai.predict(newModelId, inputFromVar2)
     
-    print("\n6. Running Inference on Loaded Model:")
+    // Running Inference on Loaded Model
     print("   Input:", inputFromVar1, "=> Output:", out1)
     print("   Input:", inputFromVar2, "=> Output:", out2)
     
