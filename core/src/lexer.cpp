@@ -8,6 +8,8 @@
 #include <charconv>
 #include <array>
 #include <algorithm>
+#include <sstream>
+#include <iomanip>
 
 namespace nevaarize {
 
@@ -116,9 +118,46 @@ Token Lexer::makeToken(TokenType type) const {
     return Token(type, lexeme, line, startColumn);
 }
 
+std::string Lexer::formatError(const std::string& message, int32_t errLine, int32_t errCol, size_t offset) const {
+    std::ostringstream oss;
+    oss << "Error at [Line " << errLine << ", Col " << errCol << "]: " << message << "\n";
+    
+    // Find the start of the line
+    size_t lineStart = offset;
+    while (lineStart > 0 && source[lineStart - 1] != '\n') {
+        lineStart--;
+    }
+    
+    // Find the end of the line
+    size_t lineEnd = offset;
+    while (lineEnd < source.size() && source[lineEnd] != '\n') {
+        lineEnd++;
+    }
+    
+    std::string_view errorLineView = source.substr(lineStart, lineEnd - lineStart);
+    
+    // Format visual pointer
+    oss << "  |\n";
+    oss << errLine << " | " << errorLineView << "\n";
+    oss << "  | ";
+    
+    // Calculate pointer position taking into account leading spaces
+    for (size_t i = 0; i < (size_t)(errCol - 1); i++) {
+        if (i < errorLineView.size() && errorLineView[i] == '\t') {
+            oss << '\t';
+        } else {
+            oss << ' ';
+        }
+    }
+    oss << "^\n";
+    
+    return oss.str();
+}
+
 Token Lexer::errorToken(const std::string& message) {
-    errorMessages.push_back(message);
-    return Token::makeError(message, line, column);
+    std::string formattedMsg = formatError(message, line, column, current);
+    errorMessages.push_back(formattedMsg);
+    return Token::makeError(formattedMsg, line, column);
 }
 
 void Lexer::skipWhitespace() {
