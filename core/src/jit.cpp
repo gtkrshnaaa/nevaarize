@@ -4510,6 +4510,9 @@ void JIT::compileTryCatch(const AST& ast, NodeIndex idx) {
     size_t catchTarget = buf.getOffset();
     buf.patch32(catchRipPatch, static_cast<int32_t>(catchTarget - (catchRipPatch + 4)));
 
+    // Deallocate exception frame (throw restores RSP to the saved value which includes the frame)
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(32); // add rsp, 32
+
     // Error variable binding (slot already exists in rbp-relative frame)
     if (!node.name.empty()) {
         // load val from global
@@ -4548,13 +4551,13 @@ void JIT::compileThrow(const AST& ast, NodeIndex idx) {
     buf.emit8(0x48); buf.emit8(0xB8);
     buf.emit64(reinterpret_cast<uint64_t>(&current_exception_val));
     bool valHigh = static_cast<uint8_t>(expr.valueReg) >= 8;
-    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
     buf.emit8(0x89); buf.emit8(0x00 | ((static_cast<uint8_t>(expr.valueReg) & 0x7) << 3));
 
     buf.emit8(0x48); buf.emit8(0xB8);
     buf.emit64(reinterpret_cast<uint64_t>(&current_exception_type));
     bool typeHigh = static_cast<uint8_t>(expr.typeReg) >= 8;
-    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
     buf.emit8(0x89); buf.emit8(0x00 | ((static_cast<uint8_t>(expr.typeReg) & 0x7) << 3));
 
     freeReg(expr.valueReg);
