@@ -23,6 +23,7 @@ class Evaluator;
 struct Value;
 struct FunctionDef;
 struct StructInstance;
+struct MapInstance;
 
 /**
  * Value type enumeration.
@@ -34,6 +35,7 @@ enum class ValueType : uint8_t {
     FLOAT,
     STRING,
     ARRAY,
+    MAP,
     STRUCT_INSTANCE,
     FUNCTION,
     NATIVE_FUNCTION,
@@ -82,6 +84,7 @@ struct Value {
     // Complex types use shared_ptr for reference semantics
     std::shared_ptr<std::string> stringVal;
     std::shared_ptr<std::vector<Value>> arrayVal;
+    std::shared_ptr<MapInstance> mapVal;
     std::shared_ptr<StructInstance> structVal;
     std::shared_ptr<FunctionDef> funcVal;
     std::shared_ptr<NativeFunction> nativeVal;
@@ -143,6 +146,13 @@ struct Value {
         return v;
     }
 
+    static Value fromMap(std::shared_ptr<MapInstance> mapPtr) {
+        Value v;
+        v.type = ValueType::MAP;
+        v.mapVal = std::move(mapPtr);
+        return v;
+    }
+
     static Value fromStruct(const StructInstance& si) {
         Value v;
         v.type = ValueType::STRUCT_INSTANCE;
@@ -172,6 +182,7 @@ struct Value {
     bool isNumber() const { return type == ValueType::INT || type == ValueType::FLOAT; }
     bool isString() const { return type == ValueType::STRING; }
     bool isArray() const { return type == ValueType::ARRAY; }
+    bool isMap() const { return type == ValueType::MAP; }
     bool isStruct() const { return type == ValueType::STRUCT_INSTANCE; }
     bool isFunction() const { return type == ValueType::FUNCTION; }
     bool isNative() const { return type == ValueType::NATIVE_FUNCTION; }
@@ -193,7 +204,32 @@ struct Value {
             case ValueType::FLOAT: return floatVal != 0.0;
             case ValueType::STRING: return stringVal && !stringVal->empty();
             case ValueType::ARRAY: return arrayVal && !arrayVal->empty();
+            case ValueType::MAP: return mapVal != nullptr;
             default: return true;
+        }
+    }
+
+    // Equality operator
+    bool operator==(const Value& other) const {
+        if (type != other.type) {
+            if (isNumber() && other.isNumber()) {
+                return asDouble() == other.asDouble();
+            }
+            return false;
+        }
+        switch (type) {
+            case ValueType::NIL: return true;
+            case ValueType::BOOL: return boolVal == other.boolVal;
+            case ValueType::INT: return intVal == other.intVal;
+            case ValueType::FLOAT: return floatVal == other.floatVal;
+            case ValueType::STRING: return *stringVal == *other.stringVal;
+            case ValueType::ARRAY: return arrayVal == other.arrayVal;
+            case ValueType::MAP: return mapVal == other.mapVal;
+            case ValueType::STRUCT_INSTANCE: return structVal == other.structVal;
+            case ValueType::FUNCTION: return funcVal == other.funcVal;
+            case ValueType::NATIVE_FUNCTION: return nativeVal == other.nativeVal;
+            case ValueType::ASYNC_HANDLE: return false;
+            default: return false;
         }
     }
 
@@ -212,6 +248,7 @@ inline constexpr const char* valueTypeToString(ValueType type) {
         case ValueType::FLOAT: return "float";
         case ValueType::STRING: return "string";
         case ValueType::ARRAY: return "array";
+        case ValueType::MAP: return "map";
         case ValueType::STRUCT_INSTANCE: return "struct";
         case ValueType::FUNCTION: return "function";
         case ValueType::NATIVE_FUNCTION: return "native";
@@ -219,6 +256,30 @@ inline constexpr const char* valueTypeToString(ValueType type) {
         default: return "unknown";
     }
 }
+
+/**
+ * Hash function for Value type.
+ */
+struct ValueHasher {
+    size_t operator()(const Value& v) const {
+        switch (v.type) {
+            case ValueType::BOOL: return std::hash<bool>()(v.boolVal);
+            case ValueType::INT: return std::hash<int64_t>()(v.intVal);
+            case ValueType::FLOAT: return std::hash<double>()(v.floatVal);
+            case ValueType::STRING: return v.stringVal ? std::hash<std::string>()(*v.stringVal) : 0;
+            case ValueType::ARRAY: return std::hash<std::shared_ptr<std::vector<Value>>>()(v.arrayVal);
+            case ValueType::MAP: return std::hash<std::shared_ptr<MapInstance>>()(v.mapVal);
+            default: return 0;
+        }
+    }
+};
+
+/**
+ * Map instance containing key-value pairs.
+ */
+struct MapInstance {
+    std::unordered_map<Value, Value, ValueHasher> entries;
+};
 
 } // namespace nevaarize
 

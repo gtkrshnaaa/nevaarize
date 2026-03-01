@@ -52,6 +52,19 @@ std::string Value::toString() const {
             return result;
         }
             
+        case ValueType::MAP: {
+            if (!mapVal) return "{}";
+            std::string result = "{";
+            bool first = true;
+            for (const auto& [key, val] : mapVal->entries) {
+                if (!first) result += ", ";
+                first = false;
+                result += key.toString() + ": " + val.toString();
+            }
+            result += "}";
+            return result;
+        }
+            
         case ValueType::STRUCT_INSTANCE: {
             if (!structVal) return "{}";
             std::string result = structVal->typeName + " {";
