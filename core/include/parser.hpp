@@ -21,7 +21,7 @@ namespace nevaarize {
  */
 class Parser {
 public:
-    explicit Parser(const std::vector<Token>& tokens);
+    explicit Parser(const std::vector<Token>& tokens, std::string_view source);
 
     /**
      * Parse the entire token stream into an AST.
@@ -47,6 +47,7 @@ public:
 
 private:
     const std::vector<Token>& tokens;
+    std::string_view source;
     size_t current;
     AST ast;
     std::vector<std::string> errorMessages;
@@ -62,7 +63,8 @@ private:
     Token consume(TokenType type, const std::string& message);
 
     // Error handling
-    void error(const std::string& message);
+    std::string formatError(const Token& tok, const std::string& message) const;
+    void error(const Token& tok, const std::string& message);
     void synchronize();
 
     // Skip insignificant newlines
