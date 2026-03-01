@@ -1,0 +1,82 @@
+// Factorial — iterative O(n) product computation
+// Fibonacci — iterative O(n) sequence generation
+
+print("=== Factorial ===")
+
+func factorial(n) {
+    result = 1
+    i = 2
+    while (i <= n) {
+        result = result * i
+        i = i + 1
+    }
+    return result
+}
+
+print("0! =", factorial(0))
+print("1! =", factorial(1))
+print("5! =", factorial(5))
+print("10! =", factorial(10))
+print("12! =", factorial(12))
+
+print("")
+print("=== Fibonacci Sequence ===")
+
+func fibonacci(n) {
+    if (n <= 0) { return 0 }
+    if (n == 1) { return 1 }
+
+    prev = 0
+    curr = 1
+    i = 2
+    while (i <= n) {
+        next = prev + curr
+        prev = curr
+        curr = next
+        i = i + 1
+    }
+    return curr
+}
+
+print("fib(0) =", fibonacci(0))
+print("fib(1) =", fibonacci(1))
+print("fib(5) =", fibonacci(5))
+print("fib(10) =", fibonacci(10))
+print("fib(20) =", fibonacci(20))
+print("fib(30) =", fibonacci(30))
+
+print("")
+print("=== Power Function ===")
+
+func power(base, exp) {
+    result = 1
+    i = 0
+    while (i < exp) {
+        result = result * base
+        i = i + 1
+    }
+    return result
+}
+
+print("2^10 =", power(2, 10))
+print("3^5 =", power(3, 5))
+print("7^3 =", power(7, 3))
+
+print("")
+print("=== Summation ===")
+
+func sumRange(a, b) {
+    total = 0
+    i = a
+    while (i <= b) {
+        total = total + i
+        i = i + 1
+    }
+    return total
+}
+
+print("Sum(1..100) =", sumRange(1, 100))
+print("Sum(1..1000) =", sumRange(1, 1000))
+
+print("")
+print("=== Math Basics Complete ===")
