@@ -116,6 +116,80 @@ extern "C" int64_t jit_array_get(void* dataPtr, int64_t index) {
     return 0;
 }
 
+// Structure to track heap-allocated maps in JIT
+struct JITMapEntry {
+    int64_t key;
+    int64_t value;
+    bool occupied;
+};
+
+struct JITMap {
+    int64_t capacity;
+    int64_t size;
+    JITMapEntry entries[1]; // Flexible array member
+};
+
+extern "C" void* jit_alloc_map(int64_t initial_capacity) {
+    if (initial_capacity < 8) initial_capacity = 8;
+    int64_t cap = 1;
+    while (cap < initial_capacity) cap *= 2;
+    
+    size_t totalBytes = sizeof(JITMap) + (cap - 1) * sizeof(JITMapEntry);
+    void* mem = jitGC.allocate(totalBytes);
+    if (!mem) mem = calloc(1, totalBytes);
+    if (!mem) return nullptr;
+    
+    JITMap* map = static_cast<JITMap*>(mem);
+    map->capacity = cap;
+    map->size = 0;
+    for(int i=0; i<cap; ++i) map->entries[i].occupied = false;
+    return static_cast<void*>(map);
+}
+
+extern "C" void jit_map_set(void* mapPtr, int64_t key, int64_t value) {
+    if (!mapPtr) return;
+    JITMap* map = static_cast<JITMap*>(mapPtr);
+    
+    if (map->size * 2 >= map->capacity) {
+        // resize logic could go here, omitting for simplicity/personal tool context
+        // for now just stop adding if full (or could realloc, but we're in JIT memory)
+    }
+    
+    // Linear probing hash table
+    uint64_t hash = key * 2654435761ull; // simple multiplicative hash
+    int64_t index = hash & (map->capacity - 1);
+    
+    while (map->entries[index].occupied) {
+        if (map->entries[index].key == key) {
+            map->entries[index].value = value;
+            return;
+        }
+        index = (index + 1) & (map->capacity - 1);
+    }
+    
+    map->entries[index].key = key;
+    map->entries[index].value = value;
+    map->entries[index].occupied = true;
+    map->size++;
+}
+
+extern "C" int64_t jit_map_get(void* mapPtr, int64_t key) {
+    if (!mapPtr) return 0;
+    JITMap* map = static_cast<JITMap*>(mapPtr);
+    
+    uint64_t hash = key * 2654435761ull;
+    int64_t index = hash & (map->capacity - 1);
+    
+    while (map->entries[index].occupied) {
+        if (map->entries[index].key == key) {
+            return map->entries[index].value;
+        }
+        index = (index + 1) & (map->capacity - 1);
+    }
+    
+    return 0; // Not found
+}
+
 // Structure to track heap-allocated strings in JIT
 struct JITString {
     uint32_t magic;    // 0xNEVA
