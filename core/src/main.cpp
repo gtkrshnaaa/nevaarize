@@ -2,7 +2,7 @@
  * Main.cpp - Nevaarize Entry Point
  *
  * Command-line interface for the Nevaarize JIT Compiler.
- * All execution uses native x86-64 JIT compilation.
+ * All execution uses native Linux x86-64 JIT compilation.
  */
 
 #include "lexer.hpp"

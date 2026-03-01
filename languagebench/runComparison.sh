@@ -40,7 +40,7 @@ function print_sep() {
 
 print_sep
 echo "--- Nevaarize ---"
-echo "Arch: JIT Compiled (x86-64 Native) - High Performance"
+echo "Arch: JIT Compiled (Linux x86-64 Native) - High Performance"
 run_bench ../bin/nevaarize bench_nevaarize.nva
 
 # C++

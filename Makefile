@@ -141,7 +141,7 @@ list:
 	@echo "" >> z_listing/listing.txt
 	@echo "Directory Structure Overview:" >> z_listing/listing.txt
 	@echo "1. core/include: Header files for the JIT compiler, Lexer, Parser, and IR." >> z_listing/listing.txt
-	@echo "2. core/src: Implementation of the native JIT engine and x86-64 code generator." >> z_listing/listing.txt
+	@echo "2. core/src: Implementation of the native JIT engine and Linux x86-64 code generator." >> z_listing/listing.txt
 	@echo "3. core/stdlib: Standard library implementations (Math, IO, Time)." >> z_listing/listing.txt
 	@echo "4. examples: Collection of example scripts demonstrating language features." >> z_listing/listing.txt
 	@echo "5. languagebench: Performance benchmarks across various languages." >> z_listing/listing.txt
