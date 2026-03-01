@@ -1,12 +1,12 @@
 Nevaarize Execution & Benchmark Report
-Generated on: Sun Mar  1 07:59:20 AM WIB 2026
+Generated on: Sun Mar  1 08:10:05 AM WIB 2026
 --------------------------------------
 SYSTEM SPECIFICATIONS:
   OS:  Ubuntu 24.04.4 LTS
   CPU: 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz
   RAM: 7635.43 MB
 --------------------------------------
- [ x] examples/advanced.nva: PASS (RAM: 4300KB, CPU: 50%)
+ [ x] examples/advanced.nva: PASS (RAM: 4464KB, CPU: 100%)
     Output Details:
       Fibonacci Iterative:
       fibIter(10): 55
@@ -27,7 +27,7 @@ SYSTEM SPECIFICATIONS:
       
       === All Algorithms Complete ===
 --------------------------------------
- [ x] examples/algorithm/arrayManipulation.nva: PASS (RAM: 4320KB, CPU: 50%)
+ [ x] examples/algorithm/arrayManipulation.nva: PASS (RAM: 4516KB, CPU: 100%)
     Output Details:
       === Array Reverse ===
       Before:
@@ -76,7 +76,7 @@ SYSTEM SPECIFICATIONS:
       
       === Array Manipulation Complete ===
 --------------------------------------
- [ x] examples/algorithm/binarySearch.nva: PASS (RAM: 4480KB, CPU: 50%)
+ [ x] examples/algorithm/binarySearch.nva: PASS (RAM: 4572KB, CPU: 100%)
     Output Details:
       === Binary Search ===
       Search 23: found at index 5
@@ -96,7 +96,7 @@ SYSTEM SPECIFICATIONS:
       
       === Binary Search Complete ===
 --------------------------------------
- [ x] examples/algorithm/bitwiseOps.nva: PASS (RAM: 4360KB, CPU: 100%)
+ [ x] examples/algorithm/bitwiseOps.nva: PASS (RAM: 4456KB, CPU: 100%)
     Output Details:
       === Popcount (Count Set Bits) ===
       popcount(0) = 0
@@ -136,7 +136,7 @@ SYSTEM SPECIFICATIONS:
       
       === Bitwise Ops Complete ===
 --------------------------------------
- [ x] examples/algorithm/bubbleSort.nva: PASS (RAM: 4380KB, CPU: 50%)
+ [ x] examples/algorithm/bubbleSort.nva: PASS (RAM: 4544KB, CPU: 50%)
     Output Details:
       === Bubble Sort ===
       Before:
@@ -176,7 +176,7 @@ SYSTEM SPECIFICATIONS:
       
       === Bubble Sort Complete ===
 --------------------------------------
- [ x] examples/algorithm/dynamicProgramming.nva: PASS (RAM: 4316KB, CPU: 50%)
+ [ x] examples/algorithm/dynamicProgramming.nva: PASS (RAM: 4348KB, CPU: 66%)
     Output Details:
       === Climbing Stairs (Dynamic Programming) ===
       Ways to climb 1 stair: 1
@@ -200,7 +200,7 @@ SYSTEM SPECIFICATIONS:
       
       === Dynamic Programming Complete ===
 --------------------------------------
- [ x] examples/algorithm/floatingPoint.nva: PASS (RAM: 4384KB, CPU: 50%)
+ [ x] examples/algorithm/floatingPoint.nva: PASS (RAM: 4392KB, CPU: 66%)
     Output Details:
       === Newton's Square Root ===
       sqrt(4) = 2
@@ -231,7 +231,7 @@ SYSTEM SPECIFICATIONS:
       
       === Floating Point Complete ===
 --------------------------------------
- [ x] examples/algorithm/geometry.nva: PASS (RAM: 4296KB, CPU: 50%)
+ [ x] examples/algorithm/geometry.nva: PASS (RAM: 4320KB, CPU: 100%)
     Output Details:
       === Distance (Squared) ===
       dist(0,0 -> 3,4) = sqrt( 25 ) = 13
@@ -262,7 +262,7 @@ SYSTEM SPECIFICATIONS:
       
       === Geometry Complete ===
 --------------------------------------
- [ x] examples/algorithm/insertionSort.nva: PASS (RAM: 4188KB, CPU: 100%)
+ [ x] examples/algorithm/insertionSort.nva: PASS (RAM: 4368KB, CPU: 66%)
     Output Details:
       === Insertion Sort ===
       Before:
@@ -298,7 +298,7 @@ SYSTEM SPECIFICATIONS:
       
       === Insertion Sort Complete ===
 --------------------------------------
- [ x] examples/algorithm/linearSearch.nva: PASS (RAM: 4332KB, CPU: 50%)
+ [ x] examples/algorithm/linearSearch.nva: PASS (RAM: 4468KB, CPU: 66%)
     Output Details:
       === Linear Search ===
       Search 70: found at index 3
@@ -318,7 +318,7 @@ SYSTEM SPECIFICATIONS:
       
       === Linear Search Complete ===
 --------------------------------------
- [ x] examples/algorithm/mathBasics.nva: PASS (RAM: 4288KB, CPU: 33%)
+ [ x] examples/algorithm/mathBasics.nva: PASS (RAM: 4472KB, CPU: 100%)
     Output Details:
       === Factorial ===
       0! = 1
@@ -346,7 +346,7 @@ SYSTEM SPECIFICATIONS:
       
       === Math Basics Complete ===
 --------------------------------------
- [ x] examples/algorithm/matrixOps.nva: PASS (RAM: 4360KB, CPU: 100%)
+ [ x] examples/algorithm/matrixOps.nva: PASS (RAM: 4452KB, CPU: 100%)
     Output Details:
       === Matrix Operations ===
       Matrices stored as flattened 1D arrays (row-major)
@@ -376,7 +376,7 @@ SYSTEM SPECIFICATIONS:
       
       === Matrix Ops Complete ===
 --------------------------------------
- [ x] examples/algorithm/numberTheory.nva: PASS (RAM: 4384KB, CPU: 33%)
+ [ x] examples/algorithm/numberTheory.nva: PASS (RAM: 4392KB, CPU: 50%)
     Output Details:
       === GCD (Euclidean Algorithm) ===
       gcd(48, 18) = 6
@@ -404,7 +404,7 @@ SYSTEM SPECIFICATIONS:
       
       === Number Theory Complete ===
 --------------------------------------
- [ x] examples/algorithm/primeGeneration.nva: PASS (RAM: 4340KB, CPU: 50%)
+ [ x] examples/algorithm/primeGeneration.nva: PASS (RAM: 4480KB, CPU: 50%)
     Output Details:
       === Smallest Prime Factor (inline) ===
       Smallest factor of 84: 2
@@ -423,7 +423,7 @@ SYSTEM SPECIFICATIONS:
       
       === Prime Generation Complete ===
 --------------------------------------
- [ x] examples/algorithm/stackQueue.nva: PASS (RAM: 4320KB, CPU: 100%)
+ [ x] examples/algorithm/stackQueue.nva: PASS (RAM: 4332KB, CPU: 100%)
     Output Details:
       === Stack (LIFO) ===
       Pushed: 10, 20, 30
@@ -451,7 +451,7 @@ SYSTEM SPECIFICATIONS:
       
       === Stack & Queue Complete ===
 --------------------------------------
- [ x] examples/algorithm/twoPointers.nva: PASS (RAM: 4336KB, CPU: 100%)
+ [ x] examples/algorithm/twoPointers.nva: PASS (RAM: 4428KB, CPU: 50%)
     Output Details:
       === Two Pointer: Pair Sum ===
         Found pair: 1 + 15 = 16
@@ -495,7 +495,7 @@ SYSTEM SPECIFICATIONS:
       
       === Two Pointers Complete ===
 --------------------------------------
- [ x] examples/asyncAwait.nva: PASS (RAM: 4168KB, CPU: 100%)
+ [ x] examples/asyncAwait.nva: PASS (RAM: 4328KB, CPU: 100%)
     Output Details:
       === Async/Await Demo ===
       
@@ -507,7 +507,7 @@ SYSTEM SPECIFICATIONS:
       
       === Async/Await Complete ===
 --------------------------------------
- [ x] examples/basics.nva: PASS (RAM: 4572KB, CPU: 50%)
+ [ x] examples/basics.nva: PASS (RAM: 4604KB, CPU: 100%)
     Output Details:
       Integer: 42
       Float: 3.14
@@ -541,7 +541,7 @@ SYSTEM SPECIFICATIONS:
       factorial(5): 120
       factorial(6): 720
       
-      Array: 135263053504576
+      Array: 138996534472768
       First: 10
       Third: 30
       Modified: 99
@@ -549,7 +549,7 @@ SYSTEM SPECIFICATIONS:
       
       === All Features Demonstrated ===
 --------------------------------------
- [ x] examples/benchmarks/benchmark.nva: PASS (RAM: 4464KB, CPU: 92%)
+ [ x] examples/benchmarks/benchmark.nva: PASS (RAM: 4568KB, CPU: 98%)
     Output Details:
       Nevaarize Benchmark Suite
       Target Loops (Scalar): 10000000
@@ -557,43 +557,43 @@ SYSTEM SPECIFICATIONS:
       === Integer Arithmetic (Add/Sub) ===
       Result Check: 0
       Duration: 5 ms
-      Raw Speed: 3568902935 ops/sec
+      Raw Speed: 3491623769 ops/sec
       Formatted: 3 Billion ops/sec
       
       === Float Arithmetic (Add/Sub) ===
       Result Check: 5000002.0
       Expected: 10000000
       Duration: 10 ms
-      Raw Speed: 1826784478 ops/sec
+      Raw Speed: 1932248041 ops/sec
       Formatted: 1 Billion ops/sec
       
       === Control Flow (If/Else) ===
       Result Check: 10000000
-      Duration: 19 ms
-      Raw Speed: 524735644 ops/sec
-      Formatted: 524 Million ops/sec
+      Duration: 7 ms
+      Raw Speed: 1394053858 ops/sec
+      Formatted: 1 Billion ops/sec
       
       === Function Call (Inlined) ===
       Result Check: 10000000
-      Duration: 29 ms
-      Raw Speed: 342039398 ops/sec
-      Formatted: 342 Million ops/sec
+      Duration: 17 ms
+      Raw Speed: 572999244 ops/sec
+      Formatted: 572 Million ops/sec
       
       === Array Write Access ===
       Result Check (arr[5]): 9999999
-      Duration: 39 ms
-      Raw Speed: 251268718 ops/sec
-      Formatted: 251 Million ops/sec
+      Duration: 26 ms
+      Raw Speed: 373908388 ops/sec
+      Formatted: 373 Million ops/sec
       
       === For Loop (Range) ===
       Result Check: 10000000
-      Duration: 19 ms
-      Raw Speed: 515953727 ops/sec
-      Formatted: 515 Million ops/sec
+      Duration: 14 ms
+      Raw Speed: 667201940 ops/sec
+      Formatted: 667 Million ops/sec
       
       === ALL TESTS COMPLETE ===
 --------------------------------------
- [ x] examples/gcDemo.nva: PASS (RAM: 4220KB, CPU: 33%)
+ [ x] examples/gcDemo.nva: PASS (RAM: 4452KB, CPU: 50%)
     Output Details:
       === Garbage Collector Demo ===
       
@@ -608,27 +608,27 @@ SYSTEM SPECIFICATIONS:
       
       === GC Demo Complete ===
 --------------------------------------
- [ x] examples/modules/config/settings.nva: PASS (RAM: 4120KB, CPU: 50%)
+ [ x] examples/modules/config/settings.nva: PASS (RAM: 4220KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/lib/arrays.nva: PASS (RAM: 4192KB, CPU: 25%)
+ [ x] examples/modules/lib/arrays.nva: PASS (RAM: 4372KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/lib/math.nva: PASS (RAM: 4208KB, CPU: 66%)
+ [ x] examples/modules/lib/math.nva: PASS (RAM: 4320KB, CPU: 0%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/lib/strings.nva: PASS (RAM: 4116KB, CPU: 33%)
+ [ x] examples/modules/lib/strings.nva: PASS (RAM: 4268KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/lib/utils/logger.nva: PASS (RAM: 4040KB, CPU: 100%)
+ [ x] examples/modules/lib/utils/logger.nva: PASS (RAM: 4220KB, CPU: 100%)
     Output Details:
       
 --------------------------------------
- [ x] examples/modules/main.nva: PASS (RAM: 4352KB, CPU: 100%)
+ [ x] examples/modules/main.nva: PASS (RAM: 4368KB, CPU: 100%)
     Output Details:
       === Nevaarize Module System Demo ===
       
@@ -655,6 +655,6 @@ Passed:      26
 Failed:      0
 --------------------------------------
 PERFORMANCE METRICS:
-Peak RAM:    4572 KB (by examples/basics.nva)
-Peak CPU:    100% (by examples/algorithm/bitwiseOps.nva)
+Peak RAM:    4604 KB (by examples/basics.nva)
+Peak CPU:    100% (by examples/advanced.nva)
 ==========================================================
