@@ -2638,32 +2638,127 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             return result;
         }
         
+        case NodeType::MAP_LITERAL: {
+            size_t elemCount = node.children.size() / 2;
+            CodeBuffer& buf = codegen.getCode();
+            
+            // Call jit_alloc_map(elemCount)
+            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); // push rax, rcx, rdx
+            buf.emit8(0x56); buf.emit8(0x57);                  // push rsi, rdi
+            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
+            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
+            
+            // RDI = elemCount
+            buf.emit8(0x48); buf.emit8(0xBF);
+            buf.emit64(static_cast<uint64_t>(elemCount));
+            
+            buf.emit8(0x48); buf.emit8(0xB8);
+            buf.emit64(reinterpret_cast<uint64_t>(jit_alloc_map));
+            buf.emit8(0xFF); buf.emit8(0xD0);
+            
+            int32_t tempOffset = allocateStackSlot();
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+            buf.emit32(static_cast<uint32_t>(tempOffset));
+            
+            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A); // pop r11, r10
+            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58); // pop r9, r8
+            buf.emit8(0x5F); buf.emit8(0x5E);                  // pop rdi, rsi
+            buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58); // pop rdx, rcx, rax
+            
+            X64Reg baseReg = allocateReg();
+            bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
+            buf.emit8(0x48 | (baseHigh ? 0x04 : 0));
+            buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(tempOffset));
+            
+            for (size_t i = 0; i < node.children.size() && i + 1 < node.children.size(); i += 2) {
+                JITValue keyVal = compileExpr(ast, node.children[i]);
+                X64Reg keyReg = keyVal.valueReg;
+                freeReg(keyVal.typeReg);
+                
+                JITValue valVal = compileExpr(ast, node.children[i+1]);
+                X64Reg valReg = valVal.valueReg;
+                freeReg(valVal.typeReg);
+                
+                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); 
+                buf.emit8(0x56); buf.emit8(0x57);                  
+                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); 
+                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); 
+                
+                // RDI = baseReg
+                buf.emit8(0x48 | (baseHigh ? 0x04 : 0));
+                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3) | 7);
+                
+                // RSI = keyReg
+                bool keyHigh = static_cast<uint8_t>(keyReg) >= 8;
+                buf.emit8(0x48 | (keyHigh ? 0x04 : 0));
+                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(keyReg) & 0x7) << 3) | 6);
+                
+                // RDX = valReg
+                bool valHigh = static_cast<uint8_t>(valReg) >= 8;
+                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(valReg) & 0x7) << 3) | 2); 
+                
+                // Call jit_map_set
+                buf.emit8(0x48); buf.emit8(0xB8);
+                buf.emit64(reinterpret_cast<uint64_t>(jit_map_set));
+                buf.emit8(0xFF); buf.emit8(0xD0);
+                
+                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                buf.emit8(0x5F); buf.emit8(0x5E);
+                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                
+                freeReg(keyReg);
+                freeReg(valReg);
+            }
+            
+            JITValue result;
+            result.valueReg = baseReg;
+            result.typeReg = allocateReg();
+            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+            buf.emit64(static_cast<uint64_t>(ValueType::MAP));
+            
+            return result;
+        }
+        
         case NodeType::INDEX_ACCESS: {
-            // array[index] - load element from array pointer (FFI helper)
+            // map/array[index] - load element dynamically based on type
             JITValue arrVal = compileExpr(ast, node.left);
             X64Reg arrReg = arrVal.valueReg;
-            // Ignore array type for now
-            freeReg(arrVal.typeReg);
+            X64Reg tReg = arrVal.typeReg;
             
             JITValue idxVal = compileExpr(ast, node.right);
             X64Reg idxReg = idxVal.valueReg;
             freeReg(idxVal.typeReg);
             
             CodeBuffer& buf = codegen.getCode();
-            
             int32_t tempOffset = allocateStackSlot();
             
-            // Save Scratch Registers over FFI call
-            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); // push rax, rcx, rdx
-            buf.emit8(0x56); buf.emit8(0x57);                  // push rsi, rdi
-            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
-            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
+            // Check if arr is MAP
+            bool tHigh = static_cast<uint8_t>(tReg) >= 8;
+            buf.emit8(0x48 | (tHigh ? 0x01 : 0));
+            buf.emit8(0x83); buf.emit8(0xF8 + (static_cast<uint8_t>(tReg) & 0x7));
+            buf.emit8(static_cast<uint8_t>(ValueType::MAP));
             
-            // Set Args (RDI = arrReg, RSI = idxReg)
+            buf.emit8(0x0F); buf.emit8(0x84); // je is_map
+            size_t isMapJump = buf.size();
+            buf.emit32(0);
+            
+            // --- ARRAY GET ---
+            // Save Scratch
+            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); buf.emit8(0x56); buf.emit8(0x57);
+            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+            
+            // RDI = arrReg
             bool arrHigh = static_cast<uint8_t>(arrReg) >= 8;
             buf.emit8(0x48 | (arrHigh ? 0x04 : 0));
             buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arrReg) & 0x7) << 3) | 7);
             
+            // RSI = idxReg
             bool idxHigh = static_cast<uint8_t>(idxReg) >= 8;
             buf.emit8(0x48 | (idxHigh ? 0x04 : 0));
             buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(idxReg) & 0x7) << 3) | 6);
@@ -2673,17 +2768,56 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit64(reinterpret_cast<uint64_t>(jit_array_get));
             buf.emit8(0xFF); buf.emit8(0xD0);
             
-            // Save RAX to temp stack slot
+            // Save RAX
             buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85); 
             buf.emit32(static_cast<uint32_t>(tempOffset));
             
-            // Restore Scratch Registers
-            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A); // pop r11, r10
-            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58); // pop r9, r8
-            buf.emit8(0x5F); buf.emit8(0x5E);                  // pop rdi, rsi
-            buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58); // pop rdx, rcx, rax
+            // Restore Scratch
+            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+            buf.emit8(0x5F); buf.emit8(0x5E); buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+            
+            buf.emit8(0xE9); // jmp done
+            size_t doneJump = buf.size();
+            buf.emit32(0);
+            
+            // --- MAP GET ---
+            size_t isMapTarget = buf.size();
+            buf.patch32(isMapJump, static_cast<int32_t>(isMapTarget - (isMapJump + 4)));
+            
+            // Save Scratch
+            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); buf.emit8(0x56); buf.emit8(0x57);
+            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+            
+            // RDI = arrReg
+            buf.emit8(0x48 | (arrHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arrReg) & 0x7) << 3) | 7);
+            
+            // RSI = idxReg
+            buf.emit8(0x48 | (idxHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(idxReg) & 0x7) << 3) | 6);
+            
+            // Call jit_map_get
+            buf.emit8(0x48); buf.emit8(0xB8);
+            buf.emit64(reinterpret_cast<uint64_t>(jit_map_get));
+            buf.emit8(0xFF); buf.emit8(0xD0);
+            
+            // Save RAX
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85); 
+            buf.emit32(static_cast<uint32_t>(tempOffset));
+            
+            // Restore Scratch
+            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+            buf.emit8(0x5F); buf.emit8(0x5E); buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+            
+            // --- DONE ---
+            size_t doneTarget = buf.size();
+            buf.patch32(doneJump, static_cast<int32_t>(doneTarget - (doneJump + 4)));
             
             freeReg(arrReg);
+            freeReg(tReg);
             freeReg(idxReg);
             
             JITValue result;
@@ -2695,10 +2829,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
             buf.emit32(static_cast<uint32_t>(tempOffset));
             
-            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            bool typeHighDst = static_cast<uint8_t>(result.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHighDst ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(0); // Element type assumed Int for now
+            buf.emit64(0); // Assuming INT for now, can be updated later
             return result;
         }
         
@@ -3402,21 +3536,32 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             break;
             
         case NodeType::INDEX_ASSIGN: {
-            // arr[idx] = value - compile and store securely via FFI
+            // map/array[idx] = value
             CodeBuffer& buf = codegen.getCode();
-            JITValue value = compileExpr(ast, node.extra);  // value
-            JITValue arr = compileExpr(ast, node.left);     // array
-            JITValue idxVal = compileExpr(ast, node.right); // index
+            JITValue value = compileExpr(ast, node.extra);
+            JITValue arr = compileExpr(ast, node.left);
+            JITValue idxVal = compileExpr(ast, node.right);
             
             X64Reg arrReg = arr.valueReg;
+            X64Reg tReg = arr.typeReg;
             X64Reg idxReg = idxVal.valueReg;
             X64Reg valueReg = value.valueReg;
             
-            // Save Scratch Registers over FFI call
-            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); // push rax, rcx, rdx
-            buf.emit8(0x56); buf.emit8(0x57);                  // push rsi, rdi
-            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
-            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
+            // Check if arr is MAP
+            bool tHigh = static_cast<uint8_t>(tReg) >= 8;
+            buf.emit8(0x48 | (tHigh ? 0x01 : 0));
+            buf.emit8(0x83); buf.emit8(0xF8 + (static_cast<uint8_t>(tReg) & 0x7));
+            buf.emit8(static_cast<uint8_t>(ValueType::MAP));
+            
+            buf.emit8(0x0F); buf.emit8(0x84); // je is_map
+            size_t isMapJump = buf.size();
+            buf.emit32(0);
+            
+            // --- ARRAY SET ---
+            // Save Scratch Registers
+            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); buf.emit8(0x56); buf.emit8(0x57);
+            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
             
             // Set Args (RDI = arrReg, RSI = idxReg, RDX = valueReg)
             bool arrHigh = static_cast<uint8_t>(arrReg) >= 8;
@@ -3437,10 +3582,46 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             buf.emit8(0xFF); buf.emit8(0xD0);
             
             // Restore Scratch Registers
-            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A); // pop r11, r10
-            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58); // pop r9, r8
-            buf.emit8(0x5F); buf.emit8(0x5E);                  // pop rdi, rsi
-            buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58); // pop rdx, rcx, rax
+            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+            buf.emit8(0x5F); buf.emit8(0x5E); buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+            
+            buf.emit8(0xE9); // jmp done
+            size_t doneJump = buf.size();
+            buf.emit32(0);
+            
+            // --- MAP SET ---
+            size_t isMapTarget = buf.size();
+            buf.patch32(isMapJump, static_cast<int32_t>(isMapTarget - (isMapJump + 4)));
+            
+            // Save Scratch Registers
+            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); buf.emit8(0x56); buf.emit8(0x57);
+            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+            
+            // Set Args (RDI = arrReg, RSI = idxReg, RDX = valueReg)
+            buf.emit8(0x48 | (arrHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arrReg) & 0x7) << 3) | 7);
+            
+            buf.emit8(0x48 | (idxHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(idxReg) & 0x7) << 3) | 6);
+            
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3) | 2);
+            
+            // Call jit_map_set
+            buf.emit8(0x48); buf.emit8(0xB8);
+            buf.emit64(reinterpret_cast<uint64_t>(jit_map_set));
+            buf.emit8(0xFF); buf.emit8(0xD0);
+            
+            // Restore Scratch Registers
+            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+            buf.emit8(0x5F); buf.emit8(0x5E); buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+            
+            // --- DONE ---
+            size_t doneTarget = buf.size();
+            buf.patch32(doneJump, static_cast<int32_t>(doneTarget - (doneJump + 4)));
             
             freeReg(value.valueReg); freeReg(value.typeReg);
             freeReg(arr.valueReg); freeReg(arr.typeReg);
