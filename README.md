@@ -131,24 +131,28 @@ nevaarize examples/basics/helloWorld.nva
 print("Hello, Nevaarize!")
 ```
 
-### More Examples
+### Core Syntax
 
 ```nva
-// Variables and arithmetic
 x = 42
 y = 3.14
 z = x + y
 print("Result:", z)
+```
 
-// Functions
+### Functions & Recursion
+
+```nva
 func factorial(n) {
-    if (n <= 1) {
-        return 1
-    }
+    if (n <= 1) { return 1 }
     return n * factorial(n - 1)
 }
 print("5! =", factorial(5))
+```
 
+### Data Structures
+
+```nva
 // Structs
 struct Point { x, y }
 p = Point(10, 20)
@@ -161,27 +165,27 @@ arr.push(6)
 for (val in arr) {
     print(val)
 }
+```
 
-// Timing
+### High-Performance Async
+
+```nva
 import stdlib time as t
-start = t.nanos()
-// ... computation ...
-elapsed = (0.0 + (t.nanos() - start)) / 1000000000.0
-print("Elapsed:", elapsed, "seconds")
 
-// Async/Await
 async func computeSum(n) {
     total = 0
-    i = 0
-    while (i < n) {
+    for (i in Range(0, n)) {
         total = total + i
-        i = i + 1
     }
     return total
 }
-task = computeSum(1000)
-result = await task
+
+start = t.nanos()
+result = await computeSum(1000000)
+elapsed = (0.0 + (t.nanos() - start)) / 1000000000.0
+
 print("Sum:", result)
+print("Time:", elapsed, "seconds")
 ```
 
 ---
