@@ -65,6 +65,7 @@ extern "C" void jit_unhandled_exception() {
     exit(1);
 }
 
+
 // Global garbage collector instance for JIT heap allocations
 static nevaarize::GarbageCollector jitGC;
 
@@ -4548,20 +4549,40 @@ void JIT::compileThrow(const AST& ast, NodeIndex idx) {
     
     JITValue expr = compileExpr(ast, node.left);
 
-    buf.emit8(0x48); buf.emit8(0xB8);
-    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_val));
+    // Save value and type to temp stack slots to avoid RAX clobber
+    int32_t valSlot = allocateStackSlot();
+    int32_t typeSlot = allocateStackSlot();
+
+    // Store value register to temp slot [rbp + valSlot]
     bool valHigh = static_cast<uint8_t>(expr.valueReg) >= 8;
     buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-    buf.emit8(0x89); buf.emit8(0x00 | ((static_cast<uint8_t>(expr.valueReg) & 0x7) << 3));
+    buf.emit8(0x89);
+    buf.emit8(0x85 | ((static_cast<uint8_t>(expr.valueReg) & 0x7) << 3));
+    buf.emit32(static_cast<uint32_t>(valSlot));
 
-    buf.emit8(0x48); buf.emit8(0xB8);
-    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_type));
+    // Store type register to temp slot [rbp + typeSlot]
     bool typeHigh = static_cast<uint8_t>(expr.typeReg) >= 8;
     buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
-    buf.emit8(0x89); buf.emit8(0x00 | ((static_cast<uint8_t>(expr.typeReg) & 0x7) << 3));
+    buf.emit8(0x89);
+    buf.emit8(0x85 | ((static_cast<uint8_t>(expr.typeReg) & 0x7) << 3));
+    buf.emit32(static_cast<uint32_t>(typeSlot));
 
     freeReg(expr.valueReg);
     freeReg(expr.typeReg);
+
+    // Load value from temp slot into RCX, then store to global
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x8D); // mov rcx, [rbp + valSlot]
+    buf.emit32(static_cast<uint32_t>(valSlot));
+    buf.emit8(0x48); buf.emit8(0xB8);                  // mov rax, &current_exception_val
+    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_val));
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x08);  // mov [rax], rcx
+
+    // Load type from temp slot into RCX, then store to global
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x8D); // mov rcx, [rbp + typeSlot]
+    buf.emit32(static_cast<uint32_t>(typeSlot));
+    buf.emit8(0x48); buf.emit8(0xB8);                  // mov rax, &current_exception_type
+    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_type));
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x08);  // mov [rax], rcx
 
     // read current_exception_frame
     buf.emit8(0x48); buf.emit8(0xB8);
