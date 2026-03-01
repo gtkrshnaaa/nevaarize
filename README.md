@@ -194,7 +194,7 @@ print("Time:", elapsed, "seconds")
 
 To get started with Nevaarize, follow the [Installation Guide](docs/pages/installation.html) and then try the [Quick Start](docs/pages/quickstart.html).
 
-## Algorithm Suite (26/26 PASS)
+## Algorithm Suite
 
 Nevaarize's JIT capabilities are verified through a comprehensive suite of algorithms in `examples/algorithm/`:
 
