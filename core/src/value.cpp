@@ -6,6 +6,8 @@
 
 #include "value.hpp"
 #include <sstream>
+#include <iomanip>
+#include <cmath>
 
 namespace nevaarize {
 
@@ -22,6 +24,13 @@ std::string Value::toString() const {
             
         case ValueType::FLOAT: {
             std::ostringstream oss;
+            if (std::abs(floatVal) > 0 && std::abs(floatVal) < 0.1) {
+                oss << std::fixed << std::setprecision(10) << floatVal;
+                std::string s = oss.str();
+                s.erase(s.find_last_not_of('0') + 1, std::string::npos);
+                if (s.back() == '.') s.pop_back();
+                return s;
+            }
             oss << floatVal;
             return oss.str();
         }
