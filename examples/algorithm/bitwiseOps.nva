@@ -1,0 +1,107 @@
+// Popcount — count set bits in integer
+// Power of 2 check
+// Integer to Binary conversion
+
+print("=== Popcount (Count Set Bits) ===")
+
+func popcount(n) {
+    count = 0
+    while (n > 0) {
+        if (n % 2 == 1) {
+            count = count + 1
+        }
+        n = n / 2
+    }
+    return count
+}
+
+print("popcount(0) =", popcount(0))
+print("popcount(1) =", popcount(1))
+print("popcount(7) =", popcount(7))
+print("popcount(15) =", popcount(15))
+print("popcount(255) =", popcount(255))
+print("popcount(1023) =", popcount(1023))
+
+print("")
+print("=== Power of 2 Check ===")
+
+func isPowerOf2(n) {
+    if (n <= 0) { return 0 }
+    count = popcount(n)
+    if (count == 1) { return 1 }
+    return 0
+}
+
+print("isPowerOf2(1) =", isPowerOf2(1))
+print("isPowerOf2(2) =", isPowerOf2(2))
+print("isPowerOf2(16) =", isPowerOf2(16))
+print("isPowerOf2(18) =", isPowerOf2(18))
+print("isPowerOf2(64) =", isPowerOf2(64))
+print("isPowerOf2(1024) =", isPowerOf2(1024))
+
+print("")
+print("=== Integer to Binary (8-bit) ===")
+
+bits = [0, 0, 0, 0, 0, 0, 0, 0]
+
+func toBinary(n) {
+    i = 7
+    while (i >= 0) {
+        bits[i] = n % 2
+        n = n / 2
+        i = i - 1
+    }
+}
+
+func printBits() {
+    print(" ", bits[0], bits[1], bits[2], bits[3], bits[4], bits[5], bits[6], bits[7])
+}
+
+print("42 in binary:")
+toBinary(42)
+printBits()
+
+print("255 in binary:")
+toBinary(255)
+printBits()
+
+print("128 in binary:")
+toBinary(128)
+printBits()
+
+print("")
+print("=== Next Power of 2 ===")
+
+func nextPow2(n) {
+    if (n <= 1) { return 1 }
+    power = 1
+    while (power < n) {
+        power = power * 2
+    }
+    return power
+}
+
+print("nextPow2(5) =", nextPow2(5))
+print("nextPow2(16) =", nextPow2(16))
+print("nextPow2(17) =", nextPow2(17))
+print("nextPow2(100) =", nextPow2(100))
+
+print("")
+print("=== Log Base 2 (Integer) ===")
+
+func log2(n) {
+    result = 0
+    while (n > 1) {
+        n = n / 2
+        result = result + 1
+    }
+    return result
+}
+
+print("log2(1) =", log2(1))
+print("log2(8) =", log2(8))
+print("log2(1024) =", log2(1024))
+print("log2(65536) =", log2(65536))
+
+print("")
+print("=== Bitwise Ops Complete ===")

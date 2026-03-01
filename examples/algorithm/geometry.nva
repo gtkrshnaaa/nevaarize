@@ -1,0 +1,108 @@
+// Euclidean Distance — distance between two points (integer approximation)
+// Triangle Area — using cross-product formula
+// Bounding Box — find AABB from a set of points
+
+print("=== Distance (Squared) ===")
+
+func distSquared(x1, y1, x2, y2) {
+    dx = x2 - x1
+    dy = y2 - y1
+    return dx * dx + dy * dy
+}
+
+func isqrt(n) {
+    if (n <= 1) { return n }
+    x = n
+    y = (x + 1) / 2
+    while (y < x) {
+        x = y
+        y = (x + n / x) / 2
+    }
+    return x
+}
+
+print("dist(0,0 -> 3,4) = sqrt(", distSquared(0, 0, 3, 4), ") =", isqrt(distSquared(0, 0, 3, 4)))
+print("dist(0,0 -> 6,8) = sqrt(", distSquared(0, 0, 6, 8), ") =", isqrt(distSquared(0, 0, 6, 8)))
+print("dist(1,2 -> 4,6) = sqrt(", distSquared(1, 2, 4, 6), ")")
+
+print("")
+print("=== Triangle Area ===")
+
+func triangleArea2x(x1, y1, x2, y2, x3, y3) {
+    // 2x area using Shoelace formula (avoids division)
+    area = x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)
+    if (area < 0) { area = 0 - area }
+    return area
+}
+
+print("Triangle (0,0)(4,0)(0,3) 2x area =", triangleArea2x(0, 0, 4, 0, 0, 3))
+print("Triangle (0,0)(6,0)(0,4) 2x area =", triangleArea2x(0, 0, 6, 0, 0, 4))
+print("Triangle (1,1)(4,1)(1,5) 2x area =", triangleArea2x(1, 1, 4, 1, 1, 5))
+
+print("")
+print("=== Bounding Box (AABB) ===")
+
+px = [3, 7, 1, 5, 9, 2, 8]
+py = [4, 2, 6, 1, 8, 3, 5]
+
+func findMin(arr, n) {
+    min = arr[0]
+    i = 1
+    while (i < n) {
+        if (arr[i] < min) { min = arr[i] }
+        i = i + 1
+    }
+    return min
+}
+
+func findMax(arr, n) {
+    max = arr[0]
+    i = 1
+    while (i < n) {
+        if (arr[i] > max) { max = arr[i] }
+        i = i + 1
+    }
+    return max
+}
+
+minX = findMin(px, 7)
+maxX = findMax(px, 7)
+minY = findMin(py, 7)
+maxY = findMax(py, 7)
+
+print("Points: (3,4)(7,2)(1,6)(5,1)(9,8)(2,3)(8,5)")
+print("Bounding box:")
+print("  Min corner:", minX, minY)
+print("  Max corner:", maxX, maxY)
+print("  Width:", maxX - minX)
+print("  Height:", maxY - minY)
+
+print("")
+print("=== Manhattan Distance ===")
+
+func manhattan(x1, y1, x2, y2) {
+    dx = x2 - x1
+    dy = y2 - y1
+    if (dx < 0) { dx = 0 - dx }
+    if (dy < 0) { dy = 0 - dy }
+    return dx + dy
+}
+
+print("manhattan(0,0 -> 3,4) =", manhattan(0, 0, 3, 4))
+print("manhattan(1,2 -> 4,6) =", manhattan(1, 2, 4, 6))
+print("manhattan(-3,-2 -> 5,7) =", manhattan(-3, -2, 5, 7))
+
+print("")
+print("=== Point Collinearity ===")
+
+func areCollinear(x1, y1, x2, y2, x3, y3) {
+    area2x = triangleArea2x(x1, y1, x2, y2, x3, y3)
+    if (area2x == 0) { return 1 }
+    return 0
+}
+
+print("(0,0)(1,1)(2,2) collinear:", areCollinear(0, 0, 1, 1, 2, 2))
+print("(0,0)(1,1)(2,3) collinear:", areCollinear(0, 0, 1, 1, 2, 3))
+
+print("")
+print("=== Geometry Complete ===")

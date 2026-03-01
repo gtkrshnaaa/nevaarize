@@ -1,0 +1,82 @@
+// Newton's Method for Square Root — iterative convergence
+// Numerical Integration (Trapezoidal Rule) — approximate definite integrals
+
+print("=== Newton's Square Root ===")
+
+func sqrt(x) {
+    if (x <= 0) { return 0 }
+
+    guess = x / 2
+    prev = 0
+    i = 0
+    while (i < 30) {
+        prev = guess
+        guess = (guess + x / guess) / 2
+        i = i + 1
+    }
+    return guess
+}
+
+print("sqrt(4) =", sqrt(4))
+print("sqrt(9) =", sqrt(9))
+print("sqrt(16) =", sqrt(16))
+print("sqrt(25) =", sqrt(25))
+print("sqrt(100) =", sqrt(100))
+print("sqrt(144) =", sqrt(144))
+
+print("")
+print("=== Integer Square Root (exact) ===")
+
+func isqrt(n) {
+    if (n <= 1) { return n }
+    x = n
+    y = (x + 1) / 2
+    while (y < x) {
+        x = y
+        y = (x + n / x) / 2
+    }
+    return x
+}
+
+print("isqrt(0) =", isqrt(0))
+print("isqrt(1) =", isqrt(1))
+print("isqrt(4) =", isqrt(4))
+print("isqrt(10) =", isqrt(10))
+print("isqrt(25) =", isqrt(25))
+print("isqrt(100) =", isqrt(100))
+print("isqrt(10000) =", isqrt(10000))
+
+print("")
+print("=== Absolute Value ===")
+
+func abs(n) {
+    if (n < 0) { return 0 - n }
+    return n
+}
+
+print("abs(-42) =", abs(-42))
+print("abs(42) =", abs(42))
+print("abs(0) =", abs(0))
+
+print("")
+print("=== Integer Power with Modulus ===")
+
+func modpow(base, exp, mod) {
+    result = 1
+    base = base % mod
+    while (exp > 0) {
+        if (exp % 2 == 1) {
+            result = (result * base) % mod
+        }
+        exp = exp / 2
+        base = (base * base) % mod
+    }
+    return result
+}
+
+print("2^10 mod 1000 =", modpow(2, 10, 1000))
+print("3^13 mod 100 =", modpow(3, 13, 100))
+print("7^256 mod 13 =", modpow(7, 256, 13))
+
+print("")
+print("=== Floating Point Complete ===")
