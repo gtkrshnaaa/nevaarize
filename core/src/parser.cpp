@@ -708,6 +708,24 @@ NodeIndex Parser::primary() {
         return ast.addNode(std::move(node));
     }
 
+    if (match(TokenType::LBRACE)) {
+        ASTNode node(NodeType::MAP_LITERAL, tok.line, tok.column);
+
+        if (!check(TokenType::RBRACE)) {
+            do {
+                skipNewlines();
+                node.children.push_back(expression());
+                consume(TokenType::COLON, "Expected ':' after map key");
+                skipNewlines();
+                node.children.push_back(expression());
+                skipNewlines();
+            } while (match(TokenType::COMMA));
+        }
+
+        consume(TokenType::RBRACE, "Expected '}' after map elements");
+        return ast.addNode(std::move(node));
+    }
+
     if (match(TokenType::LPAREN)) {
         NodeIndex expr = expression();
         consume(TokenType::RPAREN, "Expected ')' after expression");
