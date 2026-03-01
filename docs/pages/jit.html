@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>JIT Compilation - Nevaarize Documentation | Nevaarize | Gilang Teja Krishna</title>
-    <meta name="description" content="Exploration of TRUE JIT compilation in Nevaarize, converting code directly to x86-64 machine code. Architected by Gilang Teja Krishna.">
+    <meta name="description" content="Exploration of TRUE JIT compilation in Nevaarize, converting code directly to Linux x86-64 machine code. Architected by Gilang Teja Krishna.">
     <meta name="author" content="Gilang Teja Krishna">
     <meta name="keywords" content="Gilang Teja Krishna, Nevaarize, JIT compilation, x86-64, machine code, systems programming, performance optimization, compiler construction">
 
@@ -113,7 +113,7 @@
       ↓
    CPU Execution</code></pre>
                 
-                <p>The JIT compiler directly emits x86-64 machine instructions, which are 
+                <p>The JIT compiler directly emits Linux x86-64 machine instructions, which are 
                 then executed natively by your CPU. No intermediate bytecode, no virtual 
                 machine overhead.</p>
                 
@@ -172,7 +172,7 @@ print("Performance:", int(opsPerSec / 1000000), "M ops/sec")</code></pre>
                 
                 <pre data-lang="nevaarize"><code>// This Nevaarize code:
 // for (i in Range(1, n)) { sum = sum + i }
-// Gets compiled to x86-64 machine code!
+// Gets compiled to Linux x86-64 machine code!
 
 result = jitSumLoop(1, 100000000)
 sum = result[0]
@@ -182,7 +182,7 @@ print("Sum:", sum)
 print("Compiled performance:", int(opsPerSec / 1000000), "M ops/sec")
 print("")
 print("This is REAL JIT!")
-print("Your for-loop was compiled to native x86-64 machine code.")</code></pre>
+print("Your for-loop was compiled to native Linux x86-64 machine code.")</code></pre>
                 
                 <h2>Performance Comparison</h2>
                 
@@ -240,7 +240,7 @@ loop_start:
                 <p>Expected output:</p>
                 
                 <pre><code>=== NATIVE JIT BENCHMARK ===
-True x86-64 machine code execution
+True Linux x86-64 machine code execution
 
 Testing Native Sum Loop with 500000000 iterations...
 
