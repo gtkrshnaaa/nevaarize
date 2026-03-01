@@ -24,15 +24,18 @@ std::string Value::toString() const {
             
         case ValueType::FLOAT: {
             std::ostringstream oss;
-            if (std::abs(floatVal) > 0 && std::abs(floatVal) < 0.1) {
-                oss << std::fixed << std::setprecision(10) << floatVal;
-                std::string s = oss.str();
+            oss << floatVal;
+            std::string s = oss.str();
+            // If it uses scientific notation, or is a very small non-zero value, force fixed-point
+            if (s.find('e') != std::string::npos || s.find('E') != std::string::npos) {
+                std::ostringstream ossFixed;
+                ossFixed << std::fixed << std::setprecision(20) << floatVal;
+                s = ossFixed.str();
+                // Trim trailing zeros
                 s.erase(s.find_last_not_of('0') + 1, std::string::npos);
                 if (s.back() == '.') s.pop_back();
-                return s;
             }
-            oss << floatVal;
-            return oss.str();
+            return s;
         }
             
         case ValueType::STRING:
