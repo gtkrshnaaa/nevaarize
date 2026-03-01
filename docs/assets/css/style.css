@@ -260,6 +260,7 @@ pre::before {
 .layout {
     display: flex;
     min-height: 100vh;
+    width: 100%;
 }
 
 /* Sidebar */
@@ -699,20 +700,34 @@ tr:hover td {
         pointer-events: auto;
     }
     
+    .layout {
+        display: block;
+    }
+    
     .sidebar {
+        display: none;
         transform: translateX(-100%);
         transition: transform var(--transition-base);
         z-index: 150;
     }
     
     .sidebar.open {
+        display: block;
         transform: translateX(0);
         box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
     }
     
     .main {
         margin-left: 0;
-        padding: var(--space-3xl) var(--space-lg) var(--space-xl);
+        width: 100%;
+        min-width: 0;
+        padding: var(--space-3xl) var(--space-md) var(--space-xl);
+        overflow-x: hidden;
+    }
+
+    .content {
+        max-width: 100%;
+        margin: 0;
     }
     
     .hero-title {
@@ -837,16 +852,22 @@ tr:hover td {
     }
     
     .main {
-        padding: var(--space-3xl) var(--space-md) var(--space-md);
+        padding: var(--space-3xl) var(--space-sm) var(--space-md);
     }
     
     .content {
         max-width: 100%;
     }
     
+    .hero {
+        padding: var(--space-2xl) 0;
+        width: 100%;
+    }
+    
     .hero-title {
         font-size: 2rem;
         letter-spacing: -0.02em;
+        word-break: break-word;
     }
     
     .hero-tagline {
@@ -855,6 +876,7 @@ tr:hover td {
     
     .hero-description {
         font-size: 1rem;
+        width: 100%;
     }
     
     h1 {
