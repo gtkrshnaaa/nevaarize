@@ -67,6 +67,7 @@ private:
     // Token production
     Token makeToken(TokenType type) const;
     Token errorToken(const std::string& message);
+    std::string formatError(const std::string& message, int32_t errLine, int32_t errCol, size_t offset) const;
 
     // Scanning helpers
     void skipWhitespace();
