@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/gtkrshnaaa/nevaarize/main/docs/assets/img/logo.svg" alt="NEVAARIZE" width="800">
+  <img src="docs/assets/img/logo_pearl.svg" alt="NEVAARIZE" width="900">
 </p>
 
 <p align="center">
