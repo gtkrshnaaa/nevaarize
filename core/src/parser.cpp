@@ -6,11 +6,13 @@
 
 #include "parser.hpp"
 #include <sstream>
+#include <iomanip>
 
 namespace nevaarize {
 
-Parser::Parser(const std::vector<Token>& toks)
+Parser::Parser(const std::vector<Token>& toks, std::string_view src)
     : tokens(toks)
+    , source(src)
     , current(0) {}
 
 const Token& Parser::peek() const {
@@ -57,15 +59,67 @@ Token Parser::consume(TokenType type, const std::string& message) {
     if (check(type)) return advance();
 
     std::ostringstream oss;
-    oss << "Line " << peek().line << ", Column " << peek().column
-        << ": " << message << " (got '" << peek().lexeme << "')";
-    error(oss.str());
+    oss << message << " (got '" << peek().lexeme << "')";
+    error(peek(), oss.str());
 
     return Token(TokenType::ERROR, "", peek().line, peek().column);
 }
 
-void Parser::error(const std::string& message) {
-    errorMessages.push_back(message);
+std::string Parser::formatError(const Token& tok, const std::string& message) const {
+    std::ostringstream oss;
+    oss << "Error at [Line " << tok.line << ", Col " << tok.column << "]: " << message << "\n";
+
+    if (source.empty() || tok.type == TokenType::ENDOFFILE) {
+        return oss.str();
+    }
+
+    // Calculate offset of the token in the source string
+    size_t offset = tok.lexeme.data() - source.data();
+    if (offset >= source.size()) {
+       return oss.str();
+    }
+
+    // Find the start of the line
+    size_t lineStart = offset;
+    while (lineStart > 0 && source[lineStart - 1] != '\n') {
+        lineStart--;
+    }
+    
+    // Find the end of the line
+    size_t lineEnd = offset;
+    while (lineEnd < source.size() && source[lineEnd] != '\n') {
+        lineEnd++;
+    }
+    
+    std::string_view errorLineView = source.substr(lineStart, lineEnd - lineStart);
+    
+    // Format visual pointer
+    oss << "  |\n";
+    oss << tok.line << " | " << errorLineView << "\n";
+    oss << "  | ";
+    
+    // Calculate pointer position taking into account leading spaces
+    for (size_t i = 0; i < (size_t)(tok.column - 1); i++) {
+        if (i < errorLineView.size() && errorLineView[i] == '\t') {
+            oss << '\t';
+        } else {
+            oss << ' ';
+        }
+    }
+    
+    // Use token length for pointer if possible, otherwise just one ^
+    size_t pointerLen = tok.lexeme.length();
+    if (pointerLen == 0) pointerLen = 1;
+    for (size_t i = 0; i < pointerLen; i++) {
+        oss << "^";
+    }
+    oss << "\n";
+    
+    return oss.str();
+}
+
+void Parser::error(const Token& tok, const std::string& message) {
+    errorMessages.push_back(formatError(tok, message));
 }
 
 void Parser::synchronize() {
@@ -222,7 +276,7 @@ NodeIndex Parser::importStatement() {
         return ast.addNode(std::move(node));
     }
 
-    error("Expected 'stdlib' or file path after 'import'");
+    error(first, "Expected 'stdlib' or file path after 'import'");
     return INVALID_NODE;
 }
 
@@ -408,7 +462,7 @@ NodeIndex Parser::assignmentOrExprStmt() {
             return ast.addNode(std::move(node));
         }
 
-        error("Invalid assignment target");
+        error(ast.get(expr).type == NodeType::IDENTIFIER ? previous() : previous(), "Invalid assignment target");
         return INVALID_NODE;
     }
 
@@ -660,7 +714,7 @@ NodeIndex Parser::primary() {
         return expr;
     }
 
-    error("Expected expression at line " + std::to_string(tok.line));
+    error(tok, "Expected expression");
     return INVALID_NODE;
 }
 
