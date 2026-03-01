@@ -51,7 +51,7 @@ function benchDouble()
 end
 
 function benchString()
-    local limit = 50000
+    local limit = 500000
     local start = os.clock()
     local s = ""
     local i = 0

@@ -56,7 +56,7 @@ void benchDouble() {
 }
 
 void benchString() {
-    long long limit = 50000;
+    long long limit = 500000;
     double start = get_time();
     
     // C strings (malloc/realloc simulation or simple strcat to big buffer?)

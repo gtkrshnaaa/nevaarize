@@ -38,7 +38,7 @@ def bench_double():
     print_result("Double Arith", ops, sec)
 
 def bench_string():
-    limit = 50000
+    limit = 500000
     start = time.time()
     s = ""
     i = 0

@@ -33,7 +33,7 @@ fn bench_double() {
 }
 
 fn bench_string() {
-    let limit: i64 = 50_000;
+    let limit: i64 = 500_000;
     let start = Instant::now();
     let mut s = String::new();
     let mut i: i64 = 0;

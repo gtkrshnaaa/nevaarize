@@ -42,7 +42,7 @@ public class BenchJava {
     }
 
     public static void benchString() {
-        long limit = 50000;
+        long limit = 500000;
         String s = "";
         long start = System.nanoTime();
         long i = 0;

@@ -41,7 +41,7 @@ function benchDouble() {
 }
 
 function benchString() {
-    const limit = 50000;
+    const limit = 500000;
     const start = process.hrtime.bigint();
     let s = "";
     let i = 0;

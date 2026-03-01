@@ -47,7 +47,7 @@ function benchDouble() {
 }
 
 function benchString() {
-    $limit = 50000;
+    $limit = 500000;
     $start = microtime(true);
     $s = "";
     $i = 0;

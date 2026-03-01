@@ -36,7 +36,7 @@ fn benchDouble() !void {
 }
 
 fn benchString() !void {
-    const limit: i64 = 50_000;
+    const limit: i64 = 500_000;
     const allocator = std.heap.page_allocator;
     var timer = try std.time.Timer.start();
     

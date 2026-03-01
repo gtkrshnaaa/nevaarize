@@ -46,7 +46,7 @@ func benchDouble() {
 }
 
 func benchString() {
-	limit := 50000
+	limit := 500000
 	s := ""
 	start := time.Now()
 	i := 0

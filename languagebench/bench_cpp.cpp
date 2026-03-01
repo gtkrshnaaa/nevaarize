@@ -59,7 +59,7 @@ void benchDouble() {
 }
 
 void benchString() {
-    long long limit = 50000;
+    long long limit = 500000;
     string s = "";
     auto start = high_resolution_clock::now();
     
