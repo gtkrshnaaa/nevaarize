@@ -42,6 +42,9 @@ enum class TokenType : uint8_t {
     IMPORT,
     AS,
     STDLIB,
+    TRY,
+    CATCH,
+    THROW,
 
     // Operators
     PLUS,
@@ -150,6 +153,9 @@ inline constexpr const char* tokenTypeToString(TokenType type) {
         case TokenType::IMPORT: return "IMPORT";
         case TokenType::AS: return "AS";
         case TokenType::STDLIB: return "STDLIB";
+        case TokenType::TRY: return "TRY";
+        case TokenType::CATCH: return "CATCH";
+        case TokenType::THROW: return "THROW";
         case TokenType::PLUS: return "PLUS";
         case TokenType::MINUS: return "MINUS";
         case TokenType::STAR: return "STAR";

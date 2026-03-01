@@ -81,6 +81,8 @@ private:
     NodeIndex forStatement();
     NodeIndex whileStatement();
     NodeIndex returnStatement();
+    NodeIndex tryStatement();
+    NodeIndex throwStatement();
     NodeIndex block();
     NodeIndex expressionStatement();
     NodeIndex assignmentOrExprStmt();

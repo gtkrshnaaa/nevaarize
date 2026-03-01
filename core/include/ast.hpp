@@ -54,6 +54,9 @@ enum class NodeType : uint8_t {
     FOR_STMT,
     WHILE_STMT,
     RETURN_STMT,
+    TRY_STMT,
+    CATCH_STMT,
+    THROW_STMT,
 
     // Declarations
     FUNC_DECL,
@@ -220,6 +223,9 @@ inline constexpr const char* nodeTypeToString(NodeType type) {
         case NodeType::FOR_STMT: return "FOR_STMT";
         case NodeType::WHILE_STMT: return "WHILE_STMT";
         case NodeType::RETURN_STMT: return "RETURN_STMT";
+        case NodeType::TRY_STMT: return "TRY_STMT";
+        case NodeType::CATCH_STMT: return "CATCH_STMT";
+        case NodeType::THROW_STMT: return "THROW_STMT";
         case NodeType::FUNC_DECL: return "FUNC_DECL";
         case NodeType::ASYNC_FUNC_DECL: return "ASYNC_FUNC_DECL";
         case NodeType::STRUCT_DECL: return "STRUCT_DECL";

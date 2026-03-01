@@ -285,6 +285,8 @@ NodeIndex Parser::statement() {
     if (match(TokenType::FOR)) return forStatement();
     if (match(TokenType::WHILE)) return whileStatement();
     if (match(TokenType::RETURN)) return returnStatement();
+    if (match(TokenType::TRY)) return tryStatement();
+    if (match(TokenType::THROW)) return throwStatement();
     if (match(TokenType::LBRACE)) return block();
 
     return assignmentOrExprStmt();
@@ -382,6 +384,46 @@ NodeIndex Parser::whileStatement() {
     node.left = condition;
     node.right = body;
 
+    return ast.addNode(std::move(node));
+}
+
+NodeIndex Parser::tryStatement() {
+    Token tryToken = previous();
+    
+    skipNewlines();
+    consume(TokenType::LBRACE, "Expected '{' after 'try'");
+    NodeIndex tryBlock = block();
+    
+    skipNewlines();
+    consume(TokenType::CATCH, "Expected 'catch' after 'try' block");
+    
+    std::string errVarName = "";
+    if (match(TokenType::LPAREN)) {
+        Token errToken = consume(TokenType::IDENTIFIER, "Expected error variable name after '('");
+        errVarName = std::string(errToken.lexeme);
+        consume(TokenType::RPAREN, "Expected ')' after catch variable");
+    }
+    
+    skipNewlines();
+    consume(TokenType::LBRACE, "Expected '{' before 'catch' block");
+    NodeIndex catchBlock = block();
+    
+    ASTNode node(NodeType::TRY_STMT, tryToken.line, tryToken.column);
+    node.left = tryBlock;
+    node.right = catchBlock;
+    if (!errVarName.empty()) {
+        node.name = errVarName;
+    }
+    
+    return ast.addNode(std::move(node));
+}
+
+NodeIndex Parser::throwStatement() {
+    Token throwToken = previous();
+    
+    ASTNode node(NodeType::THROW_STMT, throwToken.line, throwToken.column);
+    node.left = expression();
+    
     return ast.addNode(std::move(node));
 }
 
