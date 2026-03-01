@@ -836,7 +836,7 @@ tr:hover td {
 /* Mobile (640px and below) */
 @media (max-width: 640px) {
     html {
-        font-size: 15px;
+        font-size: 14px;
     }
     
     .menu-toggle {
@@ -852,7 +852,7 @@ tr:hover td {
     }
     
     .main {
-        padding: var(--space-3xl) var(--space-sm) var(--space-md);
+        padding: var(--space-3xl) 6% var(--space-md);
     }
     
     .content {
@@ -865,7 +865,7 @@ tr:hover td {
     }
     
     .hero-title {
-        font-size: 2rem;
+        font-size: 1.85rem;
         letter-spacing: -0.02em;
         word-break: break-word;
     }
@@ -880,19 +880,19 @@ tr:hover td {
     }
     
     h1 {
-        font-size: 1.5rem;
-    }
-    
-    h2 {
         font-size: 1.35rem;
     }
     
+    h2 {
+        font-size: 1.25rem;
+    }
+    
     h3 {
-        font-size: 1.1rem;
+        font-size: 1.05rem;
     }
     
     .chapter-title {
-        font-size: 1.75rem;
+        font-size: 1.6rem;
     }
     
     .chapter-number {
@@ -928,8 +928,8 @@ tr:hover td {
     
     .callout {
         padding: var(--space-md);
-        margin-left: calc(-1 * var(--space-sm));
-        margin-right: calc(-1 * var(--space-sm));
+        margin-left: 0;
+        margin-right: 0;
     }
     
     /* Table horizontal scroll handled by .table-wrapper */
@@ -961,12 +961,16 @@ tr:hover td {
 
 /* Extra Small Devices (480px and below) */
 @media (max-width: 480px) {
+    html {
+        font-size: 13px;
+    }
+    
     .hero-title {
-        font-size: 2.2rem;
+        font-size: 1.65rem;
     }
     
     .main {
-        padding: var(--space-2xl) var(--space-md) var(--space-md);
+        padding: var(--space-2xl) 8% var(--space-md);
     }
     
     pre {
