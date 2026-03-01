@@ -3519,7 +3519,7 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             Lexer lexer(source);
             auto tokens = lexer.tokenize();
             
-            Parser parser(tokens);
+            Parser parser(tokens, source);
             parser.parse();
             AST importedAST = std::move(parser.getAST());  // Move ownership
             
