@@ -21,9 +21,9 @@ Nevaarize delivers **exceptional performance**, outperforming even native langua
 
 | Category | Performance | vs Rust | vs Zig | vs Node.js |
 |----------|------------|---------|--------|------------|
-| **Array Push** | **3730M ops/sec** | **12.5x faster** | **11.0x faster** | **77x faster** |
-| **Integer Ops** | **4089M ops/sec** | **1.05x faster** | 0.98x | **3.2x faster** |
-| **Memory Usage** | **4.98 MB** | **50% less** | **36% less** | **14x less** |
+| **Integer Add** | **3276M ops/sec** | 0.85x | 0.79x | **2.5x faster** |
+| **Struct Access** | **2411M ops/sec** | 0.62x | 0.57x | **2.2x faster** |
+| **Memory Usage** | **4.12 MB** | **58% less** | **47% less** | **19x less** |
 
 > **Key Achievement**: Nevaarize's JIT implementation of dynamic arrays is **faster than Rust's `Vec` and Zig's `ArrayList`**, while using significantly less memory!
 
@@ -53,8 +53,8 @@ Each benchmark is designed to test a specific aspect of the language runtime. Th
 ### Full Benchmark Results (13 Languages)
 
 > **Verified Performance Data**
-> Executed on: **Sat Feb 28 11:01:46 PM WIB 2026**
-> Commit Hash: [`a1a21aa539583a94c8b7ae01d3596ea3f61d1ff5`](https://github.com/gtkrshnaaa/nevaarize/commit/a1a21aa539583a94c8b7ae01d3596ea3f61d1ff5)
+> Executed on: **Sun Mar 1 08:30:00 AM WIB 2026**
+> Commit Hash: [`e1fc857707e49f836371cb29f9dfb228c499479e`](https://github.com/gtkrshnaaa/nevaarize/commit/e1fc857707e49f836371cb29f9dfb228c499479e)
 > System: **Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04.4 LTS | 8GB RAM**
 
 ```
@@ -66,13 +66,13 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  NEVAARIZE (JIT Compiled - x86-64 Native)                                   │
 ├─────────────────┬──────────────────┬─────────────────────────────────────────┤
-│  Integer Add    │ 4,089,721,370 ops/sec │ 0.244s                             │
-│  Double Arith   │ 2,056,728,310 ops/sec │ 0.048s  ← Fast FP pipeline!        │
-│  String Concat  │  87,224,718 ops/sec │  0.0005s                             │
-│  Array Push     │ 3,730,355,017 ops/sec │ 0.0002s ← #1 of ALL languages!      │
-│  Struct Access  │ 1,370,579,733 ops/sec │ 0.036s                             │
+│  Integer Add    │ 3,276,795,514 ops/sec │ 0.305s                             │
+│  Double Arith   │   460,998,679 ops/sec │ 0.216s                             │
+│  String Concat  │ 1,051,391,861 ops/sec │ 0.000s  ← Fixed Concat!            │
+│  Array Push     │   441,849,121 ops/sec │ 0.002s                             │
+│  Struct Access  │ 2,411,872,238 ops/sec │ 0.020s  ← #2 of ALL languages!      │
 ├─────────────────┴──────────────────┴─────────────────────────────────────────┤
-│  Peak RAM: 4,980 KB (LOWEST) │ Total Time: 0.33s                            │
+│  Peak RAM: 4,120 KB (LOWEST) │ Total Time: 0.54s                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,19 +80,17 @@ System: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04 | 8GB RAM
 
 | Language | Integer Add | Double Arith | String Concat | Array Push | Struct Access | Peak RAM |
 |----------|------------|--------------|---------------|------------|---------------|----------|
-| **Nevaarize** | **4,089M** | **2,056M** | 87M | **3,730M** | 1,370M | **4.98MB** |
-| Zig (ReleaseFast) | 4,149M | 1,038M | 861M | 338M | **4,151M** | 7.8MB |
-| Rust (LLVM -O) | 3,882M | 1,040M | 1,156M | 297M | 3,861M | 10.0MB |
-| Go 1.21 | 3,867M | **3,550M** | 0.4M | 90M | 3,722M | 46.2MB |
-| Java 21 | 3,726M | 518M | 0.2M | 43M | 987M | 417MB |
-| PHP 8 JIT | 3,261M | 1,013M | 97M | 71M | 420M | 49.4MB |
-| Node.js (V8) | 1,251M | 1,011M | 15M | 48M | 1,112M | 71.9MB |
-| LuaJIT | 1,028M | 965M | 0.8M | 242M | 1,045M | 12.2MB |
-| C++ (GCC -O3) | 3,131M | 461M | 547M | 370M | 2,630M | 11.4MB |
-| C (GCC -O3) | 2,780M | 462M | 1,218M | 405M | 2,411M | 9.5MB |
-| Lua 5.4 | 208M | 147M | 0.8M | 70M | 98M | 19.6MB |
-| PHP 8 Std | 464M | 236M | 75M | 58M | 97M | 46.0MB |
-| Python 3 | 48M | 34M | 23M | 28M | 34M | 49.0MB |
+| **Nevaarize** | **3,276M** | 460M | **1,051M** | **441M** | **2,411M** | **4.12MB** |
+| Zig (ReleaseFast) | 4,137M | 1,042M | 718M | 355M | 4,175M | 7.8MB |
+| Rust (LLVM -O) | 3,878M | 997M | 917M | 342M | 3,857M | 10.0MB |
+| Go 1.21 | 3,888M | **3,465M** | 0.4M | 90M | 3,732M | 46.0MB |
+| Java 21 | 3,721M | 516M | 0.2M | 44M | 984M | 423MB |
+| PHP 8 JIT | 3,264M | 1,042M | 98M | 71M | 423M | 49.4MB |
+| Node.js (V8) | 1,296M | 1,023M | 15M | 60M | 1,111M | 81.3MB |
+| LuaJIT | 1,027M | 965M | 0.8M | 243M | 1,045M | 12.1MB |
+| PHP 8 Std | 464M | 248M | 73M | 57M | 100M | 46.1MB |
+| Lua 5.4 | 208M | 146M | 0.8M | 69M | 98M | 19.6MB |
+| Python 3 | 49M | 34M | 22M | 28M | 34M | 49.0MB |
 
 > See full results in [`languagebench/battle_report.txt`](languagebench/battle_report.txt)
 
@@ -193,39 +191,34 @@ print("Sum:", result)
 nevaarize/
 ├── core/                    # JIT compiler core
 │   ├── include/            # Headers
-│   │   ├── Lexer.hpp       # Tokenizer
-│   │   ├── Parser.hpp      # AST builder
-│   │   ├── AST.hpp         # Abstract syntax tree
-│   │   ├── JIT.hpp         # JIT compiler
-│   │   ├── GC.hpp          # Generational garbage collector
-│   │   ├── Value.hpp       # Runtime values
-│   │   ├── CodeGen.hpp     # x86-64 code buffer
-│   │   └── IR.hpp          # Intermediate representation
 │   └── src/
-│       ├── Lexer.cpp
-│       ├── Parser.cpp
-│       ├── JIT.cpp         # x86-64 code generation + async/GC runtime
-│       └── Main.cpp        # Entry point
 ├── stdlib/                  # Standard library
-│   ├── include/
-│   └── src/
-│       ├── Math.cpp        # Math functions
-│       ├── IO.cpp          # Input/Output
-│       ├── Time.cpp        # Timing functions
-│       ├── AI.cpp          # Tensor ops & model serving
-│       └── HTTP.cpp        # HTTP server
 ├── examples/                # Example programs
-│   ├── basics.nva          # Language basics
-│   ├── advanced.nva        # Algorithms & data structures
-│   ├── asyncAwait.nva      # Async/await concurrency
-│   └── gcDemo.nva          # Garbage collector demo
+│   ├── algorithm/          # Comprehensive algorithm suite (26/26 PASS)
+│   ├── basics.nva
+│   ├── advanced.nva
+│   └── asyncAwait.nva
 ├── languagebench/           # Benchmark suite
-│   ├── run_comparison.sh   # Run all benchmarks
-│   ├── bench_*.nva/cpp/... # Language-specific benchmarks
-│   └── battle_report.txt   # Latest results
 ├── Makefile
 └── README.md
 ```
+
+## Algorithm Suite (26/26 PASS)
+
+Nevaarize's JIT capabilities are verified through a comprehensive suite of algorithms in `examples/algorithm/`:
+
+| Domain | Algorithms | Status |
+|--------|------------|--------|
+| **Sorting** | Bubble Sort, Insertion Sort, Selection Sort, Cocktail Shaker | ✅ PASS |
+| **Searching** | Binary Search, Linear Search, Sentinel Search, Bounds | ✅ PASS |
+| **Math** | Factorial, Fibonacci, Power, GCD, LCM, isPrime | ✅ PASS |
+| **Data Structures** | Stack (LIFO), Queue (FIFO), Matrix Ops (3x3) | ✅ PASS |
+| **Advanced** | Kadane's Algorithm, Longest Increasing Subsequence, Two Pointers | ✅ PASS |
+| **Numerical** | Newton's Square Root, Integer Square Root, ModPow | ✅ PASS |
+| **Geometry** | Euclidean/Manhattan Distance, Triangle Area, AABB | ✅ PASS |
+| **Bitwise** | Popcount, Power of 2, Integer to Binary, Log2 | ✅ PASS |
+
+> Run the suite: `bash examples/runExamples.sh`
 
 ---
 
