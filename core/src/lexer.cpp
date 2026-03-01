@@ -21,7 +21,7 @@ struct KeywordEntry {
     TokenType type;
 };
 
-constexpr std::array<KeywordEntry, 18> keywords = {{
+constexpr std::array<KeywordEntry, 21> keywords = {{
     {"func", TokenType::FUNC},
     {"async", TokenType::ASYNC},
     {"await", TokenType::AWAIT},
@@ -36,10 +36,12 @@ constexpr std::array<KeywordEntry, 18> keywords = {{
     {"import", TokenType::IMPORT},
     {"as", TokenType::AS},
     {"stdlib", TokenType::STDLIB},
-    {"true", TokenType::TRUE},
     {"false", TokenType::FALSE},
     {"and", TokenType::AND},
-    {"or", TokenType::OR}
+    {"or", TokenType::OR},
+    {"try", TokenType::TRY},
+    {"catch", TokenType::CATCH},
+    {"throw", TokenType::THROW}
 }};
 
 } // anonymous namespace
