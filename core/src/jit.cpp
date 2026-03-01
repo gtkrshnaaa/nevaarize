@@ -3546,6 +3546,14 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             compileAssignment(ast, idx);
             break;
             
+        case NodeType::TRY_STMT:
+            compileTryCatch(ast, idx);
+            break;
+            
+        case NodeType::THROW_STMT:
+            compileThrow(ast, idx);
+            break;
+            
         case NodeType::INDEX_ASSIGN: {
             // map/array[idx] = value
             CodeBuffer& buf = codegen.getCode();
