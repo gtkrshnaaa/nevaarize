@@ -17,6 +17,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <iostream>
 
 // Helper for JIT to call for float printing (with newline)
 extern "C" void jit_print_double(double val) {
