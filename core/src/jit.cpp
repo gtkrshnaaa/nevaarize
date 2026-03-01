@@ -116,19 +116,41 @@ extern "C" int64_t jit_array_get(void* dataPtr, int64_t index) {
     return 0;
 }
 
-extern "C" char* jit_alloc_string(const char* s) {
+// Structure to track heap-allocated strings in JIT
+struct JITString {
+    uint32_t magic;    // 0xNEVA
+    uint32_t padding;  // Alignment to maintain 8-byte boundaries
+    int64_t capacity;
+    int64_t length;
+    char data[1]; // Null-terminated string data
+};
+
+const uint32_t JIT_STRING_MAGIC = 0x4E455641; // "NEVA"
+
+extern "C" void* jit_alloc_string(const char* s) {
     if (!s) return nullptr;
-    size_t len = strlen(s) + 1;
+    size_t len = strlen(s);
+    
+    // Calculate required capacity including null terminator
+    // Use exact capacity to mark this as an IMMUTABLE compile-time literal
+    int64_t capacity = len; 
+    size_t totalBytes = sizeof(JITString) + capacity;
     
     // Attempt GC-managed allocation
-    void* mem = jitGC.allocate(len);
-    if (mem) {
-        memcpy(mem, s, len);
-        return static_cast<char*>(mem);
-    }
+    void* mem = jitGC.allocate(totalBytes);
+    if (!mem) mem = malloc(totalBytes);
+    if (!mem) return nullptr;
     
-    // Fallback to direct heap allocation
-    return strdup(s);
+    JITString* str = static_cast<JITString*>(mem);
+    str->magic = JIT_STRING_MAGIC;
+    str->padding = 0;
+    str->capacity = capacity;
+    str->length = len;
+    
+    memcpy(str->data, s, len);
+    str->data[len] = '\0';
+    
+    return static_cast<void*>(str->data);
 }
 
 extern "C" void jit_gc_collect() {
@@ -137,14 +159,53 @@ extern "C" void jit_gc_collect() {
 
 extern "C" char* jit_string_concat(char* s1, char* s2) {
     if (!s1 || !s2) return nullptr;
-    size_t l1 = strlen(s1);
-    size_t l2 = strlen(s2);
-    char* res = (char*)malloc(l1 + l2 + 1);
-    if (!res) return nullptr;
-    memcpy(res, s1, l1);
-    memcpy(res + l1, s2, l2);
-    res[l1 + l2] = '\0';
-    return res;
+    
+    JITString* str1 = reinterpret_cast<JITString*>(s1 - offsetof(JITString, data));
+    JITString* str2 = reinterpret_cast<JITString*>(s2 - offsetof(JITString, data));
+
+    static int print_count = 0;
+    if (print_count < 10) {
+        printf("FALLBACK: str1[cap=%ld,len=%zu], str2[len=%zu,'%c']\n", 
+               str1->capacity, str1->length, str2->length, str2->length > 0 ? str2->data[0] : ' ');
+        print_count++;
+    }
+
+    // Assume all strings in JIT are JITStrings for max performance
+    size_t l1 = str1->length;
+    size_t l2 = str2->length;
+    size_t newLength = l1 + l2;
+    
+    // Fast path: In-place append ONLY if capacity allows AND it's a mutable runtime string
+    // Compile-time literals have capacity == length, preventing mutation.
+    if (str1->capacity > (int64_t)str1->length && str1->capacity >= (int64_t)newLength) {
+        memcpy(str1->data + l1, s2, l2);
+        str1->length = newLength;
+        str1->data[newLength] = '\0';
+        return str1->data;
+    }
+    
+    // Slow path: Reallocate or Allocate fresh
+    int64_t newCapacity = str1->capacity * 2;
+    if (newCapacity < (int64_t)newLength) {
+        newCapacity = newLength + 127; // Use 127 for fast growth 
+    }
+    
+    // Cannot `realloc` GC memory easily. Must allocate fresh buffer.
+    size_t totalBytes = sizeof(JITString) + newCapacity;
+    void* mem = jitGC.allocate(totalBytes);
+    if (!mem) mem = malloc(totalBytes);
+    if (!mem) return nullptr;
+    
+    JITString* res = static_cast<JITString*>(mem);
+    res->magic = JIT_STRING_MAGIC;
+    res->padding = 0;
+    res->capacity = newCapacity;
+    res->length = newLength;
+    
+    memcpy(res->data, str1->data, l1);
+    memcpy(res->data + l1, s2, l2);
+    res->data[newLength] = '\0';
+    return res->data;
 }
 
 /**
@@ -531,28 +592,14 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             const std::string& strVal = std::get<std::string>(node.literal.data);
             
-            // Call jit_alloc_string(const char*)
-            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
-            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
-            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+            // OPTIMIZATION: Emit the string pointer directly, creating it at JIT compile time!
+            // No need to call `jit_alloc_string` dynamically in the execution loop!
+            void* preAllocatedStr = jit_alloc_string(strVal.c_str());
             
-            // rdi = strVal.c_str() (But this is at compile-time. We should pass the actual pointer)
-            buf.emit8(0x48); buf.emit8(0xBF);
-            buf.emit64(reinterpret_cast<uint64_t>(strVal.c_str()));
-            
-            // rax = jit_alloc_string
-            buf.emit8(0x48); buf.emit8(0xB8);
-            buf.emit64(reinterpret_cast<uint64_t>(jit_alloc_string));
-            buf.emit8(0xFF); buf.emit8(0xD0);
-            
-            // Move result to result.valueReg
             bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
             buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-            buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
-            
-            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
-            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
-            buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+            buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
+            buf.emit64(reinterpret_cast<uint64_t>(preAllocatedStr));
             
             // Type 4 (String)
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
@@ -759,9 +806,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             bool lTypeHigh = static_cast<uint8_t>(left.typeReg) >= 8;
             
             if (!staticIntPath && !staticFloatPath) {
-                // Check types: Is either a float? (tag != 0)
-                // We need a scratch reg for the OR operation to not destroy left.typeReg
-                // But wait, we can just use a scratch register.
+                
                 X64Reg typeScratch = allocateReg();
                 bool tempHigh = static_cast<uint8_t>(typeScratch) >= 8;
                 
@@ -834,23 +879,100 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         size_t jneOffset = buf.getOffset();
                         buf.emit8(0x00); // 1-byte placeholder
                         
-                        // === STRING CONCAT === (Code omitted for brevity, assuming standard path)
-                         // Call jit_string_concat(result.valueReg, right.valueReg)
+                        // === STRING INLINE IN-PLACE APPEND FAST PATH ===
+                        // To achieve 1B+ ops/sec we must inline the capacity check.
+                        // rdi = s1 (result.valueReg). rsi = s2 (right.valueReg or immVal)
+                        // s1 Metadata is at rdi - 24. capacity: [rdi - 16]. length: [rdi - 8]
+                        // s2 Metadata is at rsi - 24. length: [rsi - 8]
+                        
+                        bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                        bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                        
+                        size_t fallbackJumpOffset1 = 0;
+                        size_t fallbackJumpOffset2 = 0;
+                        size_t endFastPathJumpOffset = 0;
+                        
+                        if (!rightIsImm) {
+                            // 1. Load s2 length: mov r9, [s2 - 8]
+                            buf.emit8(0x4C | (rHigh ? 0x01 : 0));
+                            buf.emit8(0x8B); buf.emit8(0x48 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // r9 is 001 (offset 1)
+                            buf.emit8(0xF8); // -8
+                            
+                            // 2. Check if s2 length == 1. cmp r9, 1
+                            buf.emit8(0x49); buf.emit8(0x83); buf.emit8(0xF9); buf.emit8(0x01);
+                            
+                            // 3. jne fallback (if length != 1)
+                            buf.emit8(0x75); // jne
+                            fallbackJumpOffset1 = buf.getOffset();
+                            buf.emit8(0x00);
+                            
+                            // 4. Load s1 capacity: mov r10, [s1 - 16]
+                            buf.emit8(0x4C | (resHigh ? 0x01 : 0));
+                            buf.emit8(0x8B); buf.emit8(0x50 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // r10 is 010 (offset 2)
+                            buf.emit8(0xF0); // -16
+                            
+                            // 5. Load s1 length: mov r11, [s1 - 8]
+                            buf.emit8(0x4C | (resHigh ? 0x01 : 0));
+                            buf.emit8(0x8B); buf.emit8(0x58 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // r11 is 011 (offset 3)
+                            buf.emit8(0xF8); // -8
+                            
+                            // 6. Check if capacity allows new length + null terminator
+                            // cmp r10, r11
+                            buf.emit8(0x4D); buf.emit8(0x39); buf.emit8(0xDA); // cmp r10, r11
+                            
+                            // 7. jle fallback (if capacity <= length)
+                            buf.emit8(0x7E); // jle
+                            fallbackJumpOffset2 = buf.getOffset();
+                            buf.emit8(0x00);
+                            
+                            // 7b. Check again for l1 + l2 edge case.
+                            // If capacity == length + 1, we can append 1 byte, but no room for \0?
+                            // capacity includes room for \0? In jit_alloc_string: capacity = len > 31 ? len : 31; totalBytes = sizeof(JITString) + capacity.
+                            // Since sizeof(JITString) includes data[1], total capacity is actually capacity + 1. So capacity exactly holds length + 1 bytes.
+                            // But jit_string_concat does: newLength = l1 + 1. str1->capacity >= newLength.
+                            // So if r10 > r11, r10 >= r11 + 1!
+                            
+                            // 8. We have capacity and l2 is 1! Read the char from s2: mov r8b, byte ptr [s2]
+                            buf.emit8(0x44 | (rHigh ? 0x01 : 0));
+                            buf.emit8(0x8A); buf.emit8(0x00 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // r8b is 000
+                            
+                            // 9. Append byte: mov byte ptr [s1 + r11], r8b
+                            buf.emit8(0x46 | (resHigh ? 0x01 : 0)); // REX prefix for base + index + r8 src
+                            buf.emit8(0x88); // mov byte ptr, r8b
+                            buf.emit8(0x04 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // SIB byte follows
+                            buf.emit8(0x18 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // index=r11 (3<<3), base=s1
+                            
+                            // 10. Increment length: inc qword ptr [s1 - 8]
+                            buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                            buf.emit8(0xFF); buf.emit8(0x40 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                            buf.emit8(0xF8); // -8
+                            
+                            // 12. jmp end
+                            buf.emit8(0xEB);
+                            endFastPathJumpOffset = buf.getOffset();
+                            buf.emit8(0x00);
+                            
+                            // === FALLBACK TARGET ===
+                            size_t fallbackTarget = buf.getOffset();
+                            buf.patch8(fallbackJumpOffset1, static_cast<uint8_t>(fallbackTarget - (fallbackJumpOffset1 + 1)));
+                            buf.patch8(fallbackJumpOffset2, static_cast<uint8_t>(fallbackTarget - (fallbackJumpOffset2 + 1)));
+                        }
+
+                        // Call jit_string_concat(result.valueReg, right.valueReg) as fallback
                         buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
                         buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
                         buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
                         
-                        bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                         buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                        buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                        buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // rdi = s1
                         
                         if (rightIsImm) {
                             buf.emit8(0x48); buf.emit8(0xBE);
-                            buf.emit64(static_cast<uint64_t>(immVal)); 
+                            buf.emit64(static_cast<uint64_t>(immVal)); // rsi = immVal
                         } else {
                             bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
                             buf.emit8(0x48 | (rHigh ? 0x01 : 0));
-                            buf.emit8(0x89); buf.emit8(0xD6 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3));
+                            buf.emit8(0x89); buf.emit8(0xD6 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3)); // rsi = s2
                         }
                         
                         buf.emit8(0x48); buf.emit8(0xB8);
@@ -867,6 +989,12 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         buf.emit8(0xEB);
                         size_t jmpOffset = buf.getOffset();
                         buf.emit8(0x00);
+                        
+                        // === END FAST PATH TARGET ===
+                        if (!rightIsImm) {
+                            size_t endFastTarget = buf.getOffset();
+                            buf.patch8(endFastPathJumpOffset, static_cast<uint8_t>(endFastTarget - (endFastPathJumpOffset + 1)));
+                        }
                         
                         // === INT ADD ===
                         size_t intAddPos = buf.getOffset();
@@ -1331,10 +1459,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 // Patch jmp end
                 size_t endPos = buf.getOffset();
                 int32_t jmpOffset = static_cast<int32_t>(endPos - (jmpPatch + 1)); // 1-byte jmp uses patch8 not patch32 in my manual emit above?
-                // Wait, I emitted EB 00 (2 bytes). Patch8 used.
-                // 0xEB is short jump. 
-                // Ah, above I used buf.emit8(0xEB); size_t jmpPatch = buf.getOffset(); buf.emit8(0x00);
-                // So patch8(jmpPatch, ...)
+               
                 buf.patch8(jmpPatch, static_cast<uint8_t>(jmpOffset));
             } // end if (!staticIntPath && !staticFloatPath)
             
@@ -1390,9 +1515,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
                         buf.emit8(0x48 | (rHigh ? 0x01 : 0));
                         buf.emit8(0x89); buf.emit8(0xD6 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3));
-                        // Wait, RSI=0x89 C7|... for RDI? No, RSI is C6. RDI is C7.
-                        // My previous emit8(0xC7 | ...) was for RDI. Correct.
-                        // For RSI: 0x89 C6 | ... 
                     }
                     
                     // rax = jit_string_concat
@@ -1696,9 +1818,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 }
                 default: break;
             }
-            
-            // Set Result Type to INT (which it already should be if result.typeReg was used as temp and result was 0)
-            // Wait, we modified result.typeReg with OR. If we are here, it is 0! No need to reset.
             
             // jmp end
             buf.emit8(0xE9);
