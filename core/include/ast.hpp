@@ -40,6 +40,7 @@ enum class NodeType : uint8_t {
     MEMBER_ACCESS,
     INDEX_ACCESS,
     ARRAY_LITERAL,
+    MAP_LITERAL,
     STRUCT_INIT,
     AWAIT_EXPR,
 
@@ -207,6 +208,7 @@ inline constexpr const char* nodeTypeToString(NodeType type) {
         case NodeType::MEMBER_ACCESS: return "MEMBER_ACCESS";
         case NodeType::INDEX_ACCESS: return "INDEX_ACCESS";
         case NodeType::ARRAY_LITERAL: return "ARRAY_LITERAL";
+        case NodeType::MAP_LITERAL: return "MAP_LITERAL";
         case NodeType::STRUCT_INIT: return "STRUCT_INIT";
         case NodeType::AWAIT_EXPR: return "AWAIT_EXPR";
         case NodeType::EXPR_STMT: return "EXPR_STMT";
