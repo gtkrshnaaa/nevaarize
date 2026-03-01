@@ -51,6 +51,24 @@ public:
         return ptr;
     }
 
+    /**
+     * Attempts to expand the most recently allocated block in place.
+     * Returns true if successful, false otherwise.
+     */
+    bool expand(void* ptr, size_t oldSize, size_t newSize, size_t alignment = 8) {
+        size_t oldAlignedSearch = ((used - oldSize) + alignment - 1) & ~(alignment - 1);
+        if (data + oldAlignedSearch == ptr) {
+            // It is the last allocation!
+            // Calculate new used total
+            size_t newUsed = oldAlignedSearch + newSize;
+            if (newUsed <= capacity) {
+                used = newUsed;
+                return true;
+            }
+        }
+        return false;
+    }
+
     void reset() {
         used = 0;
     }
@@ -116,6 +134,26 @@ public:
 
         totalAllocated += size;
         return static_cast<uint8_t*>(ptr) + sizeof(GCHeader);
+    }
+
+    /**
+     * Expand an existing allocation.
+     * Returns true if expanded in-place, false if reallocation is needed.
+     */
+    bool expand(void* ptr, size_t newSize) {
+        if (!ptr) return false;
+        
+        GCHeader* header = reinterpret_cast<GCHeader*>(static_cast<uint8_t*>(ptr) - sizeof(GCHeader));
+        size_t oldTotal = sizeof(GCHeader) + header->size;
+        size_t newTotal = sizeof(GCHeader) + newSize;
+        
+        if (youngGen.expand(header, oldTotal, newTotal)) {
+            totalAllocated += (newSize - header->size);
+            header->size = static_cast<uint32_t>(newSize);
+            return true;
+        }
+        // Cannot expand oldGen blocks trivially via bump pointer
+        return false;
     }
 
     /**

@@ -163,13 +163,6 @@ extern "C" char* jit_string_concat(char* s1, char* s2) {
     JITString* str1 = reinterpret_cast<JITString*>(s1 - offsetof(JITString, data));
     JITString* str2 = reinterpret_cast<JITString*>(s2 - offsetof(JITString, data));
 
-    static int print_count = 0;
-    if (print_count < 10) {
-        printf("FALLBACK: str1[cap=%ld,len=%zu], str2[len=%zu,'%c']\n", 
-               str1->capacity, str1->length, str2->length, str2->length > 0 ? str2->data[0] : ' ');
-        print_count++;
-    }
-
     // Assume all strings in JIT are JITStrings for max performance
     size_t l1 = str1->length;
     size_t l2 = str2->length;
@@ -184,14 +177,24 @@ extern "C" char* jit_string_concat(char* s1, char* s2) {
         return str1->data;
     }
     
-    // Slow path: Reallocate or Allocate fresh
+    // Growth path
     int64_t newCapacity = str1->capacity * 2;
     if (newCapacity < (int64_t)newLength) {
         newCapacity = newLength + 127; // Use 127 for fast growth 
     }
     
-    // Cannot `realloc` GC memory easily. Must allocate fresh buffer.
+    // ZERO-COPY PATH: Attempt to expand block directly in the Bump Allocator
+    // We can rely entirely on GC checking if it's the tip of the allocator.
     size_t totalBytes = sizeof(JITString) + newCapacity;
+    if (jitGC.expand(str1, totalBytes)) {
+        str1->capacity = newCapacity;
+        memcpy(str1->data + l1, s2, l2);
+        str1->length = newLength;
+        str1->data[newLength] = '\0';
+        return str1->data;
+    }
+    
+    // Slow path: Allocate fresh buffer and copy
     void* mem = jitGC.allocate(totalBytes);
     if (!mem) mem = malloc(totalBytes);
     if (!mem) return nullptr;
@@ -660,11 +663,13 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(it->second.reg) & 0x7) << 3) | 
                               (static_cast<uint8_t>(result.valueReg) & 0x7));
                     
-                    // Pinned variables are currently always integers (Type 0)
+                    // Fetch true dynamic type from memory
+                    int32_t offset = it->second.stackOffset;
                     bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(0);
+                    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                    buf.emit8(0x8B);
+                    buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(offset + 8));
                 } else {
                     int32_t offset = it->second.stackOffset;
                     
@@ -939,7 +944,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                             // 9. Append byte: mov byte ptr [s1 + r11], r8b
                             buf.emit8(0x46 | (resHigh ? 0x01 : 0)); // REX prefix for base + index + r8 src
                             buf.emit8(0x88); // mov byte ptr, r8b
-                            buf.emit8(0x04 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // SIB byte follows
+                            buf.emit8(0x04); // SIB byte follows (ModR/M=0x04 for [SIB])
                             buf.emit8(0x18 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // index=r11 (3<<3), base=s1
                             
                             // 10. Increment length: inc qword ptr [s1 - 8]
@@ -2799,6 +2804,8 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
+    std::vector<size_t> jumpsToEndOfAssignment;
+    
     // Peephole Optimization: Direct Arithmetic for Accumulators (Registers & Stack)
     bool peepholeOptimized = false;
     if (node.left != INVALID_NODE) {
@@ -2837,6 +2844,96 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
                             buf.emit32(static_cast<uint32_t>(immVal));
                         }
                         peepholeOptimized = true;
+                    }
+                }
+            } else if (leftOperand.type == NodeType::IDENTIFIER && leftOperand.name == node.name && 
+                   rightOperand.type == NodeType::LITERAL_STRING && exprNode.binaryOp == BinaryOp::ADD) {
+                
+                auto it = variables.find(node.name);
+                if (it != variables.end() && it->second.isRegister) {
+                    std::string strVal = std::get<std::string>(rightOperand.literal.data);
+                    if (strVal.length() == 1) {
+                        X64Reg targetReg = it->second.reg;
+                        bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
+                        int32_t offset = it->second.stackOffset;
+                        
+                        // Check if dynamic type is String (4)
+                        buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0x8D); // mov r9, [rbp + offset]
+                        buf.emit32(static_cast<uint32_t>(offset + 8));
+                        buf.emit8(0x49); buf.emit8(0x83); buf.emit8(0xF9); buf.emit8(0x04); // cmp r9, 4
+                        
+                        // If not string, jump to generic execution
+                        buf.emit8(0x75);
+                        size_t notStringJump = buf.getOffset();
+                        buf.emit8(0x00);
+                        
+                        // FAST PATH: inline string concat!
+                        // mov r10, [targetReg - 16] // capacity
+                        buf.emit8(0x4C | (regHigh ? 0x01 : 0));
+                        buf.emit8(0x8B); buf.emit8(0x50 | (static_cast<uint8_t>(targetReg) & 0x7));
+                        buf.emit8(0xF0); // -16
+                        
+                        // mov r11, [targetReg - 8] // length
+                        buf.emit8(0x4C | (regHigh ? 0x01 : 0));
+                        buf.emit8(0x8B); buf.emit8(0x58 | (static_cast<uint8_t>(targetReg) & 0x7));
+                        buf.emit8(0xF8); // -8
+                        
+                        // cmp r10, r11
+                        buf.emit8(0x4D); buf.emit8(0x39); buf.emit8(0xDA);
+                        
+                        // jle fallbackToAlloc (if capacity <= length)
+                        buf.emit8(0x7E);
+                        size_t fallbackAllocJump = buf.getOffset();
+                        buf.emit8(0x00);
+                        
+                        // mov byte ptr [targetReg + r11], literal_char
+                        buf.emit8(0x42 | (regHigh ? 0x01 : 0)); // REX prefix: X=1 because r11
+                        buf.emit8(0xC6);
+                        buf.emit8(0x04); // SIB byte follows (ModR/M=0x04)
+                        buf.emit8(0x18 | (static_cast<uint8_t>(targetReg) & 0x7));
+                        buf.emit8(strVal[0]);
+                        
+                        // inc qword ptr [targetReg - 8]
+                        buf.emit8(0x48 | (regHigh ? 0x01 : 0));
+                        buf.emit8(0xFF); buf.emit8(0x40 | (static_cast<uint8_t>(targetReg) & 0x7));
+                        buf.emit8(0xF8); // -8
+                        
+                        // jump over generic assignment since peephole succeeded!
+                        buf.emit8(0xE9);
+                        jumpsToEndOfAssignment.push_back(buf.getOffset());
+                        buf.emit32(0);
+                        
+                        // FallbackAlloc: If capacity is full, call jit_string_concat
+                        size_t fallbackTarget = buf.getOffset();
+                        buf.patch8(fallbackAllocJump, static_cast<uint8_t>(fallbackTarget - (fallbackAllocJump + 1)));
+                        
+                        void* preAllocatedStr = jit_alloc_string(strVal.c_str());
+                        // No need to push caller-saved registers; stack remains aligned and peephole has no live scratch registers
+                        // mov rdi, targetReg
+                        buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+                        buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
+                        // mov rsi, preAllocatedStr
+                        buf.emit8(0x48); buf.emit8(0xBE);
+                        buf.emit64(reinterpret_cast<uint64_t>(preAllocatedStr));
+                        
+                        buf.emit8(0x48); buf.emit8(0xB8);
+                        buf.emit64(reinterpret_cast<uint64_t>(jit_string_concat));
+                        buf.emit8(0xFF); buf.emit8(0xD0); // call rax
+                        
+                        // mov targetReg, rax
+                        buf.emit8(0x48 | (regHigh ? 0x01 : 0));
+                        buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(targetReg) & 0x7));
+                        
+                        // jump over generic assignment
+                        buf.emit8(0xE9);
+                        jumpsToEndOfAssignment.push_back(buf.getOffset());
+                        buf.emit32(0);
+                        
+                        // Generic Fallback! If it was NOT a string, fallback to compileExpr!
+                        size_t genericTarget = buf.getOffset();
+                        buf.patch8(notStringJump, static_cast<uint8_t>(genericTarget - (notStringJump + 1)));
+                        
+                        peepholeOptimized = false; // Trigger standard compilation for fallback
                     }
                 }
             } else if (leftOperand.type == NodeType::IDENTIFIER && leftOperand.name == node.name && 
@@ -2974,8 +3071,13 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
         buf.emit8(0xC0 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3) | 
                   (static_cast<uint8_t>(it->second.reg) & 0x7));
         
-        // Pinned variables are assumed integers, but if they weren't, 
-        // we'd need to handle the type tag. Loops currently pin only ints.
+        // Sync dynamic type to stack to properly preserve Strings/Objects
+        int32_t offset = it->second.stackOffset;
+        bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+        buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(offset + 8));
     } else {
         int32_t offset = it->second.stackOffset;
         
@@ -2996,6 +3098,12 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
     
     freeReg(val.valueReg);
     freeReg(val.typeReg);
+    
+    size_t endTarget = buf.getOffset();
+    for (size_t patchOffset : jumpsToEndOfAssignment) {
+        int32_t jmpDist = static_cast<int32_t>(endTarget - (patchOffset + 4));
+        buf.patch32(patchOffset, static_cast<uint32_t>(jmpDist));
+    }
 }
 
 void JIT::compileBlock(const AST& ast, NodeIndex idx) {
@@ -3551,6 +3659,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 buf.emit32(static_cast<uint32_t>(oldCounterLoc.stackOffset));
                 
                 regInUse[static_cast<int>(X64Reg::R12)] = true;
+                // printf("JIT Compile: Pinned counter '%s' to R12\n", pinnedCounter.c_str());
             }
         }
         
@@ -3571,6 +3680,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 buf.emit32(static_cast<uint32_t>(oldLimitLoc.stackOffset));
                 
                 regInUse[static_cast<int>(X64Reg::R13)] = true;
+                // printf("JIT Compile: Pinned limit '%s' to R13\n", pinnedLimit.c_str());
             }
         }
     }
@@ -3626,6 +3736,8 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
             buf.emit8(0x8B);
             buf.emit8(0x85 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
             buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
+            
+            // printf("JIT Compile: Pinned dynamic var '%s' to Register %u\n", varName.c_str(), static_cast<uint32_t>(targetReg));
             
             regIdx++;
         }

@@ -127,6 +127,7 @@ private:
     // Compile-time type tracking for optimization
     std::unordered_set<std::string> knownIntVars;
     std::unordered_set<std::string> knownFloatVars;
+    std::unordered_set<std::string> knownStringVars;
 
     // Source file directory for resolving relative import paths
     std::string sourceDir;
