@@ -70,11 +70,9 @@
     padding: 0;
 }
 
-html {
-    font-size: 16px;
-    scroll-behavior: smooth;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+html, body {
+    overflow-x: hidden;
+    width: 100%;
 }
 
 body {
@@ -437,7 +435,7 @@ table {
     border-collapse: collapse;
     margin: 0;
     font-size: 0.95rem;
-    min-width: 500px; /* Force scroll on very small screens if needed */
+    min-width: 100%; /* Changed from 500px to prevent horizontal breakout */
 }
 
 th, td {
@@ -937,6 +935,23 @@ tr:hover td {
     
     ul, ol {
         padding-left: var(--space-lg);
+    }
+}
+
+/* Extra Small Devices (480px and below) */
+@media (max-width: 480px) {
+    .hero-title {
+        font-size: 2.2rem;
+    }
+    
+    .main {
+        padding: var(--space-2xl) var(--space-md) var(--space-md);
+    }
+    
+    pre {
+        margin-left: calc(-1 * var(--space-xs));
+        margin-right: calc(-1 * var(--space-xs));
+        padding: var(--space-md) var(--space-sm);
     }
 }
 
