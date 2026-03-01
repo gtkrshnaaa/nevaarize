@@ -4452,6 +4452,14 @@ void JIT::compileTryCatch(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
+    // Pre-allocate error variable slot before exception frame setup
+    VarLocation errLoc;
+    if (!node.name.empty()) {
+        errLoc.stackOffset = allocateStackSlot();
+        errLoc.isRegister = false;
+        variables[node.name] = errLoc;
+    }
+    
     // Allocate exception frame (32 bytes)
     buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xEC); buf.emit8(32); // sub rsp, 32
 
@@ -4502,34 +4510,23 @@ void JIT::compileTryCatch(const AST& ast, NodeIndex idx) {
     size_t catchTarget = buf.getOffset();
     buf.patch32(catchRipPatch, static_cast<int32_t>(catchTarget - (catchRipPatch + 4)));
 
-    // Deallocate frame from stack
-    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(32);
-
-    // Error variable binding
+    // Error variable binding (slot already exists in rbp-relative frame)
     if (!node.name.empty()) {
-        VarLocation errLoc = variables[node.name];
-        if (errLoc.stackOffset == 0) {
-            errLoc.stackOffset = allocateStackSlot();
-            errLoc.isRegister = false;
-        }
-        
-        // load val
+        // load val from global
         buf.emit8(0x48); buf.emit8(0xB8);
         buf.emit64(reinterpret_cast<uint64_t>(&current_exception_val));
         buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x08); // mov rcx, [rax]
-        // store val
+        // store val to pre-allocated slot
         buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x8D);
         buf.emit32(static_cast<uint32_t>(errLoc.stackOffset));
         
-        // load type
+        // load type from global
         buf.emit8(0x48); buf.emit8(0xB8);
         buf.emit64(reinterpret_cast<uint64_t>(&current_exception_type));
         buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x08); // mov rcx, [rax]
-        // store type
+        // store type to pre-allocated slot
         buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x8D);
         buf.emit32(static_cast<uint32_t>(errLoc.stackOffset + 8));
-        
-        variables[node.name] = errLoc;
     }
 
     // Compile catch block
