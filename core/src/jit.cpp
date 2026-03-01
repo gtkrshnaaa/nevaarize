@@ -53,6 +53,17 @@ extern "C" int64_t jit_get_clock_ns() {
     return static_cast<int64_t>(ns);
 }
 
+// Exception handling globals
+static void* current_exception_frame = nullptr;
+static int64_t current_exception_val = 0;
+static int64_t current_exception_type = 0;
+
+extern "C" void jit_unhandled_exception() {
+    std::cerr << "Unhandled Exception in JIT: value bits = " << current_exception_val;
+    std::cerr << ", type tag = " << current_exception_type << std::endl;
+    exit(1);
+}
+
 // Global garbage collector instance for JIT heap allocations
 static nevaarize::GarbageCollector jitGC;
 
@@ -4426,6 +4437,156 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
             }
         }
     }
+}
+
+void JIT::compileTryCatch(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    // Allocate exception frame (32 bytes)
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xEC); buf.emit8(32); // sub rsp, 32
+
+    // Save current_exception_frame to [rsp + 0]
+    buf.emit8(0x48); buf.emit8(0xB8);
+    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_frame));
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x08); // mov rcx, [rax]
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x0C); buf.emit8(0x24); // mov [rsp], rcx
+
+    // Save catch_rip
+    buf.emit8(0x48); buf.emit8(0x8D); buf.emit8(0x15); // lea rdx, [rip + offset]
+    size_t catchRipPatch = buf.getOffset();
+    buf.emit32(0); // placeholder
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x54); buf.emit8(0x24); buf.emit8(0x08); // mov [rsp+8], rdx
+
+    // Save rbp
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x6C); buf.emit8(0x24); buf.emit8(0x10); // mov [rsp+16], rbp
+
+    // Save rsp
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x64); buf.emit8(0x24); buf.emit8(0x18); // mov [rsp+24], rsp
+
+    // Change current_exception_frame to this frame (curr_rsp)
+    buf.emit8(0x48); buf.emit8(0xB8);
+    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_frame));
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x20); // mov [rax], rsp
+
+    // Compile try block
+    if (node.left != INVALID_NODE) {
+        compileStatement(ast, node.left);
+    }
+
+    // Try block succeeded
+    // Restore current_exception_frame = [rsp]
+    buf.emit8(0x48); buf.emit8(0xB8);
+    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_frame));
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x0C); buf.emit8(0x24); // mov rcx, [rsp]
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x08); // mov [rax], rcx
+
+    // Deallocate frame
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(32); // add rsp, 32
+
+    // Jump to end
+    buf.emit8(0xE9);
+    size_t endTryPatch = buf.getOffset();
+    buf.emit32(0);
+
+    // catch_label:
+    size_t catchTarget = buf.getOffset();
+    buf.patch32(catchRipPatch, static_cast<int32_t>(catchTarget - (catchRipPatch + 4)));
+
+    // Deallocate frame from stack
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(32);
+
+    // Error variable binding
+    if (!node.name.empty()) {
+        VarLocation errLoc = variables[node.name];
+        if (errLoc.stackOffset == 0) {
+            errLoc.stackOffset = allocateStackSlot();
+            errLoc.isRegister = false;
+        }
+        
+        // load val
+        buf.emit8(0x48); buf.emit8(0xB8);
+        buf.emit64(reinterpret_cast<uint64_t>(&current_exception_val));
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x08); // mov rcx, [rax]
+        // store val
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x8D);
+        buf.emit32(static_cast<uint32_t>(errLoc.stackOffset));
+        
+        // load type
+        buf.emit8(0x48); buf.emit8(0xB8);
+        buf.emit64(reinterpret_cast<uint64_t>(&current_exception_type));
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x08); // mov rcx, [rax]
+        // store type
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x8D);
+        buf.emit32(static_cast<uint32_t>(errLoc.stackOffset + 8));
+        
+        variables[node.name] = errLoc;
+    }
+
+    // Compile catch block
+    if (node.right != INVALID_NODE) {
+        compileStatement(ast, node.right);
+    }
+
+    // end_label:
+    size_t endTarget = buf.getOffset();
+    buf.patch32(endTryPatch, static_cast<int32_t>(endTarget - (endTryPatch + 4)));
+}
+
+void JIT::compileThrow(const AST& ast, NodeIndex idx) {
+    const ASTNode& node = ast.get(idx);
+    CodeBuffer& buf = codegen.getCode();
+    
+    JITValue expr = compileExpr(ast, node.left);
+
+    buf.emit8(0x48); buf.emit8(0xB8);
+    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_val));
+    bool valHigh = static_cast<uint8_t>(expr.valueReg) >= 8;
+    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+    buf.emit8(0x89); buf.emit8(0x00 | ((static_cast<uint8_t>(expr.valueReg) & 0x7) << 3));
+
+    buf.emit8(0x48); buf.emit8(0xB8);
+    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_type));
+    bool typeHigh = static_cast<uint8_t>(expr.typeReg) >= 8;
+    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+    buf.emit8(0x89); buf.emit8(0x00 | ((static_cast<uint8_t>(expr.typeReg) & 0x7) << 3));
+
+    freeReg(expr.valueReg);
+    freeReg(expr.typeReg);
+
+    // read current_exception_frame
+    buf.emit8(0x48); buf.emit8(0xB8);
+    buf.emit64(reinterpret_cast<uint64_t>(&current_exception_frame));
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x08); // mov rcx, [rax]
+
+    // test rcx, rcx
+    buf.emit8(0x48); buf.emit8(0x85); buf.emit8(0xC9);
+    buf.emit8(0x0F); buf.emit8(0x84); // jz unhandled
+    size_t unhandledJump = buf.getOffset();
+    buf.emit32(0);
+
+    // current_exception_frame = [rcx]
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x11); // mov rdx, [rcx]
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x10); // mov [rax], rdx
+
+    // restore rsp
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x61); buf.emit8(0x18); // mov rsp, [rcx+24]
+    // restore rbp
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x69); buf.emit8(0x10); // mov rbp, [rcx+16]
+    // load catch_rip
+    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x51); buf.emit8(0x08); // mov rdx, [rcx+8]
+
+    // jump
+    buf.emit8(0xFF); buf.emit8(0xE2); // jmp rdx
+
+    // unhandled_label:
+    size_t unhandledTarget = buf.getOffset();
+    buf.patch32(unhandledJump, static_cast<int32_t>(unhandledTarget - (unhandledJump + 4)));
+    
+    // call jit_unhandled_exception
+    buf.emit8(0x48); buf.emit8(0xB8);
+    buf.emit64(reinterpret_cast<uint64_t>(jit_unhandled_exception));
+    buf.emit8(0xFF); buf.emit8(0xD0);
 }
 
 // Compile return statement
