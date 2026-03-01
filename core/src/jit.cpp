@@ -305,10 +305,17 @@ void JIT::emitPrologue() {
     // push rbp
     buf.emit8(0x55);
     
+    // Preserve all callee-saved registers used by compileWhile optimizations
+    // push rbx
+    buf.emit8(0x53);
     // push r12
     buf.emit8(0x41); buf.emit8(0x54);
     // push r13
     buf.emit8(0x41); buf.emit8(0x55);
+    // push r14
+    buf.emit8(0x41); buf.emit8(0x56);
+    // push r15
+    buf.emit8(0x41); buf.emit8(0x57);
     
     // mov rbp, rsp
     buf.emit8(0x48);
@@ -330,10 +337,17 @@ void JIT::emitEpilogue() {
     buf.emit8(0x89);
     buf.emit8(0xEC);
 
+    // Restore callee-saved registers (reverse order of push)
+    // pop r15
+    buf.emit8(0x41); buf.emit8(0x5F);
+    // pop r14
+    buf.emit8(0x41); buf.emit8(0x5E);
     // pop r13
     buf.emit8(0x41); buf.emit8(0x5D);
     // pop r12
     buf.emit8(0x41); buf.emit8(0x5C);
+    // pop rbx
+    buf.emit8(0x5B);
     
     // pop rbp
     buf.emit8(0x5D);
@@ -3411,8 +3425,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 variables[pinnedCounter] = pinnedLoc;
                 counterPinned = true;
                 
-                // push r12 (preserve callee-saved)
-                buf.emit8(0x41); buf.emit8(0x54);
+                // R12 preserved in emitPrologue
                 
                 // mov r12, [rbp + offset]
                 buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xA5);
@@ -3432,8 +3445,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
                 variables[pinnedLimit] = pinnedLoc;
                 limitPinned = true;
                 
-                // push r13 (preserve callee-saved)
-                buf.emit8(0x41); buf.emit8(0x55);
+                // R13 preserved in emitPrologue
                 
                 // mov r13, [rbp + offset]
                 buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xAD);
@@ -3487,13 +3499,8 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
             variables[varName] = newLoc;
             regInUse[static_cast<int>(targetReg)] = true;
             
-            // push reg (preserve callee-saved)
+            // R14/R15/RBX preserved in emitPrologue
             bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
-            if (regHigh) {
-                buf.emit8(0x41); buf.emit8(0x50 | (static_cast<uint8_t>(targetReg) & 0x7));
-            } else {
-                buf.emit8(0x50 | static_cast<uint8_t>(targetReg));
-            }
             
             // mov reg, [rbp + offset]
             buf.emit8(0x48 | (regHigh ? 0x04 : 0));
@@ -3804,24 +3811,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         regInUse[static_cast<int>(pv.reg)] = false;
     }
 
-    // Pop callee-saved registers in reverse order of push
-    for (int pi = static_cast<int>(dynamicPins.size()) - 1; pi >= 0; --pi) {
-        X64Reg reg = dynamicPins[pi].reg;
-        bool regHigh = static_cast<uint8_t>(reg) >= 8;
-        if (regHigh) {
-            buf.emit8(0x41); buf.emit8(0x58 | (static_cast<uint8_t>(reg) & 0x7));
-        } else {
-            buf.emit8(0x58 | static_cast<uint8_t>(reg));
-        }
-    }
-    if (limitPinned) {
-        // pop r13
-        buf.emit8(0x41); buf.emit8(0x5D);
-    }
-    if (counterPinned) {
-        // pop r12
-        buf.emit8(0x41); buf.emit8(0x5C);
-    }
+    // Callee-saved registers restored in emitEpilogue
 
     // Restore XMM-pinned float variables to stack
     for (const auto& xpv : xmmPins) {
