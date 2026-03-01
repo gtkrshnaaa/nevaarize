@@ -2,17 +2,6 @@
   <img src="docs/assets/img/logo_pearl.svg" alt="NEVAARIZE" width="900">
 </p>
 
-<p align="center">
-  <strong>Native JIT Performance • Zero Dependencies • Linux x86-64 Native</strong>
-</p>
-
-<p align="center">
-  <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-3735M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
-  <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-4108M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
-  <a href="#benchmarks"><img src="https://img.shields.io/badge/Memory-4.80MB_Peak-orange?style=flat-square" alt="Memory"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
-</p>
-
 ---
 
 **Nevaarize** is a high-performance programming language with a **native JIT compiler** that generates Linux x86-64 machine code at runtime. Features include **async/await** concurrency, an integrated **generational garbage collector**, and a modular standard library. Built entirely in C++23 with zero external dependencies.
