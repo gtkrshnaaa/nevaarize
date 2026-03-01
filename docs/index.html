@@ -207,8 +207,8 @@ print("Results:", result1, result2)</code></pre>
 
                 <h3>Native JIT Performance</h3>
                 
-                <pre data-lang="nevaarize"><code>// Benchmark: 900M+ operations per second
-iterations = 100000000
+                <pre data-lang="nevaarize"><code>// Benchmark: 4000M+ operations per second
+iterations = 1000000000
 
 result = nativeSumLoop(iterations)
 sum = result[0]
@@ -221,6 +221,7 @@ print("Performance:", int(opsPerSec / 1000000), "M ops/sec")</code></pre>
                 
                 <h2>Performance</h2>
                 <p><em>Benchmarks executed natively on: Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04.4 LTS | 8GB RAM</em></p>
+                <p><a href="https://github.com/gtkrshnaaa/nevaarize/commit/e1fc8574ce6aeca125e622483329b6bd7b20e387" target="_blank">View Benchmark Validation Commit</a></p>
                 
                 <div class="table-wrapper"><table>
                     <thead>
@@ -233,23 +234,23 @@ print("Performance:", int(opsPerSec / 1000000), "M ops/sec")</code></pre>
                     <tbody>
                         <tr>
                             <td>Native JIT Integer Add</td>
-                            <td>973M ops/sec</td>
-                            <td>Pure x86-64 machine code</td>
+                            <td>4100M ops/sec</td>
+                            <td>Direct x86-64 machine code</td>
                         </tr>
                         <tr>
                             <td>Dynamic Array Push</td>
-                            <td>897M ops/sec</td>
-                            <td>GC-backed memory allocation</td>
+                            <td>3753M ops/sec</td>
+                            <td>Fastest among 13+ languages</td>
                         </tr>
                         <tr>
-                            <td>Interpreter</td>
-                            <td>3.5M ops/sec</td>
-                            <td>Tree-walk evaluation</td>
+                            <td>Double Arithmetic</td>
+                            <td>2080M ops/sec</td>
+                            <td>SIMD-pipelined FP operation</td>
                         </tr>
                         <tr>
-                            <td>Matrix Multiply</td>
-                            <td>50+ GFLOPS</td>
-                            <td>Cache-blocked SIMD</td>
+                            <td>Peak Memory Usage</td>
+                            <td>5.08 MB</td>
+                            <td>Ultra-low footprint JIT</td>
                         </tr>
                     </tbody>
                 </table></div>
