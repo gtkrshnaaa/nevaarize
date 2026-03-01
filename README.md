@@ -1,14 +1,16 @@
 <p align="center">
-  <h1 align="center">NEVAARIZE</h1>
-  <p align="center">
-    <strong>Native JIT Performance • Zero Dependencies • Pure C++23</strong>
-  </p>
-  <p align="center">
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-3735M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-4108M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
-    <a href="#benchmarks"><img src="https://img.shields.io/badge/Memory-4.80MB_Peak-orange?style=flat-square" alt="Memory"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
-  </p>
+  <img src="https://raw.githubusercontent.com/gtkrshnaaa/nevaarize/main/docs/assets/img/logo.svg" alt="NEVAARIZE" width="800">
+</p>
+
+<p align="center">
+  <strong>Native JIT Performance • Zero Dependencies • Linux x86-64 Native</strong>
+</p>
+
+<p align="center">
+  <a href="#benchmarks"><img src="https://img.shields.io/badge/Array_Push-3735M_ops%2Fs-brightgreen?style=flat-square" alt="Array Push"></a>
+  <a href="#benchmarks"><img src="https://img.shields.io/badge/Integer_Ops-4108M_ops%2Fs-blue?style=flat-square" alt="Integer Ops"></a>
+  <a href="#benchmarks"><img src="https://img.shields.io/badge/Memory-4.80MB_Peak-orange?style=flat-square" alt="Memory"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
 </p>
 
 ---
