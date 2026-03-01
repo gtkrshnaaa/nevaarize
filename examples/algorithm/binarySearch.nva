@@ -1,0 +1,94 @@
+// Binary Search — O(log n) on sorted arrays
+// Lower Bound / Upper Bound — find insertion points
+
+print("=== Binary Search ===")
+
+func binarySearch(arr, n, target) {
+    low = 0
+    high = n - 1
+    while (low <= high) {
+        half = (high - low) / 2
+        mid = low + half
+        if (arr[mid] == target) {
+            return mid
+        }
+        if (arr[mid] < target) {
+            low = mid + 1
+        } else {
+            high = mid - 1
+        }
+    }
+    return -1
+}
+
+sorted = [2, 5, 8, 12, 16, 23, 38, 45, 56, 72, 91]
+
+idx1 = binarySearch(sorted, 11, 23)
+print("Search 23: found at index", idx1)
+
+idx2 = binarySearch(sorted, 11, 56)
+print("Search 56: found at index", idx2)
+
+idx3 = binarySearch(sorted, 11, 50)
+print("Search 50: found at index", idx3)
+
+idx4 = binarySearch(sorted, 11, 2)
+print("Search 2: found at index", idx4)
+
+idx5 = binarySearch(sorted, 11, 91)
+print("Search 91: found at index", idx5)
+
+print("")
+print("=== Lower Bound ===")
+
+func lowerBound(arr, n, target) {
+    low = 0
+    high = n
+    while (low < high) {
+        half = (high - low) / 2
+        mid = low + half
+        if (arr[mid] < target) {
+            low = mid + 1
+        } else {
+            high = mid
+        }
+    }
+    return low
+}
+
+data = [1, 2, 4, 4, 4, 6, 8, 10]
+lb1 = lowerBound(data, 8, 4)
+print("Lower bound of 4: index", lb1)
+
+lb2 = lowerBound(data, 8, 5)
+print("Lower bound of 5: index", lb2)
+
+lb3 = lowerBound(data, 8, 1)
+print("Lower bound of 1: index", lb3)
+
+print("")
+print("=== Upper Bound ===")
+
+func upperBound(arr, n, target) {
+    low = 0
+    high = n
+    while (low < high) {
+        half = (high - low) / 2
+        mid = low + half
+        if (arr[mid] <= target) {
+            low = mid + 1
+        } else {
+            high = mid
+        }
+    }
+    return low
+}
+
+ub1 = upperBound(data, 8, 4)
+print("Upper bound of 4: index", ub1)
+
+count4 = upperBound(data, 8, 4) - lowerBound(data, 8, 4)
+print("Count of 4 in array:", count4)
+
+print("")
+print("=== Binary Search Complete ===")
