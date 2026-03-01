@@ -93,7 +93,6 @@ void printUsage(const char* program) {
     std::cout << "Nevaarize - Native JIT Compiler" << std::endl;
     std::cout << std::endl;
     std::cout << "Usage: " << program << " <script.nva>" << std::endl;
-    std::cout << "       " << program << " model run <model.nmod>" << std::endl;
     std::cout << std::endl;
     std::cout << "Options:" << std::endl;
     std::cout << "  -h, --help     Show this help message" << std::endl;
@@ -130,19 +129,6 @@ int main(int argc, char* argv[]) {
     if (arg1 == "-v" || arg1 == "--version") {
         printVersion();
         return 0;
-    }
-
-    // Handle model commands
-    if (arg1 == "model" && argc >= 3) {
-        std::string modelCmd = argv[2];
-        
-        if (modelCmd == "run") {
-            return handleModelRun(argc, argv);
-        }
-        
-        std::cerr << "Unknown model command: " << modelCmd << std::endl;
-        printUsage(argv[0]);
-        return 1;
     }
 
     // Run script
