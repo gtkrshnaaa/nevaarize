@@ -1749,7 +1749,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 }
                 case BinaryOp::DIV: {
                     // Integer division: result / right
-                    // x86-64 IDIV: divides RDX:RAX by operand, quotient in RAX
+                    // Linux x86-64 IDIV: divides RDX:RAX by operand, quotient in RAX
                     // CRITICAL: right may be in RAX or RDX, save it to RCX first
                     
                     // Save registers that will be clobbered
@@ -1788,7 +1788,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 }
                 case BinaryOp::MOD: {
                     // Integer modulo: result % right
-                    // x86-64 IDIV: remainder in RDX
+                    // Linux x86-64 IDIV: remainder in RDX
                     
                     buf.emit8(0x51); // push rcx
                     buf.emit8(0x52); // push rdx

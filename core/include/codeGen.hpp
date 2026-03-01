@@ -1,7 +1,7 @@
 /**
- * CodeGen.hpp - Nevaarize x86-64 Code Generator
+ * CodeGen.hpp - Nevaarize Linux x86-64 Code Generator
  *
- * Direct machine code generation for x86-64 architecture.
+ * Direct machine code generation for Linux x86-64 architecture.
  * No external assembler, pure native code emission.
  */
 

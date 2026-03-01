@@ -238,7 +238,7 @@ Source Code (.nva)
        ↓
    [Parser]    → Abstract Syntax Tree
        ↓
-   [JIT]       → x86-64 machine code
+   [JIT]       → Linux x86-64 machine code
        ↓
    [Execute]   → Direct CPU execution
 ```

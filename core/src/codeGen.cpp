@@ -1,7 +1,7 @@
 /**
- * CodeGen.cpp - Nevaarize x86-64 Code Generator Implementation
+ * CodeGen.cpp - Nevaarize Linux x86-64 Code Generator Implementation
  *
- * Direct machine code emission for x86-64.
+ * Direct machine code emission for Linux x86-64.
  */
 
 #include "codeGen.hpp"
