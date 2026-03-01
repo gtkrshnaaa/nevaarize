@@ -71,7 +71,6 @@
 }
 
 html, body {
-    overflow-x: hidden;
     width: 100%;
 }
 
@@ -343,7 +342,7 @@ pre::before {
 .main {
     flex: 1;
     margin-left: var(--sidebar-width);
-    padding: var(--space-4xl);
+    padding: var(--space-4xl) var(--space-2xl);
 }
 
 .content {
@@ -713,7 +712,7 @@ tr:hover td {
     
     .main {
         margin-left: 0;
-        padding: var(--space-3xl) var(--space-xl) var(--space-xl);
+        padding: var(--space-3xl) var(--space-lg) var(--space-xl);
     }
     
     .hero-title {
@@ -949,9 +948,9 @@ tr:hover td {
     }
     
     pre {
-        margin-left: calc(-1 * var(--space-xs));
-        margin-right: calc(-1 * var(--space-xs));
-        padding: var(--space-md) var(--space-sm);
+        margin-left: 0;
+        margin-right: 0;
+        padding: var(--space-md);
     }
 }
 
