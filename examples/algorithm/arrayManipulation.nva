@@ -1,0 +1,115 @@
+// Array Reverse — in-place O(n)
+// Array Rotation — left rotate by k positions
+// Prefix Sum — running sum for range queries
+
+print("=== Array Reverse ===")
+
+func printArray(arr, n) {
+    i = 0
+    while (i < n) {
+        print(" ", arr[i])
+        i = i + 1
+    }
+}
+
+func reverseArray(arr, n) {
+    left = 0
+    right = n - 1
+    while (left < right) {
+        temp = arr[left]
+        arr[left] = arr[right]
+        arr[right] = temp
+        left = left + 1
+        right = right - 1
+    }
+}
+
+data1 = [1, 2, 3, 4, 5, 6, 7]
+print("Before:")
+printArray(data1, 7)
+
+reverseArray(data1, 7)
+print("After reverse:")
+printArray(data1, 7)
+
+print("")
+print("=== Left Rotation ===")
+
+func reverseRange(arr, l, r) {
+    while (l < r) {
+        temp = arr[l]
+        arr[l] = arr[r]
+        arr[r] = temp
+        l = l + 1
+        r = r - 1
+    }
+}
+
+func leftRotate(arr, n, k) {
+    k = k % n
+    reverseRange(arr, 0, k - 1)
+    reverseRange(arr, k, n - 1)
+    reverseRange(arr, 0, n - 1)
+}
+
+data2 = [10, 20, 30, 40, 50, 60]
+print("Before:")
+printArray(data2, 6)
+
+leftRotate(data2, 6, 2)
+print("After rotate left by 2:")
+printArray(data2, 6)
+
+print("")
+print("=== Prefix Sum ===")
+
+data3 = [3, 1, 4, 1, 5, 9, 2, 6]
+prefix = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+// Build prefix sum
+i = 0
+while (i < 8) {
+    prefix[i + 1] = prefix[i] + data3[i]
+    i = i + 1
+}
+
+// Range sum query: sum(arr[l..r]) = prefix[r+1] - prefix[l]
+func rangeSum(pfx, l, r) {
+    return pfx[r + 1] - pfx[l]
+}
+
+print("Array: 3 1 4 1 5 9 2 6")
+print("Sum[0..3] =", rangeSum(prefix, 0, 3))
+print("Sum[2..5] =", rangeSum(prefix, 2, 5))
+print("Sum[0..7] =", rangeSum(prefix, 0, 7))
+
+print("")
+print("=== Find Min/Max ===")
+
+func findMin(arr, n) {
+    min = arr[0]
+    i = 1
+    while (i < n) {
+        if (arr[i] < min) { min = arr[i] }
+        i = i + 1
+    }
+    return min
+}
+
+func findMax(arr, n) {
+    max = arr[0]
+    i = 1
+    while (i < n) {
+        if (arr[i] > max) { max = arr[i] }
+        i = i + 1
+    }
+    return max
+}
+
+vals = [15, 7, 23, 9, 31, 12, 19]
+print("Array: 15 7 23 9 31 12 19")
+print("Min:", findMin(vals, 7))
+print("Max:", findMax(vals, 7))
+
+print("")
+print("=== Array Manipulation Complete ===")

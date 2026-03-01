@@ -1,0 +1,90 @@
+// Stack — LIFO data structure (array-based)
+// Queue — FIFO data structure (circular buffer)
+
+print("=== Stack (LIFO) ===")
+
+// Pre-allocate stack with fixed capacity
+stack = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+stackTop = -1
+
+func stackPush(val) {
+    stackTop = stackTop + 1
+    stack[stackTop] = val
+}
+
+func stackPop() {
+    if (stackTop < 0) {
+        return -1
+    }
+    val = stack[stackTop]
+    stackTop = stackTop - 1
+    return val
+}
+
+func stackPeek() {
+    if (stackTop < 0) { return -1 }
+    return stack[stackTop]
+}
+
+func stackSize() {
+    return stackTop + 1
+}
+
+stackPush(10)
+stackPush(20)
+stackPush(30)
+print("Pushed: 10, 20, 30")
+print("Size:", stackSize())
+print("Peek:", stackPeek())
+print("Pop:", stackPop())
+print("Pop:", stackPop())
+print("Peek:", stackPeek())
+print("Size:", stackSize())
+stackPush(40)
+stackPush(50)
+print("Pushed: 40, 50")
+print("Peek:", stackPeek())
+print("Size:", stackSize())
+
+print("")
+print("=== Queue (FIFO) ===")
+
+// Pre-allocate queue buffer
+queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+qFront = 0
+qBack = 0
+
+func enqueue(val) {
+    queue[qBack] = val
+    qBack = qBack + 1
+}
+
+func dequeue() {
+    if (qFront >= qBack) { return -1 }
+    val = queue[qFront]
+    qFront = qFront + 1
+    return val
+}
+
+func queueSize() {
+    return qBack - qFront
+}
+
+enqueue(100)
+enqueue(200)
+enqueue(300)
+enqueue(400)
+print("Enqueued: 100, 200, 300, 400")
+print("Size:", queueSize())
+print("Dequeue:", dequeue())
+print("Dequeue:", dequeue())
+print("Size:", queueSize())
+enqueue(500)
+print("Enqueued: 500")
+print("Dequeue:", dequeue())
+print("Dequeue:", dequeue())
+print("Dequeue:", dequeue())
+print("Size:", queueSize())
+
+print("")
+print("=== Stack & Queue Complete ===")

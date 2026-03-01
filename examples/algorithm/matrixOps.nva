@@ -1,0 +1,91 @@
+// Matrix Addition — O(n*m) element-wise
+// Matrix Multiplication — O(n*m*k) standard algorithm
+
+print("=== Matrix Operations ===")
+print("Matrices stored as flattened 1D arrays (row-major)")
+
+// 3x3 matrices pre-allocated
+a = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+b = [9, 8, 7, 6, 5, 4, 3, 2, 1]
+
+print("")
+print("=== Matrix Addition (3x3) ===")
+
+func matAdd(a, b, result, size) {
+    i = 0
+    while (i < size) {
+        result[i] = a[i] + b[i]
+        i = i + 1
+    }
+}
+
+func printMat3x3(mat) {
+    print("  |", mat[0], mat[1], mat[2], "|")
+    print("  |", mat[3], mat[4], mat[5], "|")
+    print("  |", mat[6], mat[7], mat[8], "|")
+}
+
+sum = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+matAdd(a, b, sum, 9)
+print("A + B =")
+printMat3x3(sum)
+
+print("")
+print("=== Matrix Multiplication (3x3) ===")
+
+func matMul3(a, b, result) {
+    i = 0
+    while (i < 3) {
+        j = 0
+        while (j < 3) {
+            val = 0
+            k = 0
+            while (k < 3) {
+                val = val + a[i * 3 + k] * b[k * 3 + j]
+                k = k + 1
+            }
+            result[i * 3 + j] = val
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+prod = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+matMul3(a, b, prod)
+print("A * B =")
+printMat3x3(prod)
+
+print("")
+print("=== Matrix Transpose ===")
+
+func matTranspose3(src, dst) {
+    i = 0
+    while (i < 3) {
+        j = 0
+        while (j < 3) {
+            dst[j * 3 + i] = src[i * 3 + j]
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+trans = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+matTranspose3(a, trans)
+print("Transpose(A) =")
+printMat3x3(trans)
+
+print("")
+print("=== Trace (sum of diagonal) ===")
+
+func trace3(mat) {
+    return mat[0] + mat[4] + mat[8]
+}
+
+print("Trace(A) =", trace3(a))
+print("Trace(B) =", trace3(b))
+print("Trace(A*B) =", trace3(prod))
+
+print("")
+print("=== Matrix Ops Complete ===")
