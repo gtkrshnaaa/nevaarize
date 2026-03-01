@@ -49,17 +49,17 @@ int runScript(const std::string& scriptPath) {
 
     if (!lexer.errors().empty()) {
         for (const auto& err : lexer.errors()) {
-            std::cerr << "Lexer error: " << err << std::endl;
+            std::cerr << err << std::endl;
         }
         return 1;
     }
 
-    Parser parser(tokens);
+    Parser parser(tokens, source);
     parser.parse();
 
     if (parser.hasErrors()) {
         for (const auto& err : parser.errors()) {
-            std::cerr << "Parser error: " << err << std::endl;
+            std::cerr << err << std::endl;
         }
         return 1;
     }
