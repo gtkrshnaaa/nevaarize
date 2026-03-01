@@ -55,7 +55,7 @@ Each benchmark is designed to test a specific aspect of the language runtime. Th
 
 > **Verified Performance Data**
 > Executed on: **Sun Mar 1 08:30:00 AM WIB 2026**
-> Commit Hash: [`e1fc857707e49f836371cb29f9dfb228c499479e`](https://github.com/gtkrshnaaa/nevaarize/commit/e1fc857707e49f836371cb29f9dfb228c499479e)
+> Commit Hash: [`e1fc8574ce6aeca125e622483329b6bd7b20e387`](https://github.com/gtkrshnaaa/nevaarize/commit/e1fc8574ce6aeca125e622483329b6bd7b20e387)
 > System: **Intel i5-1135G7 @ 2.40GHz | Ubuntu 24.04.4 LTS | 8GB RAM**
 
 ```
