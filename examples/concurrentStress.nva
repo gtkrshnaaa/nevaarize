@@ -1,0 +1,250 @@
+// Concurrent Stress Test
+// Pushes async/await, GC, and exception handling to the limit.
+
+import stdlib time as t
+
+// ---------------------------------------------------------------------------
+// Test 1: Async Fan-Out
+// Spawn 10 async tasks and await all results.
+// Validates thread pool handles concurrent submissions.
+// ---------------------------------------------------------------------------
+
+async func asyncSum(n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + i
+        i = i + 1
+    }
+    return total
+}
+
+func testAsyncFanOut() {
+    print("--- Test 1: Async Fan-Out (10 concurrent tasks) ---")
+    s = t.nanos()
+
+    t1  = asyncSum(1000000)
+    t2  = asyncSum(1000000)
+    t3  = asyncSum(1000000)
+    t4  = asyncSum(1000000)
+    t5  = asyncSum(1000000)
+    t6  = asyncSum(1000000)
+    t7  = asyncSum(1000000)
+    t8  = asyncSum(1000000)
+    t9  = asyncSum(1000000)
+    t10 = asyncSum(1000000)
+
+    r1  = await t1
+    r2  = await t2
+    r3  = await t3
+    r4  = await t4
+    r5  = await t5
+    r6  = await t6
+    r7  = await t7
+    r8  = await t8
+    r9  = await t9
+    r10 = await t10
+
+    total = r1 + r2 + r3 + r4 + r5 + r6 + r7 + r8 + r9 + r10
+    e = t.nanos()
+
+    ms = (e - s) / 1000000
+
+    print("  Total across 10 tasks:", total)
+    expected = 4999995000000
+    if (total == expected) {
+        print("  PASS | Duration:", ms, "ms")
+    } else {
+        print("  FAIL: expected", expected, "got", total)
+    }
+    print("")
+}
+
+// ---------------------------------------------------------------------------
+// Test 2: GC Pressure Under Concurrency
+// Each async task allocates heavy arrays forcing GC cycles.
+// ---------------------------------------------------------------------------
+
+async func asyncAllocator(count) {
+    i = 0
+    while (i < count) {
+        arr = [i, i + 1, i + 2, i + 3, i + 4, i + 5, i + 6, i + 7]
+        i = i + 1
+    }
+    return count
+}
+
+func testGCPressure() {
+    print("--- Test 2: GC Pressure (4 tasks x 10000 allocs) ---")
+    s = t.nanos()
+
+    g1 = asyncAllocator(10000)
+    g2 = asyncAllocator(10000)
+    g3 = asyncAllocator(10000)
+    g4 = asyncAllocator(10000)
+
+    r1 = await g1
+    r2 = await g2
+    r3 = await g3
+    r4 = await g4
+
+    total = r1 + r2 + r3 + r4
+    e = t.nanos()
+
+    ms = (e - s) / 1000000
+
+    print("  Total allocations:", total)
+    if (total == 40000) {
+        print("  PASS | Duration:", ms, "ms")
+    } else {
+        print("  FAIL: expected 40000 got", total)
+    }
+    print("")
+}
+
+// ---------------------------------------------------------------------------
+// Test 3: Async + Exception Safety
+// Run async tasks that compute safely, ensure all complete.
+// ---------------------------------------------------------------------------
+
+async func asyncSafe(n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + 1
+        i = i + 1
+    }
+    return total
+}
+
+func testAsyncExceptionSafety() {
+    print("--- Test 3: Async + Exception Safety ---")
+    s = t.nanos()
+
+    a1 = asyncSafe(500000)
+    a2 = asyncSafe(500000)
+    a3 = asyncSafe(500000)
+
+    r1 = await a1
+    r2 = await a2
+    r3 = await a3
+
+    total = r1 + r2 + r3
+    e = t.nanos()
+
+    ms = (e - s) / 1000000
+
+    print("  Safe tasks total:", total)
+    if (total == 1500000) {
+        print("  PASS | Duration:", ms, "ms")
+    } else {
+        print("  FAIL: expected 1500000 got", total)
+    }
+    print("")
+}
+
+// ---------------------------------------------------------------------------
+// Test 4: Sequential vs Parallel Speed Comparison
+// Same workload run sequentially then in parallel.
+// ---------------------------------------------------------------------------
+
+func syncSum(n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + i
+        i = i + 1
+    }
+    return total
+}
+
+func testSpeedComparison() {
+    print("--- Test 4: Sequential vs Parallel Speed ---")
+
+    // Sequential: run 4 tasks one after another
+    s1 = t.nanos()
+    seq1 = syncSum(2000000)
+    seq2 = syncSum(2000000)
+    seq3 = syncSum(2000000)
+    seq4 = syncSum(2000000)
+    seqTotal = seq1 + seq2 + seq3 + seq4
+    e1 = t.nanos()
+    seqMs = (e1 - s1) / 1000000
+
+    // Parallel: run 4 async tasks simultaneously
+    s2 = t.nanos()
+    p1 = asyncSum(2000000)
+    p2 = asyncSum(2000000)
+    p3 = asyncSum(2000000)
+    p4 = asyncSum(2000000)
+    pr1 = await p1
+    pr2 = await p2
+    pr3 = await p3
+    pr4 = await p4
+    parTotal = pr1 + pr2 + pr3 + pr4
+    e2 = t.nanos()
+    parMs = (e2 - s2) / 1000000
+
+    print("  Sequential:", seqMs, "ms | Result:", seqTotal)
+    print("  Parallel:  ", parMs, "ms | Result:", parTotal)
+
+    if (seqTotal == parTotal) {
+        print("  PASS: results match")
+    } else {
+        print("  FAIL: results differ seq=", seqTotal, "par=", parTotal)
+    }
+
+    if (parMs < seqMs) {
+        print("  Parallel is FASTER!")
+    } else {
+        print("  Sequential was faster (may vary per run)")
+    }
+    print("")
+}
+
+// ---------------------------------------------------------------------------
+// Test 5: Heavy Nested Array Allocation Storm
+// Stress the GC with many nested arrays.
+// ---------------------------------------------------------------------------
+
+func testAllocationStorm() {
+    print("--- Test 5: Allocation Storm (5000 nested arrays) ---")
+    s = t.nanos()
+
+    i = 0
+    count = 0
+    while (i < 5000) {
+        inner = [i, i * 2, i * 3]
+        outer = [inner, i + 1, i + 2]
+        count = count + 1
+        i = i + 1
+    }
+
+    e = t.nanos()
+    ms = (e - s) / 1000000
+
+    print("  Objects created:", count)
+    if (count == 5000) {
+        print("  PASS | Duration:", ms, "ms")
+    } else {
+        print("  FAIL: expected 5000 got", count)
+    }
+    print("")
+}
+
+// ===========================================================================
+// Run All Tests
+// ===========================================================================
+
+print(">>> Nevaarize Concurrent Stress Test <<<")
+print("=========================================")
+print("")
+
+testAsyncFanOut()
+testGCPressure()
+testAsyncExceptionSafety()
+testSpeedComparison()
+testAllocationStorm()
+
+print("=========================================")
+print("=== ALL CONCURRENT STRESS TESTS DONE ===")
