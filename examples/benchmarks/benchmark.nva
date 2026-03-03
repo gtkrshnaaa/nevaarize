@@ -1,6 +1,5 @@
 // Nevaarize Internal Benchmark Suite
-// Measures JIT performance across core language features.
-// Each benchmark is encapsulated in a dedicated function.
+// Dual-loop comparison: While vs For-In Range across all core features.
 
 import stdlib time as t
 
@@ -20,24 +19,22 @@ func formatSpeed(opsPerSec) {
     }
 }
 
-func reportResult(label, ops, startNs, endNs, check) {
-    durationNs = endNs - startNs
-    if (durationNs == 0) { durationNs = 1 }
-    durationMs = durationNs / 1000000
-    opsPerSec  = (ops * 1000000000) / durationNs
-
+func report(label, ops, startNs, endNs, check) {
+    dur = endNs - startNs
+    if (dur == 0) { dur = 1 }
+    ms  = dur / 1000000
+    opsSec = (ops * 1000000000) / dur
     print(label)
-    print("  Duration:", durationMs, "ms")
-    print("  Check:", check)
-    formatSpeed(opsPerSec)
+    print("  Duration:", ms, "ms |  Check:", check)
+    formatSpeed(opsSec)
     print("")
 }
 
 // ---------------------------------------------------------------------------
-// Benchmarks
+// While-Loop Benchmarks
 // ---------------------------------------------------------------------------
 
-func benchIntArith(n) {
+func whileIntArith(n) {
     acc = 0
     s = t.nanos()
     i = 0
@@ -47,10 +44,10 @@ func benchIntArith(n) {
         i = i + 1
     }
     e = t.nanos()
-    reportResult("Integer Arithmetic (Add/Sub)", n * 2, s, e, acc)
+    report("[while] Integer Arithmetic", n * 2, s, e, acc)
 }
 
-func benchFloatArith(n) {
+func whileFloatArith(n) {
     acc = 0.0
     s = t.nanos()
     i = 0
@@ -60,10 +57,10 @@ func benchFloatArith(n) {
         i = i + 1
     }
     e = t.nanos()
-    reportResult("Float Arithmetic (Add/Sub)", n * 2, s, e, acc)
+    report("[while] Float Arithmetic", n * 2, s, e, acc)
 }
 
-func benchControlFlow(n) {
+func whileControlFlow(n) {
     acc = 0
     s = t.nanos()
     i = 0
@@ -76,14 +73,14 @@ func benchControlFlow(n) {
         i = i + 1
     }
     e = t.nanos()
-    reportResult("Control Flow (If/Else)", n, s, e, acc)
+    report("[while] Control Flow", n, s, e, acc)
 }
 
-func addOne(val) {
-    return val + 1
+func addOne(v) {
+    return v + 1
 }
 
-func benchFuncCall(n) {
+func whileFuncCall(n) {
     acc = 0
     s = t.nanos()
     i = 0
@@ -92,10 +89,10 @@ func benchFuncCall(n) {
         i = i + 1
     }
     e = t.nanos()
-    reportResult("Function Call (Inlined)", n, s, e, acc)
+    report("[while] Function Call", n, s, e, acc)
 }
 
-func benchArrayWrite(n) {
+func whileArrayWrite(n) {
     arr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     s = t.nanos()
     i = 0
@@ -104,34 +101,95 @@ func benchArrayWrite(n) {
         i = i + 1
     }
     e = t.nanos()
-    reportResult("Array Write Access", n, s, e, arr[5])
+    report("[while] Array Write", n, s, e, arr[5])
 }
 
-func benchForRange(n) {
+// ---------------------------------------------------------------------------
+// For-In Range Benchmarks
+// ---------------------------------------------------------------------------
+
+func forIntArith(n) {
     acc = 0
     s = t.nanos()
     for (i in Range(0, n)) {
         acc = acc + 1
+        acc = acc - 1
     }
     e = t.nanos()
-    reportResult("For-In Range Loop", n, s, e, acc)
+    report("[for]   Integer Arithmetic", n * 2, s, e, acc)
+}
+
+func forFloatArith(n) {
+    acc = 0.0
+    s = t.nanos()
+    for (i in Range(0, n)) {
+        acc = acc + 1.5
+        acc = acc - 0.5
+    }
+    e = t.nanos()
+    report("[for]   Float Arithmetic", n * 2, s, e, acc)
+}
+
+func forControlFlow(n) {
+    acc = 0
+    s = t.nanos()
+    for (i in Range(0, n)) {
+        if (i < n) {
+            acc = acc + 1
+        } else {
+            acc = acc - 1
+        }
+    }
+    e = t.nanos()
+    report("[for]   Control Flow", n, s, e, acc)
+}
+
+func forFuncCall(n) {
+    acc = 0
+    s = t.nanos()
+    for (i in Range(0, n)) {
+        acc = addOne(acc)
+    }
+    e = t.nanos()
+    report("[for]   Function Call", n, s, e, acc)
+}
+
+func forArrayWrite(n) {
+    arr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    s = t.nanos()
+    for (i in Range(0, n)) {
+        arr[5] = i
+    }
+    e = t.nanos()
+    report("[for]   Array Write", n, s, e, arr[5])
 }
 
 // ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 
-print(">>> Nevaarize Benchmark Suite <<<")
-print("  -------------------------------------------------------------")
-
 n = 10000000
 
-benchIntArith(n)
-benchFloatArith(n)
-benchControlFlow(n)
-benchFuncCall(n)
-benchArrayWrite(n)
-benchForRange(n)
+print(">>> Nevaarize Benchmark Suite <<<")
+print("  Iterations:", n)
+print("  =============================================================")
+print("")
 
-print("  -------------------------------------------------------------")
+print("--- Section 1: While Loop ---")
+print("")
+whileIntArith(n)
+whileFloatArith(n)
+whileControlFlow(n)
+whileFuncCall(n)
+whileArrayWrite(n)
+
+print("--- Section 2: For-In Range Loop ---")
+print("")
+forIntArith(n)
+forFloatArith(n)
+forControlFlow(n)
+forFuncCall(n)
+forArrayWrite(n)
+
+print("  =============================================================")
 print("=== ALL BENCHMARKS COMPLETE ===")
