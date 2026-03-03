@@ -12,6 +12,8 @@
 #include <random>
 #include <filesystem>
 #include <iostream>
+#include <thread>
+#include <vector>
 #include <immintrin.h>
 
 namespace fs = std::filesystem;
@@ -99,6 +101,23 @@ void simdMul(float* dst, const float* a, const float* b, size_t n) {
     }
 }
 
+void simdSub(float* dst, const float* a, const float* b, size_t n) {
+    size_t i = 0;
+
+#ifdef __AVX2__
+    for (; i + 8 <= n; i += 8) {
+        __m256 va = _mm256_loadu_ps(a + i);
+        __m256 vb = _mm256_loadu_ps(b + i);
+        __m256 vc = _mm256_sub_ps(va, vb);
+        _mm256_storeu_ps(dst + i, vc);
+    }
+#endif
+
+    for (; i < n; ++i) {
+        dst[i] = a[i] - b[i];
+    }
+}
+
 float simdSum(const float* data, size_t n) {
     float sum = 0.0f;
     size_t i = 0;
@@ -126,38 +145,94 @@ void simdMatMul(float* C, const float* A, const float* B,
     constexpr size_t BLOCK = 64;
     
     std::fill(C, C + m * n, 0.0f);
-    
-    for (size_t ii = 0; ii < m; ii += BLOCK) {
-        for (size_t jj = 0; jj < n; jj += BLOCK) {
-            for (size_t kk = 0; kk < k; kk += BLOCK) {
-                size_t iEnd = std::min(ii + BLOCK, m);
-                size_t jEnd = std::min(jj + BLOCK, n);
-                size_t kEnd = std::min(kk + BLOCK, k);
-                
-                for (size_t i = ii; i < iEnd; ++i) {
-                    for (size_t kIdx = kk; kIdx < kEnd; ++kIdx) {
-                        float a_ik = A[i * k + kIdx];
+
+    unsigned int numThreads = std::thread::hardware_concurrency();
+    if (numThreads == 0) numThreads = 4;
+    if (m < numThreads * 4) numThreads = 1;
+
+    if (numThreads == 1) {
+        for (size_t ii = 0; ii < m; ii += BLOCK) {
+            for (size_t jj = 0; jj < n; jj += BLOCK) {
+                for (size_t kk = 0; kk < k; kk += BLOCK) {
+                    size_t iEnd = std::min(ii + BLOCK, m);
+                    size_t jEnd = std::min(jj + BLOCK, n);
+                    size_t kEnd = std::min(kk + BLOCK, k);
+                    
+                    for (size_t i = ii; i < iEnd; ++i) {
+                        for (size_t kIdx = kk; kIdx < kEnd; ++kIdx) {
+                            float a_ik = A[i * k + kIdx];
 #ifdef __AVX2__
-                        __m256 va = _mm256_set1_ps(a_ik);
-                        size_t j = jj;
-                        for (; j + 8 <= jEnd; j += 8) {
-                            __m256 vb = _mm256_loadu_ps(&B[kIdx * n + j]);
-                            __m256 vc = _mm256_loadu_ps(&C[i * n + j]);
-                            vc = _mm256_fmadd_ps(va, vb, vc);
-                            _mm256_storeu_ps(&C[i * n + j], vc);
-                        }
-                        for (; j < jEnd; ++j) {
-                            C[i * n + j] += a_ik * B[kIdx * n + j];
-                        }
+                            __m256 va = _mm256_set1_ps(a_ik);
+                            size_t j = jj;
+                            for (; j + 8 <= jEnd; j += 8) {
+                                __m256 vb = _mm256_loadu_ps(&B[kIdx * n + j]);
+                                __m256 vc = _mm256_loadu_ps(&C[i * n + j]);
+                                vc = _mm256_fmadd_ps(va, vb, vc);
+                                _mm256_storeu_ps(&C[i * n + j], vc);
+                            }
+                            for (; j < jEnd; ++j) {
+                                C[i * n + j] += a_ik * B[kIdx * n + j];
+                            }
 #else
-                        for (size_t j = jj; j < jEnd; ++j) {
-                            C[i * n + j] += a_ik * B[kIdx * n + j];
-                        }
+                            for (size_t j = jj; j < jEnd; ++j) {
+                                C[i * n + j] += a_ik * B[kIdx * n + j];
+                            }
 #endif
+                        }
                     }
                 }
             }
         }
+        return;
+    }
+
+    // Multi-threaded: partition rows
+    std::vector<std::thread> threads;
+    threads.reserve(numThreads);
+    size_t rowsPerThread = m / numThreads;
+    size_t remainder = m % numThreads;
+    size_t rowStart = 0;
+
+    for (unsigned int t = 0; t < numThreads; ++t) {
+        size_t rowEnd = rowStart + rowsPerThread + (t < remainder ? 1 : 0);
+        threads.emplace_back([=]() {
+            for (size_t ii = rowStart; ii < rowEnd; ii += BLOCK) {
+                for (size_t jj = 0; jj < n; jj += BLOCK) {
+                    for (size_t kk = 0; kk < k; kk += BLOCK) {
+                        size_t iEnd = std::min(ii + BLOCK, rowEnd);
+                        size_t jEnd = std::min(jj + BLOCK, n);
+                        size_t kEnd = std::min(kk + BLOCK, k);
+                        for (size_t i = ii; i < iEnd; ++i) {
+                            for (size_t kIdx = kk; kIdx < kEnd; ++kIdx) {
+                                float a_ik = A[i * k + kIdx];
+#ifdef __AVX2__
+                                __m256 va = _mm256_set1_ps(a_ik);
+                                size_t j = jj;
+                                for (; j + 8 <= jEnd; j += 8) {
+                                    __m256 vb = _mm256_loadu_ps(&B[kIdx * n + j]);
+                                    __m256 vc = _mm256_loadu_ps(&C[i * n + j]);
+                                    vc = _mm256_fmadd_ps(va, vb, vc);
+                                    _mm256_storeu_ps(&C[i * n + j], vc);
+                                }
+                                for (; j < jEnd; ++j) {
+                                    C[i * n + j] += a_ik * B[kIdx * n + j];
+                                }
+#else
+                                for (size_t j = jj; j < jEnd; ++j) {
+                                    C[i * n + j] += a_ik * B[kIdx * n + j];
+                                }
+#endif
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        rowStart = rowEnd;
+    }
+
+    for (auto& th : threads) {
+        th.join();
     }
 }
 
@@ -785,6 +860,73 @@ std::unordered_map<std::string, NativeFunction> getAILibrary() {
         return Value::fromArray(std::move(arr));
     };
     
+    // ========================================
+    // GENERATIVE AI UTILITIES
+    // ========================================
+
+    funcs["SampleToken"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.empty()) return Value::fromInt(0);
+        auto logits = ai_internal::toFloatVector(args[0]);
+        if (logits.empty()) return Value::fromInt(0);
+
+        float temperature = (args.size() > 1) ? static_cast<float>(args[1].asDouble()) : 1.0f;
+        if (temperature < 1e-6f) temperature = 1e-6f;
+
+        // Apply temperature scaling
+        for (auto& v : logits) v /= temperature;
+
+        // Stable softmax
+        std::vector<float> probs(logits.size());
+        ai_internal::stableSoftmax(probs.data(), logits.data(), logits.size());
+
+        // Weighted random sampling
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+        float r = dis(gen);
+
+        float cumulative = 0.0f;
+        for (size_t i = 0; i < probs.size(); ++i) {
+            cumulative += probs[i];
+            if (r <= cumulative) return Value::fromInt(static_cast<int64_t>(i));
+        }
+        return Value::fromInt(static_cast<int64_t>(probs.size() - 1));
+    };
+
+    funcs["Embedding"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.size() < 3) return Value::nil();
+
+        auto table = ai_internal::toFloatVector(args[0]);
+        int64_t tokenIdx = static_cast<int64_t>(args[1].asDouble());
+        size_t embedDim = static_cast<size_t>(args[2].asDouble());
+
+        size_t offset = static_cast<size_t>(tokenIdx) * embedDim;
+        if (offset + embedDim > table.size()) return Value::nil();
+
+        std::vector<float> result(table.begin() + offset, table.begin() + offset + embedDim);
+        return ai_internal::fromFloatVector(result);
+    };
+
+    funcs["TopK"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+        if (args.size() < 2) return Value::nil();
+        auto logits = ai_internal::toFloatVector(args[0]);
+        size_t k = static_cast<size_t>(args[1].asDouble());
+        if (k > logits.size()) k = logits.size();
+
+        // Indices sorted by value descending
+        std::vector<size_t> indices(logits.size());
+        std::iota(indices.begin(), indices.end(), 0);
+        std::partial_sort(indices.begin(), indices.begin() + k, indices.end(),
+            [&logits](size_t a, size_t b) { return logits[a] > logits[b]; });
+
+        std::vector<Value> result;
+        result.reserve(k);
+        for (size_t i = 0; i < k; ++i) {
+            result.push_back(Value::fromInt(static_cast<int64_t>(indices[i])));
+        }
+        return Value::fromArray(std::move(result));
+    };
+
     // ========================================
     // MODEL FUNCTIONS
     // ========================================
