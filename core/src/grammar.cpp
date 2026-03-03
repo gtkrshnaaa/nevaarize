@@ -108,7 +108,7 @@ void GrammarChecker::initBuiltins() {
 
     // Known stdlib module names
     knownStdlibModules = {
-        "math", "time", "io", "ai", "http"
+        "math", "time", "io", "ai", "http", "csv"
     };
 
     // Known methods per stdlib module
@@ -146,6 +146,10 @@ void GrammarChecker::initBuiltins() {
 
     stdlibMethods["http"] = {
         "Server", "Route", "Listen", "Get", "Post"
+    };
+
+    stdlibMethods["csv"] = {
+        "ParseCSV", "ParseCSVString"
     };
 }
 
