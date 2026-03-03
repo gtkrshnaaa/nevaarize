@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Compiler.cpp - True JIT Compiler Implementation
  *
  * Compiles Nevaarize AST to Linux x86-64 machine code.

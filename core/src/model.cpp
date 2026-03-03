@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Model.cpp - Nevaarize Neural Network Model Implementation
  *
  * Complete implementation of forward pass, backpropagation, training,

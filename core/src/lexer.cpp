@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Lexer.cpp - Nevaarize Token Scanner Implementation
  *
  * Full implementation with underscore validation and fast keyword lookup.

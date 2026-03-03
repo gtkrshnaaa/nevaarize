@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * CodeGen.cpp - Nevaarize Linux x86-64 Code Generator Implementation
  *
  * Direct machine code emission for Linux x86-64.

@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Grammar.cpp - Nevaarize Static Analyzer Implementation
  *
  * ============================================================================

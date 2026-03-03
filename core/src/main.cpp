@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Main.cpp - Nevaarize Entry Point
  *
  * Command-line interface for the Nevaarize JIT Compiler.
