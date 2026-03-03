@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * AST.hpp - Nevaarize Abstract Syntax Tree
  *
  * Flattened AST design for cache-friendly traversal.

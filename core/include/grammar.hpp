@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Grammar.hpp - Nevaarize Static Analyzer
  *
  * Static analysis tool for Nevaarize source code.

@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * GC.hpp - Nevaarize Garbage Collector
  *
  * Generational garbage collector with bump-pointer allocation,

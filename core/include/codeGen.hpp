@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * CodeGen.hpp - Nevaarize Linux x86-64 Code Generator
  *
  * Direct machine code generation for Linux x86-64 architecture.

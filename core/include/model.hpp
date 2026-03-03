@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Model.hpp - Nevaarize Neural Network Model System
  *
  * Provides model definition, training, serialization, and inference.

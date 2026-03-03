@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * IRGenerator.hpp - AST to IR Conversion
  *
  * Converts Nevaarize AST to intermediate representation

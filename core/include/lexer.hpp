@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Lexer.hpp - Nevaarize Token Scanner
  *
  * High-performance tokenizer with zero-copy string views

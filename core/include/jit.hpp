@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * JIT.hpp - Nevaarize Native Compiler
  *
  * Compiles Nevaarize AST directly to Linux x86-64 machine code.
