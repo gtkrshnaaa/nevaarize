@@ -232,22 +232,22 @@ Arch: Bytecode (Register-based) - Standard Interpreter
 ================================================================================
 --- LuaJIT (2.1-dev) ---
 Arch: JIT Compiled - Trace-based Compiler
->>> Lua 5.4 Benchmark Suite <<<
+>>>> Lua 5.4 Benchmark Suite <<<
   -------------------------------------------------------------
   Benchmark       |     Performance | Time
   -------------------------------------------------------------
-  Integer Add     | 1,026,889,090.84 OPS/sec | 0.9738s
-  Double Arith    |  966,473,049.90 OPS/sec | 0.1035s
-  String Concat   |       16,491.24 OPS/sec | 30.3191s
-  Array Push      |  253,485,424.59 OPS/sec | 0.0039s
-  Struct Access   | 1,044,713,748.43 OPS/sec | 0.0479s
+  Integer Add     |  929,017,489.68 OPS/sec | 1.0764s
+  Double Arith    |  884,830,466.48 OPS/sec | 0.1130s
+  String Concat   |       12,244.57 OPS/sec | 40.8344s
+  Array Push      |  221,877,080.10 OPS/sec | 0.0045s
+  Struct Access   |  957,249,248.56 OPS/sec | 0.0522s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 12764 KB
+  Peak RAM : 13408 KB
   CPU Load : 99%
-  Total Time: 31.48 s
+  Total Time: 42.18 s
 
 ================================================================================
 --- Python 3 ---
@@ -256,18 +256,19 @@ Arch: Bytecode (Stack-based) - CPython Interpreter
   -------------------------------------------------------------
   Benchmark       |     Performance | Time
   -------------------------------------------------------------
-  Integer Add     |   49,889,491.60 OPS/sec | 20.0443s
-  Double Arith    |   34,959,513.58 OPS/sec | 2.8605s
-  String Concat   |   24,103,810.13 OPS/sec | 0.0207s
-  Array Push      |   28,712,769.89 OPS/sec | 0.0348s
-  Struct Access   |   34,636,544.14 OPS/sec | 1.4436s
+  Integer Add     |   42,823,977.17 OPS/sec | 23.3514s
+  Double Arith    |   30,584,563.25 OPS/sec | 3.2696s
+  String Concat   |   12,657,770.05 OPS/sec | 0.0395s
+  Array Push      |   22,408,223.23 OPS/sec | 0.0446s
+  Struct Access   |   30,521,347.46 OPS/sec | 1.6382s
   -------------------------------------------------------------
 
 
 [System Resources]
-  Peak RAM : 49760 KB
+  Peak RAM : 49384 KB
   CPU Load : 99%
-  Total Time: 24.42 s
+  Total Time: 28.38 s
 
 ================================================================================
 Benchmark Complete.
+
