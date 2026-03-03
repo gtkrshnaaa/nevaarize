@@ -143,7 +143,7 @@ void printUsage(const char* program) {
  * Print version information.
  */
 void printVersion() {
-    std::cout << "Nevaarize v0.1.7" << std::endl;
+    std::cout << "Nevaarize v0.1.8" << std::endl;
     std::cout << "Native JIT Compiler for the Nevaarize Programming Language" << std::endl;
     std::cout << "Built with C++23, Zero External Dependencies" << std::endl;
 }
