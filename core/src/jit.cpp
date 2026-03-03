@@ -129,6 +129,17 @@ extern "C" int64_t jit_array_get(void* dataPtr, int64_t index) {
     return 0;
 }
 
+// Structure to track heap-allocated strings in JIT (defined early for map key support)
+struct JITString {
+    uint32_t magic;    // 0xNEVA
+    uint32_t padding;  // Alignment to maintain 8-byte boundaries
+    int64_t capacity;
+    int64_t length;
+    char data[1]; // Null-terminated string data
+};
+
+const uint32_t JIT_STRING_MAGIC = 0x4E455641; // "NEVA"
+
 // Structure to track heap-allocated maps in JIT
 struct JITMapEntry {
     int64_t key;
@@ -380,16 +391,6 @@ extern "C" void* jit_map_values(void* mapPtr) {
     return arr;
 }
 
-// Structure to track heap-allocated strings in JIT
-struct JITString {
-    uint32_t magic;    // 0xNEVA
-    uint32_t padding;  // Alignment to maintain 8-byte boundaries
-    int64_t capacity;
-    int64_t length;
-    char data[1]; // Null-terminated string data
-};
-
-const uint32_t JIT_STRING_MAGIC = 0x4E455641; // "NEVA"
 
 extern "C" void* jit_alloc_string(const char* s) {
     if (!s) return nullptr;
