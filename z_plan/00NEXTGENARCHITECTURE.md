@@ -10,7 +10,7 @@ To breach the **1.5 Billion ops/sec** barrier (equivalent to GCC `-O2`/`-O3`), w
 
 ## Architectural Evolution
 
-### Current Architecture (v0.1.5)
+### Current Architecture (v0.1.6)
 `AST -> CodeGen (Single Pass) -> Linux x86-64 Machine Code`
 *   **Pros:** Compiles instantly, simple codebase.
 *   **Cons:** Stack-based (variables live in memory), redundant loads/stores, limited optimization scope.
