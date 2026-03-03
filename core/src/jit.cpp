@@ -54,15 +54,53 @@ extern "C" int64_t jit_get_clock_ns() {
     return static_cast<int64_t>(ns);
 }
 
-// Exception handling globals
-static void* current_exception_frame = nullptr;
-static int64_t current_exception_val = 0;
-static int64_t current_exception_type = 0;
+// JIT String structure (defined at top for use by exception handling and map operations)
+struct JITString {
+    uint32_t magic;    // 0xNEVA
+    uint32_t padding;  // Alignment to maintain 8-byte boundaries
+    int64_t capacity;
+    int64_t length;
+    char data[1]; // Null-terminated string data
+};
 
+const uint32_t JIT_STRING_MAGIC = 0x4E455641; // "NEVA"
+
+// Exception handling globals (thread_local for async safety)
+thread_local void* current_exception_frame = nullptr;
+thread_local int64_t current_exception_val = 0;
+thread_local int64_t current_exception_type = 0;
+
+/**
+ * Handle unhandled exceptions with human-readable output.
+ * Detects string exceptions and prints the message directly.
+ */
 extern "C" void jit_unhandled_exception() {
-    std::cerr << "Unhandled Exception in JIT: value bits = " << current_exception_val;
-    std::cerr << ", type tag = " << current_exception_type << std::endl;
+    if (current_exception_type == 4 && current_exception_val != 0) {
+        // String exception — print the message
+        void* dataPtr = reinterpret_cast<void*>(current_exception_val);
+        JITString* str = reinterpret_cast<JITString*>(
+            reinterpret_cast<char*>(dataPtr) - offsetof(JITString, data));
+        std::cerr << "Unhandled Exception: ";
+        std::cerr.write(str->data, str->length);
+        std::cerr << std::endl;
+    } else if (current_exception_type == 0) {
+        std::cerr << "Unhandled Exception: " << current_exception_val << std::endl;
+    } else {
+        std::cerr << "Unhandled Exception (type=" << current_exception_type
+                  << ", value=" << current_exception_val << ")" << std::endl;
+    }
     exit(1);
+}
+
+/**
+ * Print a JITString data pointer's content without newline.
+ * Expects the data pointer from jit_alloc_string (points to JITString.data).
+ */
+extern "C" void jit_print_jitstring_no_newline(void* dataPtr) {
+    if (!dataPtr) { printf("nil"); return; }
+    JITString* str = reinterpret_cast<JITString*>(
+        reinterpret_cast<char*>(dataPtr) - offsetof(JITString, data));
+    fwrite(str->data, 1, str->length, stdout);
 }
 
 
@@ -139,16 +177,6 @@ extern "C" int64_t jit_array_size(void* dataPtr) {
     return arr->size;
 }
 
-// Structure to track heap-allocated strings in JIT (defined early for map key support)
-struct JITString {
-    uint32_t magic;    // 0xNEVA
-    uint32_t padding;  // Alignment to maintain 8-byte boundaries
-    int64_t capacity;
-    int64_t length;
-    char data[1]; // Null-terminated string data
-};
-
-const uint32_t JIT_STRING_MAGIC = 0x4E455641; // "NEVA"
 
 // Structure to track heap-allocated maps in JIT
 struct JITMapEntry {
