@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Math.hpp - Nevaarize Math Standard Library
  *
  * Mathematical functions module.

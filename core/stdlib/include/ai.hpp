@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * AI.hpp - Nevaarize AI Engineering Standard Library
  *
  * Core AI/ML primitives for neural network development.

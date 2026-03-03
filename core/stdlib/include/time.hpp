@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Time.hpp - Nevaarize Time Standard Library
  *
  * Time and timing functions module.

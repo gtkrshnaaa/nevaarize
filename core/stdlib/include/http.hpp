@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * HTTP.hpp - Nevaarize HTTP Server
  *
  * High-performance HTTP server for model serving.

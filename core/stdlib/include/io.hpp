@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * IO.hpp - Nevaarize IO Standard Library
  *
  * Input/Output functions module.
