@@ -155,9 +155,13 @@ struct JITMap {
 
 /**
  * Detect if key is a JITString pointer by checking magic number.
+ * Keys below 0x10000 are treated as plain integers to avoid
+ * dereferencing invalid low addresses.
  */
 static bool jit_is_string_key(int64_t key) {
     if (key == 0) return false;
+    uint64_t ukey = static_cast<uint64_t>(key);
+    if (ukey < 0x10000) return false; // Not a valid heap pointer
     JITString* s = reinterpret_cast<JITString*>(key);
     return s->magic == JIT_STRING_MAGIC;
 }
