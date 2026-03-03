@@ -11,6 +11,8 @@
 #include <iostream>
 #include <iomanip>
 #include <chrono>
+#include <thread>
+#include <vector>
 
 #if defined(__AVX2__)
 #include <immintrin.h>
@@ -288,52 +290,115 @@ void Tensor::print() const {
     }
 }
 
-// Cache-blocked matrix multiplication with SIMD
+// Cache-blocked matrix multiplication with SIMD and multi-threading
 void matmul_blocked(float* C, const float* A, const float* B,
                     int M, int N, int K, int blockSize) {
     // Initialize C to zero
     std::memset(C, 0, M * N * sizeof(float));
-    
-    // Block the computation for cache efficiency
-    for (int i0 = 0; i0 < M; i0 += blockSize) {
-        for (int j0 = 0; j0 < N; j0 += blockSize) {
-            for (int k0 = 0; k0 < K; k0 += blockSize) {
-                // Compute block
-                int iMax = std::min(i0 + blockSize, M);
-                int jMax = std::min(j0 + blockSize, N);
-                int kMax = std::min(k0 + blockSize, K);
-                
-                for (int i = i0; i < iMax; ++i) {
-                    for (int k = k0; k < kMax; ++k) {
-                        float aik = A[i * K + k];
-                        
+
+    unsigned int numThreads = std::thread::hardware_concurrency();
+    if (numThreads == 0) numThreads = 4;
+    if (M < static_cast<int>(numThreads * 4)) numThreads = 1;
+
+    if (numThreads == 1) {
+        // Single-threaded path for small matrices
+        for (int i0 = 0; i0 < M; i0 += blockSize) {
+            for (int j0 = 0; j0 < N; j0 += blockSize) {
+                for (int k0 = 0; k0 < K; k0 += blockSize) {
+                    int iMax = std::min(i0 + blockSize, M);
+                    int jMax = std::min(j0 + blockSize, N);
+                    int kMax = std::min(k0 + blockSize, K);
+
+                    for (int i = i0; i < iMax; ++i) {
+                        for (int k = k0; k < kMax; ++k) {
+                            float aik = A[i * K + k];
 #if defined(__AVX2__)
-                        __m256 va = _mm256_set1_ps(aik);
-                        int j = j0;
-                        for (; j + 8 <= jMax; j += 8) {
-                            __m256 vb = _mm256_loadu_ps(&B[k * N + j]);
-                            __m256 vc = _mm256_loadu_ps(&C[i * N + j]);
+                            __m256 va = _mm256_set1_ps(aik);
+                            int j = j0;
+                            for (; j + 8 <= jMax; j += 8) {
+                                __m256 vb = _mm256_loadu_ps(&B[k * N + j]);
+                                __m256 vc = _mm256_loadu_ps(&C[i * N + j]);
 #if defined(__FMA__)
-                            vc = _mm256_fmadd_ps(va, vb, vc);
+                                vc = _mm256_fmadd_ps(va, vb, vc);
 #else
-                            vc = _mm256_add_ps(vc, _mm256_mul_ps(va, vb));
+                                vc = _mm256_add_ps(vc, _mm256_mul_ps(va, vb));
 #endif
-                            _mm256_storeu_ps(&C[i * N + j], vc);
-                        }
-                        for (; j < jMax; ++j) {
-                            C[i * N + j] += aik * B[k * N + j];
-                        }
+                                _mm256_storeu_ps(&C[i * N + j], vc);
+                            }
+                            for (; j < jMax; ++j) {
+                                C[i * N + j] += aik * B[k * N + j];
+                            }
 #else
-                        for (int j = j0; j < jMax; ++j) {
-                            C[i * N + j] += aik * B[k * N + j];
-                        }
+                            for (int j = j0; j < jMax; ++j) {
+                                C[i * N + j] += aik * B[k * N + j];
+                            }
 #endif
+                        }
                     }
                 }
             }
         }
+        return;
+    }
+
+    // Multi-threaded path: partition rows across threads
+    std::vector<std::thread> threads;
+    threads.reserve(numThreads);
+
+    int rowsPerThread = M / static_cast<int>(numThreads);
+    int remainder = M % static_cast<int>(numThreads);
+
+    int rowStart = 0;
+    for (unsigned int t = 0; t < numThreads; ++t) {
+        int rowEnd = rowStart + rowsPerThread + (static_cast<int>(t) < remainder ? 1 : 0);
+
+        threads.emplace_back([=]() {
+            for (int i0 = rowStart; i0 < rowEnd; i0 += blockSize) {
+                for (int j0 = 0; j0 < N; j0 += blockSize) {
+                    for (int k0 = 0; k0 < K; k0 += blockSize) {
+                        int iMax = std::min(i0 + blockSize, rowEnd);
+                        int jMax = std::min(j0 + blockSize, N);
+                        int kMax = std::min(k0 + blockSize, K);
+
+                        for (int i = i0; i < iMax; ++i) {
+                            for (int k = k0; k < kMax; ++k) {
+                                float aik = A[i * K + k];
+#if defined(__AVX2__)
+                                __m256 va = _mm256_set1_ps(aik);
+                                int j = j0;
+                                for (; j + 8 <= jMax; j += 8) {
+                                    __m256 vb = _mm256_loadu_ps(&B[k * N + j]);
+                                    __m256 vc = _mm256_loadu_ps(&C[i * N + j]);
+#if defined(__FMA__)
+                                    vc = _mm256_fmadd_ps(va, vb, vc);
+#else
+                                    vc = _mm256_add_ps(vc, _mm256_mul_ps(va, vb));
+#endif
+                                    _mm256_storeu_ps(&C[i * N + j], vc);
+                                }
+                                for (; j < jMax; ++j) {
+                                    C[i * N + j] += aik * B[k * N + j];
+                                }
+#else
+                                for (int j = j0; j < jMax; ++j) {
+                                    C[i * N + j] += aik * B[k * N + j];
+                                }
+#endif
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        rowStart = rowEnd;
+    }
+
+    for (auto& th : threads) {
+        th.join();
     }
 }
+
 
 MatmulResult benchmarkMatmul(int M, int N, int K) {
     Tensor A = Tensor::ones({M, K});
