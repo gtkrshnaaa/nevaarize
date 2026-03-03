@@ -469,6 +469,23 @@ extern "C" void* jit_map_values(void* entriesPtr) {
     return arr;
 }
 
+extern "C" void* jit_alloc_string_len(int64_t len) {
+    if (len < 0) return nullptr;
+    int64_t capacity = len;
+    size_t totalBytes = sizeof(JITString) + capacity;
+    
+    void* mem = jitGC.allocate(totalBytes);
+    if (!mem) mem = malloc(totalBytes);
+    if (!mem) return nullptr;
+    
+    JITString* str = static_cast<JITString*>(mem);
+    str->magic = JIT_STRING_MAGIC;
+    str->padding = 0;
+    str->capacity = capacity;
+    str->length = len;
+    str->data[len] = '\0';
+    return static_cast<void*>(str->data);
+}
 
 extern "C" void* jit_alloc_string(const char* s) {
     if (!s) return nullptr;
@@ -587,6 +604,188 @@ extern "C" void jit_task_free(void* taskPtr) {
     if (!taskPtr) return;
     JITTask* task = static_cast<JITTask*>(taskPtr);
     delete task;
+}
+
+// ============================================================================
+// STDLIB FFI: STRING
+// ============================================================================
+
+extern "C" void* jit_string_to_upper(void* strPtr) {
+    if (!strPtr) return nullptr;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    void* newStrPtr = jit_alloc_string_len(str->length);
+    if (!newStrPtr) return nullptr;
+    char* newData = static_cast<char*>(newStrPtr);
+    for (int64_t i = 0; i < str->length; ++i) {
+        newData[i] = std::toupper(static_cast<unsigned char>(str->data[i]));
+    }
+    newData[str->length] = '\0';
+    return newStrPtr;
+}
+
+extern "C" void* jit_string_to_lower(void* strPtr) {
+    if (!strPtr) return nullptr;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    void* newStrPtr = jit_alloc_string_len(str->length);
+    if (!newStrPtr) return nullptr;
+    char* newData = static_cast<char*>(newStrPtr);
+    for (int64_t i = 0; i < str->length; ++i) {
+        newData[i] = std::tolower(static_cast<unsigned char>(str->data[i]));
+    }
+    newData[str->length] = '\0';
+    return newStrPtr;
+}
+
+extern "C" void* jit_string_trim(void* strPtr) {
+    if (!strPtr) return nullptr;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    int64_t start = 0;
+    while (start < str->length && std::isspace(static_cast<unsigned char>(str->data[start]))) start++;
+    int64_t end = str->length - 1;
+    while (end >= start && std::isspace(static_cast<unsigned char>(str->data[end]))) end--;
+    int64_t newLen = (end >= start) ? (end - start + 1) : 0;
+    void* newStrPtr = jit_alloc_string_len(newLen);
+    if (!newStrPtr) return nullptr;
+    if (newLen > 0) {
+        memcpy(newStrPtr, str->data + start, newLen);
+    }
+    static_cast<char*>(newStrPtr)[newLen] = '\0';
+    return newStrPtr;
+}
+
+extern "C" void* jit_string_split(void* strPtr, void* delimPtr) {
+    if (!strPtr || !delimPtr) return jit_alloc_array(0);
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    JITString* delim = reinterpret_cast<JITString*>(static_cast<char*>(delimPtr) - offsetof(JITString, data));
+    
+    std::string text(str->data, str->length);
+    std::string delimiter(delim->data, delim->length);
+    std::vector<void*> tokens;
+    
+    if (delimiter.empty()) {
+        for (char c : text) {
+            void* tokenPtr = jit_alloc_string_len(1);
+            if (tokenPtr) {
+                static_cast<char*>(tokenPtr)[0] = c;
+                static_cast<char*>(tokenPtr)[1] = '\0';
+                tokens.push_back(tokenPtr);
+            }
+        }
+    } else {
+        size_t pos = 0;
+        while ((pos = text.find(delimiter)) != std::string::npos) {
+            void* tokenPtr = jit_alloc_string_len(pos);
+            if (tokenPtr) {
+                memcpy(tokenPtr, text.data(), pos);
+                static_cast<char*>(tokenPtr)[pos] = '\0';
+                tokens.push_back(tokenPtr);
+            }
+            text.erase(0, pos + delimiter.length());
+        }
+        void* tokenPtr = jit_alloc_string_len(text.length());
+        if (tokenPtr) {
+            memcpy(tokenPtr, text.data(), text.length());
+            static_cast<char*>(tokenPtr)[text.length()] = '\0';
+            tokens.push_back(tokenPtr);
+        }
+    }
+    
+    void* arrPtr = jit_alloc_array(tokens.size());
+    if (!arrPtr) return nullptr;
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        jit_array_set(arrPtr, i, reinterpret_cast<int64_t>(tokens[i]));
+    }
+    return arrPtr;
+}
+
+extern "C" void* jit_string_replace(void* strPtr, void* oldPtr, void* newPtr) {
+    if (!strPtr || !oldPtr || !newPtr) return strPtr;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    JITString* oldS = reinterpret_cast<JITString*>(static_cast<char*>(oldPtr) - offsetof(JITString, data));
+    JITString* newS = reinterpret_cast<JITString*>(static_cast<char*>(newPtr) - offsetof(JITString, data));
+    
+    if (oldS->length == 0) {
+        void* result = jit_alloc_string_len(str->length);
+        if (result) {
+            memcpy(result, str->data, str->length);
+            static_cast<char*>(result)[str->length] = '\0';
+        }
+        return result;
+    }
+    
+    std::string text(str->data, str->length);
+    std::string from(oldS->data, oldS->length);
+    std::string to(newS->data, newS->length);
+    
+    size_t start_pos = 0;
+    while ((start_pos = text.find(from, start_pos)) != std::string::npos) {
+        text.replace(start_pos, from.length(), to);
+        start_pos += to.length(); 
+    }
+    
+    void* resPtr = jit_alloc_string_len(text.length());
+    if (resPtr) {
+        memcpy(resPtr, text.data(), text.length());
+        static_cast<char*>(resPtr)[text.length()] = '\0';
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_string_substring(void* strPtr, int64_t start, int64_t length) {
+    if (!strPtr) return nullptr;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    if (start < 0) start = 0;
+    if (start >= str->length) return jit_alloc_string_len(0);
+    if (length < 0) length = 0;
+    
+    int64_t actualLen = std::min(length, str->length - start);
+    void* newStrPtr = jit_alloc_string_len(actualLen);
+    if (newStrPtr) {
+        memcpy(newStrPtr, str->data + start, actualLen);
+        static_cast<char*>(newStrPtr)[actualLen] = '\0';
+    }
+    return newStrPtr;
+}
+
+extern "C" int64_t jit_string_contains(void* strPtr, void* subPtr) {
+    if (!strPtr || !subPtr) return 0;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    JITString* sub = reinterpret_cast<JITString*>(static_cast<char*>(subPtr) - offsetof(JITString, data));
+    std::string text(str->data, str->length);
+    std::string pattern(sub->data, sub->length);
+    return (text.find(pattern) != std::string::npos) ? 1 : 0;
+}
+
+extern "C" int64_t jit_string_index_of(void* strPtr, void* subPtr) {
+    if (!strPtr || !subPtr) return -1;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    JITString* sub = reinterpret_cast<JITString*>(static_cast<char*>(subPtr) - offsetof(JITString, data));
+    std::string text(str->data, str->length);
+    std::string pattern(sub->data, sub->length);
+    size_t pos = text.find(pattern);
+    return (pos == std::string::npos) ? -1 : static_cast<int64_t>(pos);
+}
+
+extern "C" int64_t jit_string_starts_with(void* strPtr, void* prefixPtr) {
+    if (!strPtr || !prefixPtr) return 0;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    JITString* prefix = reinterpret_cast<JITString*>(static_cast<char*>(prefixPtr) - offsetof(JITString, data));
+    if (prefix->length > str->length) return 0;
+    return (memcmp(str->data, prefix->data, prefix->length) == 0) ? 1 : 0;
+}
+
+extern "C" int64_t jit_string_ends_with(void* strPtr, void* suffixPtr) {
+    if (!strPtr || !suffixPtr) return 0;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    JITString* suffix = reinterpret_cast<JITString*>(static_cast<char*>(suffixPtr) - offsetof(JITString, data));
+    if (suffix->length > str->length) return 0;
+    return (memcmp(str->data + (str->length - suffix->length), suffix->data, suffix->length) == 0) ? 1 : 0;
+}
+
+extern "C" int64_t jit_string_length(void* strPtr) {
+    if (!strPtr) return 0;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    return str->length;
 }
 
 // Global source directory for CSV path resolution (set per-compilation)
@@ -2876,7 +3075,111 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                             buf.emit64(5); // Array type
                             return result;
                         }
-
+                        
+                        if (moduleName == "string") {
+                            CodeBuffer& buf = codegen.getCode();
+                            
+                            // Check method arity and prepare operands
+                            int requiredArgs = 1;
+                            if (memberName == "split" || memberName == "contains" || memberName == "indexOf" || 
+                                memberName == "startsWith" || memberName == "endsWith") requiredArgs = 2;
+                            else if (memberName == "replace" || memberName == "substring") requiredArgs = 3;
+                            
+                            if (node.children.size() < (size_t)requiredArgs) {
+                                std::cerr << "Runtime Error: Invalid arguments for std.string." << memberName << std::endl;
+                                exit(1);
+                            }
+                            
+                            // Compile arguments
+                            JITValue arg1 = compileExpr(ast, node.children[0]); // Target string
+                            JITValue arg2, arg3;
+                            if (requiredArgs >= 2) arg2 = compileExpr(ast, node.children[1]);
+                            if (requiredArgs == 3) arg3 = compileExpr(ast, node.children[2]);
+                            
+                            // Save Caller-Saved Registers to Stack
+                            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                            
+                            // Prepare Arg1 (RDI)
+                            bool arg1High = static_cast<uint8_t>(arg1.valueReg) >= 8;
+                            buf.emit8(0x48 | (arg1High ? 0x04 : 0));
+                            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg1.valueReg) & 0x7) << 3) | 7);
+                            
+                            // Prepare Arg2 (RSI) if exists
+                            if (requiredArgs >= 2) {
+                                bool arg2High = static_cast<uint8_t>(arg2.valueReg) >= 8;
+                                buf.emit8(0x48 | (arg2High ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg2.valueReg) & 0x7) << 3) | 6);
+                            }
+                            
+                            // Prepare Arg3 (RDX) if exists
+                            if (requiredArgs == 3) {
+                                bool arg3High = static_cast<uint8_t>(arg3.valueReg) >= 8;
+                                buf.emit8(0x48 | (arg3High ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg3.valueReg) & 0x7) << 3) | 2);
+                            }
+                            
+                            // Stack Alignment (16-byte boundary)
+                            buf.emit8(0x53); // push rbx
+                            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                            buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+                            
+                            // Setup Call Pointer
+                            uint64_t fnPtr = 0;
+                            int64_t retType = 2; // Default to String return
+                            
+                            if (memberName == "toUpperCase") fnPtr = reinterpret_cast<uint64_t>(jit_string_to_upper);
+                            else if (memberName == "toLowerCase") fnPtr = reinterpret_cast<uint64_t>(jit_string_to_lower);
+                            else if (memberName == "trim") fnPtr = reinterpret_cast<uint64_t>(jit_string_trim);
+                            else if (memberName == "split") { fnPtr = reinterpret_cast<uint64_t>(jit_string_split); retType = 5; }
+                            else if (memberName == "replace") fnPtr = reinterpret_cast<uint64_t>(jit_string_replace);
+                            else if (memberName == "substring") fnPtr = reinterpret_cast<uint64_t>(jit_string_substring);
+                            else if (memberName == "contains") { fnPtr = reinterpret_cast<uint64_t>(jit_string_contains); retType = 0; }
+                            else if (memberName == "indexOf") { fnPtr = reinterpret_cast<uint64_t>(jit_string_index_of); retType = 0; }
+                            else if (memberName == "startsWith") { fnPtr = reinterpret_cast<uint64_t>(jit_string_starts_with); retType = 0; }
+                            else if (memberName == "endsWith") { fnPtr = reinterpret_cast<uint64_t>(jit_string_ends_with); retType = 0; }
+                            else if (memberName == "length") { fnPtr = reinterpret_cast<uint64_t>(jit_string_length); retType = 0; }
+                            else {
+                                std::cerr << "Runtime Error: Unknown string method " << memberName << std::endl;
+                                exit(1);
+                            }
+                            
+                            emitMovImm64(buf, X64Reg::RAX, fnPtr);
+                            buf.emit8(0xFF); buf.emit8(0xD0); // call rax
+                            
+                            // Restore Align
+                            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                            buf.emit8(0x5B); // pop rbx
+                            
+                            // Save Return (RAX) avoiding scratch restoration corrupting it
+                            int32_t retSlot = allocateStackSlot();
+                            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                            buf.emit32(static_cast<uint32_t>(retSlot));
+                            
+                            // Restore Scratch
+                            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                            buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                            
+                            // Free Argument Registers
+                            freeReg(arg1.valueReg); freeReg(arg1.typeReg);
+                            if (requiredArgs >= 2) { freeReg(arg2.valueReg); freeReg(arg2.typeReg); }
+                            if (requiredArgs == 3) { freeReg(arg3.valueReg); freeReg(arg3.typeReg); }
+                            
+                            // Construct Destination Variable
+                            X64Reg dst = allocateReg();
+                            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                            buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                            buf.emit8(0x8B);
+                            buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                            buf.emit32(static_cast<uint32_t>(retSlot));
+                            
+                            JITValue result; result.valueReg = dst; result.typeReg = allocateReg();
+                            emitMovImm64(buf, result.typeReg, retType);
+                            return result;
+                        }
+                        
                         if (moduleName == "json" && (memberName == "ParseJSON" || memberName == "ParseJSONString")) {
                             jit_json_source_dir = sourceDir;
                             CodeBuffer& buf = codegen.getCode();
