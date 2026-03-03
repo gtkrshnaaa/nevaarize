@@ -2889,15 +2889,24 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit8(0x48 | (valHigh ? 0x04 : 0));
                 buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(valReg) & 0x7) << 3) | 2); 
                 
-                // Call jit_map_set
+                // Call jit_map_set (returns new map ptr in RAX)
                 buf.emit8(0x48); buf.emit8(0xB8);
                 buf.emit64(reinterpret_cast<uint64_t>(jit_map_set));
                 buf.emit8(0xFF); buf.emit8(0xD0);
+                
+                // Update baseReg with returned pointer (may differ after resize)
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                buf.emit32(static_cast<uint32_t>(tempOffset));
                 
                 buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
                 buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
                 buf.emit8(0x5F); buf.emit8(0x5E);
                 buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                
+                // Reload baseReg from temp slot (captures resize result)
+                buf.emit8(0x48 | (baseHigh ? 0x04 : 0));
+                buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(tempOffset));
                 
                 freeReg(keyReg);
                 freeReg(valReg);
@@ -3807,10 +3816,20 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             buf.emit8(0x48 | (valHigh ? 0x04 : 0));
             buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3) | 2);
             
-            // Call jit_map_set
+            // Call jit_map_set (returns new map ptr in RAX)
             buf.emit8(0x48); buf.emit8(0xB8);
             buf.emit64(reinterpret_cast<uint64_t>(jit_map_set));
             buf.emit8(0xFF); buf.emit8(0xD0);
+            
+            // Update variable with new map pointer if source is identifier
+            if (node.left != INVALID_NODE) {
+                const ASTNode& srcNode = ast.get(node.left);
+                if (srcNode.type == NodeType::IDENTIFIER && variables.count(srcNode.name)) {
+                    int32_t offset = variables[srcNode.name].stackOffset;
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(offset));
+                }
+            }
             
             // Restore Scratch Registers
             buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
