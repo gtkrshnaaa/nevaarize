@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Math.cpp - Nevaarize Math Standard Library Implementation
  *
  * All mathematical functions.

@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Time.cpp - Nevaarize Time Standard Library Implementation
  *
  * Time and timing functions.

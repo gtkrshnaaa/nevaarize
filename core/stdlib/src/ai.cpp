@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * AI.cpp - Nevaarize AI Engineering Standard Library Implementation
  *
  * Comprehensive AI/ML primitives with SIMD acceleration.
