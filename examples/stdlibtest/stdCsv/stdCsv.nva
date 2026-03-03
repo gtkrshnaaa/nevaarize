@@ -1,0 +1,62 @@
+// stdCsv.nva - CSV Standard Library Test
+// Demonstrates ParseCSV with relative path resolution
+
+import stdlib csv as c
+
+print("=== Nevaarize CSV Stdlib Test ===")
+print("")
+
+// Parse CSV file (path relative to THIS script file)
+dataset = c.ParseCSV("data/test.csv")
+
+// Print number of rows
+numRows = dataset.size()
+print("Total rows:", numRows)
+print("")
+
+// Iterate and print each row
+i = 0
+while (i < numRows) {
+    row = dataset[i]
+    numCols = row.size()
+    j = 0
+    while (j < numCols) {
+        write(str(row[j]))
+        if (j < numCols - 1) {
+            write(" | ")
+        }
+        j = j + 1
+    }
+    print("")
+    i = i + 1
+}
+
+print("")
+print("=== Testing ParseCSVString ===")
+
+csvRawData = "id,name,value\n1,Alpha,100\n2,Beta,200\n3,Gamma,300"
+print("Parsing raw string...")
+strDataset = c.ParseCSVString(csvRawData)
+
+numRowsStr = strDataset.size()
+print("Total rows:", numRowsStr)
+
+i = 0
+while (i < numRowsStr) {
+    row = strDataset[i]
+    numCols = row.size()
+    j = 0
+    while (j < numCols) {
+        write(str(row[j]))
+        if (j < numCols - 1) {
+            write(" | ")
+        }
+        j = j + 1
+    }
+    print("")
+    i = i + 1
+}
+
+print("")
+print("=== CSV Test Complete ===")
+
