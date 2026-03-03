@@ -173,6 +173,8 @@ private:
     // Native function call emission
     void emitPrintInt(X64Reg valueReg);
     void emitPrintIntNoNewline(X64Reg valueReg);
+    void emitPrintMapNoNewline(X64Reg valueReg);
+    void emitPrintArrayNoNewline(X64Reg valueReg);
     void emitPrintString(const std::string& str);
     void emitPrintStringNoNewline(const std::string& str);
     void emitPrintSpace();
