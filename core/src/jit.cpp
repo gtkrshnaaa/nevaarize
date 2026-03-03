@@ -13,6 +13,7 @@
 #include "lexer.hpp"
 #include "gc.hpp"
 #include "threadPool.hpp"
+#include "csv.hpp"
 #include <cstring>
 #include <cstdio>
 #include <chrono>
@@ -557,6 +558,70 @@ extern "C" void jit_task_free(void* taskPtr) {
     if (!taskPtr) return;
     JITTask* task = static_cast<JITTask*>(taskPtr);
     delete task;
+}
+
+// Global source directory for CSV path resolution (set per-compilation)
+static std::string jit_csv_source_dir;
+
+/**
+ * FFI bridge: Parse a CSV file from JIT-compiled code.
+ * Returns a JITArray of JITArrays (rows of string pointers).
+ * Each cell is a jit_alloc_string data pointer.
+ */
+extern "C" void* jit_csv_parse_file(const char* path) {
+    std::string pathStr(path);
+    auto result = nevaarize::stdlib::parseCSVFile(pathStr, jit_csv_source_dir);
+
+    if (!result.isArray() || !result.arrayVal || result.arrayVal->empty()) {
+        return jit_alloc_array(0);
+    }
+
+    // Build JITArray of JITArrays
+    void* outerArr = jit_alloc_array(0);
+    for (const auto& row : *result.arrayVal) {
+        if (!row.isArray() || !row.arrayVal) continue;
+        void* innerArr = jit_alloc_array(0);
+        for (const auto& cell : *row.arrayVal) {
+            if (cell.isString() && cell.stringVal) {
+                void* strPtr = jit_alloc_string(cell.stringVal->c_str());
+                innerArr = jit_array_push(innerArr, reinterpret_cast<int64_t>(strPtr));
+            } else {
+                void* strPtr = jit_alloc_string("");
+                innerArr = jit_array_push(innerArr, reinterpret_cast<int64_t>(strPtr));
+            }
+        }
+        outerArr = jit_array_push(outerArr, reinterpret_cast<int64_t>(innerArr));
+    }
+    return outerArr;
+}
+
+/**
+ * FFI bridge: Parse a CSV string from JIT-compiled code.
+ */
+extern "C" void* jit_csv_parse_string(const char* csvContent) {
+    std::string content(csvContent);
+    auto result = nevaarize::stdlib::parseCSVString(content);
+
+    if (!result.isArray() || !result.arrayVal || result.arrayVal->empty()) {
+        return jit_alloc_array(0);
+    }
+
+    void* outerArr = jit_alloc_array(0);
+    for (const auto& row : *result.arrayVal) {
+        if (!row.isArray() || !row.arrayVal) continue;
+        void* innerArr = jit_alloc_array(0);
+        for (const auto& cell : *row.arrayVal) {
+            if (cell.isString() && cell.stringVal) {
+                void* strPtr = jit_alloc_string(cell.stringVal->c_str());
+                innerArr = jit_array_push(innerArr, reinterpret_cast<int64_t>(strPtr));
+            } else {
+                void* strPtr = jit_alloc_string("");
+                innerArr = jit_array_push(innerArr, reinterpret_cast<int64_t>(strPtr));
+            }
+        }
+        outerArr = jit_array_push(outerArr, reinterpret_cast<int64_t>(innerArr));
+    }
+    return outerArr;
 }
 
 namespace nevaarize {
@@ -2593,6 +2658,94 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
                     buf.emit64(0); // Pointer as Int
+                    return result;
+                }
+                
+                // CSV module functions
+                if (memberName == "ParseCSV" || memberName == "ParseCSVString") {
+                    // Set source directory for path resolution
+                    jit_csv_source_dir = sourceDir;
+                    
+                    // Compile first argument (file path or CSV string)
+                    if (node.children.empty()) {
+                        freeReg(objVal.valueReg);
+                        freeReg(objVal.typeReg);
+                        
+                        // Return empty array
+                        X64Reg dst = allocateReg();
+                        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                        
+                        emitMovImm64(buf, X64Reg::RDI, 0);
+                        emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_alloc_array));
+                        buf.emit8(0xFF); buf.emit8(0xD0);
+                        
+                        bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                        buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                        buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                        
+                        buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                        buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                        buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                        
+                        JITValue result;
+                        result.valueReg = dst;
+                        result.typeReg = allocateReg();
+                        bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                        buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                        buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                        buf.emit64(5); // Array type
+                        return result;
+                    }
+                    
+                    JITValue argVal = compileExpr(ast, node.children[0]);
+                    
+                    // Save scratch registers
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                    
+                    // RDI = argVal.valueReg (string data pointer)
+                    bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (argHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+                    
+                    // Call the appropriate FFI bridge
+                    if (memberName == "ParseCSV") {
+                        emitMovImm64(buf, X64Reg::RAX,
+                                     reinterpret_cast<uint64_t>(jit_csv_parse_file));
+                    } else {
+                        emitMovImm64(buf, X64Reg::RAX,
+                                     reinterpret_cast<uint64_t>(jit_csv_parse_string));
+                    }
+                    buf.emit8(0xFF); buf.emit8(0xD0); // call rax
+                    
+                    // Result array pointer is in RAX
+                    X64Reg dst = allocateReg();
+                    if (dst != X64Reg::RAX) {
+                        bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                        buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                        buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                    }
+                    
+                    // Restore scratch
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                    
+                    freeReg(argVal.valueReg);
+                    freeReg(argVal.typeReg);
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(5); // Array type
                     return result;
                 }
                 
