@@ -1,140 +1,137 @@
-// Comprehensive Benchmark for Nevaarize
-// Tests performance across multiple dimensions using stdlib time (native JIT nanos)
+// Nevaarize Internal Benchmark Suite
+// Measures JIT performance across core language features.
+// Each benchmark is encapsulated in a dedicated function.
 
 import stdlib time as t
 
-// Utility to calculate and print ops/sec
-func printResult(ops, startNs, endNs) {
-    durationNs = endNs - startNs
-    
-    // Avoid division by zero
-    if (durationNs == 0) {
-        durationNs = 1
-    }
-    
-    // Calculate duration in milliseconds
-    durationMs = durationNs / 1000000
-    
-    // Calculate ops/sec in two steps to avoid expression parsing issues
-    opsNano = ops * 1000000000
-    opsPerSec = opsNano / durationNs
-    
-    print("Duration:", durationMs, "ms")
-    
-    print("Raw Speed:", opsPerSec, "ops/sec")
-    
-    // Format speed output
+// ---------------------------------------------------------------------------
+// Utility
+// ---------------------------------------------------------------------------
+
+func formatSpeed(opsPerSec) {
     if (opsPerSec >= 1000000000) {
-        billions = opsPerSec / 1000000000
-        print("Formatted:", billions, "Billion ops/sec")
+        print("  Speed:", opsPerSec / 1000000000, "B ops/sec")
     } elif (opsPerSec >= 1000000) {
-        millions = opsPerSec / 1000000
-        print("Formatted:", millions, "Million ops/sec")
+        print("  Speed:", opsPerSec / 1000000, "M ops/sec")
     } elif (opsPerSec >= 1000) {
-        thousands = opsPerSec / 1000
-        print("Formatted:", thousands, "Thousand ops/sec")
+        print("  Speed:", opsPerSec / 1000, "K ops/sec")
     } else {
-        print("Formatted:", opsPerSec, "ops/sec")
+        print("  Speed:", opsPerSec, "ops/sec")
     }
 }
 
-loops = 10000000
+func reportResult(label, ops, startNs, endNs, check) {
+    durationNs = endNs - startNs
+    if (durationNs == 0) { durationNs = 1 }
+    durationMs = durationNs / 1000000
+    opsPerSec  = (ops * 1000000000) / durationNs
 
-print("Nevaarize Benchmark Suite")
-print("Target Loops (Scalar):", loops)
-
-
-print("")
-print("=== Integer Arithmetic (Add/Sub) ===")
-acc = 0
-start1 = t.nanos()
-i = 0
-while (i < loops) {
-    acc = acc + 1
-    acc = acc - 1
-    i = i + 1
+    print(label)
+    print("  Duration:", durationMs, "ms")
+    print("  Check:", check)
+    formatSpeed(opsPerSec)
+    print("")
 }
-end1 = t.nanos()
-print("Result Check:", acc)
-printResult(loops * 2, start1, end1)
 
-print("")
-print("=== Float Arithmetic (Add/Sub) ===")
-accF = 0.0
-startF = t.nanos()
-m = 0
-while (m < loops) {
-    accF = accF + 1.5
-    accF = accF - 0.5
-    m = m + 1
-}
-endF = t.nanos()
-print("Result Check:", accF)
-print("Expected:", loops)
-printResult(loops * 2, startF, endF)
+// ---------------------------------------------------------------------------
+// Benchmarks
+// ---------------------------------------------------------------------------
 
-print("")
-print("=== Control Flow (If/Else) ===")
-acc2 = 0
-start2 = t.nanos()
-j = 0
-while (j < loops) {
-    if (j < loops) {
-        acc2 = acc2 + 1
-    } else {
-        acc2 = acc2 - 1
+func benchIntArith(n) {
+    acc = 0
+    s = t.nanos()
+    i = 0
+    while (i < n) {
+        acc = acc + 1
+        acc = acc - 1
+        i = i + 1
     }
-    j = j + 1
+    e = t.nanos()
+    reportResult("Integer Arithmetic (Add/Sub)", n * 2, s, e, acc)
 }
-end2 = t.nanos()
-print("Result Check:", acc2)
-printResult(loops, start2, end2)
 
-print("")
-print("=== Function Call (Inlined) ===")
+func benchFloatArith(n) {
+    acc = 0.0
+    s = t.nanos()
+    i = 0
+    while (i < n) {
+        acc = acc + 1.5
+        acc = acc - 0.5
+        i = i + 1
+    }
+    e = t.nanos()
+    reportResult("Float Arithmetic (Add/Sub)", n * 2, s, e, acc)
+}
+
+func benchControlFlow(n) {
+    acc = 0
+    s = t.nanos()
+    i = 0
+    while (i < n) {
+        if (i < n) {
+            acc = acc + 1
+        } else {
+            acc = acc - 1
+        }
+        i = i + 1
+    }
+    e = t.nanos()
+    reportResult("Control Flow (If/Else)", n, s, e, acc)
+}
+
 func addOne(val) {
     return val + 1
 }
 
-acc3 = 0
-start3 = t.nanos()
-k = 0
-while (k < loops) {
-    acc3 = addOne(acc3)
-    k = k + 1
+func benchFuncCall(n) {
+    acc = 0
+    s = t.nanos()
+    i = 0
+    while (i < n) {
+        acc = addOne(acc)
+        i = i + 1
+    }
+    e = t.nanos()
+    reportResult("Function Call (Inlined)", n, s, e, acc)
 }
-end3 = t.nanos()
-print("Result Check:", acc3)
-printResult(loops, start3, end3)
 
-print("")
-print("=== Array Write Access ===")
-arr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-start4 = t.nanos()
-l = 0
-while (l < loops) {
-    idx = 5
-    arr[idx] = l
-    l = l + 1
+func benchArrayWrite(n) {
+    arr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    s = t.nanos()
+    i = 0
+    while (i < n) {
+        arr[5] = i
+        i = i + 1
+    }
+    e = t.nanos()
+    reportResult("Array Write Access", n, s, e, arr[5])
 }
-end4 = t.nanos()
-print("Result Check (arr[5]):", arr[5])
-printResult(loops, start4, end4)
 
-print("")
-print("=== For Loop (Range) ===")
-acc5 = 0
-start5 = t.nanos()
-for (num in Range(0, loops)) {
-    acc5 = acc5 + 1
+func benchForRange(n) {
+    acc = 0
+    s = t.nanos()
+    for (i in Range(0, n)) {
+        acc = acc + 1
+    }
+    e = t.nanos()
+    reportResult("For-In Range Loop", n, s, e, acc)
 }
-end5 = t.nanos()
-print("Result Check:", acc5)
-printResult(loops, start5, end5)
 
+// ---------------------------------------------------------------------------
+// Runner
+// ---------------------------------------------------------------------------
 
+print(">>> Nevaarize Benchmark Suite <<<")
+print("  -------------------------------------------------------------")
 
+n = 10000000
 
+benchIntArith(n)
+benchFloatArith(n)
+benchControlFlow(n)
+benchFuncCall(n)
+benchArrayWrite(n)
+benchForRange(n)
 
-print("")
-print("=== ALL TESTS COMPLETE ===")
+print("  -------------------------------------------------------------")
+print("=== ALL BENCHMARKS COMPLETE ===")
