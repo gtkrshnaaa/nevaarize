@@ -9,6 +9,7 @@
 #include "parser.hpp"
 #include "jit.hpp"
 #include "model.hpp"
+#include "grammar.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -87,16 +88,55 @@ int runScript(const std::string& scriptPath) {
 }
 
 /**
+ * Run static analysis on one or more files.
+ */
+int runGrammar(int argc, char* argv[], int startIdx) {
+    GrammarChecker checker;
+
+    size_t totalFiles = 0;
+    size_t totalErrors = 0;
+    size_t totalWarnings = 0;
+    size_t totalPerf = 0;
+
+    for (int i = startIdx; i < argc; ++i) {
+        std::string path = argv[i];
+
+        if (!fs::exists(path)) {
+            std::cerr << "Error: file not found: " << path << std::endl;
+            totalErrors++;
+            totalFiles++;
+            continue;
+        }
+
+        auto result = checker.analyzeFile(path);
+        GrammarChecker::printResult(result);
+
+        totalFiles++;
+        totalErrors += result.errorCount;
+        totalWarnings += result.warningCount;
+        totalPerf += result.perfCount;
+    }
+
+    if (totalFiles > 1) {
+        GrammarChecker::printSummary(totalFiles, totalErrors, totalWarnings, totalPerf);
+    }
+
+    return totalErrors > 0 ? 1 : 0;
+}
+
+/**
  * Print usage information.
  */
 void printUsage(const char* program) {
     std::cout << "Nevaarize - Native JIT Compiler" << std::endl;
     std::cout << std::endl;
     std::cout << "Usage: " << program << " <script.nva>" << std::endl;
+    std::cout << "       " << program << " -grammar <file.nva> [file2.nva ...]" << std::endl;
     std::cout << std::endl;
     std::cout << "Options:" << std::endl;
     std::cout << "  -h, --help     Show this help message" << std::endl;
     std::cout << "  -v, --version  Show version information" << std::endl;
+    std::cout << "  -grammar       Run static analysis (syntax, naming, performance)" << std::endl;
 }
 
 /**
@@ -129,6 +169,14 @@ int main(int argc, char* argv[]) {
     if (arg1 == "-v" || arg1 == "--version") {
         printVersion();
         return 0;
+    }
+
+    if (arg1 == "-grammar") {
+        if (argc < 3) {
+            std::cerr << "Usage: " << argv[0] << " -grammar <file.nva> [file2.nva ...]" << std::endl;
+            return 1;
+        }
+        return runGrammar(argc, argv, 2);
     }
 
     // Run script

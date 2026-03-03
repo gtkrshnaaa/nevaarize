@@ -1,7 +1,7 @@
 /**
  * Grammar.hpp - Nevaarize Static Analyzer
  *
- * PHPStan-like static analysis tool for Nevaarize source code.
+ * Static analysis tool for Nevaarize source code.
  * Validates syntax correctness, naming conventions, semantic integrity,
  * and provides SIMD/AVX-aware performance optimization hints.
  *
