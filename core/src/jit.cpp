@@ -4838,112 +4838,381 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     hoistedFloatConstants.clear();
 }
 
-// Compile for loop (supports Range iteration)
+// Compile for loop (supports Range iteration) — fully optimized with register pinning,
+// dynamic variable allocation, inline condition, and loop unrolling.
 void JIT::compileFor(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
-    
-    // Get iterator variable name
     const std::string& iterName = node.name;
-    
-    // Get the iterable (should be a Range call)
+
     if (node.left == INVALID_NODE) return;
     const ASTNode& iterable = ast.get(node.left);
-    
-    // Check if it's a Range call
-    if (iterable.type == NodeType::CALL && iterable.left != INVALID_NODE) {
-        const ASTNode& callee = ast.get(iterable.left);
-        if (callee.type == NodeType::IDENTIFIER && callee.name == "Range") {
-            // Get Range arguments
-            if (iterable.children.size() >= 2) {
-                // Compile Start Expression
-                CodeBuffer& buf = codegen.getCode();
-                
-                // Allocate stack slot for iterator
-                VarLocation iterLoc;
-                iterLoc.stackOffset = allocateStackSlot();
-                iterLoc.isRegister = false;
-                variables[iterName] = iterLoc;
-                
-                // Compile start value
-                JITValue startVal = compileExpr(ast, iterable.children[0]);
-                X64Reg startReg = startVal.valueReg;
-                
-                // mov [rbp+offset], startReg
-                bool regHigh = static_cast<uint8_t>(startReg) >= 8;
-                buf.emit8(0x48 | (regHigh ? 0x04 : 0));
-                buf.emit8(0x89);
-                buf.emit8(0x85 | ((static_cast<uint8_t>(startReg) & 0x7) << 3));
-                buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
-                
-                freeReg(startVal.valueReg);
-                freeReg(startVal.typeReg);
-                
-                // Compile end value
-                JITValue endVal = compileExpr(ast, iterable.children[1]);
-                X64Reg endReg = endVal.valueReg;
-                
-                // Move end value to RCX (loop limit)
-                if (endReg != X64Reg::RCX) {
-                    bool endHigh = static_cast<uint8_t>(endReg) >= 8;
-                    buf.emit8(0x48 | (endHigh ? 0x01 : 0));
-                    buf.emit8(0x89);
-                    buf.emit8(0xC1 | ((static_cast<uint8_t>(endReg) & 0x7) << 3));
-                    
-                    freeReg(endReg);
-                }
-                
-                // Free end type
-                freeReg(endVal.typeReg);
-                
-                // Align loop start
-                while (buf.getOffset() % 16 != 0) {
-                    buf.emit8(0x90); // NOP
-                }
-                
-                // loop_start:
-                size_t loopStart = buf.getOffset();
-                
-                // cmp [rbp+offset], rcx
-                buf.emit8(0x48);
-                buf.emit8(0x39);
-                buf.emit8(0x8D);
-                buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
-                
-                // jge loop_end
-                buf.emit8(0x0F);
-                buf.emit8(0x8D);
-                size_t jgePatch = buf.getOffset();
-                buf.emit32(0);
-                
-                // Save rcx before body
-                buf.emit8(0x51); // push rcx
-                
-                // Compile loop body
-                if (node.right != INVALID_NODE) {
-                    compileStatement(ast, node.right);
-                }
-                
-                // Restore rcx
-                buf.emit8(0x59); // pop rcx
-                
-                // Increment iterator: inc [rbp+offset]
-                buf.emit8(0x48);
-                buf.emit8(0xFF);
-                buf.emit8(0x85);
-                buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
-                
-                // jmp loop_start
-                buf.emit8(0xE9);
-                int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
-                buf.emit32(static_cast<uint32_t>(jumpBack));
-                
-                // loop_end: patch the jge
-                size_t loopEnd = buf.getOffset();
-                int32_t jgeOffset = static_cast<int32_t>(loopEnd - (jgePatch + 4));
-                buf.patch32(jgePatch, static_cast<uint32_t>(jgeOffset));
-            }
+
+    // Only Range() calls are supported
+    if (iterable.type != NodeType::CALL || iterable.left == INVALID_NODE) return;
+    const ASTNode& callee = ast.get(iterable.left);
+    if (callee.type != NodeType::IDENTIFIER || callee.name != "Range") return;
+    if (iterable.children.size() < 2) return;
+
+    CodeBuffer& buf = codegen.getCode();
+
+    // --- Phase 1: Iterator and Limit Setup ---
+
+    // Allocate stack slot for iterator (needed for type tag and post-loop restore)
+    VarLocation iterLoc;
+    iterLoc.stackOffset = allocateStackSlot();
+    iterLoc.isRegister = false;
+
+    // Compile start and end values
+    JITValue startVal = compileExpr(ast, iterable.children[0]);
+    JITValue endVal   = compileExpr(ast, iterable.children[1]);
+
+    // Store iterator type tag (INT = 0)
+    // mov qword [rbp + offset + 8], 0
+    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset + 8));
+    buf.emit32(0);
+
+    // --- Phase 2: Pin Iterator to R12, Limit to R13 ---
+
+    bool iterPinned  = false;
+    bool limitPinned = false;
+    VarLocation oldIterLoc = iterLoc;
+
+    // Pin iterator to R12
+    if (!regInUse[static_cast<int>(X64Reg::R12)]) {
+        // mov R12, startReg
+        bool srcHigh = static_cast<uint8_t>(startVal.valueReg) >= 8;
+        buf.emit8(0x49 | (srcHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0xC4 | ((static_cast<uint8_t>(startVal.valueReg) & 0x7) << 3));
+
+        iterLoc.isRegister = true;
+        iterLoc.reg = X64Reg::R12;
+        regInUse[static_cast<int>(X64Reg::R12)] = true;
+        iterPinned = true;
+    } else {
+        // Fallback: store start value on stack
+        bool regHigh = static_cast<uint8_t>(startVal.valueReg) >= 8;
+        buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(startVal.valueReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset));
+    }
+    variables[iterName] = iterLoc;
+    freeReg(startVal.valueReg);
+    freeReg(startVal.typeReg);
+
+    // Pin limit to R13
+    if (!regInUse[static_cast<int>(X64Reg::R13)]) {
+        bool srcHigh = static_cast<uint8_t>(endVal.valueReg) >= 8;
+        buf.emit8(0x49 | (srcHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0xC5 | ((static_cast<uint8_t>(endVal.valueReg) & 0x7) << 3));
+
+        regInUse[static_cast<int>(X64Reg::R13)] = true;
+        limitPinned = true;
+    }
+    freeReg(endVal.valueReg);
+    freeReg(endVal.typeReg);
+
+    // --- Phase 3: Dynamic Frequency-Based Variable Pinning ---
+
+    std::unordered_map<std::string, int> varFreq;
+    std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
+        if (currIdx == INVALID_NODE) return;
+        const ASTNode& currNode = ast.get(currIdx);
+        if (currNode.type == NodeType::IDENTIFIER || currNode.type == NodeType::VAR_ASSIGN) {
+            varFreq[currNode.name]++;
+        }
+        scanAST(currNode.left);
+        scanAST(currNode.right);
+        scanAST(currNode.extra);
+        for (NodeIndex child : currNode.children) { scanAST(child); }
+    };
+    scanAST(node.right);
+    varFreq.erase(iterName);
+
+    std::vector<std::pair<std::string, int>> sortedVars(varFreq.begin(), varFreq.end());
+    std::sort(sortedVars.begin(), sortedVars.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    X64Reg pinRegs[] = {X64Reg::R14, X64Reg::R15, X64Reg::RBX};
+    struct PinnedVar { std::string name; VarLocation oldLoc; X64Reg reg; };
+    std::vector<PinnedVar> dynamicPins;
+
+    size_t regIdx = 0;
+    for (const auto& pair : sortedVars) {
+        if (regIdx >= 3) break;
+        const std::string& varName = pair.first;
+        if (variables.count(varName) && !variables[varName].isRegister &&
+            !regInUse[static_cast<int>(pinRegs[regIdx])] &&
+            knownFloatVars.count(varName) == 0) {
+
+            X64Reg targetReg = pinRegs[regIdx];
+            PinnedVar pv = {varName, variables[varName], targetReg};
+            dynamicPins.push_back(pv);
+
+            VarLocation newLoc = pv.oldLoc;
+            newLoc.isRegister = true;
+            newLoc.reg = targetReg;
+            variables[varName] = newLoc;
+            regInUse[static_cast<int>(targetReg)] = true;
+
+            bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
+            buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+            buf.emit8(0x8B);
+            buf.emit8(0x85 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
+
+            regIdx++;
         }
     }
+
+    // --- Phase 4: XMM Float Variable Pinning ---
+
+    struct XMMPin { std::string name; VarLocation oldLoc; X64Reg xmmReg; };
+    std::vector<XMMPin> xmmPins;
+
+    for (const auto& pair : sortedVars) {
+        const std::string& varName = pair.first;
+        if (knownFloatVars.count(varName) && variables.count(varName) &&
+            !variables[varName].isXMMRegister) {
+            X64Reg xmmReg = allocateXMMReg();
+            if (xmmReg == X64Reg::XMM0) break;
+
+            XMMPin xpv = {varName, variables[varName], xmmReg};
+            xmmPins.push_back(xpv);
+
+            VarLocation newLoc = xpv.oldLoc;
+            newLoc.isXMMRegister = true;
+            newLoc.reg = xmmReg;
+            variables[varName] = newLoc;
+
+            uint8_t xmmIdx = static_cast<uint8_t>(xmmReg) - static_cast<uint8_t>(X64Reg::XMM0);
+            int32_t offset = xpv.oldLoc.stackOffset;
+
+            // movsd xmmN, [rbp + offset]
+            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x10);
+            buf.emit8(0x85 | (xmmIdx << 3));
+            buf.emit32(static_cast<uint32_t>(offset));
+        }
+    }
+
+    // --- Phase 5: Float Constant Hoisting ---
+
+    {
+        std::function<void(NodeIndex)> scanConstants = [&](NodeIndex cIdx) {
+            if (cIdx == INVALID_NODE) return;
+            const ASTNode& scanNode = ast.get(cIdx);
+            if (scanNode.type == NodeType::VAR_ASSIGN) {
+                if (scanNode.left != INVALID_NODE) {
+                    const ASTNode& expr = ast.get(scanNode.left);
+                    if (expr.type == NodeType::BINARY_OP &&
+                        (expr.binaryOp == BinaryOp::ADD || expr.binaryOp == BinaryOp::SUB ||
+                         expr.binaryOp == BinaryOp::MUL || expr.binaryOp == BinaryOp::DIV)) {
+                        const ASTNode& lOp = ast.get(expr.left);
+                        const ASTNode& rOp = ast.get(expr.right);
+                        if (lOp.type == NodeType::IDENTIFIER && lOp.name == scanNode.name &&
+                            rOp.type == NodeType::LITERAL_FLOAT) {
+                            double constVal = std::get<double>(rOp.literal.data);
+                            uint64_t bits;
+                            std::memcpy(&bits, &constVal, sizeof(bits));
+                            std::string key = std::to_string(bits);
+
+                            if (hoistedFloatConstants.find(key) == hoistedFloatConstants.end()) {
+                                X64Reg constXMM = allocateXMMReg();
+                                if (constXMM != X64Reg::XMM0) {
+                                    hoistedFloatConstants[key] = constXMM;
+                                    uint8_t xmmIdx = static_cast<uint8_t>(constXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+                                    buf.emit8(0x48); buf.emit8(0xB8);
+                                    buf.emit64(bits);
+                                    buf.emit8(0x66); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x6E);
+                                    buf.emit8(0xC0 | (xmmIdx << 3));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            for (NodeIndex child : scanNode.children) { scanConstants(child); }
+            scanConstants(scanNode.left);
+            scanConstants(scanNode.right);
+        };
+        scanConstants(node.right);
+    }
+
+    // --- Phase 6: Loop Header (16-byte aligned) ---
+
+    while (buf.getOffset() % 16 != 0) {
+        buf.emit8(0x90);
+    }
+
+    size_t loopStart = buf.getOffset();
+    size_t jgePatch = 0;
+
+    if (iterPinned && limitPinned) {
+        // Inline: cmp r12, r13; jge loop_end
+        buf.emit8(0x4D); buf.emit8(0x39); buf.emit8(0xEC); // cmp r12, r13
+        buf.emit8(0x0F); buf.emit8(0x8D);
+        jgePatch = buf.getOffset();
+        buf.emit32(0);
+    } else {
+        // Fallback: memory-based comparison
+        if (limitPinned) {
+            buf.emit8(0x4C); buf.emit8(0x39); buf.emit8(0xAD); // cmp [rbp+off], r13
+            buf.emit32(static_cast<uint32_t>(oldIterLoc.stackOffset));
+        } else {
+            // Generic path (should not normally happen for Range loops)
+            buf.emit8(0x48); buf.emit8(0x39); buf.emit8(0x8D);
+            buf.emit32(static_cast<uint32_t>(oldIterLoc.stackOffset));
+        }
+        buf.emit8(0x0F); buf.emit8(0x8D);
+        jgePatch = buf.getOffset();
+        buf.emit32(0);
+    }
+
+    // --- Phase 7: Loop Body (with optional 4x unrolling) ---
+
+    constexpr int UNROLL_FACTOR = 4;
+
+    struct ShadowAccum { std::string varName; X64Reg primaryXMM; X64Reg shadowXMM; };
+    std::vector<ShadowAccum> shadowAccums;
+    std::vector<size_t> unrollExitPatches;
+
+    if (iterPinned && limitPinned) {
+        // Allocate shadow accumulators for XMM-pinned float variables
+        for (const auto& xpv : xmmPins) {
+            X64Reg shadowXMM = allocateXMMReg();
+            if (shadowXMM == X64Reg::XMM0) break;
+            shadowAccums.push_back({xpv.name, xpv.xmmReg, shadowXMM});
+            uint8_t sIdx = static_cast<uint8_t>(shadowXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+            // xorpd shadow, shadow (initialize to 0.0)
+            buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x57);
+            buf.emit8(0xC0 | (sIdx << 3) | sIdx);
+        }
+
+        // 4x unrolled loop body
+        for (int u = 0; u < UNROLL_FACTOR; ++u) {
+            // Alternate between primary and shadow XMM for float dependency breaking
+            if (u % 2 == 1) {
+                for (const auto& sa : shadowAccums) {
+                    auto it = variables.find(sa.varName);
+                    if (it != variables.end() && it->second.isXMMRegister) {
+                        it->second.reg = sa.shadowXMM;
+                    }
+                }
+            } else if (u > 0) {
+                for (const auto& sa : shadowAccums) {
+                    auto it = variables.find(sa.varName);
+                    if (it != variables.end() && it->second.isXMMRegister) {
+                        it->second.reg = sa.primaryXMM;
+                    }
+                }
+            }
+
+            if (node.right != INVALID_NODE) {
+                compileStatement(ast, node.right);
+            }
+
+            // Increment iterator: inc r12
+            buf.emit8(0x49); buf.emit8(0xFF); buf.emit8(0xC4);
+
+            // Early exit check between unrolled bodies (except after last)
+            if (u < UNROLL_FACTOR - 1) {
+                buf.emit8(0x4D); buf.emit8(0x39); buf.emit8(0xEC); // cmp r12, r13
+                buf.emit8(0x0F); buf.emit8(0x8D);
+                size_t earlyExitPatch = buf.getOffset();
+                buf.emit32(0);
+                unrollExitPatches.push_back(earlyExitPatch);
+            }
+        }
+
+        // Restore primary XMM after unrolled block
+        for (const auto& sa : shadowAccums) {
+            auto it = variables.find(sa.varName);
+            if (it != variables.end() && it->second.isXMMRegister) {
+                it->second.reg = sa.primaryXMM;
+            }
+        }
+    } else {
+        // Non-unrolled fallback
+        if (node.right != INVALID_NODE) {
+            compileStatement(ast, node.right);
+        }
+
+        // Increment iterator
+        if (iterPinned) {
+            buf.emit8(0x49); buf.emit8(0xFF); buf.emit8(0xC4); // inc r12
+        } else {
+            buf.emit8(0x48); buf.emit8(0xFF); buf.emit8(0x85); // inc [rbp+offset]
+            buf.emit32(static_cast<uint32_t>(oldIterLoc.stackOffset));
+        }
+    }
+
+    // jmp loop_start
+    buf.emit8(0xE9);
+    int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
+    buf.emit32(static_cast<uint32_t>(jumpBack));
+
+    // --- Phase 8: Loop End + Cleanup ---
+
+    size_t loopEnd = buf.getOffset();
+    buf.patch32(jgePatch, static_cast<int32_t>(loopEnd - (jgePatch + 4)));
+
+    // Patch early exit points from unrolled iterations
+    for (size_t patchOffset : unrollExitPatches) {
+        buf.patch32(patchOffset, static_cast<int32_t>(loopEnd - (patchOffset + 4)));
+    }
+
+    // Merge shadow accumulators: addsd primary, shadow
+    for (const auto& sa : shadowAccums) {
+        uint8_t pIdx = static_cast<uint8_t>(sa.primaryXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+        uint8_t sIdx = static_cast<uint8_t>(sa.shadowXMM) - static_cast<uint8_t>(X64Reg::XMM0);
+        buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x58);
+        buf.emit8(0xC0 | (pIdx << 3) | sIdx);
+        freeXMMReg(sa.shadowXMM);
+    }
+
+    // Restore iterator register to stack
+    if (iterPinned) {
+        buf.emit8(0x4C); buf.emit8(0x89); buf.emit8(0xA5); // mov [rbp+off], r12
+        buf.emit32(static_cast<uint32_t>(oldIterLoc.stackOffset));
+        variables[iterName] = oldIterLoc;
+        regInUse[static_cast<int>(X64Reg::R12)] = false;
+    }
+
+    // Restore limit register
+    if (limitPinned) {
+        regInUse[static_cast<int>(X64Reg::R13)] = false;
+    }
+
+    // Restore dynamically pinned variables to stack
+    for (const auto& pv : dynamicPins) {
+        bool regHigh = static_cast<uint8_t>(pv.reg) >= 8;
+        buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(pv.reg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
+        variables[pv.name] = pv.oldLoc;
+        regInUse[static_cast<int>(pv.reg)] = false;
+    }
+
+    // Restore XMM-pinned float variables to stack
+    for (const auto& xpv : xmmPins) {
+        uint8_t xmmIdx = static_cast<uint8_t>(xpv.xmmReg) - static_cast<uint8_t>(X64Reg::XMM0);
+        buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x11);
+        buf.emit8(0x85 | (xmmIdx << 3));
+        buf.emit32(static_cast<uint32_t>(xpv.oldLoc.stackOffset));
+        variables[xpv.name] = xpv.oldLoc;
+        freeXMMReg(xpv.xmmReg);
+    }
+
+    // Release hoisted float constant XMM registers
+    for (const auto& hc : hoistedFloatConstants) {
+        freeXMMReg(hc.second);
+    }
+    hoistedFloatConstants.clear();
 }
 
 void JIT::compileTryCatch(const AST& ast, NodeIndex idx) {
