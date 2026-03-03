@@ -112,21 +112,21 @@ The same relative path resolution rules apply to all standard library methods an
 Accessing files in subdirectories from the current script.
 
 ```nva
-import stdlib data as d
+import stdlib csv as c
 
 // Resolves to 'data/reports/january.csv' relative to this file
-dataset = d.ParseCSV("data/reports/january.csv")
+dataset = c.ParseCSV("data/reports/january.csv")
 ```
 
 #### Complex Path Traversal
 You can navigate outside the current directory using `../`.
 
 ```nva
-import stdlib data as d
+import stdlib csv as c
 import stdlib ai as ai
 
 // Load from a parent directory's sibling
-dataset = d.ParseCSV("../../data/external/dataset.csv")
+dataset = c.ParseCSV("../../data/external/dataset.csv")
 
 // Load a model from a sibling directory
 model = ai.LoadModel("../models/v1/classifier.nmod")
@@ -151,12 +151,12 @@ project/
 ```
 
 Inside `analysis.nva`:
-- `d.ParseCSV("../../data/reports/january.csv")` resolves to `/project/data/reports/january.csv`
-- `d.ParseCSV("../../data/external/dataset.csv")` resolves to `/project/data/external/dataset.csv`
+- `c.ParseCSV("../../data/reports/january.csv")` resolves to `/project/data/reports/january.csv`
+- `c.ParseCSV("../../data/external/dataset.csv")` resolves to `/project/data/external/dataset.csv`
 - `ai.LoadModel("../../models/v1/classifier.nmod")` resolves to `/project/models/v1/classifier.nmod`
 
 Inside `main.nva`:
-- `d.ParseCSV("data/reports/january.csv")` resolves to `/project/data/reports/january.csv` (Downward)
+- `c.ParseCSV("data/reports/january.csv")` resolves to `/project/data/reports/january.csv` (Downward)
 - `ai.LoadModel("models/v1/classifier.nmod")` resolves to `/project/models/v1/classifier.nmod` (Downward)
 
 ---
