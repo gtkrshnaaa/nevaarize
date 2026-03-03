@@ -101,6 +101,7 @@ extern "C" void jit_print_jitstring_no_newline(void* dataPtr) {
     JITString* str = reinterpret_cast<JITString*>(
         reinterpret_cast<char*>(dataPtr) - offsetof(JITString, data));
     fwrite(str->data, 1, str->length, stdout);
+    fflush(stdout);
 }
 
 
@@ -5863,60 +5864,73 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
             } else {
                 JITValue val = compileExpr(ast, node.children[i]);
                 
-                // Runtime Dispatch based on Type
+                // Runtime Dispatch based on Type (0=INT, 1=FLOAT, 4=STRING)
                 bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                
+                // cmp typeReg, 0 (INT check)
                 buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
                 buf.emit8(0x83);
                 buf.emit8(0xF8 | (static_cast<uint8_t>(val.typeReg) & 0x7));
                 buf.emit8(0x00);
-                
-                // jnz float_print
-                buf.emit8(0x75);
-                size_t jnzPatch = buf.getOffset();
+                buf.emit8(0x74); // je int_print
+                size_t jeIntPatch = buf.getOffset();
                 buf.emit8(0x00);
                 
-                // === INT PRINT ===
-                emitPrintIntNoNewline(val.valueReg);
-                
-                // jmp end
-                buf.emit8(0xEB);
-                size_t jmpPatch = buf.getOffset();
+                // cmp typeReg, 4 (STRING check)
+                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                buf.emit8(0x83);
+                buf.emit8(0xF8 | (static_cast<uint8_t>(val.typeReg) & 0x7));
+                buf.emit8(0x04);
+                buf.emit8(0x74); // je string_print
+                size_t jeStrPatch = buf.getOffset();
                 buf.emit8(0x00);
                 
-                // === FLOAT PRINT ===
-                size_t floatStart = buf.getOffset();
-                buf.patch8(jnzPatch, static_cast<uint8_t>(floatStart - (jnzPatch + 1)));
-                
-                // Prepare call to jit_print_double(double)
-                // ABI: arg in xmm0
+                // === FLOAT PRINT (fallthrough) ===
                 bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
                 buf.emit8(0x66); buf.emit8(0x48 | (valHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
                 buf.emit8(0xC0 | (static_cast<uint8_t>(val.valueReg) & 0x7));
                 
-                // mov rax, func_ptr
                 buf.emit8(0x48); buf.emit8(0xB8);
                 buf.emit64(reinterpret_cast<uint64_t>(jit_print_double_no_newline));
                 
-                // Save RBX and align stack
-                // push rbx
-                buf.emit8(0x53);
-                // mov rbx, rsp
-                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3);
-                // and rsp, -16
-                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0);
+                buf.emit8(0x53); // push rbx
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+                buf.emit8(0xFF); buf.emit8(0xD0); // call rax
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                buf.emit8(0x5B); // pop rbx
                 
-                // call rax
-                buf.emit8(0xFF); buf.emit8(0xD0);
+                buf.emit8(0xEB); // jmp end
+                size_t jmpEndFromFloat = buf.getOffset();
+                buf.emit8(0x00);
                 
-                // Restore stack and RBX
-                // mov rsp, rbx
-                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC);
-                // pop rbx
-                buf.emit8(0x5B);
+                // === INT PRINT ===
+                size_t intPrintLabel = buf.getOffset();
+                buf.patch8(jeIntPatch, static_cast<uint8_t>(intPrintLabel - (jeIntPatch + 1)));
+                emitPrintIntNoNewline(val.valueReg);
+                
+                buf.emit8(0xEB); // jmp end
+                size_t jmpEndFromInt = buf.getOffset();
+                buf.emit8(0x00);
+                
+                // === STRING PRINT ===
+                size_t strPrintLabel = buf.getOffset();
+                buf.patch8(jeStrPatch, static_cast<uint8_t>(strPrintLabel - (jeStrPatch + 1)));
+                
+                // RDI = valueReg (JITString data pointer)
+                buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+                
+                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); // push rax, rcx, rdx
+                buf.emit8(0x48); buf.emit8(0xB8);
+                buf.emit64(reinterpret_cast<uint64_t>(jit_print_jitstring_no_newline));
+                buf.emit8(0xFF); buf.emit8(0xD0); // call
+                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58); // pop rdx, rcx, rax
                 
                 // === END ===
                 size_t endPos = buf.getOffset();
-                buf.patch8(jmpPatch, static_cast<uint8_t>(endPos - (jmpPatch + 1)));
+                buf.patch8(jmpEndFromFloat, static_cast<uint8_t>(endPos - (jmpEndFromFloat + 1)));
+                buf.patch8(jmpEndFromInt, static_cast<uint8_t>(endPos - (jmpEndFromInt + 1)));
                 
                 freeReg(val.valueReg);
                 freeReg(val.typeReg);
