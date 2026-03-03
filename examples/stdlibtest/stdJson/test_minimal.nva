@@ -1,0 +1,17 @@
+import stdlib json as json
+
+print("=== Minimal JSON Test ===")
+
+data = json.ParseJSONString("{\"a\": 1}")
+
+print("After parse, printing data:")
+print(data)
+
+print("Comparing data == nil:")
+if (data == nil) {
+    print("FAIL: data is nil")
+} else {
+    print("OK: data is not nil")
+}
+
+print("=== Done ===")

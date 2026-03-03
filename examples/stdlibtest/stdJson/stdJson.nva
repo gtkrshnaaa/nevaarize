@@ -1,0 +1,41 @@
+import stdlib json as json
+
+print("--- Nevaarize JSON Stdlib Test ---")
+
+jsonStr = "{\"status\": \"success\", \"code\": 200, \"data\": [10, 20, 30, 40], \"valid\": true}"
+data = json.ParseJSONString(jsonStr)
+
+print("Parsed String Data:")
+print(data)
+
+// Diagnostic: print keys if it's a map
+print("Is data null?")
+if (data == nil) {
+    print("YES, data is nil")
+} else {
+    print("NO, data exists")
+}
+
+print("Accessing keys:")
+print("Status: " + data["status"])
+print("Code: " + data["code"])
+
+arr = data["data"]
+print("Data[1]: " + arr[1])
+print("Valid: " + data["valid"])
+
+print("\nLoading JSON from file: data/test.json")
+fileData = json.ParseJSON("data/test.json")
+
+if (fileData == nil) {
+    print("Error: Could not load JSON file.")
+} else {
+    print("File Data Name: " + fileData["name"])
+    print("File Data Version: " + fileData["version"])
+    meta = fileData["meta"]
+    if (meta != nil) {
+        print("Meta Author: " + meta["author"])
+    }
+}
+
+print("\n--- JSON Test Completed ---")

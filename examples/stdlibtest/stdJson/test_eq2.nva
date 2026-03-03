@@ -1,0 +1,9 @@
+import stdlib json as json
+
+data = json.ParseJSONString("{\"a\": 1}")
+
+if (data == nil) {
+    print("BUG: data is nil")
+} else {
+    print("OK: data is not nil")
+}

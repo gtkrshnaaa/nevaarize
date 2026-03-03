@@ -1,0 +1,11 @@
+{
+    "name": "Nevaarize JSON Test",
+    "version": 1.0,
+    "active": true,
+    "features": ["JIT", "Fast", "Zero Deps"],
+    "meta": {
+        "author": "Antigravity",
+        "tags": ["testing", "stdlib", "json"]
+    },
+    "data": [10, 20, 30, 40]
+}
