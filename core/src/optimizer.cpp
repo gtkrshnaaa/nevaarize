@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Optimizer.cpp - JIT Optimization Passes
  *
  * Implements constant folding, dead code elimination,

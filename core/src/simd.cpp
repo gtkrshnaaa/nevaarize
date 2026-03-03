@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * SIMD.cpp - SIMD Detection Implementation
  *
  * Runtime detection of CPU SIMD capabilities using CPUID.

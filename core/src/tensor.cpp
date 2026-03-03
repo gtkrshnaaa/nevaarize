@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Tensor.cpp - Tensor Implementation
  *
  * SIMD-accelerated tensor operations.

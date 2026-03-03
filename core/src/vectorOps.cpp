@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * VectorOps.cpp - SIMD Vector Operations Implementation
  *
  * AVX2 and AVX-512 optimized vector operations.

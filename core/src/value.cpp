@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Value.cpp - Nevaarize Runtime Value Implementation
  *
  * Implementation of Value methods.

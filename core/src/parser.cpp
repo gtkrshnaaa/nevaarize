@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Parser.cpp - Nevaarize Recursive Descent Parser Implementation
  *
  * Full parser implementation with expression precedence handling.
