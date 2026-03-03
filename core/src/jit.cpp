@@ -576,21 +576,32 @@ extern "C" void* jit_csv_parse_file(const char* path) {
         return jit_alloc_array(0);
     }
 
-    // Build JITArray of JITArrays
-    void* outerArr = jit_alloc_array(0);
+    size_t numRows = result.arrayVal->size();
+    void* outerArr = jit_alloc_array(numRows);
+    int64_t* outerData = static_cast<int64_t*>(outerArr);
+
+    size_t i = 0;
     for (const auto& row : *result.arrayVal) {
-        if (!row.isArray() || !row.arrayVal) continue;
-        void* innerArr = jit_alloc_array(0);
+        if (!row.isArray() || !row.arrayVal) {
+            outerData[i++] = reinterpret_cast<int64_t>(jit_alloc_array(0));
+            continue;
+        }
+
+        size_t numCols = row.arrayVal->size();
+        void* innerArr = jit_alloc_array(numCols);
+        int64_t* innerData = static_cast<int64_t*>(innerArr);
+
+        size_t j = 0;
         for (const auto& cell : *row.arrayVal) {
             if (cell.isString() && cell.stringVal) {
                 void* strPtr = jit_alloc_string(cell.stringVal->c_str());
-                innerArr = jit_array_push(innerArr, reinterpret_cast<int64_t>(strPtr));
+                innerData[j++] = reinterpret_cast<int64_t>(strPtr);
             } else {
                 void* strPtr = jit_alloc_string("");
-                innerArr = jit_array_push(innerArr, reinterpret_cast<int64_t>(strPtr));
+                innerData[j++] = reinterpret_cast<int64_t>(strPtr);
             }
         }
-        outerArr = jit_array_push(outerArr, reinterpret_cast<int64_t>(innerArr));
+        outerData[i++] = reinterpret_cast<int64_t>(innerArr);
     }
     return outerArr;
 }
@@ -599,6 +610,10 @@ extern "C" void* jit_csv_parse_file(const char* path) {
  * FFI bridge: Parse a CSV string from JIT-compiled code.
  */
 extern "C" void* jit_csv_parse_string(const char* csvContent) {
+    if (!csvContent) {
+        return jit_alloc_array(0);
+    }
+    
     std::string content(csvContent);
     auto result = nevaarize::stdlib::parseCSVString(content);
 
@@ -606,20 +621,32 @@ extern "C" void* jit_csv_parse_string(const char* csvContent) {
         return jit_alloc_array(0);
     }
 
-    void* outerArr = jit_alloc_array(0);
+    size_t numRows = result.arrayVal->size();
+    void* outerArr = jit_alloc_array(numRows);
+    int64_t* outerData = static_cast<int64_t*>(outerArr);
+
+    size_t i = 0;
     for (const auto& row : *result.arrayVal) {
-        if (!row.isArray() || !row.arrayVal) continue;
-        void* innerArr = jit_alloc_array(0);
+        if (!row.isArray() || !row.arrayVal) {
+            outerData[i++] = reinterpret_cast<int64_t>(jit_alloc_array(0));
+            continue;
+        }
+
+        size_t numCols = row.arrayVal->size();
+        void* innerArr = jit_alloc_array(numCols);
+        int64_t* innerData = static_cast<int64_t*>(innerArr);
+
+        size_t j = 0;
         for (const auto& cell : *row.arrayVal) {
             if (cell.isString() && cell.stringVal) {
                 void* strPtr = jit_alloc_string(cell.stringVal->c_str());
-                innerArr = jit_array_push(innerArr, reinterpret_cast<int64_t>(strPtr));
+                innerData[j++] = reinterpret_cast<int64_t>(strPtr);
             } else {
                 void* strPtr = jit_alloc_string("");
-                innerArr = jit_array_push(innerArr, reinterpret_cast<int64_t>(strPtr));
+                innerData[j++] = reinterpret_cast<int64_t>(strPtr);
             }
         }
-        outerArr = jit_array_push(outerArr, reinterpret_cast<int64_t>(innerArr));
+        outerData[i++] = reinterpret_cast<int64_t>(innerArr);
     }
     return outerArr;
 }
@@ -2459,10 +2486,27 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     return result;
                 }
                 
-                if (funcName == "int" || funcName == "str" || funcName == "float") {
+                if (funcName == "int" || funcName == "float") {
                     // Just pass through the argument value for now
                     if (!node.children.empty()) {
                         return compileExpr(ast, node.children[0]);
+                    }
+                    JITValue nullVal;
+                    nullVal.valueReg = X64Reg::RAX;
+                    nullVal.typeReg = X64Reg::RAX;
+                    return nullVal;
+                }
+                
+                if (funcName == "str") {
+                    if (!node.children.empty()) {
+                        JITValue val = compileExpr(ast, node.children[0]);
+                        // Explicitly set type to String (4)
+                        CodeBuffer& buf = codegen.getCode();
+                        bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                        buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                        buf.emit8(0xB8 + (static_cast<uint8_t>(val.typeReg) & 0x7));
+                        buf.emit64(4); // String type
+                        return val;
                     }
                     JITValue nullVal;
                     nullVal.valueReg = X64Reg::RAX;
@@ -2552,6 +2596,95 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         std::string namespacedName = moduleNode.name + "_" + memberName;
                         if (userFunctions.count(namespacedName)) {
                             return compileUserCall(ast, idx, namespacedName);
+                        }
+                    }
+                }
+                
+                // CSV stdlib dispatch (must be before compileExpr on callee.left)
+                if (callee.left != INVALID_NODE) {
+                    const ASTNode& aliasNode = ast.get(callee.left);
+                    if (aliasNode.type == NodeType::IDENTIFIER && stdlibAliases.count(aliasNode.name)) {
+                        const std::string& moduleName = stdlibAliases[aliasNode.name];
+                        if (moduleName == "csv" && (memberName == "ParseCSV" || memberName == "ParseCSVString")) {
+                            jit_csv_source_dir = sourceDir;
+                            CodeBuffer& buf = codegen.getCode();
+                            
+                            if (node.children.empty()) {
+                                // Return empty array
+                                X64Reg dst = allocateReg();
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                                
+                                emitMovImm64(buf, X64Reg::RDI, 0);
+                                emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_alloc_array));
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+                                
+                                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                                
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                                
+                                JITValue result;
+                                result.valueReg = dst;
+                                result.typeReg = allocateReg();
+                                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                                buf.emit64(5); // Array type
+                                return result;
+                            }
+                            
+                            JITValue argVal = compileExpr(ast, node.children[0]);
+                            
+                            buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                            
+                            // RDI = string data pointer
+                            bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                            buf.emit8(0x48 | (argHigh ? 0x04 : 0));
+                            buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+                            
+                            if (memberName == "ParseCSV") {
+                                emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_csv_parse_file));
+                            } else {
+                                emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_csv_parse_string));
+                            }
+                            buf.emit8(0xFF); buf.emit8(0xD0);
+                            
+                            // Save return value (RAX) to stack slot before restoring
+                            int32_t retSlot = allocateStackSlot();
+                            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                            buf.emit32(static_cast<uint32_t>(retSlot));
+                            
+                            // Restore scratch registers
+                            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                            buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                            
+                            freeReg(argVal.valueReg);
+                            freeReg(argVal.typeReg);
+                            
+                            // Load result from saved stack slot
+                            X64Reg dst = allocateReg();
+                            bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                            buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                            buf.emit8(0x8B);
+                            buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                            buf.emit32(static_cast<uint32_t>(retSlot));
+                            
+                            JITValue result;
+                            result.valueReg = dst;
+                            result.typeReg = allocateReg();
+                            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                            buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                            buf.emit64(5); // Array type
+                            return result;
                         }
                     }
                 }
@@ -2658,94 +2791,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
                     buf.emit64(0); // Pointer as Int
-                    return result;
-                }
-                
-                // CSV module functions
-                if (memberName == "ParseCSV" || memberName == "ParseCSVString") {
-                    // Set source directory for path resolution
-                    jit_csv_source_dir = sourceDir;
-                    
-                    // Compile first argument (file path or CSV string)
-                    if (node.children.empty()) {
-                        freeReg(objVal.valueReg);
-                        freeReg(objVal.typeReg);
-                        
-                        // Return empty array
-                        X64Reg dst = allocateReg();
-                        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
-                        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
-                        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
-                        
-                        emitMovImm64(buf, X64Reg::RDI, 0);
-                        emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_alloc_array));
-                        buf.emit8(0xFF); buf.emit8(0xD0);
-                        
-                        bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                        buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                        buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
-                        
-                        buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
-                        buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
-                        buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
-                        
-                        JITValue result;
-                        result.valueReg = dst;
-                        result.typeReg = allocateReg();
-                        bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                        buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                        buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                        buf.emit64(5); // Array type
-                        return result;
-                    }
-                    
-                    JITValue argVal = compileExpr(ast, node.children[0]);
-                    
-                    // Save scratch registers
-                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
-                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
-                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
-                    
-                    // RDI = argVal.valueReg (string data pointer)
-                    bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
-                    buf.emit8(0x48 | (argHigh ? 0x04 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
-                    
-                    // Call the appropriate FFI bridge
-                    if (memberName == "ParseCSV") {
-                        emitMovImm64(buf, X64Reg::RAX,
-                                     reinterpret_cast<uint64_t>(jit_csv_parse_file));
-                    } else {
-                        emitMovImm64(buf, X64Reg::RAX,
-                                     reinterpret_cast<uint64_t>(jit_csv_parse_string));
-                    }
-                    buf.emit8(0xFF); buf.emit8(0xD0); // call rax
-                    
-                    // Result array pointer is in RAX
-                    X64Reg dst = allocateReg();
-                    if (dst != X64Reg::RAX) {
-                        bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                        buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                        buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
-                    }
-                    
-                    // Restore scratch
-                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
-                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
-                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
-                    
-                    freeReg(argVal.valueReg);
-                    freeReg(argVal.typeReg);
-                    freeReg(objVal.valueReg);
-                    freeReg(objVal.typeReg);
-                    
-                    JITValue result;
-                    result.valueReg = dst;
-                    result.typeReg = allocateReg();
-                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(5); // Array type
                     return result;
                 }
                 
@@ -6304,7 +6349,75 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
                 emitPrintStringNoNewline(processed);
             } else {
                 JITValue val = compileExpr(ast, argIdx);
-                emitPrintIntNoNewline(val.valueReg); // Int-only for write
+                
+                // Runtime Dispatch based on Type (0=INT, 1=FLOAT, 4=STRING)
+                bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                
+                // cmp typeReg, 0 (INT check)
+                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                buf.emit8(0x83);
+                buf.emit8(0xF8 | (static_cast<uint8_t>(val.typeReg) & 0x7));
+                buf.emit8(0x00);
+                buf.emit8(0x74); // je int_print
+                size_t jeIntPatch = buf.getOffset();
+                buf.emit8(0x00);
+                
+                // cmp typeReg, 4 (STRING check)
+                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                buf.emit8(0x83);
+                buf.emit8(0xF8 | (static_cast<uint8_t>(val.typeReg) & 0x7));
+                buf.emit8(0x04);
+                buf.emit8(0x74); // je string_print
+                size_t jeStrPatch = buf.getOffset();
+                buf.emit8(0x00);
+                
+                // === FLOAT PRINT (fallthrough) ===
+                bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+                buf.emit8(0x66); buf.emit8(0x48 | (valHigh ? 0x01 : 0)); buf.emit8(0x0F); buf.emit8(0x6E);
+                buf.emit8(0xC0 | (static_cast<uint8_t>(val.valueReg) & 0x7));
+                
+                buf.emit8(0x48); buf.emit8(0xB8);
+                buf.emit64(reinterpret_cast<uint64_t>(jit_print_double_no_newline));
+                
+                buf.emit8(0x53); // push rbx
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+                buf.emit8(0xFF); buf.emit8(0xD0); // call rax
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                buf.emit8(0x5B); // pop rbx
+                
+                buf.emit8(0xEB); // jmp end
+                size_t jmpEndFromFloat = buf.getOffset();
+                buf.emit8(0x00);
+                
+                // === INT PRINT ===
+                size_t intPrintLabel = buf.getOffset();
+                buf.patch8(jeIntPatch, static_cast<uint8_t>(intPrintLabel - (jeIntPatch + 1)));
+                emitPrintIntNoNewline(val.valueReg);
+                
+                buf.emit8(0xEB); // jmp end
+                size_t jmpEndFromInt = buf.getOffset();
+                buf.emit8(0x00);
+                
+                // === STRING PRINT ===
+                size_t strPrintLabel = buf.getOffset();
+                buf.patch8(jeStrPatch, static_cast<uint8_t>(strPrintLabel - (jeStrPatch + 1)));
+                
+                // RDI = valueReg (JITString data pointer)
+                buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+                
+                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); // push rax, rcx, rdx
+                buf.emit8(0x48); buf.emit8(0xB8);
+                buf.emit64(reinterpret_cast<uint64_t>(jit_print_jitstring_no_newline));
+                buf.emit8(0xFF); buf.emit8(0xD0); // call
+                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58); // pop rdx, rcx, rax
+                
+                // === END ===
+                size_t endPos = buf.getOffset();
+                buf.patch8(jmpEndFromFloat, static_cast<uint8_t>(endPos - (jmpEndFromFloat + 1)));
+                buf.patch8(jmpEndFromInt, static_cast<uint8_t>(endPos - (jmpEndFromInt + 1)));
+                
                 freeReg(val.valueReg);
                 freeReg(val.typeReg);
             }
