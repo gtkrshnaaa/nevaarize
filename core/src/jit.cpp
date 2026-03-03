@@ -9,6 +9,7 @@
 #include "parser.hpp"
 #include "lexer.hpp"
 #include "gc.hpp"
+#include "threadPool.hpp"
 #include <cstring>
 #include <cstdio>
 #include <chrono>
@@ -17,6 +18,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <future>
 #include <iostream>
 
 // Helper for JIT to call for float printing (with newline)
@@ -522,48 +524,29 @@ extern "C" char* jit_string_concat(char* s1, char* s2) {
 /**
  * Async/Await Runtime Support
  *
- * Task-based concurrency model. An async function spawns a std::thread
- * that executes a compiled function pointer. The result is stored in
- * a JITTask struct which can be polled via await.
+ * Thread pool backed concurrency model. Tasks are submitted to a fixed-size
+ * pool (hardware_concurrency threads) instead of spawning OS threads.
+ * Results are retrieved via std::shared_future.
  */
 struct JITTask {
-    std::atomic<bool> completed;
-    int64_t result;
-    std::thread worker;
-    std::mutex mtx;
-
-    JITTask() : completed(false), result(0) {}
-    ~JITTask() {
-        if (worker.joinable()) {
-            worker.join();
-        }
-    }
+    std::shared_future<int64_t> future;
 };
 
 using JITCompiledFunc = int64_t (*)();
 
 extern "C" void* jit_async_spawn(void* funcPtr) {
-    JITTask* task = new JITTask();
     auto fn = reinterpret_cast<JITCompiledFunc>(funcPtr);
-
-    task->worker = std::thread([task, fn]() {
-        int64_t res = fn();
-        task->result = res;
-        task->completed.store(true, std::memory_order_release);
+    JITTask* task = new JITTask();
+    task->future = nevaarize::ThreadPool::instance().submit([fn]() -> int64_t {
+        return fn();
     });
-
     return static_cast<void*>(task);
 }
 
 extern "C" int64_t jit_await_task(void* taskPtr) {
     if (!taskPtr) return 0;
     JITTask* task = static_cast<JITTask*>(taskPtr);
-
-    if (task->worker.joinable()) {
-        task->worker.join();
-    }
-
-    int64_t result = task->result;
+    int64_t result = task->future.get();
     return result;
 }
 
