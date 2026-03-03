@@ -104,16 +104,62 @@ cd / && nevaarize /project/src/main.nva
 
 In all cases, `import "utils.nva"` inside `main.nva` resolves to `/project/src/utils.nva`.
 
-### Absolute Paths
+### Stdlib and AI Path Resolution
 
-Absolute paths are **NOT recommended** but supported:
+The same relative path resolution rules apply to all standard library methods and AI functionality. When you pass a path to a function, it is resolved relative to the script file calling it.
+
+#### Downward Navigation
+Accessing files in subdirectories from the current script.
 
 ```nva
-import "/absolute/path/to/module.nva" as mod
+import stdlib data as d
+
+// Resolves to 'data/reports/january.csv' relative to this file
+dataset = d.ParseCSV("data/reports/january.csv")
 ```
 
-> [!CAUTION]
-> Absolute paths break portability. Always use relative paths.
+#### Complex Path Traversal
+You can navigate outside the current directory using `../`.
+
+```nva
+import stdlib data as d
+import stdlib ai as ai
+
+// Load from a parent directory's sibling
+dataset = d.ParseCSV("../../data/external/dataset.csv")
+
+// Load a model from a sibling directory
+model = ai.LoadModel("../models/v1/classifier.nmod")
+```
+
+#### Project Structure Example
+Given this structure:
+```text
+project/
+├── main.nva
+├── data/
+│   ├── reports/
+│   │   └── january.csv
+│   └── external/
+│       └── dataset.csv
+├── models/
+│   └── v1/
+│       └── classifier.nmod
+└── src/
+    └── scripts/
+        └── analysis.nva  <-- (Currently executing this file)
+```
+
+Inside `analysis.nva`:
+- `d.ParseCSV("../../data/reports/january.csv")` resolves to `/project/data/reports/january.csv`
+- `d.ParseCSV("../../data/external/dataset.csv")` resolves to `/project/data/external/dataset.csv`
+- `ai.LoadModel("../../models/v1/classifier.nmod")` resolves to `/project/models/v1/classifier.nmod`
+
+Inside `main.nva`:
+- `d.ParseCSV("data/reports/january.csv")` resolves to `/project/data/reports/january.csv` (Downward)
+- `ai.LoadModel("models/v1/classifier.nmod")` resolves to `/project/models/v1/classifier.nmod` (Downward)
+
+---
 
 ---
 
