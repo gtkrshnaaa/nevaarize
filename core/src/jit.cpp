@@ -5035,9 +5035,14 @@ void JIT::compileTryCatch(const AST& ast, NodeIndex idx) {
         compileStatement(ast, node.right);
     }
 
-    // end_label:
+    // end_label (also serves as finally entry point):
     size_t endTarget = buf.getOffset();
     buf.patch32(endTryPatch, static_cast<int32_t>(endTarget - (endTryPatch + 4)));
+
+    // Compile optional finally block (always executes)
+    if (!node.children.empty()) {
+        compileStatement(ast, node.children[0]);
+    }
 }
 
 void JIT::compileThrow(const AST& ast, NodeIndex idx) {

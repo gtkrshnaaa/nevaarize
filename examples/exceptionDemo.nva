@@ -1,0 +1,90 @@
+// Exception Handling Demo - Comprehensive Test Suite
+// Tests: basic throw/catch, string messages, int exceptions, nested try-catch,
+//        finally blocks, and error variable binding
+
+print("=== Nevaarize Exception Handling Demo ===")
+print("")
+
+// 1. Basic throw with string message
+print("1. Basic throw/catch:")
+try {
+    print("   inside try")
+    throw "something went wrong"
+} catch(e) {
+    print("   caught:", e)
+}
+print("   execution continues")
+
+// 2. Throw integer value
+print("")
+print("2. Throw integer:")
+try {
+    throw 42
+} catch(e) {
+    print("   caught int:", e)
+}
+
+// 3. Try block that succeeds (no throw)
+print("")
+print("3. Try without throw:")
+try {
+    x = 10 + 20
+    print("   computed:", x)
+} catch(e) {
+    print("   ERROR: should not reach here")
+}
+print("   normal flow")
+
+// 4. Finally block (with exception)
+print("")
+print("4. Finally with exception:")
+try {
+    throw "boom"
+} catch(e) {
+    print("   caught:", e)
+} finally {
+    print("   finally executed (exception path)")
+}
+
+// 5. Finally block (without exception)
+print("")
+print("5. Finally without exception:")
+try {
+    print("   try succeeded")
+} catch(e) {
+    print("   ERROR: should not reach here")
+} finally {
+    print("   finally executed (success path)")
+}
+
+// 6. Nested try-catch
+print("")
+print("6. Nested try-catch:")
+try {
+    print("   outer try")
+    try {
+        throw "inner error"
+    } catch(e1) {
+        print("   inner caught:", e1)
+    }
+    print("   outer continues")
+} catch(e2) {
+    print("   ERROR: should not reach outer catch")
+}
+
+// 7. Nested try-catch with re-throw propagation
+print("")
+print("7. Re-throw from catch:")
+try {
+    try {
+        throw "original error"
+    } catch(e) {
+        print("   inner caught:", e)
+        throw "re-thrown error"
+    }
+} catch(e2) {
+    print("   outer caught:", e2)
+}
+
+print("")
+print("=== All Exception Tests Complete ===")

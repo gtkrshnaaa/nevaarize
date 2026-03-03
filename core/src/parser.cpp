@@ -415,6 +415,15 @@ NodeIndex Parser::tryStatement() {
         node.name = errVarName;
     }
     
+    // Optional finally block
+    skipNewlines();
+    if (match(TokenType::FINALLY)) {
+        skipNewlines();
+        consume(TokenType::LBRACE, "Expected '{' after 'finally'");
+        NodeIndex finallyBlock = block();
+        node.children.push_back(finallyBlock);
+    }
+    
     return ast.addNode(std::move(node));
 }
 

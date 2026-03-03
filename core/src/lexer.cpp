@@ -42,7 +42,8 @@ constexpr std::array<KeywordEntry, 22> keywords = {{
     {"or", TokenType::OR},
     {"try", TokenType::TRY},
     {"catch", TokenType::CATCH},
-    {"throw", TokenType::THROW}
+    {"throw", TokenType::THROW},
+    {"finally", TokenType::FINALLY}
 }};
 
 } // anonymous namespace

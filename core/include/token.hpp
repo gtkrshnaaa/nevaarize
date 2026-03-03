@@ -45,6 +45,7 @@ enum class TokenType : uint8_t {
     TRY,
     CATCH,
     THROW,
+    FINALLY,
 
     // Operators
     PLUS,
@@ -156,6 +157,7 @@ inline constexpr const char* tokenTypeToString(TokenType type) {
         case TokenType::TRY: return "TRY";
         case TokenType::CATCH: return "CATCH";
         case TokenType::THROW: return "THROW";
+        case TokenType::FINALLY: return "FINALLY";
         case TokenType::PLUS: return "PLUS";
         case TokenType::MINUS: return "MINUS";
         case TokenType::STAR: return "STAR";
