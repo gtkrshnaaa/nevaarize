@@ -341,7 +341,7 @@ extern "C" void* jit_map_set(void* entriesPtr, int64_t key, int64_t value) {
 
     // Ensure load factor < 0.75
     if (map->size >= map->capacity * 0.75) {
-        map = (JITMap*)((char*)jit_map_resize(map) - offsetof(JITMap, entries));
+        map = (JITMap*)jit_map_resize(map);
     }
 
     uint64_t hash = jit_hash_key(key);
@@ -1729,6 +1729,18 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             }
             
             if (!staticIntPath && !staticFloatPath) {
+                // Jump over float path
+                // jmp near end
+                buf.emit8(0xE9);
+                size_t jmpPatch = buf.getOffset();
+                buf.emit32(0);
+            
+                // === FLOAT PATH ===
+                // patch jnz
+                size_t floatStart = buf.getOffset();
+                int32_t jnzOffset = static_cast<int32_t>(floatStart - (jnzPatch + 4));
+                buf.patch32(jnzPatch, static_cast<uint32_t>(jnzOffset));
+
                 // Runtime type guard: if type > 1 (not INT/FLOAT), skip float path
                 // and use integer comparison instead (for MAP, ARRAY, STRING, etc.)
                 bool lTypeHighG = static_cast<uint8_t>(left.typeReg) >= 8;
@@ -1740,18 +1752,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit8(0x0F); buf.emit8(0x87); // JA near (jump if type > 1)
                 size_t jaIntPathPatch = buf.getOffset();
                 buf.emit32(0);
-
-                // Jump over float path
-                // jmp end
-                buf.emit8(0xEB);
-                size_t jmpPatch = buf.getOffset();
-                buf.emit8(0x00);
-            
-                // === FLOAT PATH ===
-                // patch jnz
-                size_t floatStart = buf.getOffset();
-                int32_t jnzOffset = static_cast<int32_t>(floatStart - (jnzPatch + 4));
-                buf.patch32(jnzPatch, static_cast<uint32_t>(jnzOffset));
                 
                 // Check Left Type
                 bool lTypeHigh = static_cast<uint8_t>(left.typeReg) >= 8;
@@ -1916,12 +1916,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
                 buf.emit64(1);
 
-                // Patch jmp end
-                size_t endPos = buf.getOffset();
-                int32_t jmpOffset = static_cast<int32_t>(endPos - (jmpPatch + 1)); // 1-byte jmp uses patch8 not patch32 in my manual emit above?
-               
-                buf.patch8(jmpPatch, static_cast<uint8_t>(jmpOffset));
-
+                // Jump over intCompStart for the FLOAT path
+                buf.emit8(0xEB); 
+                size_t jmpOverIntComp = buf.getOffset();
+                buf.emit8(0x00);
                 // === INTEGER COMPARISON PATH (for non-INT/FLOAT types: MAP, ARRAY, STRING, etc.) ===
                 size_t intCompStart = buf.getOffset();
                 buf.patch32(jaIntPathPatch, static_cast<uint32_t>(intCompStart - (jaIntPathPatch + 4)));
@@ -1980,6 +1978,16 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit8(0x48 | (resTypeHighI ? 0x01 : 0));
                 buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
                 buf.emit64(0);
+
+                // === TRUE END TARGET ===
+                size_t trueEndPos = buf.getOffset();
+
+                // 1. Patch the float path's jump over intCompStart
+                buf.patch8(jmpOverIntComp, static_cast<uint8_t>(trueEndPos - (jmpOverIntComp + 1)));
+
+                // 2. Patch the integer path's jump to the VERY END
+                int32_t jmpOffset = static_cast<int32_t>(trueEndPos - (jmpPatch + 4));
+                buf.patch32(jmpPatch, static_cast<uint32_t>(jmpOffset));
 
             } // end if (!staticIntPath && !staticFloatPath)
             
