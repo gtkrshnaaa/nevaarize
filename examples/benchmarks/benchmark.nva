@@ -7,18 +7,6 @@ import stdlib time as t
 // Utility
 // ---------------------------------------------------------------------------
 
-func formatSpeed(opsPerSec) {
-    if (opsPerSec >= 1000000000) {
-        print("  Speed:", opsPerSec / 1000000000, "B ops/sec")
-    } elif (opsPerSec >= 1000000) {
-        print("  Speed:", opsPerSec / 1000000, "M ops/sec")
-    } elif (opsPerSec >= 1000) {
-        print("  Speed:", opsPerSec / 1000, "K ops/sec")
-    } else {
-        print("  Speed:", opsPerSec, "ops/sec")
-    }
-}
-
 func report(label, ops, startNs, endNs, check) {
     dur = endNs - startNs
     if (dur == 0) { dur = 1 }
@@ -26,7 +14,7 @@ func report(label, ops, startNs, endNs, check) {
     opsSec = (ops * 1000000000) / dur
     print(label)
     print("  Duration:", ms, "ms |  Check:", check)
-    formatSpeed(opsSec)
+    print("  Speed:", opsSec, "ops/sec")
     print("")
 }
 
