@@ -133,7 +133,7 @@ extern "C" int64_t jit_array_get(void* dataPtr, int64_t index) {
 struct JITMapEntry {
     int64_t key;
     int64_t value;
-    bool occupied;
+    int8_t state; // 0 = empty, 1 = occupied, -1 = tombstone
 };
 
 struct JITMap {
@@ -142,65 +142,242 @@ struct JITMap {
     JITMapEntry entries[1]; // Flexible array member
 };
 
+/**
+ * Detect if key is a JITString pointer by checking magic number.
+ */
+static bool jit_is_string_key(int64_t key) {
+    if (key == 0) return false;
+    JITString* s = reinterpret_cast<JITString*>(key);
+    return s->magic == JIT_STRING_MAGIC;
+}
+
+/**
+ * FNV-1a hash for arbitrary byte sequences.
+ */
+static uint64_t jit_fnv1a(const char* data, int64_t len) {
+    uint64_t hash = 14695981039346656037ull;
+    for (int64_t i = 0; i < len; ++i) {
+        hash ^= static_cast<uint8_t>(data[i]);
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+/**
+ * Compute hash for a map key. Dispatches to FNV-1a for string keys
+ * and multiplicative hash for integer keys.
+ */
+static uint64_t jit_hash_key(int64_t key) {
+    if (jit_is_string_key(key)) {
+        JITString* s = reinterpret_cast<JITString*>(key);
+        return jit_fnv1a(s->data, s->length);
+    }
+    return static_cast<uint64_t>(key) * 2654435761ull;
+}
+
+/**
+ * Compare two map keys for equality. String keys are compared by
+ * content; all other keys are compared by raw value.
+ */
+static bool jit_keys_equal(int64_t a, int64_t b) {
+    if (a == b) return true;
+    bool aStr = jit_is_string_key(a);
+    bool bStr = jit_is_string_key(b);
+    if (aStr && bStr) {
+        JITString* sa = reinterpret_cast<JITString*>(a);
+        JITString* sb = reinterpret_cast<JITString*>(b);
+        if (sa->length != sb->length) return false;
+        return std::memcmp(sa->data, sb->data, sa->length) == 0;
+    }
+    return false;
+}
+
 extern "C" void* jit_alloc_map(int64_t initial_capacity) {
     if (initial_capacity < 8) initial_capacity = 8;
     int64_t cap = 1;
     while (cap < initial_capacity) cap *= 2;
-    
+
     size_t totalBytes = sizeof(JITMap) + (cap - 1) * sizeof(JITMapEntry);
     void* mem = jitGC.allocate(totalBytes);
     if (!mem) mem = calloc(1, totalBytes);
     if (!mem) return nullptr;
-    
+
     JITMap* map = static_cast<JITMap*>(mem);
     map->capacity = cap;
     map->size = 0;
-    for(int i=0; i<cap; ++i) map->entries[i].occupied = false;
+    for (int64_t i = 0; i < cap; ++i) map->entries[i].state = 0;
     return static_cast<void*>(map);
 }
 
-extern "C" void jit_map_set(void* mapPtr, int64_t key, int64_t value) {
-    if (!mapPtr) return;
-    JITMap* map = static_cast<JITMap*>(mapPtr);
-    
-    if (map->size * 2 >= map->capacity) {
-        // resize logic could go here, omitting for simplicity/personal tool context
-        // for now just stop adding if full (or could realloc, but we're in JIT memory)
+/**
+ * Resize map to double capacity and rehash all occupied entries.
+ * Returns pointer to the new map.
+ */
+static void* jit_map_resize(JITMap* old) {
+    int64_t newCap = old->capacity * 2;
+    size_t totalBytes = sizeof(JITMap) + (newCap - 1) * sizeof(JITMapEntry);
+    void* mem = jitGC.allocate(totalBytes);
+    if (!mem) mem = calloc(1, totalBytes);
+    if (!mem) return old;
+
+    JITMap* newMap = static_cast<JITMap*>(mem);
+    newMap->capacity = newCap;
+    newMap->size = 0;
+    for (int64_t i = 0; i < newCap; ++i) newMap->entries[i].state = 0;
+
+    // Rehash all occupied entries from old map
+    for (int64_t i = 0; i < old->capacity; ++i) {
+        if (old->entries[i].state == 1) {
+            uint64_t hash = jit_hash_key(old->entries[i].key);
+            int64_t idx = hash & (newCap - 1);
+            while (newMap->entries[idx].state == 1) {
+                idx = (idx + 1) & (newCap - 1);
+            }
+            newMap->entries[idx].key = old->entries[i].key;
+            newMap->entries[idx].value = old->entries[i].value;
+            newMap->entries[idx].state = 1;
+            newMap->size++;
+        }
     }
-    
-    // Linear probing hash table
-    uint64_t hash = key * 2654435761ull; // simple multiplicative hash
+    return static_cast<void*>(newMap);
+}
+
+/**
+ * Insert or update a key-value pair. Returns the (possibly new) map pointer
+ * since resize may reallocate the map.
+ */
+extern "C" void* jit_map_set(void* mapPtr, int64_t key, int64_t value) {
+    if (!mapPtr) return nullptr;
+    JITMap* map = static_cast<JITMap*>(mapPtr);
+
+    // Resize at 50% load factor
+    if (map->size * 2 >= map->capacity) {
+        map = static_cast<JITMap*>(jit_map_resize(map));
+    }
+
+    uint64_t hash = jit_hash_key(key);
     int64_t index = hash & (map->capacity - 1);
-    
-    while (map->entries[index].occupied) {
-        if (map->entries[index].key == key) {
+    int64_t firstTombstone = -1;
+
+    while (map->entries[index].state != 0) {
+        if (map->entries[index].state == 1 && jit_keys_equal(map->entries[index].key, key)) {
             map->entries[index].value = value;
-            return;
+            return static_cast<void*>(map);
+        }
+        if (map->entries[index].state == -1 && firstTombstone == -1) {
+            firstTombstone = index;
         }
         index = (index + 1) & (map->capacity - 1);
     }
-    
-    map->entries[index].key = key;
-    map->entries[index].value = value;
-    map->entries[index].occupied = true;
+
+    // Reuse tombstone slot if available
+    int64_t insertIdx = (firstTombstone != -1) ? firstTombstone : index;
+    map->entries[insertIdx].key = key;
+    map->entries[insertIdx].value = value;
+    map->entries[insertIdx].state = 1;
     map->size++;
+    return static_cast<void*>(map);
 }
 
+/**
+ * Retrieve value for a key. Returns 0 if not found.
+ */
 extern "C" int64_t jit_map_get(void* mapPtr, int64_t key) {
     if (!mapPtr) return 0;
     JITMap* map = static_cast<JITMap*>(mapPtr);
-    
-    uint64_t hash = key * 2654435761ull;
+
+    uint64_t hash = jit_hash_key(key);
     int64_t index = hash & (map->capacity - 1);
-    
-    while (map->entries[index].occupied) {
-        if (map->entries[index].key == key) {
+
+    while (map->entries[index].state != 0) {
+        if (map->entries[index].state == 1 && jit_keys_equal(map->entries[index].key, key)) {
             return map->entries[index].value;
         }
         index = (index + 1) & (map->capacity - 1);
     }
-    
-    return 0; // Not found
+    return 0;
+}
+
+/**
+ * Remove a key from the map using tombstone marker.
+ * Returns 1 if removed, 0 if key was not found.
+ */
+extern "C" int64_t jit_map_remove(void* mapPtr, int64_t key) {
+    if (!mapPtr) return 0;
+    JITMap* map = static_cast<JITMap*>(mapPtr);
+
+    uint64_t hash = jit_hash_key(key);
+    int64_t index = hash & (map->capacity - 1);
+
+    while (map->entries[index].state != 0) {
+        if (map->entries[index].state == 1 && jit_keys_equal(map->entries[index].key, key)) {
+            map->entries[index].state = -1; // tombstone
+            map->size--;
+            return 1;
+        }
+        index = (index + 1) & (map->capacity - 1);
+    }
+    return 0;
+}
+
+/**
+ * Check if map contains key. Returns 1 if found, 0 otherwise.
+ */
+extern "C" int64_t jit_map_has(void* mapPtr, int64_t key) {
+    if (!mapPtr) return 0;
+    JITMap* map = static_cast<JITMap*>(mapPtr);
+
+    uint64_t hash = jit_hash_key(key);
+    int64_t index = hash & (map->capacity - 1);
+
+    while (map->entries[index].state != 0) {
+        if (map->entries[index].state == 1 && jit_keys_equal(map->entries[index].key, key)) {
+            return 1;
+        }
+        index = (index + 1) & (map->capacity - 1);
+    }
+    return 0;
+}
+
+/**
+ * Return the number of entries in the map.
+ */
+extern "C" int64_t jit_map_size(void* mapPtr) {
+    if (!mapPtr) return 0;
+    JITMap* map = static_cast<JITMap*>(mapPtr);
+    return map->size;
+}
+
+/**
+ * Return a JITArray containing all occupied keys.
+ */
+extern "C" void* jit_map_keys(void* mapPtr) {
+    if (!mapPtr) return jit_alloc_array(0);
+    JITMap* map = static_cast<JITMap*>(mapPtr);
+
+    void* arr = jit_alloc_array(map->size);
+    for (int64_t i = 0; i < map->capacity; ++i) {
+        if (map->entries[i].state == 1) {
+            arr = jit_array_push(arr, map->entries[i].key);
+        }
+    }
+    return arr;
+}
+
+/**
+ * Return a JITArray containing all occupied values.
+ */
+extern "C" void* jit_map_values(void* mapPtr) {
+    if (!mapPtr) return jit_alloc_array(0);
+    JITMap* map = static_cast<JITMap*>(mapPtr);
+
+    void* arr = jit_alloc_array(map->size);
+    for (int64_t i = 0; i < map->capacity; ++i) {
+        if (map->entries[i].state == 1) {
+            arr = jit_array_push(arr, map->entries[i].value);
+        }
+    }
+    return arr;
 }
 
 // Structure to track heap-allocated strings in JIT
