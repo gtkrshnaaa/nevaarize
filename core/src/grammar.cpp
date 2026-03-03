@@ -281,8 +281,8 @@ int GrammarChecker::printResult(const AnalysisResult& result) {
     }
 
     for (const auto& d : result.diagnostics) {
-        const char* prefix;
-        const char* color;
+        const char* prefix = "error";
+        const char* color = "\033[31m";
 
         switch (d.level) {
             case DiagLevel::ERROR:

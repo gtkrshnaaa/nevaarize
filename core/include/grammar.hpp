@@ -6,7 +6,7 @@
  * and provides SIMD/AVX-aware performance optimization hints.
  *
  * Usage: nevaarize -grammar file.nva
- *        nevaarize -grammar folder/*.nva
+ *        nevaarize -grammar folder/ (all .nva files)
  */
 
 #ifndef NEVAARIZE_GRAMMAR_HPP
