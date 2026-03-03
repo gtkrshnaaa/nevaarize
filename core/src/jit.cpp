@@ -2136,7 +2136,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                     }
                     // SETNE reg8 (result.valueReg)
-                    if (resHigh) buf.emit8(0x41); // REX.B
+                    buf.emit8(0x40 | (resHigh ? 0x01 : 0)); // REX
                     buf.emit8(0x0F); buf.emit8(0x95); 
                     buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
                     
