@@ -886,8 +886,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             const std::string& strVal = std::get<std::string>(node.literal.data);
             
-            // OPTIMIZATION: Emit the string pointer directly, creating it at JIT compile time!
-            // No need to call `jit_alloc_string` dynamically in the execution loop!
             void* preAllocatedStr = jit_alloc_string(strVal.c_str());
             
             bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
@@ -1175,12 +1173,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         size_t jneOffset = buf.getOffset();
                         buf.emit8(0x00); // 1-byte placeholder
                         
-                        // === STRING INLINE IN-PLACE APPEND FAST PATH ===
-                        // To achieve 1B+ ops/sec we must inline the capacity check.
-                        // rdi = s1 (result.valueReg). rsi = s2 (right.valueReg or immVal)
-                        // s1 Metadata is at rdi - 24. capacity: [rdi - 16]. length: [rdi - 8]
-                        // s2 Metadata is at rsi - 24. length: [rsi - 8]
-                        
                         bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                         bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
                         
@@ -1220,13 +1212,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                             buf.emit8(0x7E); // jle
                             fallbackJumpOffset2 = buf.getOffset();
                             buf.emit8(0x00);
-                            
-                            // 7b. Check again for l1 + l2 edge case.
-                            // If capacity == length + 1, we can append 1 byte, but no room for \0?
-                            // capacity includes room for \0? In jit_alloc_string: capacity = len > 31 ? len : 31; totalBytes = sizeof(JITString) + capacity.
-                            // Since sizeof(JITString) includes data[1], total capacity is actually capacity + 1. So capacity exactly holds length + 1 bytes.
-                            // But jit_string_concat does: newLength = l1 + 1. str1->capacity >= newLength.
-                            // So if r10 > r11, r10 >= r11 + 1!
                             
                             // 8. We have capacity and l2 is 1! Read the char from s2: mov r8b, byte ptr [s2]
                             buf.emit8(0x44 | (rHigh ? 0x01 : 0));
@@ -1476,14 +1461,11 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             }
 
             if (staticIntPath) {
-                // IMPORTANT: In fast path, we must ensure typeReg is 0 (INT)
                 emitXorReg(buf, result.typeReg);
             }
             } // end if (!staticFloatPath)
             
             if (staticFloatPath) {
-                // === STATIC FLOAT FAST PATH ===
-                // Both operands are known float at compile-time.
                 // Emit direct XMM operations without any type-check dispatch.
                 bool lValHigh = static_cast<uint8_t>(left.valueReg) >= 8;
                 
@@ -2303,22 +2285,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     size_t floatStart = buf.getOffset();
                     buf.patch8(jnzPatch, static_cast<uint8_t>(floatStart - (jnzPatch + 1)));
                     
-                    // xor with sign bit (0x8000000000000000)
-                    // MOVABS sign bit to temp reg is messy without clean scratch.
-                    // Use simpler: mov result, 0; subsd result, operand
-                    // But result is currently operand.
-                    // Using subtraction for negation (0 - x)
-
-                    // movq xmm0, operand
-                    // xorps xmm1, xmm1
-                    // subsd xmm1, xmm0
-                    // movq operand, xmm1
-                    
-                    // Simplified: just flip the sign bit in standard ALU?
-                    // Sign bit is MSB.
-                    // mov rax, 0x8000000000000000
-                    // xor operand, rax
-                    
                     // mov rax, 0x8000000000000000
                     buf.emit8(0x48); buf.emit8(0xB8);
                     buf.emit64(0x8000000000000000ULL);
@@ -2336,10 +2302,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 }
                     
                 case UnaryOp::NOT:
-                    // Logical NOT: treat as boolean (zero/non-zero)
-                    // Works same for Float 0.0 (all zero bits). 
-                    // -0.0 has sign bit, so is "truthy" in this simple logic.
-                    // Acceptable mostly.
                     
                     bool valHigh = static_cast<uint8_t>(operand.valueReg) >= 8;
                     
