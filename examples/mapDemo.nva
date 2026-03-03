@@ -1,0 +1,59 @@
+// Map Demo - Comprehensive Map Feature Test
+// Tests: creation, access, assign, size, has, remove, keys, values, resize
+
+print("=== Nevaarize Map Demo ===")
+print("")
+
+// 1. Map literal creation
+m = {1: 10, 2: 20, 3: 30}
+print("1. Map created: {1:10, 2:20, 3:30}")
+
+// 2. Index access
+print("2. m[1] =", m[1])
+print("   m[2] =", m[2])
+print("   m[3] =", m[3])
+
+// 3. Index assign (add new key)
+m[4] = 40
+print("3. After m[4]=40, m[4] =", m[4])
+
+// 4. Size method
+print("4. m.size() =", m.size())
+
+// 5. Has method
+print("5. m.has(2) =", m.has(2))
+print("   m.has(99) =", m.has(99))
+
+// 6. Remove method
+removed = m.remove(2)
+print("6. m.remove(2) =", removed)
+print("   m.has(2) =", m.has(2))
+print("   m.size() =", m.size())
+
+// 7. Keys method
+k = m.keys()
+print("7. m.keys().size() =", k.size())
+
+// 8. Values method
+v = m.values()
+print("8. m.values().size() =", v.size())
+
+// 9. Resize stress test (insert >8 elements to trigger resize)
+big = {0: 100}
+big[1] = 101
+big[2] = 102
+big[3] = 103
+big[4] = 104
+big[5] = 105
+big[6] = 106
+big[7] = 107
+big[8] = 108
+big[9] = 109
+big[10] = 110
+print("9. Resize test: big.size() =", big.size())
+print("   big[0] =", big[0])
+print("   big[5] =", big[5])
+print("   big[10] =", big[10])
+
+print("")
+print("=== All Map Tests Complete ===")

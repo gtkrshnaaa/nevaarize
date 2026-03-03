@@ -129,6 +129,16 @@ extern "C" int64_t jit_array_get(void* dataPtr, int64_t index) {
     return 0;
 }
 
+/**
+ * Return the number of elements in a JITArray.
+ * Expects the data pointer (same as jit_alloc_array returns).
+ */
+extern "C" int64_t jit_array_size(void* dataPtr) {
+    if (!dataPtr) return 0;
+    JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
+    return arr->size;
+}
+
 // Structure to track heap-allocated strings in JIT (defined early for map key support)
 struct JITString {
     uint32_t magic;    // 0xNEVA
@@ -370,7 +380,7 @@ extern "C" void* jit_map_keys(void* mapPtr) {
     if (!mapPtr) return jit_alloc_array(0);
     JITMap* map = static_cast<JITMap*>(mapPtr);
 
-    void* arr = jit_alloc_array(map->size);
+    void* arr = jit_alloc_array(0);
     for (int64_t i = 0; i < map->capacity; ++i) {
         if (map->entries[i].state == 1) {
             arr = jit_array_push(arr, map->entries[i].key);
@@ -386,7 +396,7 @@ extern "C" void* jit_map_values(void* mapPtr) {
     if (!mapPtr) return jit_alloc_array(0);
     JITMap* map = static_cast<JITMap*>(mapPtr);
 
-    void* arr = jit_alloc_array(map->size);
+    void* arr = jit_alloc_array(0);
     for (int64_t i = 0; i < map->capacity; ++i) {
         if (map->entries[i].state == 1) {
             arr = jit_array_push(arr, map->entries[i].value);
@@ -2718,23 +2728,52 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 // --- Map method dispatch ---
                 
                 if (memberName == "size") {
-                    // map.size() or arr.size()
+                    // map.size() or arr.size() — type-aware dispatch
+                    int32_t retSlot = allocateStackSlot();
+                    
                     buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
                     buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
                     
+                    // RDI = objReg (pointer to map or array data)
                     bool objHi = static_cast<uint8_t>(objReg) >= 8;
                     buf.emit8(0x48 | (objHi ? 0x01 : 0));
                     buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
                     
+                    // Check type: cmp typeReg, ValueType::MAP
+                    bool typeHi = static_cast<uint8_t>(objVal.typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHi ? 0x01 : 0));
+                    buf.emit8(0x83);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(objVal.typeReg) & 0x7));
+                    buf.emit8(static_cast<uint8_t>(ValueType::MAP));
+                    
+                    // je map_size
+                    buf.emit8(0x74);
+                    size_t jeMapPatch = buf.getOffset();
+                    buf.emit8(0x00);
+                    
+                    // Array path: call jit_array_size
+                    buf.emit8(0x48); buf.emit8(0xB8);
+                    buf.emit64(reinterpret_cast<uint64_t>(jit_array_size));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+                    buf.emit8(0xEB); // jmp done
+                    size_t jmpDonePatch = buf.getOffset();
+                    buf.emit8(0x00);
+                    
+                    // Map path: call jit_map_size
+                    size_t mapSizeLabel = buf.getOffset();
+                    buf.patch8(jeMapPatch, static_cast<uint8_t>(mapSizeLabel - (jeMapPatch + 1)));
                     buf.emit8(0x48); buf.emit8(0xB8);
                     buf.emit64(reinterpret_cast<uint64_t>(jit_map_size));
                     buf.emit8(0xFF); buf.emit8(0xD0);
                     
-                    X64Reg dst = allocateReg();
-                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                    // Done:
+                    size_t doneLabel = buf.getOffset();
+                    buf.patch8(jmpDonePatch, static_cast<uint8_t>(doneLabel - (jmpDonePatch + 1)));
+                    
+                    // Save return value to stack before restoring registers
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(retSlot));
                     
                     buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
                     buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
@@ -2743,13 +2782,19 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     freeReg(objVal.valueReg);
                     freeReg(objVal.typeReg);
                     
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+                    
                     JITValue result;
                     result.valueReg = dst;
                     result.typeReg = allocateReg();
                     bool tHigh = static_cast<uint8_t>(result.typeReg) >= 8;
                     buf.emit8(0x48 | (tHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(static_cast<uint64_t>(ValueType::INT));
+                    buf.emit64(0); // Type tag 0 = INT (JIT convention)
                     return result;
                 }
                 
@@ -2757,6 +2802,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     // map.has(key)
                     if (node.children.empty()) return objVal;
                     JITValue argVal = compileExpr(ast, node.children[0]);
+                    int32_t retSlot = allocateStackSlot();
                     
                     buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
                     buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
@@ -2774,10 +2820,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit64(reinterpret_cast<uint64_t>(jit_map_has));
                     buf.emit8(0xFF); buf.emit8(0xD0);
                     
-                    X64Reg dst = allocateReg();
-                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(retSlot));
                     
                     buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
                     buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
@@ -2788,13 +2832,19 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     freeReg(objVal.valueReg);
                     freeReg(objVal.typeReg);
                     
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+                    
                     JITValue result;
                     result.valueReg = dst;
                     result.typeReg = allocateReg();
                     bool tHigh = static_cast<uint8_t>(result.typeReg) >= 8;
                     buf.emit8(0x48 | (tHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(static_cast<uint64_t>(ValueType::INT));
+                    buf.emit64(0); // Type tag 0 = INT (JIT convention)
                     return result;
                 }
                 
@@ -2802,6 +2852,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     // map.remove(key)
                     if (node.children.empty()) return objVal;
                     JITValue argVal = compileExpr(ast, node.children[0]);
+                    int32_t retSlot = allocateStackSlot();
                     
                     buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
                     buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
@@ -2819,10 +2870,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit64(reinterpret_cast<uint64_t>(jit_map_remove));
                     buf.emit8(0xFF); buf.emit8(0xD0);
                     
-                    X64Reg dst = allocateReg();
-                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(retSlot));
                     
                     buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
                     buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
@@ -2833,18 +2882,26 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     freeReg(objVal.valueReg);
                     freeReg(objVal.typeReg);
                     
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+                    
                     JITValue result;
                     result.valueReg = dst;
                     result.typeReg = allocateReg();
                     bool tHigh = static_cast<uint8_t>(result.typeReg) >= 8;
                     buf.emit8(0x48 | (tHigh ? 0x01 : 0));
                     buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(static_cast<uint64_t>(ValueType::INT));
+                    buf.emit64(0); // Type tag 0 = INT (JIT convention)
                     return result;
                 }
                 
                 if (memberName == "keys") {
                     // map.keys() -> returns JITArray
+                    int32_t retSlot = allocateStackSlot();
+                    
                     buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
                     buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
@@ -2857,10 +2914,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit64(reinterpret_cast<uint64_t>(jit_map_keys));
                     buf.emit8(0xFF); buf.emit8(0xD0);
                     
-                    X64Reg dst = allocateReg();
-                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(retSlot));
                     
                     buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
                     buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
@@ -2868,6 +2923,12 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     
                     freeReg(objVal.valueReg);
                     freeReg(objVal.typeReg);
+                    
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
                     
                     JITValue result;
                     result.valueReg = dst;
@@ -2881,6 +2942,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 
                 if (memberName == "values") {
                     // map.values() -> returns JITArray
+                    int32_t retSlot = allocateStackSlot();
+                    
                     buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
                     buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
@@ -2893,10 +2956,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit64(reinterpret_cast<uint64_t>(jit_map_values));
                     buf.emit8(0xFF); buf.emit8(0xD0);
                     
-                    X64Reg dst = allocateReg();
-                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
-                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(retSlot));
                     
                     buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
                     buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
@@ -2904,6 +2965,12 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     
                     freeReg(objVal.valueReg);
                     freeReg(objVal.typeReg);
+                    
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
                     
                     JITValue result;
                     result.valueReg = dst;
