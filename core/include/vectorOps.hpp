@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * VectorOps.hpp - SIMD Vector Operations
  *
  * High-performance vector operations using AVX2/AVX-512.

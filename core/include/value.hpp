@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Value.hpp - Nevaarize Runtime Value Representation
  *
  * Tagged union design with cold-value optimization for primitives.

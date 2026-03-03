@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * ThreadPool.hpp - Nevaarize Concurrency Runtime
  *
  * Fixed-size work-stealing thread pool for async/await.

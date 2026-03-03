@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Token.hpp - Nevaarize Token Definitions
  *
  * Defines token types and token structure for the lexer.

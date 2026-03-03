@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * SIMD.hpp - SIMD Detection and Intrinsics Wrapper
  *
  * Detects CPU SIMD capabilities and provides cross-platform

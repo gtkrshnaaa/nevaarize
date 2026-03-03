@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Runtime.hpp - Nevaarize Runtime System
  *
  * Execution environment, environment chain for scoping,

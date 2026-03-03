@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Optimizer.hpp - Nevaarize IR Optimization Passes
  *
  * Optimization passes for the intermediate representation.

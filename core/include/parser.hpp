@@ -1,4 +1,7 @@
 /**
+ * Copyright (c) 2026 Gilang Teja Krishna
+ * github.com/gtkrshnaaa
+ *
  * Parser.hpp - Nevaarize Recursive Descent Parser
  *
  * Parses token stream into a flattened AST with expression precedence handling.
