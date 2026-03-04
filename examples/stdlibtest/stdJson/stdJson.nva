@@ -1,5 +1,7 @@
 import stdlib json as json
 
+nil = 0
+
 print("--- Nevaarize JSON Stdlib Test ---")
 
 jsonStr = "{\"status\": \"success\", \"code\": 200, \"data\": [10, 20, 30, 40], \"valid\": true}"
