@@ -1,4 +1,5 @@
 // User Session Model
+import stdlib time as t
 // Demonstrates struct usage and cross-file import potentials
 
 struct UserSession {
@@ -9,7 +10,6 @@ struct UserSession {
 }
 
 func createSession(userId, name) {
-    import stdlib time as t
     now = t.millis()
     return UserSession(userId, name, now, true)
 }
@@ -19,6 +19,5 @@ func endSession(session) {
 }
 
 func getSessionDuration(session) {
-    import stdlib time as t
     return t.millis() - session.startTime
 }
