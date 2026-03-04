@@ -1,60 +1,88 @@
 // Data Structures Demonstration in Nevaarize
-// Demonstrates array-based stacks and queues with inline operations
+// Uses pre-allocated arrays with manual index tracking (proven JIT pattern)
 
-// Stack Demo (inline, no pass-by-ref issues)
 print("=== Data Structures Demo ===")
 
+// --- Stack (LIFO) ---
 print("--- Stack Demo ---")
-stack = []
-stack.push(100)
-stack.push(200)
-stack.push(300)
-print("Stack size:", stack.size())
-print("Pop:", stack.pop())
-print("Pop:", stack.pop())
-print("Pop:", stack.pop())
-print("Stack size after pops:", stack.size())
+stack = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+top = -1
 
-// Queue Demo (inline)
+// Push 100
+top = top + 1
+stack[top] = 100
+// Push 200
+top = top + 1
+stack[top] = 200
+// Push 300
+top = top + 1
+stack[top] = 300
+
+print("Stack size:", top + 1)
+print("Peek:", stack[top])
+
+// Pop
+val = stack[top]
+top = top - 1
+print("Pop:", val)
+
+val = stack[top]
+top = top - 1
+print("Pop:", val)
+
+val = stack[top]
+top = top - 1
+print("Pop:", val)
+
+print("Stack size after pops:", top + 1)
+
+// --- Queue (FIFO) ---
 print("--- Queue Demo ---")
-queue = []
-queue.push(10)
-queue.push(20)
-queue.push(30)
-print("Queue size:", queue.size())
-// Dequeue: get first, then shift manually
-first = queue[0]
-print("Dequeue:", first)
+queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+qFront = 0
+qBack = 0
 
-// Priority Queue via sorted insert (inline)
-print("--- Priority Queue Demo ---")
-pq = [50, 10, 30, 20, 40]
-print("Before sort:", pq[0], pq[1], pq[2], pq[3], pq[4])
+// Enqueue
+queue[qBack] = 10
+qBack = qBack + 1
+queue[qBack] = 20
+qBack = qBack + 1
+queue[qBack] = 30
+qBack = qBack + 1
 
-// Bubble sort inline
-n = pq.size()
+print("Queue size:", qBack - qFront)
+
+// Dequeue
+print("Dequeue:", queue[qFront])
+qFront = qFront + 1
+print("Dequeue:", queue[qFront])
+qFront = qFront + 1
+
+print("Queue size:", qBack - qFront)
+
+// --- Sorting Demo ---
+print("--- Bubble Sort Demo ---")
+arr = [50, 10, 30, 20, 40]
+n = 5
+print("Before:", arr[0], arr[1], arr[2], arr[3], arr[4])
+
 i = 0
 while (i < n) {
     j = 0
     while (j < n - 1 - i) {
-        if (pq[j] > pq[j + 1]) {
-            temp = pq[j]
-            pq[j] = pq[j + 1]
-            pq[j + 1] = temp
+        if (arr[j] > arr[j + 1]) {
+            temp = arr[j]
+            arr[j] = arr[j + 1]
+            arr[j + 1] = temp
         }
         j = j + 1
     }
     i = i + 1
 }
 
-print("Sorted priority queue:")
-i = 0
-while (i < pq.size()) {
-    print("  Priority", i, ":", pq[i])
-    i = i + 1
-}
+print("After:", arr[0], arr[1], arr[2], arr[3], arr[4])
 
-// Map as dictionary demo
+// --- Map Demo ---
 print("--- Map Demo ---")
 dict = {}
 dict["apple"] = 3
@@ -64,8 +92,5 @@ dict["cherry"] = 2
 print("Apple count:", dict["apple"])
 print("Has banana:", dict.has("banana"))
 print("Has grape:", dict.has("grape"))
-
-keys = dict.keys()
-print("Number of keys:", keys.size())
 
 print("Data structures demo finished.")

@@ -1,24 +1,17 @@
 import stdlib time as t
 
 // Graph Algorithms in Nevaarize
-// Demonstrates adjacency matrix representation and traversal
+// Uses adjacency matrix (pre-allocated flat array) and pre-allocated visited/queue arrays
 
-// Using adjacency matrix (flat 1D array) for JIT compatibility
-// Nodes: 0..5 (6 nodes: A=0, B=1, C=2, D=3, E=4, F=5)
+print("=== Nevaarize Graph Algorithms Demo ===")
+
+// 6 nodes (A=0, B=1, C=2, D=3, E=4, F=5)
 numNodes = 6
 
-// Create adjacency matrix (flat: matrix[i*numNodes + j])
-matrix = []
-total = numNodes * numNodes
-idx = 0
-while (idx < total) {
-    matrix.push(0)
-    idx = idx + 1
-}
+// Adjacency matrix (pre-allocated flat array)
+matrix = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-// Helper: set edge (undirected)
-// matrix[u*numNodes + v] = 1, matrix[v*numNodes + u] = 1
-// Edges: A-B, A-C, B-D, C-E, D-E, E-F
+// Set edges: A-B, A-C, B-D, C-E, D-E, E-F
 matrix[0 * 6 + 1] = 1
 matrix[1 * 6 + 0] = 1
 matrix[0 * 6 + 2] = 1
@@ -32,57 +25,45 @@ matrix[4 * 6 + 3] = 1
 matrix[4 * 6 + 5] = 1
 matrix[5 * 6 + 4] = 1
 
-// BFS using queue
-print("=== Nevaarize Graph Algorithms Demo ===")
+// BFS with pre-allocated queue and visited arrays
 print("Starting BFS from node 0 (A):")
+visited = [0, 0, 0, 0, 0, 0]
+bfsQueue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+bfsHead = 0
+bfsTail = 0
 
-visited = []
-i = 0
-while (i < numNodes) {
-    visited.push(0)
-    i = i + 1
-}
-
-queue = [0]
+bfsQueue[bfsTail] = 0
+bfsTail = bfsTail + 1
 visited[0] = 1
 
-while (queue.size() > 0) {
-    current = queue[0]
-    // Manual dequeue
-    newQueue = []
-    qi = 1
-    while (qi < queue.size()) {
-        newQueue.push(queue[qi])
-        qi = qi + 1
-    }
-    queue = newQueue
-
+while (bfsHead < bfsTail) {
+    current = bfsQueue[bfsHead]
+    bfsHead = bfsHead + 1
     print("Visited:", current)
 
-    // Check all neighbors
     neighbor = 0
     while (neighbor < numNodes) {
         if (matrix[current * numNodes + neighbor] == 1 and visited[neighbor] == 0) {
             visited[neighbor] = 1
-            queue.push(neighbor)
+            bfsQueue[bfsTail] = neighbor
+            bfsTail = bfsTail + 1
         }
         neighbor = neighbor + 1
     }
 }
 
-// DFS using stack
+// DFS with pre-allocated stack
 print("\nStarting DFS from node 0 (A):")
-dfsVisited = []
-i = 0
-while (i < numNodes) {
-    dfsVisited.push(0)
-    i = i + 1
-}
+dfsVisited = [0, 0, 0, 0, 0, 0]
+dfsStack = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+dfsTop = 0
 
-stack = [0]
+dfsStack[dfsTop] = 0
+dfsTop = dfsTop + 1
 
-while (stack.size() > 0) {
-    current = stack.pop()
+while (dfsTop > 0) {
+    dfsTop = dfsTop - 1
+    current = dfsStack[dfsTop]
 
     if (dfsVisited[current] == 0) {
         print("Visited:", current)
@@ -91,7 +72,8 @@ while (stack.size() > 0) {
         neighbor = numNodes - 1
         while (neighbor >= 0) {
             if (matrix[current * numNodes + neighbor] == 1 and dfsVisited[neighbor] == 0) {
-                stack.push(neighbor)
+                dfsStack[dfsTop] = neighbor
+                dfsTop = dfsTop + 1
             }
             neighbor = neighbor - 1
         }
