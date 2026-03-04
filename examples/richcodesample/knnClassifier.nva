@@ -1,0 +1,99 @@
+import stdlib math as m
+import stdlib time as t
+
+// K-Nearest Neighbors (KNN) Classifier Simulation
+// Demonstrates array algorithms and math functions
+
+struct DataPoint {
+    features,
+    label
+}
+
+func euclideanDistance(f1, f2) {
+    sumSq = 0.0
+    for (i in Range(0, f1.size())) {
+        diff = f1[i] - f2[i]
+        sumSq = sumSq + (diff * diff)
+    }
+    return m.Sqrt(sumSq)
+}
+
+func getMajorityClass(neighbors) {
+    counts = {}
+    maxCount = 0
+    bestLabel = ""
+    
+    for (n in neighbors) {
+        label = n.label
+        if (!counts.has(label)) {
+            counts[label] = 0
+        }
+        counts[label] = counts[label] + 1
+        
+        if (counts[label] > maxCount) {
+            maxCount = counts[label]
+            bestLabel = label
+        }
+    }
+    return bestLabel
+}
+
+func classifyKNN(k, dataset, targetFeatures) {
+    // Calculate distances to all points
+    distances = []
+    
+    for (point in dataset) {
+        dist = euclideanDistance(point.features, targetFeatures)
+        // Store conceptually as { distance, label }
+        // We will use a simple parallel array or struct for sorting
+        distances.push([dist, point])
+    }
+    
+    // Sort by distance (simplified bubble sort for demo)
+    n = distances.size()
+    for (i in Range(0, n)) {
+        for (j in Range(0, n - i - 1)) {
+            if (distances[j][0] > distances[j + 1][0]) {
+                temp = distances[j]
+                distances[j] = distances[j + 1]
+                distances[j + 1] = temp
+            }
+        }
+    }
+    
+    // Get K nearest neighbors
+    nearest = []
+    limit = k
+    if (k > n) { limit = n }
+    
+    for (i in Range(0, limit)) {
+        nearest.push(distances[i][1])
+    }
+    
+    return getMajorityClass(nearest)
+}
+
+// Main Execution
+print("=== Nevaarize KNN Classifier Demo ===")
+
+dataset = [
+    DataPoint([2.0, 4.0], "A"),
+    DataPoint([1.0, 3.0], "A"),
+    DataPoint([8.0, 9.0], "B"),
+    DataPoint([7.0, 8.0], "B"),
+    DataPoint([3.0, 5.0], "A"),
+    DataPoint([9.0, 8.0], "B")
+]
+
+targetA = [2.5, 4.5]
+targetB = [8.5, 8.5]
+targetUnknown = [5.0, 6.0]
+
+k = 3
+start = t.millis()
+
+print("Classifying Target A", targetA, "->", classifyKNN(k, dataset, targetA))
+print("Classifying Target B", targetB, "->", classifyKNN(k, dataset, targetB))
+print("Classifying Target Unknown", targetUnknown, "->", classifyKNN(k, dataset, targetUnknown))
+
+print("KNN categorization completed in:", t.millis() - start, "ms")
