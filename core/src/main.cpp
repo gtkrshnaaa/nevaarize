@@ -102,22 +102,36 @@ int runGrammar(int argc, char* argv[], int startIdx) {
     size_t totalPerf = 0;
 
     for (int i = startIdx; i < argc; ++i) {
-        std::string path = argv[i];
+        fs::path p(argv[i]);
 
-        if (!fs::exists(path)) {
-            std::cerr << "Error: file not found: " << path << std::endl;
+        if (!fs::exists(p)) {
+            std::cerr << "Error: path not found: " << p.string() << std::endl;
             totalErrors++;
             totalFiles++;
             continue;
         }
 
-        auto result = checker.analyzeFile(path);
-        GrammarChecker::printResult(result);
+        if (fs::is_directory(p)) {
+            for (const auto& entry : fs::recursive_directory_iterator(p)) {
+                if (fs::is_regular_file(entry) && entry.path().extension() == ".nva") {
+                    auto result = checker.analyzeFile(entry.path().string());
+                    GrammarChecker::printResult(result);
 
-        totalFiles++;
-        totalErrors += result.errorCount;
-        totalWarnings += result.warningCount;
-        totalPerf += result.perfCount;
+                    totalFiles++;
+                    totalErrors += result.errorCount;
+                    totalWarnings += result.warningCount;
+                    totalPerf += result.perfCount;
+                }
+            }
+        } else {
+            auto result = checker.analyzeFile(p.string());
+            GrammarChecker::printResult(result);
+
+            totalFiles++;
+            totalErrors += result.errorCount;
+            totalWarnings += result.warningCount;
+            totalPerf += result.perfCount;
+        }
     }
 
     if (totalFiles > 1) {
