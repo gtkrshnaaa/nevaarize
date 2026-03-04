@@ -3,72 +3,52 @@ import stdlib math as m
 import stdlib time as t
 
 // Neural Network Simulation for XOR-like problem
-// Demonstrates Nevaarize's JIT-accelerated AI module
-
-struct Layer {
-    weights,
-    biases
-}
-
-func createLayer(inputSize, outputSize) {
-    w = ai.RandN(inputSize, outputSize)
-    // Scale weights for better initialization (Xavier-like)
-    limit = m.Sqrt(2.0 / (inputSize + outputSize))
-    ai.Scale(w, limit)
-    
-    b = ai.Zeros(1, outputSize)
-    
-    return Layer(w, b)
-}
-
-func forward(layer, input) {
-    // Linear transformation: (input * weights) + biases
-    z = ai.MatMul(input, layer.weights)
-    ai.Add(z, layer.biases)
-    return z
-}
-
-async func trainStep(model, x, y) {
-    // Layer 1: Forward
-    z1 = forward(model.l1, x)
-    a1 = ai.ReLU(z1)
-    
-    // Layer 2: Forward (Output)
-    z2 = forward(model.l2, a1)
-    output = ai.Softmax(z2)
-    
-    // Calculate Loss (Cross Entropy)
-    loss = ai.CrossEntropyLoss(output, y)
-    
-    return loss
-}
-
-struct Model {
-    l1,
-    l2
-}
-
-// Initializing a 2-layer Neural Network
-inputDim = 2
-hiddenDim = 4
-outputDim = 2
-
-l1 = createLayer(inputDim, hiddenDim)
-l2 = createLayer(hiddenDim, outputDim)
-myModel = Model(l1, l2)
-
-// Mock data (4 samples of 2 inputs)
-x = ai.RandN(4, inputDim)
-y = ai.Zeros(4, outputDim) // Mock labels
+// Demonstrates Nevaarize's JIT-accelerated AI module without struct wrapping
 
 print("Starting AI Training Simulation...")
 start = t.millis()
 
-for (epoch in Range(0, 5)) {
-    lossTask = trainStep(myModel, x, y)
-    loss = await lossTask
+// Layer dimensions
+inputDim = 2
+hiddenDim = 4
+outputDim = 2
+
+// Layer 1 weights and biases (no struct)
+w1 = ai.RandN(inputDim, hiddenDim)
+limit1 = m.Sqrt(2.0 / (inputDim + hiddenDim))
+ai.Scale(w1, limit1)
+b1 = ai.Zeros(1, hiddenDim)
+
+// Layer 2 weights and biases
+w2 = ai.RandN(hiddenDim, outputDim)
+limit2 = m.Sqrt(2.0 / (hiddenDim + outputDim))
+ai.Scale(w2, limit2)
+b2 = ai.Zeros(1, outputDim)
+
+// Mock data (4 samples of 2 inputs)
+x = ai.RandN(4, inputDim)
+y = ai.Zeros(4, outputDim)
+
+// Training loop (synchronous, no async struct returns)
+epoch = 0
+while (epoch < 5) {
+    // Forward Layer 1
+    z1 = ai.MatMul(x, w1)
+    ai.Add(z1, b1)
+    a1 = ai.ReLU(z1)
+
+    // Forward Layer 2
+    z2 = ai.MatMul(a1, w2)
+    ai.Add(z2, b2)
+    output = ai.Softmax(z2)
+
+    // Loss
+    loss = ai.CrossEntropyLoss(output, y)
     print("Epoch", epoch, "- Loss:", loss)
+
+    epoch = epoch + 1
 }
 
 elapsed = t.millis() - start
 print("Training simulation finished in", elapsed, "ms")
+print("Final weights initialized and forward passes completed.")

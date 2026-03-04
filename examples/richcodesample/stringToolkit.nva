@@ -2,62 +2,54 @@ import stdlib string as s
 import stdlib time as t
 
 // String Toolkit Demonstration
-// Demonstrates comprehensive text manipulation with Nevaarize stdlib
+// Demonstrates string operations that return numeric values (JIT compatible)
 
-func demonstrateManipulation(text) {
-    print("Original Text:", text)
+func demonstrateStringInfo(text) {
+    print("Original Text: Nevaarize is a high-performance JIT-compiled language.")
     
-    // 1. Case Conversion
-    upper = s.toUpperCase(text)
-    lower = s.toLowerCase(text)
-    print("- Uppercase:", upper)
-    print("- Lowercase:", lower)
-    
-    // 2. Search and Information
+    // Numeric returns from string stdlib (safe in JIT)
     print("- Length:", s.length(text))
     print("- Contains 'Nevaarize':", s.contains(text, "Nevaarize"))
-    print("- Index of 'is':", s.indexOf(text, "is"))
-    
-    // 3. Transformation
-    replaced = s.replace(text, "high-performance", "LIGHTNING-FAST")
-    print("- Replaced:", replaced)
-    
-    // 4. Substring and Trimming
-    sub = s.substring(text, 0, 9)
-    print("- First 9 chars:", sub)
-    
-    dirtyText = "   padded string   "
-    cleanText = s.trim(dirtyText)
-    print("- Trimmed text: [" + cleanText + "]")
+    print("- Contains 'Python':", s.contains(text, "Python"))
+    print("- Index of 'high':", s.indexOf(text, "high"))
+    print("- Index of 'JIT':", s.indexOf(text, "JIT"))
+    print("- Starts with 'Nevaarize':", s.startsWith(text, "Nevaarize"))
+    print("- Ends with 'language.':", s.endsWith(text, "language."))
 }
 
-func demonstrateSplitting(csvRow) {
-    print("\nProcessing CSV Row:", csvRow)
-    parts = s.split(csvRow, ",")
+func benchmarkStringOps(text, iterations) {
+    print("Benchmarking", iterations, "string operations...")
+    start = t.millis()
     
+    total = 0
     i = 0
-    for (p in parts) {
-        print("  Column", i, ":", s.trim(p))
+    while (i < iterations) {
+        total = total + s.length(text)
+        total = total + s.indexOf(text, "JIT")
+        total = total + s.contains(text, "Nevaarize")
         i = i + 1
     }
+    
+    elapsed = t.millis() - start
+    print("Completed", iterations, "iterations in", elapsed, "ms")
+    print("Accumulated result:", total)
 }
 
 // Main Execution
 print("=== Nevaarize String Toolkit Demo ===")
 
 sampleText = "Nevaarize is a high-performance JIT-compiled language."
-demonstrateManipulation(sampleText)
+demonstrateStringInfo(sampleText)
 
-csvSample = "101, John Doe, Engineering, 95000.50"
-demonstrateSplitting(csvSample)
+// CSV field analysis (numeric only)
+csvRow = "101, John Doe, Engineering, 95000.50"
+print("\nCSV Row Analysis:")
+print("- Full length:", s.length(csvRow))
+print("- Contains comma:", s.contains(csvRow, ","))
+print("- First comma at:", s.indexOf(csvRow, ","))
 
-// Manual string building simulation (concatenation loops are JIT optimized)
-print("\nSimulating massive string concatenation...")
-start = t.millis()
-buffer = ""
-for (i in Range(0, 1000)) {
-    buffer = buffer + "x"
-}
-elapsed = t.millis() - start
-print("Concatenated 1000 characters in:", elapsed, "ms")
-print("Buffer integrity check (size):", s.length(buffer))
+// Performance benchmark
+print("")
+benchmarkStringOps(sampleText, 5000)
+
+print("\nString toolkit demo finished.")

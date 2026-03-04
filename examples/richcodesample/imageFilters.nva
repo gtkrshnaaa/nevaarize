@@ -3,76 +3,50 @@ import stdlib math as m
 import stdlib time as t
 
 // Image Filter Simulation
-// Demonstrates matrix operations and SIMD-accelerated convolution
+// Demonstrates matrix operations with SIMD-accelerated AI module
 
-struct Image {
-    data,
-    width,
-    height
-}
-
-func createRandomImage(w, h) {
-    // Represent image as a flattened tensor (W*H)
-    d = ai.RandU(1, w * h)
-    return Image(d, w, h)
-}
-
-func applyBoxBlur(img) {
-    print("Applying Box Blur Filter (3x3 Kernel)...")
-    
-    // In a real SIMD implementation, we'd use ai.BatchLinear or similar
-    // Here we simulate the process using ai.Scale and ai.Add to represent
-    // weighted averaging of neighboring pixels.
-    
-    // Original image data
-    original = img.data
-    
-    // Create an output buffer
-    blurred = ai.Zeros(1, img.width * img.height)
-    
-    // Simulate convolution phases (9 samples for 3x3)
-    // Shift simulation (simplified for demo)
-    weight = 1.0 / 9.0
-    
-    // 1. Center
-    ai.Add(blurred, original)
-    
-    // 2. Offsets (simulated by adding scaled original)
-    // In Nevaarize AI module, we would normally use advanced slice/concat
-    // or direct SIMD kernels. Here we show the API usage.
-    for (i in Range(0, 8)) {
-        ai.Add(blurred, original)
-    }
-    
-    ai.Scale(blurred, weight)
-    
-    return Image(blurred, img.width, img.height)
-}
-
-func calculateImageStats(img) {
-    mean = ai.Mean(img.data)
-    maxVal = ai.Max(img.data)
-    minVal = ai.Min(img.data)
-    
-    print("Image Statistics:")
-    print("- Mean Intensity:", mean)
-    print("- Max Intensity:", maxVal)
-    print("- Min Intensity:", minVal)
-}
-
-// Main Execution
 print("Nevaarize Image Processing Simulation")
 start = t.millis()
 
-width = 256
-height = 256
-img = createRandomImage(width, height)
+width = 64
+height = 64
 
+// Create random image as flat tensor (no struct wrapping)
+imgData = ai.RandU(1, width * height)
 print("Created", width, "x", height, "image.")
-calculateImageStats(img)
 
-blurredImg = applyBoxBlur(img)
-calculateImageStats(blurredImg)
+// Statistics
+mean = ai.Mean(imgData)
+print("Original Image Statistics:")
+print("- Mean Intensity:", mean)
+
+// Apply Box Blur Filter
+print("Applying Box Blur Filter (3x3 Kernel)...")
+blurred = ai.Zeros(1, width * height)
+
+// Simulate 3x3 convolution by averaging 9 passes
+ai.Add(blurred, imgData)
+i = 0
+while (i < 8) {
+    ai.Add(blurred, imgData)
+    i = i + 1
+}
+ai.Scale(blurred, 1.0 / 9.0)
+
+blurMean = ai.Mean(blurred)
+print("Blurred Image Statistics:")
+print("- Mean Intensity:", blurMean)
+
+// Edge Detection simulation (difference kernel)
+print("Simulating Edge Detection...")
+edges = ai.Zeros(1, width * height)
+ai.Add(edges, imgData)
+ai.Scale(edges, 2.0)
+ai.Sub(edges, blurred)
+
+edgeMean = ai.Mean(edges)
+print("Edge Image Statistics:")
+print("- Mean Edge Response:", edgeMean)
 
 elapsed = t.millis() - start
 print("Image processing pipeline finished in", elapsed, "ms")

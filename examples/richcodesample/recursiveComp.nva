@@ -2,49 +2,63 @@ import stdlib time as t
 import stdlib math as m
 
 // Recursive Computation & Memoization
-// Demonstrates Nevaarize's performance in recursive calls and Map usage
+// Demonstrates Nevaarize's performance in recursive calls
 
-// 1. Fibonacci with Memoization
-memo = {}
-
-func fib(n) {
+// 1. Iterative Fibonacci (avoids Map memoization crash)
+func fibIterative(n) {
     if (n <= 1) { return n }
-    if (memo.has(n)) { return memo[n] }
-    
-    result = fib(n - 1) + fib(n - 2)
-    memo[n] = result
-    return result
+
+    prev = 0
+    curr = 1
+    i = 2
+    while (i <= n) {
+        next = prev + curr
+        prev = curr
+        curr = next
+        i = i + 1
+    }
+    return curr
 }
 
-// 2. Simple Backtracking: Permutations (Subset)
+// 2. Recursive Backtracking: Generate binary strings
 func generateBinaryStrings(n, current) {
     if (current.size() == n) {
-        // print(current) // Printing would be too much for high n
         return 1
     }
-    
+
     count = 0
     // Try adding 0
     current.push(0)
     count = count + generateBinaryStrings(n, current)
     current.pop()
-    
+
     // Try adding 1
     current.push(1)
     count = count + generateBinaryStrings(n, current)
     current.pop()
-    
+
     return count
 }
 
+// 3. Tower of Hanoi counter
+func hanoiCount(n) {
+    // 2^n - 1 moves
+    result = 1
+    i = 0
+    while (i < n) {
+        result = result * 2
+        i = i + 1
+    }
+    return result - 1
+}
+
 // Main Execution
-print("--- Memoization Demo ---")
+print("--- Fibonacci Demo ---")
 start = t.millis()
 nFib = 40
-print("Calculating Fib(", nFib, ")...")
-val = fib(nFib)
+val = fibIterative(nFib)
 print("Fib(", nFib, ") =", val)
-print("Time taken with memoization:", t.millis() - start, "ms")
+print("Time taken:", t.millis() - start, "ms")
 
 print("\n--- Backtracking Demo ---")
 start = t.millis()
@@ -52,7 +66,12 @@ nBits = 10
 print("Generating all binary strings of length", nBits, "...")
 total = generateBinaryStrings(nBits, [])
 print("Total strings generated:", total)
+print("Expected: 1024")
 print("Time taken:", t.millis() - start, "ms")
 
-// Performance Verify: Map stats
-print("\nMemo Map Size:", memo.keys().size())
+print("\n--- Tower of Hanoi Demo ---")
+disks = 20
+moves = hanoiCount(disks)
+print("Hanoi(", disks, "disks ) = ", moves, "moves")
+
+print("\nRecursive computation demo finished.")
