@@ -1,0 +1,64 @@
+import stdlib string as s
+import stdlib io as io
+import stdlib time as t
+
+// String Toolkit Demonstration
+// Demonstrates comprehensive text manipulation with Nevaarize stdlib
+
+func demonstrateManipulation(text) {
+    print("Original Text:", text)
+    
+    // 1. Case Conversion
+    upper = s.toUpperCase(text)
+    lower = s.toLowerCase(text)
+    print("- Uppercase:", upper)
+    print("- Lowercase:", lower)
+    
+    // 2. Search and Information
+    print("- Length:", s.length(text))
+    print("- Contains 'Nevaarize':", s.contains(text, "Nevaarize"))
+    print("- Index of 'is':", s.indexOf(text, "is"))
+    
+    // 3. Transformation
+    replaced = s.replace(text, "high-performance", "LIGHTNING-FAST")
+    print("- Replaced:", replaced)
+    
+    // 4. Substring and Trimming
+    sub = s.substring(text, 0, 9)
+    print("- First 9 chars:", sub)
+    
+    dirtyText = "   padded string   "
+    cleanText = s.trim(dirtyText)
+    print("- Trimmed text: [" + cleanText + "]")
+}
+
+func demonstrateSplitting(csvRow) {
+    print("\nProcessing CSV Row:", csvRow)
+    parts = s.split(csvRow, ",")
+    
+    i = 0
+    for (p in parts) {
+        print("  Column", i, ":", s.trim(p))
+        i = i + 1
+    }
+}
+
+// Main Execution
+print("=== Nevaarize String Toolkit Demo ===")
+
+sampleText = "Nevaarize is a high-performance JIT-compiled language."
+demonstrateManipulation(sampleText)
+
+csvSample = "101, John Doe, Engineering, 95000.50"
+demonstrateSplitting(csvSample)
+
+// Manual string building simulation (concatenation loops are JIT optimized)
+print("\nSimulating massive string concatenation...")
+start = t.millis()
+buffer = ""
+for (i in Range(0, 1000)) {
+    buffer = buffer + "x"
+}
+elapsed = t.millis() - start
+print("Concatenated 1000 characters in:", elapsed, "ms")
+print("Buffer integrity check (size):", s.length(buffer))
