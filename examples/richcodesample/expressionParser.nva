@@ -12,7 +12,8 @@ struct Parser {
 func parseExpression(p) {
     result = parseTerm(p)
     
-    while (p.pos < p.tokens.size()) {
+    shouldContinue = true
+    while (p.pos < p.tokens.size() and shouldContinue) {
         op = p.tokens[p.pos]
         if (op == "+" or op == "-") {
             p.pos = p.pos + 1
@@ -20,7 +21,7 @@ func parseExpression(p) {
             if (op == "+") { result = result + term }
             else { result = result - term }
         } else {
-            break
+            shouldContinue = false
         }
     }
     return result
@@ -29,7 +30,8 @@ func parseExpression(p) {
 func parseTerm(p) {
     result = parseFactor(p)
     
-    while (p.pos < p.tokens.size()) {
+    shouldContinue = true
+    while (p.pos < p.tokens.size() and shouldContinue) {
         op = p.tokens[p.pos]
         if (op == "*" or op == "/") {
             p.pos = p.pos + 1
@@ -37,7 +39,7 @@ func parseTerm(p) {
             if (op == "*") { result = result * factor }
             else { result = result / factor }
         } else {
-            break
+            shouldContinue = false
         }
     }
     return result
