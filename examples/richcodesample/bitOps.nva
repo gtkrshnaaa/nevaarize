@@ -1,0 +1,59 @@
+import stdlib math as m
+import stdlib time as t
+
+// Bitwise Operations Demonstration
+
+func popcount(n) {
+    count = 0
+    temp = n
+    while (temp > 0) {
+        // Nevaarize bitwise support is often handled via integer math if no specific operator
+        // In grammar.cpp, '%' is mentioned, but '&' isn't explicitly in the overview.
+        // Let's use integer arithmetic for standard bit tricks if operator is missing.
+        if (temp % 2 == 1) {
+            count = count + 1
+        }
+        temp = temp / 2
+    }
+    return count
+}
+
+func isPowerOfTwo(n) {
+    if (n <= 0) { return false }
+    // Check if it's a power of 2: n & (n - 1) == 0
+    // Using division-based check for maximum compatibility with all JIT versions
+    temp = n
+    while (temp > 1) {
+        if (temp % 2 != 0) {
+            return false
+        }
+        temp = temp / 2
+    }
+    return true
+}
+
+// Bit Mask Simulation
+func checkFlag(value, mask) {
+    // Simulated bitwise check
+    return (value / mask) % 2 == 1
+}
+
+// Main Execution
+print("Nevaarize Bit Manipulation Demo")
+
+n = 255
+print("Popcount for", n, ":", popcount(n)) // Should be 8
+
+p2 = 1024
+print("Is", p2, "a power of 2?", isPowerOfTwo(p2))
+
+notP2 = 1000
+print("Is", notP2, "a power of 2?", isPowerOfTwo(notP2))
+
+// Mocking flags
+admin = 1
+editor = 2
+user = 4
+
+permission = 7 // admin | editor | user
+print("Has editor permission?", checkFlag(permission, editor))
