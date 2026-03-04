@@ -1,0 +1,65 @@
+import stdlib math as m
+import stdlib time as t
+
+// Linear Regression from Scratch
+// Demonstrates Gradient Descent and arithmetic performance
+
+func calculatePrediction(x, w, b) {
+    return (w * x) + b
+}
+
+func train(xData, yData, epochs, lr) {
+    w = 0.0
+    b = 0.0
+    n = xData.size()
+    
+    print("Starting training for", epochs, "epochs...")
+    
+    for (epoch in Range(0, epochs)) {
+        dw = 0.0
+        db = 0.0
+        totalLoss = 0.0
+        
+        for (i in Range(0, n)) {
+            x = xData[i]
+            y = yData[i]
+            
+            prediction = calculatePrediction(x, w, b)
+            error = prediction - y
+            
+            dw = dw + (error * x)
+            db = db + error
+            totalLoss = totalLoss + (error * error)
+        }
+        
+        // Update weights
+        w = w - (lr * (dw / n))
+        b = b - (lr * (db / n))
+        
+        if (epoch % 100 == 0) {
+            mse = totalLoss / n
+            print("Epoch", epoch, "- MSE Loss:", mse)
+        }
+    }
+    
+    return [w, b]
+}
+
+// Main Execution
+print("=== Nevaarize Linear Regression Demo ===")
+
+// Synthetic data: y = 2x + 5
+xTrain = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+yTrain = [7.1, 8.9, 11.2, 12.8, 15.1, 17.2, 19.0, 21.3, 22.8, 25.0]
+
+start = t.millis()
+model = train(xTrain, yTrain, 1000, 0.01)
+elapsed = t.millis() - start
+
+print("\nTraining complete in:", elapsed, "ms")
+print("Model results: w =", model[0], ", b =", model[1])
+
+// Test prediction
+testVal = 15.0
+pred = calculatePrediction(testVal, model[0], model[1])
+print("Prediction for x=15.0:", pred, "(Expected ~35.0)")
