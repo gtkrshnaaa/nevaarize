@@ -4,3 +4,5 @@ debugMode = false
 
 appName = "Computational Engine"
 version = "2.0.0"
+
+print("Config Loaded:", appName, "v" + version, "(Max Iter:", maxIterations, "Tol:", tolerance, "Debug:", debugMode, ")")
