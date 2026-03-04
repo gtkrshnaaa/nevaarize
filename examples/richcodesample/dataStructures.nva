@@ -1,0 +1,104 @@
+// Data Structures Implementation in Nevaarize
+// Demonstrates structs for linked lists and arrays for stacks/queues
+
+// 1. Singly Linked List
+struct Node {
+    value,
+    next
+}
+
+func createLinkedList(values) {
+    if (values.size() == 0) {
+        return nil
+    }
+    
+    head = Node(values[0], nil)
+    current = head
+    
+    for (i in Range(1, values.size())) {
+        newNode = Node(values[i], nil)
+        current.next = newNode
+        current = newNode
+    }
+    
+    return head
+}
+
+func printLinkedList(head) {
+    current = head
+    while (current != nil) {
+        print("Node value:", current.value)
+        current = current.next
+    }
+}
+
+// 2. Stack (LIFO)
+struct Stack {
+    items
+}
+
+func createStack() {
+    return Stack([])
+}
+
+func push(stack, item) {
+    stack.items.push(item)
+}
+
+func pop(stack) {
+    if (stack.items.size() == 0) {
+        return nil
+    }
+    // pop() is a native array method in Nevaarize
+    return stack.items.pop()
+}
+
+// 3. Queue (FIFO)
+struct Queue {
+    items
+}
+
+func createQueue() {
+    return Queue([])
+}
+
+func enqueue(queue, item) {
+    queue.items.push(item)
+}
+
+func dequeue(queue) {
+    if (queue.items.size() == 0) {
+        return nil
+    }
+    
+    // Nevaarize arrays don't have shift, so we manual copy or use a head index
+    // For simplicity in this demo, we'll implement a simple (though O(n)) shift
+    first = queue.items[0]
+    newItems = []
+    for (i in Range(1, queue.items.size())) {
+        newItems.push(queue.items[i])
+    }
+    queue.items = newItems
+    return first
+}
+
+// Main Demo
+print("--- Linked List Demo ---")
+listHead = createLinkedList([100, 200, 300])
+printLinkedList(listHead)
+
+print("--- Stack Demo ---")
+s = createStack()
+push(s, "A")
+push(s, "B")
+print("Popped:", pop(s)) // B
+print("Popped:", pop(s)) // A
+
+print("--- Queue Demo ---")
+q = createQueue()
+enqueue(q, "First")
+enqueue(q, "Second")
+print("Dequeued:", dequeue(q)) // First
+print("Dequeued:", dequeue(q)) // Second
+
+print("Data structures demo finished.")
