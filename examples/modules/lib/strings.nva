@@ -13,8 +13,8 @@ func repeat(str, times) {
     return times
 }
 
+import stdlib string as s
+
 func countChars(str) {
-    // Placeholder for string length logic
-    // Returns dummy value for demo
-    return 10
+    return s.length(str)
 }
