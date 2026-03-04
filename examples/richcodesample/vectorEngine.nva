@@ -1,0 +1,68 @@
+import stdlib math as m
+import stdlib time as t
+
+// Vector 3D Engine Simulation
+// Demonstrates struct-based geometric operations and math performance
+
+struct Vector3 {
+    x,
+    y,
+    z
+}
+
+func add(v1, v2) {
+    return Vector3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z)
+}
+
+func sub(v1, v2) {
+    return Vector3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z)
+}
+
+func dot(v1, v2) {
+    return (v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z)
+}
+
+func cross(v1, v2) {
+    nx = (v1.y * v2.z) - (v1.z * v2.y)
+    ny = (v1.z * v2.x) - (v1.x * v2.z)
+    nz = (v1.x * v2.y) - (v1.y * v2.x)
+    return Vector3(nx, ny, nz)
+}
+
+func length(v) {
+    return m.Sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z))
+}
+
+func normalize(v) {
+    l = length(v)
+    if (l == 0.0) { return Vector3(0.0, 0.0, 0.0) }
+    return Vector3(v.x / l, v.y / l, v.z / l)
+}
+
+// Main Execution
+print("=== Nevaarize Vector3 Engine Demo ===")
+
+vA = Vector3(1.0, 2.0, 3.0)
+vB = Vector3(4.0, 5.0, 6.0)
+
+print("Vector A:", vA.x, vA.y, vA.z)
+print("Vector B:", vB.x, vB.y, vB.z)
+
+vSum = add(vA, vB)
+vDot = dot(vA, vB)
+vCross = cross(vA, vB)
+
+print("\nOperations Results:")
+print("- A + B =", vSum.x, vSum.y, vSum.z)
+print("- A . B =", vDot)
+print("- A x B =", vCross.x, vCross.y, vCross.z)
+
+print("\nNormalization Demo:")
+vC = Vector3(10.0, 0.0, 0.0)
+vNorm = normalize(vC)
+print("- Normalized Vector(10,0,0) =", vNorm.x, vNorm.y, vNorm.z)
+
+// Performance tip: SIMD acceleration check
+// While these are manual struct operations, stdlib ai.Add/Mul 
+// should be used for massive arrays of vectors.
+print("\nVector engine demonstration finished.")
