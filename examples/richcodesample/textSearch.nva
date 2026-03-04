@@ -1,0 +1,70 @@
+import stdlib string as s
+import stdlib time as t
+
+// Naive String Search Algorithm
+// Demonstrates character-level string slicing and iteration performance
+
+func naiveSearch(text, pattern) {
+    n = s.length(text)
+    m = s.length(pattern)
+    
+    if (m == 0 or m > n) {
+        return -1
+    }
+    
+    indices = []
+    limit = n - m
+    
+    // Manual while loop for explicit performance tracking
+    i = 0
+    while (i <= limit) {
+        matchFound = true
+        j = 0
+        
+        while (j < m) {
+            textChar = s.substring(text, i + j, i + j + 1)
+            patChar = s.substring(pattern, j, j + 1)
+            
+            if (textChar != patChar) {
+                matchFound = false
+                break
+            }
+            j = j + 1
+        }
+        
+        if (matchFound) {
+            indices.push(i)
+        }
+        i = i + 1
+    }
+    
+    return indices
+}
+
+// Main Execution
+print("=== Nevaarize Text Search Demo ===")
+
+text = "AABAACAADAABAABA"
+pattern = "AABA"
+
+print("Searching for pattern '" + pattern + "' in text '" + text + "'")
+
+start = t.micros()
+results = naiveSearch(text, pattern)
+elapsed = t.micros() - start
+
+print("Pattern found at indices:", results)
+print("Naive search completed in:", elapsed, "microseconds")
+
+// Longer simulation
+longText = ""
+for (i in Range(0, 100)) { longText = longText + "ABCDEFGHIJKLMNOPQRSTUVWXYZ" }
+longText = longText + "FINDME" + longText
+print("\nSearching in long text of length:", s.length(longText))
+
+start2 = t.micros()
+res2 = naiveSearch(longText, "FINDME")
+elapsed2 = t.micros() - start2
+
+print("Pattern found at index:", res2)
+print("Search in long string completed in:", elapsed2, "microseconds")
