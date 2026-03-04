@@ -1,0 +1,131 @@
+import stdlib math as m
+import stdlib time as t
+
+// Conway's Game of Life
+// Demonstrates generic 2D array representation and tight loop updates
+
+struct Grid {
+    width,
+    height,
+    cells
+}
+
+func createEmptyGrid(w, h) {
+    cells = []
+    for (y in Range(0, h)) {
+        row = []
+        for (x in Range(0, w)) {
+            row.push(0)
+        }
+        cells.push(row)
+    }
+    return Grid(w, h, cells)
+}
+
+func randomizeGrid(g) {
+    for (y in Range(0, g.height)) {
+        for (x in Range(0, g.width)) {
+            if (m.Random() > 0.7) {
+                g.cells[y][x] = 1
+            } else {
+                g.cells[y][x] = 0
+            }
+        }
+    }
+}
+
+func countNeighbors(g, x, y) {
+    count = 0
+    w = g.width
+    h = g.height
+    
+    // Check 8 surrounding cells
+    for (dy in Range(-1, 2)) {
+        for (dx in Range(-1, 2)) {
+            if (dx == 0 and dy == 0) { continue }
+            
+            nx = x + dx
+            ny = y + dy
+            
+            // Bounds check
+            if (nx >= 0 and nx < w and ny >= 0 and ny < h) {
+                count = count + g.cells[ny][nx]
+            }
+        }
+    }
+    return count
+}
+
+func tick(g) {
+    newGrid = createEmptyGrid(g.width, g.height)
+    
+    for (y in Range(0, g.height)) {
+        for (x in Range(0, g.width)) {
+            alive = g.cells[y][x]
+            neighbors = countNeighbors(g, x, y)
+            
+            // Conway's Rules
+            if (alive == 1) {
+                if (neighbors < 2 or neighbors > 3) {
+                    newGrid.cells[y][x] = 0 // Die (Underpopulation/Overpopulation)
+                } else {
+                    newGrid.cells[y][x] = 1 // Live
+                }
+            } else {
+                if (neighbors == 3) {
+                    newGrid.cells[y][x] = 1 // Reproduction
+                }
+            }
+        }
+    }
+    
+    g.cells = newGrid.cells
+}
+
+func printGrid(g) {
+    border = "+"
+    for (x in Range(0, g.width)) { border = border + "-" }
+    border = border + "+"
+    
+    print(border)
+    for (y in Range(0, g.height)) {
+        rowStr = "|"
+        for (x in Range(0, g.width)) {
+            if (g.cells[y][x] == 1) {
+                rowStr = rowStr + "O"
+            } else {
+                rowStr = rowStr + " "
+            }
+        }
+        rowStr = rowStr + "|"
+        print(rowStr)
+    }
+    print(border)
+}
+
+// Main Execution
+print("=== Nevaarize Game of Life Demo ===")
+width = 20
+height = 10
+generations = 5
+
+grid = createEmptyGrid(width, height)
+
+// Glider pattern
+grid.cells[1][2] = 1
+grid.cells[2][3] = 1
+grid.cells[3][1] = 1
+grid.cells[3][2] = 1
+grid.cells[3][3] = 1
+
+print("Generation 0:")
+printGrid(grid)
+
+for (gen in Range(1, generations + 1)) {
+    print("Generation", gen, ":")
+    start = t.micros()
+    tick(grid)
+    elapsed = t.micros() - start
+    printGrid(grid)
+    print("Computed in:", elapsed, "microseconds\n")
+}
