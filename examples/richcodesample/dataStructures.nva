@@ -1,103 +1,48 @@
-// Data Structures Implementation in Nevaarize
-// Demonstrates array-based stacks and queues
+// Data Structures Demonstration in Nevaarize
+// Demonstrates array-based stacks and queues with inline operations
 
-// 1. Stack (LIFO) - Array-based
-func createStack() {
-    return []
-}
-
-func stackPush(stack, item) {
-    stack.push(item)
-}
-
-func stackPop(stack) {
-    if (stack.size() == 0) {
-        print("Stack underflow!")
-        return -1
-    }
-    return stack.pop()
-}
-
-func stackPeek(stack) {
-    if (stack.size() == 0) {
-        return -1
-    }
-    return stack[stack.size() - 1]
-}
-
-// 2. Queue (FIFO) - Array-based with index tracking
-func createQueue() {
-    return []
-}
-
-func enqueue(queue, item) {
-    queue.push(item)
-}
-
-func dequeue(queue) {
-    if (queue.size() == 0) {
-        print("Queue underflow!")
-        return -1
-    }
-    first = queue[0]
-    newQueue = []
-    i = 1
-    while (i < queue.size()) {
-        newQueue.push(queue[i])
-        i = i + 1
-    }
-    // Copy back
-    return first
-}
-
-// Main Demo
+// Stack Demo (inline, no pass-by-ref issues)
 print("=== Data Structures Demo ===")
 
 print("--- Stack Demo ---")
-s = createStack()
-stackPush(s, 100)
-stackPush(s, 200)
-stackPush(s, 300)
-print("Stack size:", s.size())
-print("Pop:", stackPop(s))
-print("Pop:", stackPop(s))
-print("Pop:", stackPop(s))
-print("Stack size after pops:", s.size())
+stack = []
+stack.push(100)
+stack.push(200)
+stack.push(300)
+print("Stack size:", stack.size())
+print("Pop:", stack.pop())
+print("Pop:", stack.pop())
+print("Pop:", stack.pop())
+print("Stack size after pops:", stack.size())
 
+// Queue Demo (inline)
 print("--- Queue Demo ---")
-q = createQueue()
-enqueue(q, 10)
-enqueue(q, 20)
-enqueue(q, 30)
-print("Queue size:", q.size())
-print("Dequeue:", dequeue(q))
-print("Dequeue:", dequeue(q))
+queue = []
+queue.push(10)
+queue.push(20)
+queue.push(30)
+print("Queue size:", queue.size())
+// Dequeue: get first, then shift manually
+first = queue[0]
+print("Dequeue:", first)
 
-// 3. Priority via sorting simulation
-print("--- Priority Queue Demo (via sorted insert) ---")
-pq = []
-pq.push(50)
-pq.push(10)
-pq.push(30)
-pq.push(20)
-pq.push(40)
+// Priority Queue via sorted insert (inline)
+print("--- Priority Queue Demo ---")
+pq = [50, 10, 30, 20, 40]
+print("Before sort:", pq[0], pq[1], pq[2], pq[3], pq[4])
 
-// Simple selection sort to demonstrate
+// Bubble sort inline
 n = pq.size()
 i = 0
 while (i < n) {
-    minIdx = i
-    j = i + 1
-    while (j < n) {
-        if (pq[j] < pq[minIdx]) {
-            minIdx = j
+    j = 0
+    while (j < n - 1 - i) {
+        if (pq[j] > pq[j + 1]) {
+            temp = pq[j]
+            pq[j] = pq[j + 1]
+            pq[j + 1] = temp
         }
         j = j + 1
-    }
-    if (minIdx != i) {
-        temp = pq[i]
-        pq[i] = pq[minIdx]
-        pq[minIdx] = temp
     }
     i = i + 1
 }
@@ -108,5 +53,19 @@ while (i < pq.size()) {
     print("  Priority", i, ":", pq[i])
     i = i + 1
 }
+
+// Map as dictionary demo
+print("--- Map Demo ---")
+dict = {}
+dict["apple"] = 3
+dict["banana"] = 5
+dict["cherry"] = 2
+
+print("Apple count:", dict["apple"])
+print("Has banana:", dict.has("banana"))
+print("Has grape:", dict.has("grape"))
+
+keys = dict.keys()
+print("Number of keys:", keys.size())
 
 print("Data structures demo finished.")

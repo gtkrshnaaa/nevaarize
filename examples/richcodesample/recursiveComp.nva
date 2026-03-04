@@ -1,10 +1,10 @@
 import stdlib time as t
 import stdlib math as m
 
-// Recursive Computation & Memoization
-// Demonstrates Nevaarize's performance in recursive calls
+// Recursive Computation Demonstration
+// Showcases Nevaarize's performance in recursive calls
 
-// 1. Iterative Fibonacci (avoids Map memoization crash)
+// 1. Iterative Fibonacci
 func fibIterative(n) {
     if (n <= 1) { return n }
 
@@ -20,29 +20,25 @@ func fibIterative(n) {
     return curr
 }
 
-// 2. Recursive Backtracking: Generate binary strings
-func generateBinaryStrings(n, current) {
-    if (current.size() == n) {
-        return 1
-    }
-
-    count = 0
-    // Try adding 0
-    current.push(0)
-    count = count + generateBinaryStrings(n, current)
-    current.pop()
-
-    // Try adding 1
-    current.push(1)
-    count = count + generateBinaryStrings(n, current)
-    current.pop()
-
-    return count
+// 2. Recursive Factorial
+func factorial(n) {
+    if (n <= 1) { return 1 }
+    return n * factorial(n - 1)
 }
 
-// 3. Tower of Hanoi counter
-func hanoiCount(n) {
-    // 2^n - 1 moves
+// 3. Recursive Power
+func power(base, exp) {
+    if (exp == 0) { return 1.0 }
+    if (exp == 1) { return base }
+    half = power(base, exp / 2)
+    if (exp % 2 == 0) {
+        return half * half
+    }
+    return half * half * base
+}
+
+// 4. Tower of Hanoi counter
+func hanoiMoves(n) {
     result = 1
     i = 0
     while (i < n) {
@@ -60,18 +56,25 @@ val = fibIterative(nFib)
 print("Fib(", nFib, ") =", val)
 print("Time taken:", t.millis() - start, "ms")
 
-print("\n--- Backtracking Demo ---")
+print("\n--- Factorial Demo ---")
 start = t.millis()
-nBits = 10
-print("Generating all binary strings of length", nBits, "...")
-total = generateBinaryStrings(nBits, [])
-print("Total strings generated:", total)
-print("Expected: 1024")
+nFact = 20
+factVal = factorial(nFact)
+print("Factorial(", nFact, ") =", factVal)
+print("Time taken:", t.millis() - start, "ms")
+
+print("\n--- Fast Exponentiation Demo ---")
+start = t.millis()
+base = 2.0
+exp = 30
+powVal = power(base, exp)
+print("Power(", base, ",", exp, ") =", powVal)
+print("Expected:", 1073741824.0)
 print("Time taken:", t.millis() - start, "ms")
 
 print("\n--- Tower of Hanoi Demo ---")
-disks = 20
-moves = hanoiCount(disks)
-print("Hanoi(", disks, "disks ) = ", moves, "moves")
+disks = 25
+moves = hanoiMoves(disks)
+print("Hanoi(", disks, "disks ) =", moves, "moves")
 
 print("\nRecursive computation demo finished.")

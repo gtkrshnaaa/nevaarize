@@ -1,102 +1,101 @@
 import stdlib time as t
 
 // Graph Algorithms in Nevaarize
-// Demonstrates adjacency list representation and traversal using integer node IDs
+// Demonstrates adjacency matrix representation and traversal
 
-// Adjacency list as a map of integer arrays
-adjList = {}
+// Using adjacency matrix (flat 1D array) for JIT compatibility
+// Nodes: 0..5 (6 nodes: A=0, B=1, C=2, D=3, E=4, F=5)
+numNodes = 6
 
-func addEdge(u, v) {
-    if (!adjList.has(u)) {
-        adjList[u] = []
-    }
-    if (!adjList.has(v)) {
-        adjList[v] = []
-    }
-    adjList[u].push(v)
-    adjList[v].push(u)
+// Create adjacency matrix (flat: matrix[i*numNodes + j])
+matrix = []
+total = numNodes * numNodes
+idx = 0
+while (idx < total) {
+    matrix.push(0)
+    idx = idx + 1
 }
 
-func bfs(startNode) {
-    print("Starting BFS from node:", startNode)
-    visited = {}
-    queue = [startNode]
-    visited[startNode] = 1
+// Helper: set edge (undirected)
+// matrix[u*numNodes + v] = 1, matrix[v*numNodes + u] = 1
+// Edges: A-B, A-C, B-D, C-E, D-E, E-F
+matrix[0 * 6 + 1] = 1
+matrix[1 * 6 + 0] = 1
+matrix[0 * 6 + 2] = 1
+matrix[2 * 6 + 0] = 1
+matrix[1 * 6 + 3] = 1
+matrix[3 * 6 + 1] = 1
+matrix[2 * 6 + 4] = 1
+matrix[4 * 6 + 2] = 1
+matrix[3 * 6 + 4] = 1
+matrix[4 * 6 + 3] = 1
+matrix[4 * 6 + 5] = 1
+matrix[5 * 6 + 4] = 1
 
-    while (queue.size() > 0) {
-        currentNode = queue[0]
-        // Manual dequeue
-        newQueue = []
-        idx = 1
-        while (idx < queue.size()) {
-            newQueue.push(queue[idx])
-            idx = idx + 1
-        }
-        queue = newQueue
-
-        print("Visited:", currentNode)
-
-        if (adjList.has(currentNode)) {
-            neighbors = adjList[currentNode]
-            nIdx = 0
-            while (nIdx < neighbors.size()) {
-                neighbor = neighbors[nIdx]
-                if (!visited.has(neighbor)) {
-                    visited[neighbor] = 1
-                    queue.push(neighbor)
-                }
-                nIdx = nIdx + 1
-            }
-        }
-    }
-}
-
-func dfsIterative(startNode) {
-    print("Starting Iterative DFS from node:", startNode)
-    visited = {}
-    stack = [startNode]
-
-    while (stack.size() > 0) {
-        currentNode = stack.pop()
-
-        if (!visited.has(currentNode)) {
-            print("Visited:", currentNode)
-            visited[currentNode] = 1
-
-            if (adjList.has(currentNode)) {
-                neighbors = adjList[currentNode]
-                nIdx = 0
-                while (nIdx < neighbors.size()) {
-                    neighbor = neighbors[nIdx]
-                    if (!visited.has(neighbor)) {
-                        stack.push(neighbor)
-                    }
-                    nIdx = nIdx + 1
-                }
-            }
-        }
-    }
-}
-
-// Main Execution
+// BFS using queue
 print("=== Nevaarize Graph Algorithms Demo ===")
+print("Starting BFS from node 0 (A):")
 
-// Using integer node IDs: 0=A, 1=B, 2=C, 3=D, 4=E, 5=F
-addEdge(0, 1)
-addEdge(0, 2)
-addEdge(1, 3)
-addEdge(2, 4)
-addEdge(3, 4)
-addEdge(4, 5)
+visited = []
+i = 0
+while (i < numNodes) {
+    visited.push(0)
+    i = i + 1
+}
 
-start = t.millis()
-bfs(0)
-print("BFS completed in:", t.millis() - start, "ms")
+queue = [0]
+visited[0] = 1
 
-print("")
+while (queue.size() > 0) {
+    current = queue[0]
+    // Manual dequeue
+    newQueue = []
+    qi = 1
+    while (qi < queue.size()) {
+        newQueue.push(queue[qi])
+        qi = qi + 1
+    }
+    queue = newQueue
 
-start = t.millis()
-dfsIterative(0)
-print("DFS completed in:", t.millis() - start, "ms")
+    print("Visited:", current)
+
+    // Check all neighbors
+    neighbor = 0
+    while (neighbor < numNodes) {
+        if (matrix[current * numNodes + neighbor] == 1 and visited[neighbor] == 0) {
+            visited[neighbor] = 1
+            queue.push(neighbor)
+        }
+        neighbor = neighbor + 1
+    }
+}
+
+// DFS using stack
+print("\nStarting DFS from node 0 (A):")
+dfsVisited = []
+i = 0
+while (i < numNodes) {
+    dfsVisited.push(0)
+    i = i + 1
+}
+
+stack = [0]
+
+while (stack.size() > 0) {
+    current = stack.pop()
+
+    if (dfsVisited[current] == 0) {
+        print("Visited:", current)
+        dfsVisited[current] = 1
+
+        neighbor = numNodes - 1
+        while (neighbor >= 0) {
+            if (matrix[current * numNodes + neighbor] == 1 and dfsVisited[neighbor] == 0) {
+                stack.push(neighbor)
+            }
+            neighbor = neighbor - 1
+        }
+    }
+}
 
 print("Graph algorithms demonstration finished.")

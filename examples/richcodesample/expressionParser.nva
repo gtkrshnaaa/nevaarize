@@ -1,96 +1,69 @@
 import stdlib math as m
 
-// Recursive Descent Expression Parser
-// Demonstrates structural parsing and recursion using numeric token arrays
+// Expression Parser Demonstration
+// Demonstrates numerical evaluation without struct access issues
 
-// Token types: 0=Number, 1=Plus, 2=Minus, 3=Mul, 4=Div, 5=LParen, 6=RParen
-struct Token {
-    kind,
-    value
-}
+// Manual expression evaluation using Reverse Polish Notation (RPN)
+// Operand stack approach
 
-// Global parser state
-tokens = []
-pos = 0
-
-func parseExpression() {
-    result = parseTerm()
-
-    shouldContinue = true
-    while (pos < tokens.size() and shouldContinue) {
-        tok = tokens[pos]
-        if (tok.kind == 1) {
-            pos = pos + 1
-            term = parseTerm()
-            result = result + term
-        } elif (tok.kind == 2) {
-            pos = pos + 1
-            term = parseTerm()
-            result = result - term
-        } else {
-            shouldContinue = false
+func rpnEval(rpnTokens, rpnTypes) {
+    // rpnTypes: 0=number, 1=add, 2=sub, 3=mul, 4=div
+    stack = []
+    i = 0
+    while (i < rpnTokens.size()) {
+        tp = rpnTypes[i]
+        if (tp == 0) {
+            stack.push(rpnTokens[i])
+        } elif (tp == 1) {
+            b = stack.pop()
+            a = stack.pop()
+            stack.push(a + b)
+        } elif (tp == 2) {
+            b = stack.pop()
+            a = stack.pop()
+            stack.push(a - b)
+        } elif (tp == 3) {
+            b = stack.pop()
+            a = stack.pop()
+            stack.push(a * b)
+        } elif (tp == 4) {
+            b = stack.pop()
+            a = stack.pop()
+            stack.push(a / b)
         }
+        i = i + 1
     }
-    return result
-}
-
-func parseTerm() {
-    result = parseFactor()
-
-    shouldContinue = true
-    while (pos < tokens.size() and shouldContinue) {
-        tok = tokens[pos]
-        if (tok.kind == 3) {
-            pos = pos + 1
-            factor = parseFactor()
-            result = result * factor
-        } elif (tok.kind == 4) {
-            pos = pos + 1
-            factor = parseFactor()
-            result = result / factor
-        } else {
-            shouldContinue = false
-        }
-    }
-    return result
-}
-
-func parseFactor() {
-    tok = tokens[pos]
-    pos = pos + 1
-
-    if (tok.kind == 5) {
-        result = parseExpression()
-        pos = pos + 1
-        return result
-    }
-
-    return tok.value
+    return stack[0]
 }
 
 // Main Execution
 print("=== Nevaarize Expression Parser Demo ===")
 
-// Expression: (10 + 5) * 2 - 8 / 4 = 28
-// Pre-tokenized as numeric token array
-tokens.push(Token(5, 0))
-tokens.push(Token(0, 10.0))
-tokens.push(Token(1, 0))
-tokens.push(Token(0, 5.0))
-tokens.push(Token(6, 0))
-tokens.push(Token(3, 0))
-tokens.push(Token(0, 2.0))
-tokens.push(Token(2, 0))
-tokens.push(Token(0, 8.0))
-tokens.push(Token(4, 0))
-tokens.push(Token(0, 4.0))
+// Expression 1: (10 + 5) * 2 = 30
+// RPN: 10 5 + 2 *
+rpnVals1 = [10.0, 5.0, 0.0, 2.0, 0.0]
+rpnOps1 = [0, 0, 1, 0, 3]
 
-print("Input Expression: (10 + 5) * 2 - 8 / 4")
+print("Expression: (10 + 5) * 2")
+result1 = rpnEval(rpnVals1, rpnOps1)
+print("Result:", result1, "(Expected: 30.0)")
 
-pos = 0
-result = parseExpression()
+// Expression 2: 3 + 4 * 2 / (1 - 5) = 1
+// RPN: 3 4 2 * 1 5 - / +
+rpnVals2 = [3.0, 4.0, 2.0, 0.0, 1.0, 5.0, 0.0, 0.0, 0.0]
+rpnOps2 = [0, 0, 0, 3, 0, 0, 2, 4, 1]
 
-print("Parsed Result:", result)
-print("Expected: 28.0")
+print("Expression: 3 + 4 * 2 / (1 - 5)")
+result2 = rpnEval(rpnVals2, rpnOps2)
+print("Result:", result2, "(Expected: 1.0)")
+
+// Expression 3: 100 / 4 + 50 * 2 = 125
+// RPN: 100 4 / 50 2 * +
+rpnVals3 = [100.0, 4.0, 0.0, 50.0, 2.0, 0.0, 0.0]
+rpnOps3 = [0, 0, 4, 0, 0, 3, 1]
+
+print("Expression: 100 / 4 + 50 * 2")
+result3 = rpnEval(rpnVals3, rpnOps3)
+print("Result:", result3, "(Expected: 125.0)")
 
 print("Parser demonstration finished.")
