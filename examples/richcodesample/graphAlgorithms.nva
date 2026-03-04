@@ -1,0 +1,94 @@
+import stdlib io as io
+import stdlib time as t
+
+// Graph Algorithms in Nevaarize
+// Demonstrates Adjacency List representation and Traversal (BFS/DFS)
+
+struct Graph {
+    adjList // Map of Arrays
+}
+
+func createGraph() {
+    return Graph({})
+}
+
+func addEdge(g, u, v) {
+    if (!g.adjList.has(u)) {
+        g.adjList[u] = []
+    }
+    if (!g.adjList.has(v)) {
+        g.adjList[v] = []
+    }
+    g.adjList[u].push(v)
+    g.adjList[v].push(u) // Undirected
+}
+
+func bfs(g, startNode) {
+    print("Starting BFS from node:", startNode)
+    visited = {}
+    queue = [startNode]
+    visited[startNode] = true
+    
+    while (queue.size() > 0) {
+        // Simple dequeue (O(n) shift equivalent)
+        currentNode = queue[0]
+        newQueue = []
+        for (i in Range(1, queue.size())) {
+            newQueue.push(queue[i])
+        }
+        queue = newQueue
+        
+        print("Visited:", currentNode)
+        
+        neighbors = g.adjList[currentNode]
+        for (neighbor in neighbors) {
+            if (!visited.has(neighbor)) {
+                visited[neighbor] = true
+                queue.push(neighbor)
+            }
+        }
+    }
+}
+
+func dfsIterative(g, startNode) {
+    print("Starting Iterative DFS from node:", startNode)
+    visited = {}
+    stack = [startNode]
+    
+    while (stack.size() > 0) {
+        currentNode = stack.pop()
+        
+        if (!visited.has(currentNode)) {
+            print("Visited:", currentNode)
+            visited[currentNode] = true
+            
+            neighbors = g.adjList[currentNode]
+            for (neighbor in neighbors) {
+                if (!visited.has(neighbor)) {
+                    stack.push(neighbor)
+                }
+            }
+        }
+    }
+}
+
+// Main Execution
+print("=== Nevaarize Graph Algorithms Demo ===")
+
+g = createGraph()
+addEdge(g, "A", "B")
+addEdge(g, "A", "C")
+addEdge(g, "B", "D")
+addEdge(g, "C", "E")
+addEdge(g, "D", "E")
+addEdge(g, "E", "F")
+
+start = t.millis()
+bfs(g, "A")
+print("BFS completed in:", t.millis() - start, "ms\n")
+
+start = t.millis()
+dfsIterative(g, "A")
+print("DFS completed in:", t.millis() - start, "ms")
+
+print("Graph algorithms demonstration finished.")
