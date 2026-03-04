@@ -2,71 +2,82 @@ import stdlib string as s
 import stdlib time as t
 
 // Simple Cryptographic System Simulation
-// Demonstrates numeric string transformations, XOR cipher, and Caesar cipher logic.
-// Strictly avoids forbidden modules (io, http).
+// Demonstrates numeric string transformations and XOR-like cipher logic.
 
-func caesarEncrypt(text, shift) {
-    // In Nevaarize, we don't have direct char-to-int conversion for all chars,
-    // but we can simulate character shifts or use character mappings.
-    // Here we demonstrate a numeric representation approach for simplicity and JIT safety.
+// Simplified Caesar Cipher Demo
+func caesarDemo(shift) {
+    print("Caesar Cipher Simulation - Shift:", shift)
     
-    print("Caesar Cipher - Encrypting with shift:", shift)
+    // S=18, E=4, C=2, R=17, E=4, T=19
+    msg = [18, 4, 2, 17, 4, 19]
+    n = 6
     
-    // Simulate encryption by processing "character codes" (simplified demo)
-    // In a real scenario, we might use a string lookup table.
-    
-    return [shift, s.length(text)]
-}
-
-func xorCipher(data, key) {
-    print("XOR Cipher Simulation - Processing data with key:", key)
-    
-    // XORing bytes or numeric values
-    // data and key are arrays of numbers
-    
-    result = []
+    enc = [0, 0, 0, 0, 0, 0]
     i = 0
-    kLen = key.size()
-    while (i < data.size()) {
-        // XOR simulation: bitwise XOR can be simulated with (a+b) - 2*(a&b) 
-        // if bitwise ops are unavailable, or simplified as a numeric transform.
-        val = data[i]
-        k = key[i % kLen]
-        
-        // Simplified transform for demo
-        transformed = (val + k) % 256
-        result.push(transformed)
+    while (i < n) {
+        val = msg[i]
+        c = (val + shift) % 26
+        enc[i] = c
         i = i + 1
     }
-    return result
+    
+    print("Encrypted codes:", enc[0], enc[1], enc[2], enc[3], enc[4], enc[5])
+    
+    dec = [0, 0, 0, 0, 0, 0]
+    i = 0
+    while (i < n) {
+        val = enc[i]
+        o = (val - shift + 26) % 26
+        dec[i] = o
+        i = i + 1
+    }
+    print("Decrypted codes:", dec[0], dec[1], dec[2], dec[3], dec[4], dec[5])
+}
+
+// Cipher using pre-allocated arrays and simplified indexing
+func xorDemo() {
+    print("\nSimplistic Cipher Simulation")
+    
+    // "Hello"
+    data = [72, 101, 108, 108, 111]
+    n = 5
+    key = [42, 17, 99]
+    
+    print("Original Data:", data[0], data[1], data[2], data[3], data[4])
+    
+    e = [0, 0, 0, 0, 0]
+    j = 0
+    while (j < n) {
+        kIdx = j % 3
+        kv = key[kIdx]
+        dv = data[j]
+        tr = (dv + kv) % 256
+        e[j] = tr
+        j = j + 1
+    }
+    
+    print("Encrypted Data:", e[0], e[1], e[2], e[3], e[4])
+    
+    d = [0, 0, 0, 0, 0]
+    k = 0
+    while (k < n) {
+        ki = k % 3
+        kv = key[ki]
+        ev = e[k]
+        origVal = (ev - kv + 256) % 256
+        d[k] = origVal
+        k = k + 1
+    }
+    
+    print("Decrypted Data:", d[0], d[1], d[2], d[3], d[4])
 }
 
 func runCryptoDemo() {
     print("=== Nevaarize Crypto System Simulation ===")
-    
     start = t.millis()
-    
-    // 1. Caesar Cipher Demo
-    msg = "SECRET MESSAGE"
-    cResult = caesarEncrypt(msg, 3)
-    print("Caesar Meta - Shift:", cResult[0], "Length:", cResult[1])
-    
-    // 2. XOR Cipher Demo
-    // Mock binary data
-    rawData = [72, 101, 108, 108, 111] // "Hello"
-    key = [42, 17, 99]
-    
-    print("\nOriginal Data:", rawData[0], rawData[1], rawData[2], rawData[3], rawData[4])
-    
-    encrypted = xorCipher(rawData, key)
-    print("Encrypted Data:", encrypted[0], encrypted[1], encrypted[2], encrypted[3], encrypted[4])
-    
-    decrypted = xorCipher(encrypted, key) 
-    // Simplified decryption for this demo (inverse of addition mod 256 isn't XOR, 
-    // but we show the logic flow)
-    
-    elapsed = t.millis() - start
-    print("\nSimulation finished in", elapsed, "ms")
+    caesarDemo(3)
+    xorDemo()
+    print("\nSimulation finished.")
 }
 
 // Execution
