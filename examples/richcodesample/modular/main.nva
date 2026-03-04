@@ -5,7 +5,6 @@ import "utils/mathUtils.nva" as mathUtils
 import "models/userSession.nva" as models
 
 import stdlib time as t
-import stdlib io as io
 
 print("Nevaarize Modular Project Simulation Starting...")
 
