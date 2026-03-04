@@ -1,0 +1,67 @@
+import stdlib math as m
+import stdlib time as t
+import stdlib io as io
+
+// Physics Simulation: Particle System
+// Demonstrates high-performance math and JIT optimization (uniform types)
+
+struct Vector2 {
+    x,
+    y
+}
+
+struct Particle {
+    pos,
+    vel,
+    mass
+}
+
+func applyGravity(p, dt) {
+    // Gravity constant (uniform float for JIT)
+    g = 9.81
+    
+    // Euler integration for velocity: v = v + a*dt
+    p.vel.y = p.vel.y + (g * dt)
+    
+    // Euler integration for position: p = p + v*dt
+    p.pos.x = p.pos.x + (p.vel.x * dt)
+    p.pos.y = p.pos.y + (p.vel.y * dt)
+    
+    // Collision with ground (y=0)
+    if (p.pos.y > 100.0) {
+        p.pos.y = 100.0
+        p.vel.y = p.vel.y * -0.7 // Bounce with damping
+    }
+}
+
+// Simulation setup
+count = 50
+particles = []
+
+for (i in Range(0, count)) {
+    pos = Vector2(0.0, 0.0)
+    vel = Vector2(m.Random() * 10.0, m.Random() * -5.0)
+    mass = 1.0 + m.Random()
+    particles.push(Particle(pos, vel, mass))
+}
+
+print("Running Physics Simulation for", count, "particles...")
+start = t.millis()
+
+// Simulating 100 frames
+frames = 100
+dt = 0.016 // ~60 FPS
+
+for (f in Range(0, frames)) {
+    for (p in particles) {
+        applyGravity(p, dt)
+    }
+}
+
+elapsed = t.millis() - start
+print("Simulation of", frames, "frames completed in", elapsed, "ms")
+
+// Demonstrate math functions
+p0 = particles[0]
+dist = m.Sqrt((p0.pos.x * p0.pos.x) + (p0.pos.y * p0.pos.y))
+print("Final distance of particle 0 from origin:", dist)
