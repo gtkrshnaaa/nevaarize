@@ -1,0 +1,68 @@
+import stdlib math as m
+import stdlib time as t
+
+// Number Theory Algorithms in Nevaarize
+// High-performance implementations of classic mathematical functions
+
+func isPrime(n) {
+    if (n <= 1) { return false }
+    if (n <= 3) { return true }
+    if (n % 2 == 0 or n % 3 == 0) { return false }
+    
+    // Manual while for performance
+    i = 5
+    while (i * i <= n) {
+        if (n % i == 0 or n % (i + 2) == 0) {
+            return false
+        }
+        i = i + 6
+    }
+    return true
+}
+
+func calculateGCD(a, b) {
+    while (b != 0) {
+        t = b
+        b = a % b
+        a = t
+    }
+    return a
+}
+
+func getPrimeFactors(n) {
+    factors = []
+    d = 2
+    temp = n
+    
+    while (temp > 1) {
+        while (temp % d == 0) {
+            factors.push(d)
+            temp = temp / d
+        }
+        d = d + 1
+        if (d * d > temp) {
+            if (temp > 1) {
+                factors.push(temp)
+                temp = 1
+            }
+        }
+    }
+    return factors
+}
+
+// Main Execution
+print("Nevaarize Number Theory Demo")
+start = t.nanos()
+
+target = 104729 // The 10,000th prime
+print("Checking if", target, "is prime:", isPrime(target))
+
+num1 = 252
+num2 = 105
+print("GCD of", num1, "and", num2, ":", calculateGCD(num1, num2))
+
+compound = 2 * 3 * 3 * 7 * 11 * 13
+print("Prime factors of", compound, ":", getPrimeFactors(compound))
+
+elapsed = (0.0 + (t.nanos() - start)) / 1000000.0
+print("Algorithms executed in:", elapsed, "ms")
