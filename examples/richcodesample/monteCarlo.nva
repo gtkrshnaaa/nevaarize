@@ -1,0 +1,43 @@
+import stdlib math as m
+import stdlib time as t
+
+// Monte Carlo Simulation
+// Demonstrates high-performance loop execution for stochastic estimation
+
+func estimatePi(iterations) {
+    insideCircle = 0.0
+    total = 0.0 + iterations // Ensure float math
+    
+    print("Running Monte Carlo simulation with", iterations, "iterations...")
+    
+    // Manual while loop for ultimate performance in JIT
+    i = 0
+    while (i < iterations) {
+        x = m.Random()
+        y = m.Random()
+        
+        // Check if inside quarter circle (x^2 + y^2 <= 1)
+        if ((x * x) + (y * y) <= 1.0) {
+            insideCircle = insideCircle + 1.0
+        }
+        i = i + 1
+    }
+    
+    // Pi/4 = inside / total => Pi = 4 * (inside / total)
+    return (insideCircle / total) * 4.0
+}
+
+// Main Execution
+print("=== Nevaarize Monte Carlo Demo ===")
+
+simCount = 10000000 // 10 Million iterations
+start = t.nanos()
+
+piEstimate = estimatePi(simCount)
+
+elapsed = (0.0 + (t.nanos() - start)) / 1000000.0 // Convert to ms
+print("\nSimulation complete in:", elapsed, "ms")
+print("Estimated Pi:", piEstimate)
+print("Actual Pi (approx): 3.14159265...")
+error = m.Abs(piEstimate - 3.14159265)
+print("Margin of Error:", error)
