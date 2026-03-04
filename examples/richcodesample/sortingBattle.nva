@@ -1,0 +1,89 @@
+import stdlib math as m
+import stdlib time as t
+
+// Sorting Battle: QuickSort vs BubbleSort
+// Demonstrates efficiency of recursive algorithms vs naive ones under JIT
+
+func bubbleSort(arr) {
+    n = arr.size()
+    i = 0
+    while (i < n) {
+        j = 0
+        while (j < (n - i - 1)) {
+            if (arr[j] > arr[j + 1]) {
+                temp = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = temp
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+func quickSort(arr, low, high) {
+    if (low < high) {
+        p = partition(arr, low, high)
+        quickSort(arr, low, p - 1)
+        quickSort(arr, p + 1, high)
+    }
+}
+
+func partition(arr, low, high) {
+    pivot = arr[high]
+    i = low - 1
+    
+    j = low
+    while (j < high) {
+        if (arr[j] < pivot) {
+            i = i + 1
+            temp = arr[i]
+            arr[i] = arr[j]
+            arr[j] = temp
+        }
+        j = j + 1
+    }
+    
+    temp = arr[i + 1]
+    arr[i + 1] = arr[high]
+    arr[high] = temp
+    
+    return i + 1
+}
+
+// Data generation
+func generateRandomArray(size) {
+    a = []
+    for (i in Range(0, size)) {
+        a.push(m.RandomInt(0, 10000))
+    }
+    return a
+}
+
+// Main Execution
+print("=== Nevaarize Sorting Battle ===")
+
+sizeSmall = 1000
+sizeLarge = 5000
+
+// 1. BubbleSort Test
+print("\n--- Phase 1: BubbleSort ---")
+dataB = generateRandomArray(sizeSmall)
+start = t.millis()
+bubbleSort(dataB)
+print("BubbleSort", sizeSmall, "items:", t.millis() - start, "ms")
+
+// 2. QuickSort Test
+print("\n--- Phase 2: QuickSort ---")
+dataQ = generateRandomArray(sizeSmall)
+start = t.millis()
+quickSort(dataQ, 0, dataQ.size() - 1)
+print("QuickSort", sizeSmall, "items:", t.millis() - start, "ms")
+
+print("\n--- Phase 3: QuickSort on Large Data ---")
+dataQLarge = generateRandomArray(sizeLarge)
+start = t.millis()
+quickSort(dataQLarge, 0, dataQLarge.size() - 1)
+print("QuickSort", sizeLarge, "items:", t.millis() - start, "ms")
+
+print("\nSorting battle finished. Note how JIT optimizes recursion in QuickSort!")
