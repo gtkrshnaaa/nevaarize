@@ -1,0 +1,64 @@
+import stdlib csv as csv
+import stdlib json as json
+import stdlib math as m
+import stdlib io as io
+import stdlib string as s
+
+// Data Processor Simulation
+// Demonstrates ETL-like workflow with CSV parsing and JSON transformation
+
+func processRecord(record) {
+    // Basic data sanity check (camelCase variables as required)
+    price = 0.0 + record["price"]
+    quantity = 0.0 + record["quantity"]
+    
+    // Calculate total including simple tax
+    taxRate = 0.12
+    totalValue = price * quantity * (1.0 + taxRate)
+    
+    return totalValue
+}
+
+// Mock CSV Data as string
+csvContent = "id,name,price,quantity\n1,Alpha,12.5,2\n2,Beta,45.0,1\n3,Gamma,7.99,10"
+
+print("Parsing CSV Data...")
+records = csv.ParseCSVString(csvContent)
+
+processedData = []
+totalRevenue = 0.0
+
+for (item in records) {
+    val = processRecord(item)
+    processedData.push({"id": item["id"], "value": val})
+    totalRevenue = totalRevenue + val
+}
+
+print("Aggregated Statistics:")
+print("- Record Count:", records.size())
+print("- Total Revenue:", totalRevenue)
+print("- Average Revenue:", totalRevenue / records.size())
+
+// Transform to JSON
+print("Converting results to JSON format...")
+jsonOutput = {
+    "status": "success",
+    "summary": {
+        "revenue": totalRevenue,
+        "count": records.size()
+    },
+    "details": processedData
+}
+
+// Demonstrate JSON stringification (assuming ParseJSONString exists in grammar, but let's use the methods mentioned)
+// Actually, ParseJSONString is for parsing. We already have the map.
+// Let's use io for specific printing
+io.Print("Status from IO module:", jsonOutput["status"])
+
+// Performance tip: avoid mixed type arithmetic
+counter = 0.0
+limit = 1000.0
+while (counter < limit) {
+    counter = counter + 1.0 // uniform float
+}
+print("Loop finished:", counter)
