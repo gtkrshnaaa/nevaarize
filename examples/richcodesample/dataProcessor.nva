@@ -1,20 +1,16 @@
 import stdlib csv as csv
-import stdlib io as io
 import stdlib math as m
-import stdlib string as s
 
 // Data Processor Simulation
-// Demonstrates ETL-like workflow with CSV parsing and JSON transformation
+// Demonstrates ETL-like workflow with CSV parsing and numeric aggregation
 
 func processRecord(record) {
-    // Basic data sanity check (camelCase variables as required)
     price = 0.0 + record["price"]
     quantity = 0.0 + record["quantity"]
-    
-    // Calculate total including simple tax
+
     taxRate = 0.12
     totalValue = price * quantity * (1.0 + taxRate)
-    
+
     return totalValue
 }
 
@@ -27,37 +23,26 @@ records = csv.ParseCSVString(csvContent)
 processedData = []
 totalRevenue = 0.0
 
-for (item in records) {
+i = 0
+numRecords = records.size()
+while (i < numRecords) {
+    item = records[i]
     val = processRecord(item)
-    processedData.push({"id": item["id"], "value": val})
+    processedData.push(val)
     totalRevenue = totalRevenue + val
+    i = i + 1
 }
 
 print("Aggregated Statistics:")
-print("- Record Count:", records.size())
+print("- Record Count:", numRecords)
 print("- Total Revenue:", totalRevenue)
-print("- Average Revenue:", totalRevenue / records.size())
-
-// Transform to JSON
-print("Converting results to JSON format...")
-jsonOutput = {
-    "status": "success",
-    "summary": {
-        "revenue": totalRevenue,
-        "count": records.size()
-    },
-    "details": processedData
-}
-
-// Demonstrate JSON stringification (assuming ParseJSONString exists in grammar, but let's use the methods mentioned)
-// Actually, ParseJSONString is for parsing. We already have the map.
-// Let's use io for specific printing
-io.Print("Status from IO module:", jsonOutput["status"])
+print("- Average Revenue:", totalRevenue / numRecords)
 
 // Performance tip: avoid mixed type arithmetic
 counter = 0.0
 limit = 1000.0
 while (counter < limit) {
-    counter = counter + 1.0 // uniform float
+    counter = counter + 1.0
 }
 print("Loop finished:", counter)
+print("Data processing demo completed.")

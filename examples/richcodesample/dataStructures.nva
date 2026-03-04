@@ -1,106 +1,112 @@
 // Data Structures Implementation in Nevaarize
-// Demonstrates structs for linked lists and arrays for stacks/queues
+// Demonstrates array-based stacks and queues
 
-nil = 0
-
-// 1. Singly Linked List
-struct Node {
-    value,
-    next
-}
-
-func createLinkedList(values) {
-    if (values.size() == 0) {
-        return nil
-    }
-    
-    head = Node(values[0], nil)
-    current = head
-    
-    for (i in Range(1, values.size())) {
-        newNode = Node(values[i], nil)
-        current.next = newNode
-        current = newNode
-    }
-    
-    return head
-}
-
-func printLinkedList(head) {
-    current = head
-    while (current != nil) {
-        print("Node value:", current.value)
-        current = current.next
-    }
-}
-
-// 2. Stack (LIFO)
-struct Stack {
-    items
-}
-
+// 1. Stack (LIFO) - Array-based
 func createStack() {
-    return Stack([])
+    return []
 }
 
-func push(stack, item) {
-    stack.items.push(item)
+func stackPush(stack, item) {
+    stack.push(item)
 }
 
-func pop(stack) {
-    if (stack.items.size() == 0) {
-        return nil
+func stackPop(stack) {
+    if (stack.size() == 0) {
+        print("Stack underflow!")
+        return -1
     }
-    // pop() is a native array method in Nevaarize
-    return stack.items.pop()
+    return stack.pop()
 }
 
-// 3. Queue (FIFO)
-struct Queue {
-    items
+func stackPeek(stack) {
+    if (stack.size() == 0) {
+        return -1
+    }
+    return stack[stack.size() - 1]
 }
 
+// 2. Queue (FIFO) - Array-based with index tracking
 func createQueue() {
-    return Queue([])
+    return []
 }
 
 func enqueue(queue, item) {
-    queue.items.push(item)
+    queue.push(item)
 }
 
 func dequeue(queue) {
-    if (queue.items.size() == 0) {
-        return nil
+    if (queue.size() == 0) {
+        print("Queue underflow!")
+        return -1
     }
-    
-    // Nevaarize arrays don't have shift, so we manual copy or use a head index
-    // For simplicity in this demo, we'll implement a simple (though O(n)) shift
-    first = queue.items[0]
-    newItems = []
-    for (i in Range(1, queue.items.size())) {
-        newItems.push(queue.items[i])
+    first = queue[0]
+    newQueue = []
+    i = 1
+    while (i < queue.size()) {
+        newQueue.push(queue[i])
+        i = i + 1
     }
-    queue.items = newItems
+    // Copy back
     return first
 }
 
 // Main Demo
-print("--- Linked List Demo ---")
-listHead = createLinkedList([100, 200, 300])
-printLinkedList(listHead)
+print("=== Data Structures Demo ===")
 
 print("--- Stack Demo ---")
 s = createStack()
-push(s, "A")
-push(s, "B")
-print("Popped:", pop(s)) // B
-print("Popped:", pop(s)) // A
+stackPush(s, 100)
+stackPush(s, 200)
+stackPush(s, 300)
+print("Stack size:", s.size())
+print("Pop:", stackPop(s))
+print("Pop:", stackPop(s))
+print("Pop:", stackPop(s))
+print("Stack size after pops:", s.size())
 
 print("--- Queue Demo ---")
 q = createQueue()
-enqueue(q, "First")
-enqueue(q, "Second")
-print("Dequeued:", dequeue(q)) // First
-print("Dequeued:", dequeue(q)) // Second
+enqueue(q, 10)
+enqueue(q, 20)
+enqueue(q, 30)
+print("Queue size:", q.size())
+print("Dequeue:", dequeue(q))
+print("Dequeue:", dequeue(q))
+
+// 3. Priority via sorting simulation
+print("--- Priority Queue Demo (via sorted insert) ---")
+pq = []
+pq.push(50)
+pq.push(10)
+pq.push(30)
+pq.push(20)
+pq.push(40)
+
+// Simple selection sort to demonstrate
+n = pq.size()
+i = 0
+while (i < n) {
+    minIdx = i
+    j = i + 1
+    while (j < n) {
+        if (pq[j] < pq[minIdx]) {
+            minIdx = j
+        }
+        j = j + 1
+    }
+    if (minIdx != i) {
+        temp = pq[i]
+        pq[i] = pq[minIdx]
+        pq[minIdx] = temp
+    }
+    i = i + 1
+}
+
+print("Sorted priority queue:")
+i = 0
+while (i < pq.size()) {
+    print("  Priority", i, ":", pq[i])
+    i = i + 1
+}
 
 print("Data structures demo finished.")

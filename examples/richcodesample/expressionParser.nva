@@ -1,25 +1,32 @@
-import stdlib string as s
 import stdlib math as m
 
 // Recursive Descent Expression Parser
-// Demonstrates structural parsing and recursion
+// Demonstrates structural parsing and recursion using numeric token arrays
 
-struct Parser {
-    tokens,
-    pos
+// Token types: 0=Number, 1=Plus, 2=Minus, 3=Mul, 4=Div, 5=LParen, 6=RParen
+struct Token {
+    kind,
+    value
 }
 
-func parseExpression(p) {
-    result = parseTerm(p)
-    
+// Global parser state
+tokens = []
+pos = 0
+
+func parseExpression() {
+    result = parseTerm()
+
     shouldContinue = true
-    while (p.pos < p.tokens.size() and shouldContinue) {
-        op = p.tokens[p.pos]
-        if (op == "+" or op == "-") {
-            p.pos = p.pos + 1
-            term = parseTerm(p)
-            if (op == "+") { result = result + term }
-            else { result = result - term }
+    while (pos < tokens.size() and shouldContinue) {
+        tok = tokens[pos]
+        if (tok.kind == 1) {
+            pos = pos + 1
+            term = parseTerm()
+            result = result + term
+        } elif (tok.kind == 2) {
+            pos = pos + 1
+            term = parseTerm()
+            result = result - term
         } else {
             shouldContinue = false
         }
@@ -27,17 +34,20 @@ func parseExpression(p) {
     return result
 }
 
-func parseTerm(p) {
-    result = parseFactor(p)
-    
+func parseTerm() {
+    result = parseFactor()
+
     shouldContinue = true
-    while (p.pos < p.tokens.size() and shouldContinue) {
-        op = p.tokens[p.pos]
-        if (op == "*" or op == "/") {
-            p.pos = p.pos + 1
-            factor = parseFactor(p)
-            if (op == "*") { result = result * factor }
-            else { result = result / factor }
+    while (pos < tokens.size() and shouldContinue) {
+        tok = tokens[pos]
+        if (tok.kind == 3) {
+            pos = pos + 1
+            factor = parseFactor()
+            result = result * factor
+        } elif (tok.kind == 4) {
+            pos = pos + 1
+            factor = parseFactor()
+            result = result / factor
         } else {
             shouldContinue = false
         }
@@ -45,54 +55,42 @@ func parseTerm(p) {
     return result
 }
 
-func parseFactor(p) {
-    token = p.tokens[p.pos]
-    p.pos = p.pos + 1
-    
-    if (token == "(") {
-        result = parseExpression(p)
-        p.pos = p.pos + 1 // skip ")"
+func parseFactor() {
+    tok = tokens[pos]
+    pos = pos + 1
+
+    if (tok.kind == 5) {
+        result = parseExpression()
+        pos = pos + 1
         return result
     }
-    
-    // Assume it's a number (manual conversion for demo)
-    // In a real parser, we'd have a lexer with types
-    return (0.0 + token)
-}
 
-// Simple Lexer simulation
-func tokenize(expr) {
-    // This is a very basic lexer using string split for demo
-    // and manual character insertion for operators
-    prepared = s.replace(expr, "+", " + ")
-    prepared = s.replace(prepared, "-", " - ")
-    prepared = s.replace(prepared, "*", " * ")
-    prepared = s.replace(prepared, "/", " / ")
-    prepared = s.replace(prepared, "(", " ( ")
-    prepared = s.replace(prepared, ")", " ) ")
-    
-    rawTokens = s.split(prepared, " ")
-    tokens = []
-    for (t in rawTokens) {
-        trimmed = s.trim(t)
-        if (s.length(trimmed) > 0) {
-            tokens.push(trimmed)
-        }
-    }
-    return tokens
+    return tok.value
 }
 
 // Main Execution
 print("=== Nevaarize Expression Parser Demo ===")
 
-exprStr = "( 10 + 5 ) * 2 - 8 / 4"
-print("Input Expression:", exprStr)
+// Expression: (10 + 5) * 2 - 8 / 4 = 28
+// Pre-tokenized as numeric token array
+tokens.push(Token(5, 0))
+tokens.push(Token(0, 10.0))
+tokens.push(Token(1, 0))
+tokens.push(Token(0, 5.0))
+tokens.push(Token(6, 0))
+tokens.push(Token(3, 0))
+tokens.push(Token(0, 2.0))
+tokens.push(Token(2, 0))
+tokens.push(Token(0, 8.0))
+tokens.push(Token(4, 0))
+tokens.push(Token(0, 4.0))
 
-tokens = tokenize(exprStr)
-p = Parser(tokens, 0)
-result = parseExpression(p)
+print("Input Expression: (10 + 5) * 2 - 8 / 4")
+
+pos = 0
+result = parseExpression()
 
 print("Parsed Result:", result)
-print("Mathematical check: (10+5)*2 - 8/4 = 15*2 - 2 = 28")
+print("Expected: 28.0")
 
-print("\nParser demonstration finished.")
+print("Parser demonstration finished.")
