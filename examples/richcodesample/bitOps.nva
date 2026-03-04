@@ -55,5 +55,5 @@ admin = 1
 editor = 2
 user = 4
 
-permission = 7 // admin | editor | user
+permission = admin + editor + user // admin | editor | user
 print("Has editor permission?", checkFlag(permission, editor))
