@@ -1,70 +1,77 @@
 import stdlib time as t
 
 // Graph Algorithms in Nevaarize
-// Demonstrates Adjacency List representation and Traversal (BFS/DFS)
+// Demonstrates adjacency list representation and traversal using integer node IDs
 
-struct Graph {
-    adjList // Map of Arrays
-}
+// Adjacency list as a map of integer arrays
+adjList = {}
 
-func createGraph() {
-    return Graph({})
-}
-
-func addEdge(g, u, v) {
-    if (!g.adjList.has(u)) {
-        g.adjList[u] = []
+func addEdge(u, v) {
+    if (!adjList.has(u)) {
+        adjList[u] = []
     }
-    if (!g.adjList.has(v)) {
-        g.adjList[v] = []
+    if (!adjList.has(v)) {
+        adjList[v] = []
     }
-    g.adjList[u].push(v)
-    g.adjList[v].push(u) // Undirected
+    adjList[u].push(v)
+    adjList[v].push(u)
 }
 
-func bfs(g, startNode) {
+func bfs(startNode) {
     print("Starting BFS from node:", startNode)
     visited = {}
     queue = [startNode]
-    visited[startNode] = true
-    
+    visited[startNode] = 1
+
     while (queue.size() > 0) {
-        // Simple dequeue (O(n) shift equivalent)
         currentNode = queue[0]
+        // Manual dequeue
         newQueue = []
-        for (i in Range(1, queue.size())) {
-            newQueue.push(queue[i])
+        idx = 1
+        while (idx < queue.size()) {
+            newQueue.push(queue[idx])
+            idx = idx + 1
         }
         queue = newQueue
-        
+
         print("Visited:", currentNode)
-        
-        neighbors = g.adjList[currentNode]
-        for (neighbor in neighbors) {
-            if (!visited.has(neighbor)) {
-                visited[neighbor] = true
-                queue.push(neighbor)
+
+        if (adjList.has(currentNode)) {
+            neighbors = adjList[currentNode]
+            nIdx = 0
+            while (nIdx < neighbors.size()) {
+                neighbor = neighbors[nIdx]
+                if (!visited.has(neighbor)) {
+                    visited[neighbor] = 1
+                    queue.push(neighbor)
+                }
+                nIdx = nIdx + 1
             }
         }
     }
 }
 
-func dfsIterative(g, startNode) {
+func dfsIterative(startNode) {
     print("Starting Iterative DFS from node:", startNode)
     visited = {}
     stack = [startNode]
-    
+
     while (stack.size() > 0) {
         currentNode = stack.pop()
-        
+
         if (!visited.has(currentNode)) {
             print("Visited:", currentNode)
-            visited[currentNode] = true
-            
-            neighbors = g.adjList[currentNode]
-            for (neighbor in neighbors) {
-                if (!visited.has(neighbor)) {
-                    stack.push(neighbor)
+            visited[currentNode] = 1
+
+            if (adjList.has(currentNode)) {
+                neighbors = adjList[currentNode]
+                nIdx = 0
+                while (nIdx < neighbors.size()) {
+                    neighbor = neighbors[nIdx]
+                    if (!visited.has(neighbor)) {
+                        stack.push(neighbor)
+                    }
+                    nIdx = nIdx + 1
                 }
             }
         }
@@ -74,20 +81,22 @@ func dfsIterative(g, startNode) {
 // Main Execution
 print("=== Nevaarize Graph Algorithms Demo ===")
 
-g = createGraph()
-addEdge(g, "A", "B")
-addEdge(g, "A", "C")
-addEdge(g, "B", "D")
-addEdge(g, "C", "E")
-addEdge(g, "D", "E")
-addEdge(g, "E", "F")
+// Using integer node IDs: 0=A, 1=B, 2=C, 3=D, 4=E, 5=F
+addEdge(0, 1)
+addEdge(0, 2)
+addEdge(1, 3)
+addEdge(2, 4)
+addEdge(3, 4)
+addEdge(4, 5)
 
 start = t.millis()
-bfs(g, "A")
-print("BFS completed in:", t.millis() - start, "ms\n")
+bfs(0)
+print("BFS completed in:", t.millis() - start, "ms")
+
+print("")
 
 start = t.millis()
-dfsIterative(g, "A")
+dfsIterative(0)
 print("DFS completed in:", t.millis() - start, "ms")
 
 print("Graph algorithms demonstration finished.")

@@ -2,67 +2,76 @@ import stdlib math as m
 import stdlib time as t
 
 // Vector 3D Engine Simulation
-// Demonstrates struct-based geometric operations and math performance
+// Demonstrates geometric operations using flat arrays for JIT compatibility
 
-struct Vector3 {
-    x,
-    y,
-    z
+// Vectors represented as [x, y, z] arrays
+
+func vecAdd(v1, v2) {
+    return [v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2]]
 }
 
-func add(v1, v2) {
-    return Vector3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z)
+func vecSub(v1, v2) {
+    return [v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]]
 }
 
-func sub(v1, v2) {
-    return Vector3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z)
+func vecDot(v1, v2) {
+    return (v1[0] * v2[0]) + (v1[1] * v2[1]) + (v1[2] * v2[2])
 }
 
-func dot(v1, v2) {
-    return (v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z)
+func vecCross(v1, v2) {
+    nx = (v1[1] * v2[2]) - (v1[2] * v2[1])
+    ny = (v1[2] * v2[0]) - (v1[0] * v2[2])
+    nz = (v1[0] * v2[1]) - (v1[1] * v2[0])
+    return [nx, ny, nz]
 }
 
-func cross(v1, v2) {
-    nx = (v1.y * v2.z) - (v1.z * v2.y)
-    ny = (v1.z * v2.x) - (v1.x * v2.z)
-    nz = (v1.x * v2.y) - (v1.y * v2.x)
-    return Vector3(nx, ny, nz)
+func vecLength(v) {
+    return m.Sqrt((v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]))
 }
 
-func length(v) {
-    return m.Sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z))
+func vecNormalize(v) {
+    l = vecLength(v)
+    if (l == 0.0) { return [0.0, 0.0, 0.0] }
+    return [v[0] / l, v[1] / l, v[2] / l]
 }
 
-func normalize(v) {
-    l = length(v)
-    if (l == 0.0) { return Vector3(0.0, 0.0, 0.0) }
-    return Vector3(v.x / l, v.y / l, v.z / l)
+func printVec(label, v) {
+    print(label, v[0], v[1], v[2])
 }
 
 // Main Execution
 print("=== Nevaarize Vector3 Engine Demo ===")
 
-vA = Vector3(1.0, 2.0, 3.0)
-vB = Vector3(4.0, 5.0, 6.0)
+vA = [1.0, 2.0, 3.0]
+vB = [4.0, 5.0, 6.0]
 
-print("Vector A:", vA.x, vA.y, vA.z)
-print("Vector B:", vB.x, vB.y, vB.z)
+printVec("Vector A:", vA)
+printVec("Vector B:", vB)
 
-vSum = add(vA, vB)
-vDot = dot(vA, vB)
-vCross = cross(vA, vB)
+vSum = vecAdd(vA, vB)
+vDotVal = vecDot(vA, vB)
+vCrossVal = vecCross(vA, vB)
 
-print("\nOperations Results:")
-print("- A + B =", vSum.x, vSum.y, vSum.z)
-print("- A . B =", vDot)
-print("- A x B =", vCross.x, vCross.y, vCross.z)
+print("Operations Results:")
+printVec("- A + B =", vSum)
+print("- A . B =", vDotVal)
+printVec("- A x B =", vCrossVal)
 
-print("\nNormalization Demo:")
-vC = Vector3(10.0, 0.0, 0.0)
-vNorm = normalize(vC)
-print("- Normalized Vector(10,0,0) =", vNorm.x, vNorm.y, vNorm.z)
+print("Normalization Demo:")
+vC = [10.0, 0.0, 0.0]
+vNorm = vecNormalize(vC)
+printVec("- Normalized (10,0,0) =", vNorm)
 
-// Performance tip: SIMD acceleration check
-// While these are manual struct operations, stdlib ai.Add/Mul 
-// should be used for massive arrays of vectors.
-print("\nVector engine demonstration finished.")
+// Performance: batch dot products
+print("Benchmarking 10000 dot products...")
+start = t.millis()
+i = 0
+total = 0.0
+while (i < 10000) {
+    total = total + vecDot(vA, vB)
+    i = i + 1
+}
+elapsed = t.millis() - start
+print("Sum of 10000 dots:", total, "in", elapsed, "ms")
+
+print("Vector engine demonstration finished.")
