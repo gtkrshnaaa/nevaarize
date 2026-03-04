@@ -1,0 +1,60 @@
+import stdlib json as j
+import stdlib io as io
+
+// Deep JSON Validator
+// Demonstrates nested Map traversal and type checking logic
+
+func validateUserConfig(config) {
+    print("Validating Deep User Config...")
+    
+    // Check top level
+    if (!config.has("version")) { return "Missing version" }
+    
+    // Check nested system object
+    if (!config.has("system")) { return "Missing system block" }
+    sys = config["system"]
+    
+    if (!sys.has("settings")) { return "Missing system.settings" }
+    settings = sys["settings"]
+    
+    // Deeply nested validation
+    if (!settings.has("network")) { return "Missing network settings" }
+    net = settings["network"]
+    
+    if (!net.has("retries")) { return "Missing network retries" }
+    
+    // Type validation simulation
+    retries = net["retries"]
+    if (retries < 0) { return "Retries must be positive" }
+    
+    return "VALID"
+}
+
+// Main Execution
+print("=== Nevaarize JSON Validator Demo ===")
+
+// Construct a deeply nested Map (simulating parsed JSON)
+nestedData = {
+    "version": "2.1.0",
+    "system": {
+        "id": 9982,
+        "settings": {
+            "theme": "dark",
+            "network": {
+                "timeout": 5000,
+                "retries": 3,
+                "endpoints": ["api.v1", "api.v2"]
+            }
+        }
+    }
+}
+
+result = validateUserConfig(nestedData)
+print("Validation Result:", result)
+
+// Test Failure Case
+invalidData = { "version": "1.0" }
+resFail = validateUserConfig(invalidData)
+print("Invalid Data Result:", resFail)
+
+print("\nJSON validation demo finished.")
