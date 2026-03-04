@@ -1,6 +1,8 @@
 // Data Structures Implementation in Nevaarize
 // Demonstrates structs for linked lists and arrays for stacks/queues
 
+nil = 0
+
 // 1. Singly Linked List
 struct Node {
     value,
