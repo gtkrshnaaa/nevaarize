@@ -1,6 +1,8 @@
 import stdlib ai as ai
 import stdlib math as m
 
+nil = 0
+
 // Matrix Operations 2
 // Demonstrates advanced matrix manipulation and AI module interoperability
 
