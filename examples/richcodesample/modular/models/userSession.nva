@@ -1,0 +1,24 @@
+// User Session Model
+// Demonstrates struct usage and cross-file import potentials
+
+struct UserSession {
+    id,
+    username,
+    startTime,
+    isActive
+}
+
+func createSession(userId, name) {
+    import stdlib time as t
+    now = t.millis()
+    return UserSession(userId, name, now, true)
+}
+
+func endSession(session) {
+    session.isActive = false
+}
+
+func getSessionDuration(session) {
+    import stdlib time as t
+    return t.millis() - session.startTime
+}

@@ -1,0 +1,34 @@
+// Main Application
+// Demonstrates multi-level file imports and integration of modular components
+
+import "utils/mathUtils.nva" as mathUtils
+import "models/userSession.nva" as models
+
+import stdlib time as t
+import stdlib io as io
+
+print("Nevaarize Modular Project Simulation Starting...")
+
+// 1. Math Utils Demo
+data = [10, 20, 30, 40, 50, 60, 70, 80]
+mean = mathUtils.calculateMean(data)
+stdDev = mathUtils.calculateStandardDeviation(data)
+
+print("- Dataset size:", data.size())
+print("- Calculated Mean:", mean)
+print("- Standard Dev:", stdDev)
+
+// 2. User Session Demo
+session = models.createSession(1001, "gtkrshnaaa")
+print("- Created session for user:", session.username)
+
+// Simulated delay
+t.sleep(250)
+
+duration = models.getSessionDuration(session)
+print("- Session duration so far:", duration, "ms")
+
+models.endSession(session)
+print("- Session active status:", session.isActive)
+
+print("Modular project demo completed.")
