@@ -1,0 +1,96 @@
+import stdlib string as s
+import stdlib math as m
+
+// Recursive Descent Expression Parser
+// Demonstrates structural parsing and recursion
+
+struct Parser {
+    tokens,
+    pos
+}
+
+func parseExpression(p) {
+    result = parseTerm(p)
+    
+    while (p.pos < p.tokens.size()) {
+        op = p.tokens[p.pos]
+        if (op == "+" or op == "-") {
+            p.pos = p.pos + 1
+            term = parseTerm(p)
+            if (op == "+") { result = result + term }
+            else { result = result - term }
+        } else {
+            break
+        }
+    }
+    return result
+}
+
+func parseTerm(p) {
+    result = parseFactor(p)
+    
+    while (p.pos < p.tokens.size()) {
+        op = p.tokens[p.pos]
+        if (op == "*" or op == "/") {
+            p.pos = p.pos + 1
+            factor = parseFactor(p)
+            if (op == "*") { result = result * factor }
+            else { result = result / factor }
+        } else {
+            break
+        }
+    }
+    return result
+}
+
+func parseFactor(p) {
+    token = p.tokens[p.pos]
+    p.pos = p.pos + 1
+    
+    if (token == "(") {
+        result = parseExpression(p)
+        p.pos = p.pos + 1 // skip ")"
+        return result
+    }
+    
+    // Assume it's a number (manual conversion for demo)
+    // In a real parser, we'd have a lexer with types
+    return (0.0 + token)
+}
+
+// Simple Lexer simulation
+func tokenize(expr) {
+    // This is a very basic lexer using string split for demo
+    // and manual character insertion for operators
+    prepared = s.replace(expr, "+", " + ")
+    prepared = s.replace(prepared, "-", " - ")
+    prepared = s.replace(prepared, "*", " * ")
+    prepared = s.replace(prepared, "/", " / ")
+    prepared = s.replace(prepared, "(", " ( ")
+    prepared = s.replace(prepared, ")", " ) ")
+    
+    rawTokens = s.split(prepared, " ")
+    tokens = []
+    for (t in rawTokens) {
+        trimmed = s.trim(t)
+        if (s.length(trimmed) > 0) {
+            tokens.push(trimmed)
+        }
+    }
+    return tokens
+}
+
+// Main Execution
+print("=== Nevaarize Expression Parser Demo ===")
+
+exprStr = "( 10 + 5 ) * 2 - 8 / 4"
+print("Input Expression:", exprStr)
+
+tokens = tokenize(exprStr)
+p = Parser(tokens, 0)
+result = parseExpression(p)
+
+print("Parsed Result:", result)
+print("Mathematical check: (10+5)*2 - 8/4 = 15*2 - 2 = 28")
+
+print("\nParser demonstration finished.")
