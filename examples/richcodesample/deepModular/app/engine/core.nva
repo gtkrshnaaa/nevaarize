@@ -1,0 +1,25 @@
+// Core Engine Module
+// Demonstrates cross-modular communication and deep import traversal
+
+import "../../lib/utils/logger.nva" as logger
+import stdlib math as m
+
+func initializeEngine() {
+    logger.logInfo("Engine", "Initializing JIT optimization kernels...")
+    
+    // Simulate some work
+    i = 0
+    while (i < 5) {
+        logger.logInfo("Engine", "Kernel check " + i)
+        i = i + 1
+    }
+    
+    logger.logInfo("Engine", "System ready.")
+}
+
+func processComputeTask(data) {
+    logger.logInfo("Engine", "Processing compute task...")
+    result = m.Sqrt(data)
+    logger.logInfo("Engine", "Task finished.")
+    return result
+}

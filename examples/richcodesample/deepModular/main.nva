@@ -1,0 +1,19 @@
+// Deep Modular Project Entry Point
+// Demonstrates complex file structure and nested imports
+
+import "app/engine/core.nva" as core
+import "lib/utils/logger.nva" as logger
+import stdlib time as t
+
+print("=== Nevaarize Deep Modular Application ===")
+
+logger.logInfo("Main", "Starting application orchestration...")
+
+core.initializeEngine()
+
+val = 1048576.0
+result = core.processComputeTask(val)
+
+logger.logInfo("Main", "Computation result: " + result)
+
+print("\nDeep hierarchy simulation complete.")
