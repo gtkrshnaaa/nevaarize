@@ -1,0 +1,56 @@
+import stdlib time as t
+import stdlib math as m
+import stdlib io as io
+
+// Async Orchestrator
+// Demonstrates parallel task execution and awaiting results
+
+async func fetchRemoteData(id, delay) {
+    print("Task", id, "- Starting fetch (mock)...")
+    t.sleep(delay)
+    result = m.RandomInt(100, 999)
+    print("Task", id, "- Done with result:", result)
+    return result
+}
+
+async func processBatch(ids) {
+    tasks = []
+    print("Orchestrator - Spawning", ids.size(), "parallel tasks")
+    
+    for (id in ids) {
+        // Each task gets a random simulated network delay
+        delay = m.RandomInt(100, 500)
+        tasks.push(fetchRemoteData(id, delay))
+    }
+    
+    results = []
+    total = 0
+    
+    print("Orchestrator - Awaiting all tasks...")
+    for (task in tasks) {
+        res = await task
+        results.push(res)
+        total = total + res
+    }
+    
+    return total
+}
+
+// Main execution
+print("Starting Async Orchestration Demonstration")
+start = t.millis()
+
+batchIds = [1, 2, 3, 4, 5]
+orchestratorTask = processBatch(batchIds)
+finalTotal = await orchestratorTask
+
+elapsed = t.millis() - start
+print("Final aggregated result:", finalTotal)
+print("Total orchestration time:", elapsed, "ms")
+
+// Performance reminder: manual while for high-speed counting
+i = 0
+while (i < 1000) {
+    i = i + 1
+}
+print("Background high-speed loop done.")
