@@ -1,6 +1,5 @@
 import stdlib math as m
 import stdlib time as t
-import stdlib io as io
 
 // Physics Simulation: Particle System
 // Demonstrates high-performance math and JIT optimization (uniform types)

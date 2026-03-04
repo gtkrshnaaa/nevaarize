@@ -1,5 +1,4 @@
 import stdlib string as s
-import stdlib io as io
 import stdlib time as t
 
 // String Toolkit Demonstration
