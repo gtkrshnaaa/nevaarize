@@ -2,6 +2,7 @@
 // Demonstrates ParseCSV with relative path resolution
 
 import stdlib csv as c
+import stdlib io as io
 
 print("=== Nevaarize CSV Stdlib Test ===")
 print("")
@@ -21,9 +22,9 @@ while (i < numRows) {
     numCols = row.size()
     j = 0
     while (j < numCols) {
-        write(str(row[j]))
+        io.Write(row[j])
         if (j < numCols - 1) {
-            write(" | ")
+            io.Write(" | ")
         }
         j = j + 1
     }
@@ -47,9 +48,9 @@ while (i < numRowsStr) {
     numCols = row.size()
     j = 0
     while (j < numCols) {
-        write(str(row[j]))
+        io.Write(row[j])
         if (j < numCols - 1) {
-            write(" | ")
+            io.Write(" | ")
         }
         j = j + 1
     }
