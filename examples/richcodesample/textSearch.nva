@@ -21,13 +21,12 @@ func naiveSearch(text, pattern) {
         matchFound = true
         j = 0
         
-        while (j < m) {
+        while (j < m and matchFound) {
             textChar = s.substring(text, i + j, i + j + 1)
             patChar = s.substring(pattern, j, j + 1)
             
             if (textChar != patChar) {
                 matchFound = false
-                break
             }
             j = j + 1
         }
