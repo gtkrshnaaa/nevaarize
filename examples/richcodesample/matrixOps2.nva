@@ -1,0 +1,78 @@
+import stdlib ai as ai
+import stdlib math as m
+
+// Matrix Operations 2
+// Demonstrates advanced matrix manipulation and AI module interoperability
+
+func transposeMatrix(matrix, rows, cols) {
+    print("Transposing", rows, "x", cols, "matrix...")
+    
+    // Flattened representation
+    transposed = []
+    for (c in Range(0, cols)) {
+        for (r in Range(0, rows)) {
+            // Index in original: r * cols + c
+            // Index in transposed: c * rows + r
+            transposed.push(matrix[r * cols + c])
+        }
+    }
+    return transposed
+}
+
+func determinant2x2(m2) {
+    // m2 is [a, b, c, d]
+    // det = ad - bc
+    return (m2[0] * m2[3]) - (m2[1] * m2[2])
+}
+
+func invert2x2(m2) {
+    det = determinant2x2(m2)
+    if (det == 0.0) {
+        print("Matrix is singular, cannot invert.")
+        return nil
+    }
+    
+    invDet = 1.0 / det
+    // Inversion formula for [a b; c d] is 1/det * [d -b; -c a]
+    return [
+        m2[3] * invDet,
+        (0.0 - m2[1]) * invDet,
+        (0.0 - m2[2]) * invDet,
+        m2[0] * invDet
+    ]
+}
+
+// Main Execution
+print("=== Nevaarize Advanced Matrix Ops Demo ===")
+
+// 1. Transpose Demo
+original = [1, 2, 3, 4, 5, 6] // 2x3
+resT = transposeMatrix(original, 2, 3)
+print("Original (2x3): [1,2,3], [4,5,6]")
+print("Transposed (3x2): [1,4], [2,5], [3,6]")
+print("Actual result:", resT)
+
+// 2. Inversion Demo
+matrix2x2 = [4.0, 7.0, 2.0, 6.0]
+print("\nInverting 2x2 Matrix:", matrix2x2)
+inv = invert2x2(matrix2x2)
+print("Inverse result:", inv)
+
+// Verifying A * A^-1 should be Identity [1 0; 0 1]
+if (inv != nil) {
+    i11 = (matrix2x2[0] * inv[0]) + (matrix2x2[1] * inv[2])
+    i12 = (matrix2x2[0] * inv[1]) + (matrix2x2[1] * inv[3])
+    i21 = (matrix2x2[2] * inv[0]) + (matrix2x2[3] * inv[2])
+    i22 = (matrix2x2[2] * inv[1]) + (matrix2x2[3] * inv[3])
+    print("Verification (A * A^-1):")
+    print("[", i11, i12, "]")
+    print("[", i21, i22, "]")
+}
+
+// 3. AI Module Integration
+print("\nLoading weights into AI Tensor...")
+weights = ai.Full(1, 4, 0.5)
+ai.Add(weights, ai.Zeros(1, 4))
+print("Tensor value after AI operations (mean):", ai.Mean(weights))
+
+print("\nMatrix operations 2 finished.")
