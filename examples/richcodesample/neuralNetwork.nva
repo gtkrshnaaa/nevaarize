@@ -1,0 +1,74 @@
+import stdlib ai as ai
+import stdlib math as m
+import stdlib time as t
+
+// Neural Network Simulation for XOR-like problem
+// Demonstrates Nevaarize's JIT-accelerated AI module
+
+struct Layer {
+    weights,
+    biases
+}
+
+func createLayer(inputSize, outputSize) {
+    w = ai.RandN(inputSize, outputSize)
+    // Scale weights for better initialization (Xavier-like)
+    limit = m.Sqrt(2.0 / (inputSize + outputSize))
+    ai.Scale(w, limit)
+    
+    b = ai.Zeros(1, outputSize)
+    
+    return Layer(w, b)
+}
+
+func forward(layer, input) {
+    // Linear transformation: (input * weights) + biases
+    z = ai.MatMul(input, layer.weights)
+    ai.Add(z, layer.biases)
+    return z
+}
+
+async func trainStep(model, x, y) {
+    // Layer 1: Forward
+    z1 = forward(model.l1, x)
+    a1 = ai.ReLU(z1)
+    
+    // Layer 2: Forward (Output)
+    z2 = forward(model.l2, a1)
+    output = ai.Softmax(z2)
+    
+    // Calculate Loss (Cross Entropy)
+    loss = ai.CrossEntropyLoss(output, y)
+    
+    return loss
+}
+
+struct Model {
+    l1,
+    l2
+}
+
+// Initializing a 2-layer Neural Network
+inputDim = 2
+hiddenDim = 4
+outputDim = 2
+
+l1 = createLayer(inputDim, hiddenDim)
+l2 = createLayer(hiddenDim, outputDim)
+myModel = Model(l1, l2)
+
+// Mock data (4 samples of 2 inputs)
+x = ai.RandN(4, inputDim)
+y = ai.Zeros(4, outputDim) // Mock labels
+
+print("Starting AI Training Simulation...")
+start = t.millis()
+
+for (epoch in Range(0, 5)) {
+    lossTask = trainStep(myModel, x, y)
+    loss = await lossTask
+    print("Epoch", epoch, "- Loss:", loss)
+}
+
+elapsed = t.millis() - start
+print("Training simulation finished in", elapsed, "ms")
