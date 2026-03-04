@@ -42,14 +42,14 @@ func countNeighbors(g, x, y) {
     // Check 8 surrounding cells
     for (dy in Range(-1, 2)) {
         for (dx in Range(-1, 2)) {
-            if (dx == 0 and dy == 0) { continue }
-            
-            nx = x + dx
-            ny = y + dy
-            
-            // Bounds check
-            if (nx >= 0 and nx < w and ny >= 0 and ny < h) {
-                count = count + g.cells[ny][nx]
+            if (dx != 0 or dy != 0) {
+                nx = x + dx
+                ny = y + dy
+                
+                // Bounds check
+                if (nx >= 0 and nx < w and ny >= 0 and ny < h) {
+                    count = count + g.cells[ny][nx]
+                }
             }
         }
     }
