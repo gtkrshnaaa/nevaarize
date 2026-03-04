@@ -1,0 +1,70 @@
+import stdlib time as t
+import stdlib math as m
+
+// Producer-Consumer Pattern Simulation
+// Demonstrates advanced async/await coordination
+
+struct Task {
+    id,
+    data,
+    processingTime
+}
+
+async func producer(count) {
+    print("Producer - Starting to generate", count, "tasks...")
+    tasks = []
+    for (i in Range(0, count)) {
+        // Simulating some computational effort to create a task
+        procTime = m.RandomInt(50, 200)
+        t.sleep(10) // Small delay between productions
+        
+        newTask = Task(i, m.Random(), procTime)
+        tasks.push(newTask)
+        print("Producer - Task", i, "created.")
+    }
+    return tasks
+}
+
+async func consumer(task) {
+    print("Consumer - Processing Task", task.id, "(Time:", task.processingTime, "ms)")
+    // Simulate processing
+    t.sleep(task.processingTime)
+    result = task.data * 2.0
+    print("Consumer - Task", task.id, "finished. Result:", result)
+    return result
+}
+
+async func mainController() {
+    // 1. Start producer
+    prodTask = producer(5)
+    taskList = await prodTask
+    
+    print("MainController - All tasks produced. Starting parallel consumption...")
+    
+    // 2. Start all consumers in parallel
+    consumerTasks = []
+    for (item in taskList) {
+        consumerTasks.push(consumer(item))
+    }
+    
+    // 3. Wait for all consumers
+    totalValue = 0.0
+    for (ct in consumerTasks) {
+        val = await ct
+        totalValue = totalValue + val
+    }
+    
+    return totalValue
+}
+
+// Global execution
+print("=== Nevaarize Async Architecture Demo ===")
+start = t.millis()
+
+finalOutputTask = mainController()
+finalResult = await finalOutputTask
+
+elapsed = t.millis() - start
+print("=== Simulation Complete ===")
+print("Final Aggregate Result:", finalResult)
+print("Total Execution Time:", elapsed, "ms")
