@@ -5,12 +5,13 @@ bin/
 *.a
 *.so
 
-# Editor files
+# Editor & Backup files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.bak
 
 # OS files
 .DS_Store
@@ -26,4 +27,7 @@ docs/*.html
 
 # Generated model files
 *.nmod
+
+# Script & Temp Dirs
 z_listing/
+inject.py
