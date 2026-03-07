@@ -104,7 +104,6 @@ class GarbageCollector {
 public:
     static constexpr size_t YOUNG_SIZE = 1024 * 1024;
     static constexpr size_t OLD_SIZE = 16 * 1024 * 1024;
-    static constexpr size_t COLLECT_THRESHOLD = 512;
 
     GarbageCollector()
         : youngGen(YOUNG_SIZE)
@@ -144,8 +143,9 @@ public:
         totalAllocated += size;
         allocsSinceCollect++;
 
-        // Adaptive collection: trigger when allocation count exceeds threshold
-        if (allocsSinceCollect >= COLLECT_THRESHOLD) {
+        // Adaptive collection: trigger when young generation is 80% full
+        // Avoids GC thrashing while keeping RAM usage low
+        if (youngGen.getUsed() >= (youngGen.getCapacity() * 4) / 5) {
             collectYoung();
         }
 
