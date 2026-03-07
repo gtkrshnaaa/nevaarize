@@ -138,8 +138,9 @@ extern "C" void jit_print_array_no_newline(void* dataPtr) {
 }
 
 
-// Global garbage collector instance for JIT heap allocations
-static nevaarize::GarbageCollector jitGC;
+// Thread-local garbage collector instance for JIT heap allocations
+// Ensures memory isolation and eliminates race conditions during async execution
+thread_local nevaarize::GarbageCollector jitGC;
 
 // Structure to track heap-allocated arrays in JIT
 struct JITArray {
