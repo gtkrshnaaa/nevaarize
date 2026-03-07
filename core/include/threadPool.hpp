@@ -40,13 +40,24 @@ public:
     /**
      * Submit a task returning int64_t for execution.
      * Returns a shared_future that can be awaited.
+     * Blocks if the task queue has reached max capacity.
      */
     std::shared_future<int64_t> submit(std::function<int64_t()> task) {
         auto promise = std::make_shared<std::promise<int64_t>>();
         std::shared_future<int64_t> future = promise->get_future();
 
         {
-            std::lock_guard<std::mutex> lock(queueMutex);
+            std::unique_lock<std::mutex> lock(queueMutex);
+            // Backpressure: Block if queue is full
+            notFull.wait(lock, [this]() {
+                return tasks.size() < MAX_QUEUE_SIZE || stopping;
+            });
+
+            if (stopping) {
+                promise->set_exception(std::make_exception_ptr(std::runtime_error("ThreadPool stopping")));
+                return future;
+            }
+
             tasks.emplace([promise, task = std::move(task)]() {
                 try {
                     int64_t result = task();
@@ -80,6 +91,7 @@ public:
             stopping = true;
         }
         condition.notify_all();
+        notFull.notify_all(); // Wake up any blocked submitters
         for (auto& worker : workers) {
             if (worker.joinable()) {
                 worker.join();
@@ -117,6 +129,10 @@ private:
                 task = std::move(tasks.front());
                 tasks.pop();
             }
+            
+            // Notify submitters that there is space in the queue
+            notFull.notify_one();
+            
             task();
         }
     }
@@ -125,7 +141,11 @@ private:
     std::queue<std::function<void()>> tasks;
     mutable std::mutex queueMutex;
     std::condition_variable condition;
+    std::condition_variable notFull;
     bool stopping;
+    
+    // Bounded queue maximum size
+    static constexpr size_t MAX_QUEUE_SIZE = 10000;
 };
 
 } // namespace nevaarize
