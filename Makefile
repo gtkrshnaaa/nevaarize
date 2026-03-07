@@ -156,8 +156,29 @@ list:
 	done
 	@echo "Codebase listing generated at z_listing/listing.txt"
 
+# Core Listing Target
+core-list:
+	@mkdir -p z_listing
+	@echo "================================================================================" > z_listing/core_listing.txt
+	@echo "NEVAARIZE CORE CODEBASE LISTING" >> z_listing/core_listing.txt
+	@echo "Generated on: $$(date)" >> z_listing/core_listing.txt
+	@echo "================================================================================" >> z_listing/core_listing.txt
+	@echo "" >> z_listing/core_listing.txt
+	@echo "This document contains a listing of all source code files within the core/ directory." >> z_listing/core_listing.txt
+	@echo "Nevaarize is a high-performance, native JIT compiler language built with C++23." >> z_listing/core_listing.txt
+	@echo "" >> z_listing/core_listing.txt
+	@echo "================================================================================" >> z_listing/core_listing.txt
+	@echo "" >> z_listing/core_listing.txt
+	@for f in $$(find core -type f | sort); do \
+		echo "FILE: $$f" >> z_listing/core_listing.txt; \
+		echo "--------------------------------------------------------------------------------" >> z_listing/core_listing.txt; \
+		cat "$$f" >> z_listing/core_listing.txt; \
+		echo -e "\n\n" >> z_listing/core_listing.txt; \
+	done
+	@echo "Core codebase listing generated at z_listing/core_listing.txt"
+
 # Help
-.PHONY: all release debug clean rebuild run run-script run-examples benchmark install uninstall help list
+.PHONY: all release debug clean rebuild run run-script run-examples benchmark install uninstall help list core-list
 help:
 	@echo "Nevaarize Build System"
 	@echo ""
