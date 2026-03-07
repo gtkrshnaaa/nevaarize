@@ -501,6 +501,13 @@ void GrammarChecker::passNaming(const AST& ast, NodeIndex idx) {
             passNaming(ast, node.left);
             break;
 
+        case NodeType::MEMBER_ASSIGN:
+        case NodeType::INDEX_ASSIGN:
+            passNaming(ast, node.left);
+            passNaming(ast, node.right);
+            if (node.extra != INVALID_NODE) passNaming(ast, node.extra);
+            break;
+
         case NodeType::FUNC_DECL:
         case NodeType::ASYNC_FUNC_DECL:
             // Function names must be camelCase
@@ -572,6 +579,7 @@ void GrammarChecker::passNaming(const AST& ast, NodeIndex idx) {
             break;
 
         case NodeType::IF_STMT:
+            passNaming(ast, node.left);
             passNaming(ast, node.right);
             passNaming(ast, node.extra);
             break;
@@ -583,10 +591,12 @@ void GrammarChecker::passNaming(const AST& ast, NodeIndex idx) {
                         "Iterator variable '" + node.name + "' should use camelCase",
                         "naming.iteratorCamelCase");
             }
+            passNaming(ast, node.left);
             passNaming(ast, node.right);
             break;
 
         case NodeType::WHILE_STMT:
+            passNaming(ast, node.left);
             passNaming(ast, node.right);
             break;
 
@@ -598,8 +608,38 @@ void GrammarChecker::passNaming(const AST& ast, NodeIndex idx) {
             }
             break;
 
+        case NodeType::CATCH_STMT:
+            passNaming(ast, node.left);
+            break;
+
+        case NodeType::RETURN_STMT:
+        case NodeType::THROW_STMT:
+            if (node.left != INVALID_NODE) passNaming(ast, node.left);
+            break;
+
         case NodeType::EXPR_STMT:
             passNaming(ast, node.left);
+            break;
+
+        // Expression types - traverse deeply
+        case NodeType::BINARY_OP:
+        case NodeType::UNARY_OP:
+        case NodeType::CALL:
+        case NodeType::MEMBER_ACCESS:
+        case NodeType::INDEX_ACCESS:
+        case NodeType::ARRAY_LITERAL:
+        case NodeType::MAP_LITERAL:
+        case NodeType::STRUCT_INIT:
+        case NodeType::AWAIT_EXPR:
+            walkExpression(ast, idx, &GrammarChecker::passNaming);
+            break;
+
+        case NodeType::IDENTIFIER:
+        case NodeType::LITERAL_INT:
+        case NodeType::LITERAL_FLOAT:
+        case NodeType::LITERAL_STRING:
+        case NodeType::LITERAL_BOOL:
+        case NodeType::LITERAL_NIL:
             break;
 
         default:
@@ -842,6 +882,10 @@ void GrammarChecker::passSemantics(const AST& ast, NodeIndex idx) {
             }
             break;
 
+        case NodeType::CATCH_STMT:
+            passSemantics(ast, node.left);
+            break;
+
         case NodeType::THROW_STMT:
             passSemantics(ast, node.left);
             break;
@@ -950,6 +994,7 @@ void GrammarChecker::passPerformance(const AST& ast, NodeIndex idx) {
             break;
 
         case NodeType::WHILE_STMT: {
+            passPerformance(ast, node.left);
             // Check for empty loop body
             if (node.right != INVALID_NODE) {
                 const ASTNode& body = ast.get(node.right);
@@ -1004,6 +1049,7 @@ void GrammarChecker::passPerformance(const AST& ast, NodeIndex idx) {
         }
 
         case NodeType::FOR_STMT: {
+            passPerformance(ast, node.left);
             if (node.right != INVALID_NODE) {
                 const ASTNode& body = ast.get(node.right);
                 if (body.type == NodeType::BLOCK && body.children.empty()) {
@@ -1023,8 +1069,18 @@ void GrammarChecker::passPerformance(const AST& ast, NodeIndex idx) {
             break;
 
         case NodeType::IF_STMT:
+            passPerformance(ast, node.left);
             passPerformance(ast, node.right);
             passPerformance(ast, node.extra);
+            break;
+
+        case NodeType::CATCH_STMT:
+            passPerformance(ast, node.left);
+            break;
+
+        case NodeType::RETURN_STMT:
+        case NodeType::THROW_STMT:
+            if (node.left != INVALID_NODE) passPerformance(ast, node.left);
             break;
 
         case NodeType::TRY_STMT:
@@ -1037,6 +1093,27 @@ void GrammarChecker::passPerformance(const AST& ast, NodeIndex idx) {
 
         case NodeType::EXPR_STMT:
             passPerformance(ast, node.left);
+            break;
+
+        // Expression types - traverse deeply
+        case NodeType::BINARY_OP:
+        case NodeType::UNARY_OP:
+        case NodeType::CALL:
+        case NodeType::MEMBER_ACCESS:
+        case NodeType::INDEX_ACCESS:
+        case NodeType::ARRAY_LITERAL:
+        case NodeType::MAP_LITERAL:
+        case NodeType::STRUCT_INIT:
+        case NodeType::AWAIT_EXPR:
+            walkExpression(ast, idx, &GrammarChecker::passPerformance);
+            break;
+
+        case NodeType::IDENTIFIER:
+        case NodeType::LITERAL_INT:
+        case NodeType::LITERAL_FLOAT:
+        case NodeType::LITERAL_STRING:
+        case NodeType::LITERAL_BOOL:
+        case NodeType::LITERAL_NIL:
             break;
 
         default:
