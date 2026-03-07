@@ -4028,9 +4028,32 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::MEMBER_ACCESS: {
-            // Evaluate the object first
-            JITValue objVal = compileExpr(ast, node.left);
-            X64Reg objReg = objVal.valueReg;
+            CodeBuffer& buf = codegen.getCode();
+            
+            // Fast-path Object Resolution (Avoid Double-Tax)
+            X64Reg objReg = X64Reg::RAX;
+            bool freeObjVal = false, freeObjType = false;
+            JITValue objVal;
+            
+            const ASTNode& leftNode = ast.get(node.left);
+            auto objIt = (leftNode.type == NodeType::IDENTIFIER) ? variables.find(leftNode.name) : variables.end();
+            if (objIt != variables.end() && objIt->second.isRegister && !objIt->second.isXMMRegister) {
+                objReg = objIt->second.reg;
+            } else if (objIt != variables.end() && !objIt->second.isRegister) {
+                objReg = allocateReg();
+                freeObjVal = true;
+                int32_t offset = objIt->second.stackOffset;
+                bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+                buf.emit8(0x48 | (objHigh ? 0x04 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x85 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(offset));
+            } else {
+                objVal = compileExpr(ast, node.left);
+                objReg = objVal.valueReg;
+                freeObjVal = true;
+                freeObjType = true;
+            }
             
             // Handle .length on arrays
             if (node.name == "length") {
@@ -4042,8 +4065,14 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit8(0x40 | ((static_cast<uint8_t>(dst) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
                 buf.emit8(static_cast<uint8_t>(0xF8)); // -8 offset from data pointer to size
                 
-                freeReg(objVal.valueReg);
-                freeReg(objVal.typeReg);
+                if (freeObjVal) {
+                    if (freeObjType) {
+                        freeReg(objVal.valueReg);
+                        freeReg(objVal.typeReg);
+                    } else {
+                        freeReg(objReg);
+                    }
+                }
                 
                 JITValue result;
                 result.valueReg = dst;
@@ -4083,18 +4112,34 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             // Load Value: mov resVal, [objReg + fieldOffset]
             buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
-            buf.emit8(0x8B);
-            buf.emit8(0x80 | ((static_cast<uint8_t>(resVal) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
-            buf.emit32(static_cast<uint32_t>(fieldOffset));
+            buf.emit8(0x8B); // MOV REG, m64
+            if (fieldOffset < 128) { // Fits in signed 8-bit
+                buf.emit8(0x40 | ((static_cast<uint8_t>(resVal) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                buf.emit8(static_cast<uint8_t>(fieldOffset));
+            } else {
+                buf.emit8(0x80 | ((static_cast<uint8_t>(resVal) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                buf.emit32(static_cast<uint32_t>(fieldOffset));
+            }
             
             // Load Type: mov resType, [objReg + fieldOffset + 8]
             buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
-            buf.emit8(0x8B);
-            buf.emit8(0x80 | ((static_cast<uint8_t>(resType) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
-            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+            buf.emit8(0x8B); // MOV REG, m64
+            if (fieldOffset + 8 < 128) {
+                buf.emit8(0x40 | ((static_cast<uint8_t>(resType) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                buf.emit8(static_cast<uint8_t>(fieldOffset + 8));
+            } else {
+                buf.emit8(0x80 | ((static_cast<uint8_t>(resType) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+            }
 
-            freeReg(objVal.valueReg);
-            freeReg(objVal.typeReg);
+            if (freeObjVal) {
+                if (freeObjType) {
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                } else {
+                    freeReg(objReg);
+                }
+            }
             
             JITValue result;
             result.valueReg = resVal;
@@ -4844,8 +4889,31 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         case NodeType::MEMBER_ASSIGN: {
             // obj.field = value
             CodeBuffer& buf = codegen.getCode();
-            JITValue target = compileExpr(ast, node.left);
-            X64Reg objReg = target.valueReg;
+            
+            // Fast-path Object Resolution (Avoid Double-Tax)
+            X64Reg objReg = X64Reg::RAX;
+            bool freeObjVal = false, freeObjType = false;
+            JITValue targetVal;
+            
+            const ASTNode& leftNode = ast.get(node.left);
+            auto objIt = (leftNode.type == NodeType::IDENTIFIER) ? variables.find(leftNode.name) : variables.end();
+            if (objIt != variables.end() && objIt->second.isRegister && !objIt->second.isXMMRegister) {
+                objReg = objIt->second.reg;
+            } else if (objIt != variables.end() && !objIt->second.isRegister) {
+                objReg = allocateReg();
+                freeObjVal = true;
+                int32_t offset = objIt->second.stackOffset;
+                bool objHigh = static_cast<uint8_t>(objReg) >= 8;
+                buf.emit8(0x48 | (objHigh ? 0x04 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x85 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(offset));
+            } else {
+                targetVal = compileExpr(ast, node.left);
+                objReg = targetVal.valueReg;
+                freeObjVal = true;
+                freeObjType = true;
+            }
             
             JITValue value = compileExpr(ast, node.right);
             
@@ -4863,27 +4931,68 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             if (fieldIndex == -1) fieldIndex = 0;
             int32_t fieldOffset = fieldIndex * 16;
             
-            // objReg now contains pointer - directly use it
             bool valHigh = static_cast<uint8_t>(value.valueReg) >= 8;
-            bool typeHigh = static_cast<uint8_t>(value.typeReg) >= 8;
             bool objHigh = static_cast<uint8_t>(objReg) >= 8;
             
             // Store Value: mov [objReg + fieldOffset], valueReg
             buf.emit8(0x48 | (valHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
             buf.emit8(0x89);
-            buf.emit8(0x80 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
-            buf.emit32(static_cast<uint32_t>(fieldOffset));
+            if (fieldOffset < 128) {
+                buf.emit8(0x40 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                buf.emit8(static_cast<uint8_t>(fieldOffset));
+            } else {
+                buf.emit8(0x80 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                buf.emit32(static_cast<uint32_t>(fieldOffset));
+            }
             
-            // Store Type: mov [objReg + fieldOffset + 8], typeReg
-            buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
-            buf.emit8(0x89);
-            buf.emit8(0x80 | ((static_cast<uint8_t>(value.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
-            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+            // Fast-path Type Deduction (Avoid storing type from register if we statically know it)
+            uint64_t staticType = 0xFF; // Unknown
+            const ASTNode& rightNode = ast.get(node.right);
+            if (rightNode.type == NodeType::LITERAL_INT) staticType = 0;
+            else if (rightNode.type == NodeType::LITERAL_FLOAT) staticType = 1;
+            else if (rightNode.type == NodeType::LITERAL_BOOL) staticType = 2;
+            else if (rightNode.type == NodeType::IDENTIFIER) {
+                if (knownIntVars.count(rightNode.name)) staticType = 0;
+                else if (knownFloatVars.count(rightNode.name)) staticType = 1;
+            }
+            
+            if (staticType != 0xFF) {
+                // We statically know the type! Store it via 32-bit immediate
+                buf.emit8(0x48 | (objHigh ? 0x01 : 0));
+                buf.emit8(0xC7); // MOV r/m64, imm32
+                if (fieldOffset + 8 < 128) {
+                    buf.emit8(0x40 | (static_cast<uint8_t>(objReg) & 0x7));
+                    buf.emit8(static_cast<uint8_t>(fieldOffset + 8));
+                } else {
+                    buf.emit8(0x80 | (static_cast<uint8_t>(objReg) & 0x7));
+                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                }
+                buf.emit32(static_cast<uint32_t>(staticType));
+            } else {
+                bool typeHigh = static_cast<uint8_t>(value.typeReg) >= 8;
+                // Store Type: mov [objReg + fieldOffset + 8], typeReg
+                buf.emit8(0x48 | (typeHigh ? 0x04 : 0) | (objHigh ? 0x01 : 0));
+                buf.emit8(0x89);
+                if (fieldOffset + 8 < 128) {
+                    buf.emit8(0x40 | ((static_cast<uint8_t>(value.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                    buf.emit8(static_cast<uint8_t>(fieldOffset + 8));
+                } else {
+                    buf.emit8(0x80 | ((static_cast<uint8_t>(value.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(objReg) & 0x7));
+                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                }
+            }
             
             freeReg(value.valueReg);
             freeReg(value.typeReg);
-            freeReg(target.valueReg);
-            freeReg(target.typeReg);
+            
+            if (freeObjVal) {
+                if (freeObjType) {
+                    freeReg(targetVal.valueReg);
+                    freeReg(targetVal.typeReg);
+                } else {
+                    freeReg(objReg);
+                }
+            }
             break;
         }
         
