@@ -170,6 +170,9 @@ void printVersion() {
 int main(int argc, char* argv[]) {
     using namespace nevaarize;
 
+    // Initialize hardware traps for JIT engine
+    setup_hardware_traps();
+
     if (argc < 2) {
         printUsage(argv[0]);
         return 1;
