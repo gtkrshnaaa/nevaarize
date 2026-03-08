@@ -186,4 +186,25 @@ private:
 
 } // namespace nevaarize
 
+// Global JIT runtime state
+extern thread_local bool in_jit_execution;
+
+// Hardware trap initialization (called from main)
+void setup_hardware_traps();
+
+/**
+ * RAII guard to safely transition from JIT execution to C++ runtime.
+ * This prevents siglongjmp from bypassing C++ destructors and leaking memory.
+ */
+struct JITExecutionGuard {
+    bool was_in_jit;
+    JITExecutionGuard() {
+        was_in_jit = in_jit_execution;
+        in_jit_execution = false;
+    }
+    ~JITExecutionGuard() {
+        in_jit_execution = was_in_jit;
+    }
+};
+
 #endif // NEVAARIZE_JIT_HPP
