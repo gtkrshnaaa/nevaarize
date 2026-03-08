@@ -46,8 +46,17 @@ extern "C" void nevaarize_hardware_trap_handler(int sig, siginfo_t *si, void *un
 
 // Hardware trap initialization (called from main)
 void setup_hardware_traps() {
+    // Allocate alternate signal stack for Stack Overflow recovery
+    stack_t ss;
+    ss.ss_sp = malloc(SIGSTKSZ * 4); // Use larger stack just in case
+    if (ss.ss_sp != NULL) {
+        ss.ss_size = SIGSTKSZ * 4;
+        ss.ss_flags = 0;
+        sigaltstack(&ss, NULL);
+    }
+
     struct sigaction sa;
-    sa.sa_flags = SA_SIGINFO;
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK; // Run on alternate stack
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = nevaarize_hardware_trap_handler;
     
