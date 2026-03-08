@@ -36,6 +36,7 @@ thread_local sigjmp_buf jit_recovery_env;
 
 // Hardware trap handler
 extern "C" void nevaarize_hardware_trap_handler(int sig, siginfo_t *si, void *unused) {
+    (void)unused; // Fix -Wunused-parameter
     if (in_jit_execution) {
         siglongjmp(jit_recovery_env, 1);
     } else {
