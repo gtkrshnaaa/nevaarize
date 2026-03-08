@@ -25,6 +25,36 @@
 #include <mutex>
 #include <future>
 #include <iostream>
+#include <csignal>
+#include <csetjmp>
+#include <cstdlib>
+
+// Global JIT runtime state (used by JITExecutionGuard and trap handler)
+thread_local bool in_jit_execution = false;
+thread_local sigjmp_buf jit_recovery_env;
+
+// Hardware trap handler
+extern "C" void nevaarize_hardware_trap_handler(int sig, siginfo_t *si, void *unused) {
+    if (in_jit_execution) {
+        siglongjmp(jit_recovery_env, 1);
+    } else {
+        fprintf(stderr, "\n[Nevaarize Core Panic] Fatal hardware trap %d at %p\n", sig, si->si_addr);
+        exit(1);
+    }
+}
+
+// Hardware trap initialization (called from main)
+void setup_hardware_traps() {
+    struct sigaction sa;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_sigaction = nevaarize_hardware_trap_handler;
+    
+    sigaction(SIGSEGV, &sa, NULL); 
+    sigaction(SIGILL, &sa, NULL);  
+    sigaction(SIGBUS, &sa, NULL);  
+    sigaction(SIGFPE, &sa, NULL);  
+}
 
 // Helper for JIT to call for float printing (with newline)
 extern "C" void jit_print_double(double val) {
