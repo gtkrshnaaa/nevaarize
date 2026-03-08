@@ -25,6 +25,7 @@
 #include <mutex>
 #include <future>
 #include <iostream>
+#include <stdexcept>
 #include <csignal>
 #include <csetjmp>
 #include <cstdlib>
@@ -58,6 +59,7 @@ void setup_hardware_traps() {
 
 // Helper for JIT to call for float printing (with newline)
 extern "C" void jit_print_double(double val) {
+    JITExecutionGuard guard;
     if (val == (int64_t)val) {
         printf("%.1f\n", val); // Print 1.0 as 1.0 not 1
     } else {
@@ -67,6 +69,7 @@ extern "C" void jit_print_double(double val) {
 
 // Helper for JIT to call for float printing (no newline - for multiple args)
 extern "C" void jit_print_double_no_newline(double val) {
+    JITExecutionGuard guard;
     if (val == (int64_t)val) {
         printf("%.1f", val);
     } else {
@@ -77,6 +80,7 @@ extern "C" void jit_print_double_no_newline(double val) {
 
 // Helper for JIT to get nanosecond timestamp (for t.nanos())
 extern "C" int64_t jit_get_nanos() {
+    JITExecutionGuard guard;
     auto now = std::chrono::steady_clock::now();
     auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         now.time_since_epoch()).count();
@@ -85,6 +89,7 @@ extern "C" int64_t jit_get_nanos() {
 
 // Helper for JIT to get clock in nanoseconds (for t.clock())
 extern "C" int64_t jit_get_clock_ns() {
+    JITExecutionGuard guard;
     auto now = std::chrono::high_resolution_clock::now();
     auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         now.time_since_epoch()).count();
@@ -112,6 +117,7 @@ thread_local int64_t current_exception_type = 0;
  * Detects string exceptions and prints the message directly.
  */
 extern "C" void jit_unhandled_exception() {
+    JITExecutionGuard guard;
     if (current_exception_type == 4 && current_exception_val != 0) {
         // String exception — print the message
         void* dataPtr = reinterpret_cast<void*>(current_exception_val);
@@ -134,6 +140,7 @@ extern "C" void jit_unhandled_exception() {
  * Expects the data pointer from jit_alloc_string (points to JITString.data).
  */
 extern "C" void jit_print_jitstring_no_newline(void* dataPtr) {
+    JITExecutionGuard guard;
     if (!dataPtr) {
         std::cout << "nil";
         return;
@@ -144,10 +151,12 @@ extern "C" void jit_print_jitstring_no_newline(void* dataPtr) {
 }
 
 extern "C" void jit_debug_value_type(int64_t value, int64_t type) {
+    JITExecutionGuard guard;
     std::cout << "DEBUG_JIT: value=0x" << std::hex << value << " type=" << std::dec << type << std::endl;
 }
 
 extern "C" void jit_print_map_no_newline(void* dataPtr) {
+    JITExecutionGuard guard;
     if (!dataPtr) {
         std::cout << "nil";
         std::cout.flush();
@@ -158,6 +167,7 @@ extern "C" void jit_print_map_no_newline(void* dataPtr) {
 }
 
 extern "C" void jit_print_array_no_newline(void* dataPtr) {
+    JITExecutionGuard guard;
     if (!dataPtr) {
         std::cout << "nil";
         std::cout.flush();
@@ -180,6 +190,7 @@ struct JITArray {
 };
 
 extern "C" void* jit_alloc_array(int64_t size) {
+    JITExecutionGuard guard;
     int64_t capacity = size > 8 ? size : 8;
     size_t totalBytes = sizeof(JITArray) + capacity * sizeof(int64_t);
     
@@ -198,6 +209,7 @@ extern "C" void* jit_alloc_array(int64_t size) {
 }
 
 extern "C" void* jit_array_push(void* dataPtr, int64_t value) {
+    JITExecutionGuard guard;
     if (!dataPtr) return nullptr;
     JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
     
@@ -213,6 +225,7 @@ extern "C" void* jit_array_push(void* dataPtr, int64_t value) {
 }
 
 extern "C" void jit_array_set(void* dataPtr, int64_t index, int64_t value) {
+    JITExecutionGuard guard;
     if (!dataPtr) return;
     JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
     if (index >= 0 && index < arr->capacity) {
@@ -224,6 +237,7 @@ extern "C" void jit_array_set(void* dataPtr, int64_t index, int64_t value) {
 }
 
 extern "C" int64_t jit_array_get(void* dataPtr, int64_t index) {
+    JITExecutionGuard guard;
     if (!dataPtr) return 0;
     JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
     if (index >= 0 && index < arr->size) {
@@ -237,6 +251,7 @@ extern "C" int64_t jit_array_get(void* dataPtr, int64_t index) {
  * Expects the data pointer (same as jit_alloc_array returns).
  */
 extern "C" int64_t jit_array_size(void* dataPtr) {
+    JITExecutionGuard guard;
     if (!dataPtr) return 0;
     JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
     return arr->size;
@@ -313,6 +328,7 @@ static bool jit_keys_equal(int64_t a, int64_t b) {
 }
 
 extern "C" void* jit_alloc_map(int64_t initial_capacity) {
+    JITExecutionGuard guard;
     if (initial_capacity < 8) initial_capacity = 8;
     int64_t cap = 1;
     while (cap < initial_capacity) cap *= 2;
@@ -367,6 +383,7 @@ static void* jit_map_resize(JITMap* old) {
  * since resize may reallocate the map.
  */
 extern "C" void* jit_map_set(void* entriesPtr, int64_t key, int64_t value) {
+    JITExecutionGuard guard;
     if (!entriesPtr) return nullptr;
     JITMap* map = (JITMap*)((char*)entriesPtr - offsetof(JITMap, entries));
 
@@ -403,6 +420,7 @@ extern "C" void* jit_map_set(void* entriesPtr, int64_t key, int64_t value) {
  * Retrieve value for a key. Returns 0 if not found.
  */
 extern "C" int64_t jit_map_get(void* entriesPtr, int64_t key) {
+    JITExecutionGuard guard;
     if (!entriesPtr) return 0;
     JITMap* map = (JITMap*)((char*)entriesPtr - offsetof(JITMap, entries));
 
@@ -423,6 +441,7 @@ extern "C" int64_t jit_map_get(void* entriesPtr, int64_t key) {
  * Returns 1 if removed, 0 if key was not found.
  */
 extern "C" int64_t jit_map_remove(void* entriesPtr, int64_t key) {
+    JITExecutionGuard guard;
     if (!entriesPtr) return 0;
     JITMap* map = (JITMap*)((char*)entriesPtr - offsetof(JITMap, entries));
 
@@ -444,6 +463,7 @@ extern "C" int64_t jit_map_remove(void* entriesPtr, int64_t key) {
  * Check if map contains key. Returns 1 if found, 0 otherwise.
  */
 extern "C" int64_t jit_map_has(void* entriesPtr, int64_t key) {
+    JITExecutionGuard guard;
     if (!entriesPtr) return 0;
     JITMap* map = (JITMap*)((char*)entriesPtr - offsetof(JITMap, entries));
 
@@ -463,6 +483,7 @@ extern "C" int64_t jit_map_has(void* entriesPtr, int64_t key) {
  * Return the number of entries in the map.
  */
 extern "C" int64_t jit_map_size(void* entriesPtr) {
+    JITExecutionGuard guard;
     if (!entriesPtr) return 0;
     JITMap* map = (JITMap*)((char*)entriesPtr - offsetof(JITMap, entries));
     return map->size;
@@ -472,6 +493,7 @@ extern "C" int64_t jit_map_size(void* entriesPtr) {
  * Return a JITArray containing all occupied keys.
  */
 extern "C" void* jit_map_keys(void* entriesPtr) {
+    JITExecutionGuard guard;
     if (!entriesPtr) return jit_alloc_array(0);
     JITMap* map = (JITMap*)((char*)entriesPtr - offsetof(JITMap, entries));
 
@@ -488,6 +510,7 @@ extern "C" void* jit_map_keys(void* entriesPtr) {
  * Return a JITArray containing all occupied values.
  */
 extern "C" void* jit_map_values(void* entriesPtr) {
+    JITExecutionGuard guard;
     if (!entriesPtr) return jit_alloc_array(0);
     JITMap* map = (JITMap*)((char*)entriesPtr - offsetof(JITMap, entries));
 
@@ -501,6 +524,7 @@ extern "C" void* jit_map_values(void* entriesPtr) {
 }
 
 extern "C" void* jit_alloc_string_len(int64_t len) {
+    JITExecutionGuard guard;
     if (len < 0) return nullptr;
     int64_t capacity = len;
     size_t totalBytes = sizeof(JITString) + capacity;
@@ -519,6 +543,7 @@ extern "C" void* jit_alloc_string_len(int64_t len) {
 }
 
 extern "C" void* jit_alloc_string(const char* s) {
+    JITExecutionGuard guard;
     if (!s) return nullptr;
     size_t len = strlen(s);
     
@@ -545,10 +570,12 @@ extern "C" void* jit_alloc_string(const char* s) {
 }
 
 extern "C" void jit_gc_collect() {
+    JITExecutionGuard guard;
     jitGC.collectYoung();
 }
 
 extern "C" char* jit_string_concat(char* s1, char* s2) {
+    JITExecutionGuard guard;
     if (!s1 || !s2) return nullptr;
     
     JITString* str1 = reinterpret_cast<JITString*>(s1 - offsetof(JITString, data));
@@ -616,6 +643,7 @@ struct JITTask {
 using JITCompiledFunc = int64_t (*)();
 
 extern "C" void* jit_async_spawn(void* funcPtr) {
+    JITExecutionGuard guard;
     auto fn = reinterpret_cast<JITCompiledFunc>(funcPtr);
     JITTask* task = new JITTask();
     task->future = nevaarize::ThreadPool::instance().submit([fn]() -> int64_t {
@@ -625,6 +653,7 @@ extern "C" void* jit_async_spawn(void* funcPtr) {
 }
 
 extern "C" int64_t jit_await_task(void* taskPtr) {
+    JITExecutionGuard guard;
     if (!taskPtr) return 0;
     JITTask* task = static_cast<JITTask*>(taskPtr);
     int64_t result = task->future.get();
@@ -632,6 +661,7 @@ extern "C" int64_t jit_await_task(void* taskPtr) {
 }
 
 extern "C" void jit_task_free(void* taskPtr) {
+    JITExecutionGuard guard;
     if (!taskPtr) return;
     JITTask* task = static_cast<JITTask*>(taskPtr);
     delete task;
@@ -642,6 +672,7 @@ extern "C" void jit_task_free(void* taskPtr) {
 // ============================================================================
 
 extern "C" void* jit_string_to_upper(void* strPtr) {
+    JITExecutionGuard guard;
     if (!strPtr) return nullptr;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     void* newStrPtr = jit_alloc_string_len(str->length);
@@ -655,6 +686,7 @@ extern "C" void* jit_string_to_upper(void* strPtr) {
 }
 
 extern "C" void* jit_string_to_lower(void* strPtr) {
+    JITExecutionGuard guard;
     if (!strPtr) return nullptr;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     void* newStrPtr = jit_alloc_string_len(str->length);
@@ -668,6 +700,7 @@ extern "C" void* jit_string_to_lower(void* strPtr) {
 }
 
 extern "C" void* jit_string_trim(void* strPtr) {
+    JITExecutionGuard guard;
     if (!strPtr) return nullptr;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     int64_t start = 0;
@@ -685,6 +718,7 @@ extern "C" void* jit_string_trim(void* strPtr) {
 }
 
 extern "C" void* jit_string_split(void* strPtr, void* delimPtr) {
+    JITExecutionGuard guard;
     if (!strPtr || !delimPtr) return jit_alloc_array(0);
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     JITString* delim = reinterpret_cast<JITString*>(static_cast<char*>(delimPtr) - offsetof(JITString, data));
@@ -730,6 +764,7 @@ extern "C" void* jit_string_split(void* strPtr, void* delimPtr) {
 }
 
 extern "C" void* jit_string_replace(void* strPtr, void* oldPtr, void* newPtr) {
+    JITExecutionGuard guard;
     if (!strPtr || !oldPtr || !newPtr) return strPtr;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     JITString* oldS = reinterpret_cast<JITString*>(static_cast<char*>(oldPtr) - offsetof(JITString, data));
@@ -763,6 +798,7 @@ extern "C" void* jit_string_replace(void* strPtr, void* oldPtr, void* newPtr) {
 }
 
 extern "C" void* jit_string_substring(void* strPtr, int64_t start, int64_t length) {
+    JITExecutionGuard guard;
     if (!strPtr) return nullptr;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     if (start < 0) start = 0;
@@ -779,6 +815,7 @@ extern "C" void* jit_string_substring(void* strPtr, int64_t start, int64_t lengt
 }
 
 extern "C" int64_t jit_string_contains(void* strPtr, void* subPtr) {
+    JITExecutionGuard guard;
     if (!strPtr || !subPtr) return 0;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     JITString* sub = reinterpret_cast<JITString*>(static_cast<char*>(subPtr) - offsetof(JITString, data));
@@ -788,6 +825,7 @@ extern "C" int64_t jit_string_contains(void* strPtr, void* subPtr) {
 }
 
 extern "C" int64_t jit_string_index_of(void* strPtr, void* subPtr) {
+    JITExecutionGuard guard;
     if (!strPtr || !subPtr) return -1;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     JITString* sub = reinterpret_cast<JITString*>(static_cast<char*>(subPtr) - offsetof(JITString, data));
@@ -798,6 +836,7 @@ extern "C" int64_t jit_string_index_of(void* strPtr, void* subPtr) {
 }
 
 extern "C" int64_t jit_string_starts_with(void* strPtr, void* prefixPtr) {
+    JITExecutionGuard guard;
     if (!strPtr || !prefixPtr) return 0;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     JITString* prefix = reinterpret_cast<JITString*>(static_cast<char*>(prefixPtr) - offsetof(JITString, data));
@@ -806,6 +845,7 @@ extern "C" int64_t jit_string_starts_with(void* strPtr, void* prefixPtr) {
 }
 
 extern "C" int64_t jit_string_ends_with(void* strPtr, void* suffixPtr) {
+    JITExecutionGuard guard;
     if (!strPtr || !suffixPtr) return 0;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     JITString* suffix = reinterpret_cast<JITString*>(static_cast<char*>(suffixPtr) - offsetof(JITString, data));
@@ -814,6 +854,7 @@ extern "C" int64_t jit_string_ends_with(void* strPtr, void* suffixPtr) {
 }
 
 extern "C" int64_t jit_string_length(void* strPtr) {
+    JITExecutionGuard guard;
     if (!strPtr) return 0;
     JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
     return str->length;
@@ -829,6 +870,7 @@ static std::string jit_json_source_dir;
  * Each cell is a jit_alloc_string data pointer.
  */
 extern "C" void* jit_csv_parse_file(const char* path) {
+    JITExecutionGuard guard;
     std::string pathStr(path);
     auto result = nevaarize::stdlib::parseCSVFile(pathStr, jit_csv_source_dir);
 
@@ -924,6 +966,7 @@ static JITValueResult jit_value_to_result(const nevaarize::Value& val) {
  * FFI bridge: Parse a JSON file from JIT-compiled code.
  */
 extern "C" void* jit_json_parse_file(const char* path, int64_t* typePtr) {
+    JITExecutionGuard guard;
     auto result = nevaarize::stdlib::parseJSONFile(path, jit_json_source_dir);
     JITValueResult res = jit_value_to_result(result);
     if (typePtr) *typePtr = res.type;
@@ -934,6 +977,7 @@ extern "C" void* jit_json_parse_file(const char* path, int64_t* typePtr) {
  * FFI bridge: Parse a JSON string from JIT-compiled code.
  */
 extern "C" void* jit_json_parse_string(const char* content, int64_t* typePtr) {
+    JITExecutionGuard guard;
     auto result = nevaarize::stdlib::parseJSONString(content);
     JITValueResult res = jit_value_to_result(result);
     if (typePtr) *typePtr = res.type;
@@ -944,6 +988,7 @@ extern "C" void* jit_json_parse_string(const char* content, int64_t* typePtr) {
  * FFI bridge: Parse a CSV string from JIT-compiled code.
  */
 extern "C" void* jit_csv_parse_string(const char* csvContent) {
+    JITExecutionGuard guard;
     if (!csvContent) {
         return jit_alloc_array(0);
     }
@@ -4748,7 +4793,20 @@ CompiledFunc JIT::compileExpression(const AST& ast, NodeIndex exprNode) {
 }
 
 int64_t JIT::execute(CompiledFunc fn) {
-    return fn();
+    in_jit_execution = true;
+    
+    if (sigsetjmp(jit_recovery_env, 1) == 0) {
+        int64_t result = fn();
+        in_jit_execution = false;
+        return result;
+    } else {
+        in_jit_execution = false;
+        throw std::runtime_error(
+            "Fatal Runtime Error: Segmentation Fault (SIGSEGV) / Memory Access Violation occurred.\n"
+            "Hint: Check for out-of-bounds array access, infinite recursion (Stack Overflow), "
+            "or operations on 'nil' values."
+        );
+    }
 }
 
 // Compile a full program to native code
