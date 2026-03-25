@@ -1,0 +1,161 @@
+import stdlib time as t
+
+// Operator Stress Test
+// Tests all comparison and logical operators for correctness.
+// Documents the known `and` short-circuit bug.
+
+print("=== Nevaarize Operator Stress Test ===\n")
+
+start = t.millis()
+
+// --- Integer Comparisons ---
+print("--- Integer Comparisons ---")
+// Less than
+r = 0
+if (3 < 5) { r = 1 }
+print("3 < 5:", r, "(expected: 1)")
+
+r = 0
+if (5 < 3) { r = 1 }
+print("5 < 3:", r, "(expected: 0)")
+
+r = 0
+if (3 < 3) { r = 1 }
+print("3 < 3:", r, "(expected: 0)")
+
+// Greater than
+r = 0
+if (5 > 3) { r = 1 }
+print("5 > 3:", r, "(expected: 1)")
+
+r = 0
+if (3 > 5) { r = 1 }
+print("3 > 5:", r, "(expected: 0)")
+
+// Equality
+r = 0
+if (42 == 42) { r = 1 }
+print("42 == 42:", r, "(expected: 1)")
+
+r = 0
+if (42 == 43) { r = 1 }
+print("42 == 43:", r, "(expected: 0)")
+
+// Not equal
+r = 0
+if (42 != 43) { r = 1 }
+print("42 != 43:", r, "(expected: 1)")
+
+r = 0
+if (42 != 42) { r = 1 }
+print("42 != 42:", r, "(expected: 0)")
+
+// --- Negative Comparisons ---
+print("\n--- Negative Comparisons ---")
+r = 0
+if (-5 < 0) { r = 1 }
+print("-5 < 0:", r, "(expected: 1)")
+
+r = 0
+if (-5 < -3) { r = 1 }
+print("-5 < -3:", r, "(expected: 1)")
+
+r = 0
+if (-3 < -5) { r = 1 }
+print("-3 < -5:", r, "(expected: 0)")
+
+r = 0
+if (0 > -1) { r = 1 }
+print("0 > -1:", r, "(expected: 1)")
+
+// --- Float Comparisons ---
+print("\n--- Float Comparisons ---")
+r = 0
+if (3.14 < 3.15) { r = 1 }
+print("3.14 < 3.15:", r, "(expected: 1)")
+
+r = 0
+if (3.14 > 3.13) { r = 1 }
+print("3.14 > 3.13:", r, "(expected: 1)")
+
+r = 0
+if (1.0 == 1.0) { r = 1 }
+print("1.0 == 1.0:", r, "(expected: 1)")
+
+// --- Logical AND (known bug: no short-circuit) ---
+print("\n--- Logical AND ---")
+
+// Both true -> should be true
+r = 0
+if (3 < 5) {
+    if (10 > 1) { r = 1 }
+}
+print("3<5 AND 10>1 (nested):", r, "(expected: 1)")
+
+// First false -> should be false
+r = 0
+if (5 < 3) {
+    if (10 > 1) { r = 1 }
+}
+print("5<3 AND 10>1 (nested):", r, "(expected: 0)")
+
+// Test `and` operator directly (known bug)
+r = 0
+if (5 < 3 and 10 > 1) { r = 1 }
+print("5<3 and 10>1 (and op):", r, "(BUG: may be 1)")
+
+// --- Logical OR ---
+print("\n--- Logical OR ---")
+r = 0
+if (3 < 5 or 10 < 1) { r = 1 }
+print("3<5 or 10<1:", r, "(expected: 1)")
+
+r = 0
+if (5 < 3 or 1 < 10) { r = 1 }
+print("5<3 or 1<10:", r, "(expected: 1)")
+
+r = 0
+if (5 < 3 or 10 < 1) { r = 1 }
+print("5<3 or 10<1:", r, "(expected: 0)")
+
+// --- Chained Comparisons via Nested If ---
+print("\n--- Chained Conditions ---")
+
+// Range check: is 5 in [1, 10]?
+func inRange(val, lo, hi) {
+    if (val >= lo) {
+        if (val < hi) { return 1 }
+    }
+    return 0
+}
+print("5 in [1,10):", inRange(5, 1, 10), "(expected: 1)")
+print("0 in [1,10):", inRange(0, 1, 10), "(expected: 0)")
+print("10 in [1,10):", inRange(10, 1, 10), "(expected: 0)")
+print("1 in [1,10):", inRange(1, 1, 10), "(expected: 1)")
+
+// --- Ternary-style via function ---
+print("\n--- Conditional Patterns ---")
+func ternary(cond, tVal, fVal) {
+    if (cond == 1) { return tVal }
+    return fVal
+}
+print("ternary(1, 'yes', 'no'):", ternary(1, "yes", "no"), "(expected: yes)")
+print("ternary(0, 'yes', 'no'):", ternary(0, "yes", "no"), "(expected: no)")
+
+// --- Zero/identity comparisons ---
+print("\n--- Zero Comparisons ---")
+r = 0
+if (0 == 0) { r = 1 }
+print("0 == 0:", r, "(expected: 1)")
+
+r = 0
+if (0 != 0) { r = 1 }
+print("0 != 0:", r, "(expected: 0)")
+
+r = 0
+if (0 < 1) { r = 1 }
+print("0 < 1:", r, "(expected: 1)")
+
+elapsed = t.millis() - start
+print("\nAll operator tests completed in", elapsed, "ms")
+print("Operator stress test finished.")
