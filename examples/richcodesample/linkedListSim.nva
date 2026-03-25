@@ -1,0 +1,135 @@
+import stdlib time as t
+
+// Linked List Simulation via Parallel Arrays
+// Demonstrates linked list operations using arrays for node data and next pointers.
+
+print("=== Nevaarize Linked List Simulation ===\n")
+
+start = t.millis()
+
+// Node pool: data[], next[] where -1 = end of list
+nodeData = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+nodeNext = [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]
+freeIdx = 0
+head = -1
+
+// --- Insert at Head ---
+print("--- Insert at Head ---")
+// Insert 30
+nodeData[freeIdx] = 30
+nodeNext[freeIdx] = head
+head = freeIdx
+freeIdx = freeIdx + 1
+
+// Insert 20
+nodeData[freeIdx] = 20
+nodeNext[freeIdx] = head
+head = freeIdx
+freeIdx = freeIdx + 1
+
+// Insert 10
+nodeData[freeIdx] = 10
+nodeNext[freeIdx] = head
+head = freeIdx
+freeIdx = freeIdx + 1
+
+// Print list: 10 -> 20 -> 30
+curr = head
+print("List:")
+while (curr != -1) {
+    print(" ", nodeData[curr])
+    curr = nodeNext[curr]
+}
+print("(expected: 10 20 30)")
+
+// --- Count Nodes ---
+print("\n--- Count ---")
+count = 0
+curr = head
+while (curr != -1) {
+    count = count + 1
+    curr = nodeNext[curr]
+}
+print("Node count:", count, "(expected: 3)")
+
+// --- Search ---
+print("\n--- Search ---")
+func searchList(nodeData, nodeNext, head, target) {
+    curr = head
+    pos = 0
+    while (curr != -1) {
+        if (nodeData[curr] == target) { return pos }
+        curr = nodeNext[curr]
+        pos = pos + 1
+    }
+    return -1
+}
+print("Find 20:", searchList(nodeData, nodeNext, head, 20), "(expected: 1)")
+print("Find 10:", searchList(nodeData, nodeNext, head, 10), "(expected: 0)")
+print("Find 99:", searchList(nodeData, nodeNext, head, 99))
+
+// --- Insert at Tail ---
+print("\n--- Insert at Tail ---")
+// Find tail
+curr = head
+while (nodeNext[curr] != -1) {
+    curr = nodeNext[curr]
+}
+// Append 40
+nodeData[freeIdx] = 40
+nodeNext[freeIdx] = -1
+nodeNext[curr] = freeIdx
+freeIdx = freeIdx + 1
+
+// Append 50
+curr = head
+while (nodeNext[curr] != -1) {
+    curr = nodeNext[curr]
+}
+nodeData[freeIdx] = 50
+nodeNext[freeIdx] = -1
+nodeNext[curr] = freeIdx
+freeIdx = freeIdx + 1
+
+// Print: 10 -> 20 -> 30 -> 40 -> 50
+curr = head
+print("List after append:")
+while (curr != -1) {
+    print(" ", nodeData[curr])
+    curr = nodeNext[curr]
+}
+print("(expected: 10 20 30 40 50)")
+
+// --- Reverse List ---
+print("\n--- Reverse ---")
+prev = -1
+curr = head
+while (curr != -1) {
+    nxt = nodeNext[curr]
+    nodeNext[curr] = prev
+    prev = curr
+    curr = nxt
+}
+head = prev
+
+curr = head
+print("Reversed:")
+while (curr != -1) {
+    print(" ", nodeData[curr])
+    curr = nodeNext[curr]
+}
+print("(expected: 50 40 30 20 10)")
+
+// --- Sum All ---
+print("\n--- Sum ---")
+total = 0
+curr = head
+while (curr != -1) {
+    total = total + nodeData[curr]
+    curr = nodeNext[curr]
+}
+print("Sum:", total, "(expected: 150)")
+
+elapsed = t.millis() - start
+print("\nAll linked list tests completed in", elapsed, "ms")
+print("Linked list simulation finished.")
