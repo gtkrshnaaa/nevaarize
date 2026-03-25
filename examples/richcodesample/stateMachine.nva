@@ -1,0 +1,117 @@
+import stdlib time as t
+
+// Finite State Machine (FSM)
+// Validates numeric input formats using a state transition table.
+// Demonstrates FSM-based parsing, state transitions,
+// and handling of edge cases in input validation.
+
+// State constants (encoded as integers)
+// 0 = START, 1 = SIGN, 2 = INTEGER, 3 = DOT, 4 = DECIMAL
+// 5 = EXP_MARKER, 6 = EXP_SIGN, 7 = EXPONENT, 8 = INVALID
+
+func charType(code) {
+    // Character classification
+    // '+'/'-' = 1, digit = 2, '.' = 3, 'e'/'E' = 4, other = 0
+    if (code == 43 or code == 45) { return 1 }
+    if (code >= 48 and code <= 57) { return 2 }
+    if (code == 46) { return 3 }
+    if (code == 101 or code == 69) { return 4 }
+    return 0
+}
+
+func validateNumber(chars, n) {
+    // Transition table: [state * 5 + charType] = nextState
+    // 9 states x 5 char types = 45 entries
+    transitions = [
+        8, 1, 2, 8, 8,
+        8, 8, 2, 8, 8,
+        8, 8, 2, 3, 5,
+        8, 8, 4, 8, 8,
+        8, 8, 4, 8, 5,
+        8, 6, 7, 8, 8,
+        8, 8, 7, 8, 8,
+        8, 8, 7, 8, 8,
+        8, 8, 8, 8, 8
+    ]
+
+    state = 0
+    i = 0
+    while (i < n) {
+        ct = charType(chars[i])
+        state = transitions[state * 5 + ct]
+        if (state == 8) { return 0 }
+        i = i + 1
+    }
+
+    // Valid ending states: INTEGER(2), DOT_AFTER_DIGIT(3), DECIMAL(4), EXPONENT(7)
+    if (state == 2 or state == 3 or state == 4 or state == 7) {
+        return 1
+    }
+    return 0
+}
+
+func testNumber(chars, n, label, expected) {
+    result = validateNumber(chars, n)
+    status = "FAIL"
+    if (result == expected) { status = "PASS" }
+    print(status, "-", label, "-> valid:", result, "(expected:", expected, ")")
+}
+
+// Main Execution
+print("=== Nevaarize Finite State Machine ===")
+print("Number Format Validator (supports: sign, integer, decimal, scientific)\n")
+
+start = t.millis()
+
+// Valid: "123"
+testNumber([49, 50, 51], 3, "123", 1)
+
+// Valid: "-42"
+testNumber([45, 52, 50], 3, "-42", 1)
+
+// Valid: "3.14"
+testNumber([51, 46, 49, 52], 4, "3.14", 1)
+
+// Valid: "+0.5"
+testNumber([43, 48, 46, 53], 4, "+0.5", 1)
+
+// Valid: "1e10"
+testNumber([49, 101, 49, 48], 4, "1e10", 1)
+
+// Valid: "2.5E-3"
+testNumber([50, 46, 53, 69, 45, 51], 6, "2.5E-3", 1)
+
+// Valid: "42."
+testNumber([52, 50, 46], 3, "42.", 1)
+
+// Invalid: empty (n=0)
+testNumber([], 0, "(empty)", 0)
+
+// Invalid: "+"
+testNumber([43], 1, "+", 0)
+
+// Invalid: "." (dot only)
+testNumber([46], 1, ".", 0)
+
+// Invalid: "1e" (incomplete exponent)
+testNumber([49, 101], 2, "1e", 0)
+
+// Invalid: "abc"
+testNumber([97, 98, 99], 3, "abc", 0)
+
+// Invalid: "1.2.3" (double dot)
+testNumber([49, 46, 50, 46, 51], 5, "1.2.3", 0)
+
+// Invalid: "--5"
+testNumber([45, 45, 53], 3, "--5", 0)
+
+// Valid: "-3.14e+2"
+testNumber([45, 51, 46, 49, 52, 101, 43, 50], 8, "-3.14e+2", 1)
+
+elapsed = t.millis() - start
+print("\nAll tests completed in", elapsed, "ms")
+
+// State machine counter: verify all transitions
+totalTests = 15
+print("Total test cases:", totalTests)
+print("\nState machine demo finished.")
