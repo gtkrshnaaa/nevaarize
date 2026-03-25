@@ -1,0 +1,138 @@
+import stdlib math as m
+import stdlib time as t
+
+// 2D Collision Detection System
+// Implements AABB and circle-based collision detection.
+// Demonstrates floating-point precision handling, spatial boundary checks,
+// and edge cases in collision geometry.
+
+func aabbCollides(ax, ay, aw, ah, bx, by, bw, bh) {
+    // Axis-Aligned Bounding Box overlap test
+    if (ax + aw <= bx) { return 0 }
+    if (bx + bw <= ax) { return 0 }
+    if (ay + ah <= by) { return 0 }
+    if (by + bh <= ay) { return 0 }
+    return 1
+}
+
+func circleCollides(ax, ay, ar, bx, by, br) {
+    // Circle-to-circle overlap test
+    dx = ax - bx
+    dy = ay - by
+    distSq = dx * dx + dy * dy
+    radSum = ar + br
+    return distSq <= radSum * radSum
+}
+
+func circleAabbCollides(cx, cy, cr, rx, ry, rw, rh) {
+    // Circle-to-AABB overlap test
+    // Find closest point on AABB to circle center
+    closestX = cx
+    closestY = cy
+
+    if (cx < rx) {
+        closestX = rx
+    } elif (cx > rx + rw) {
+        closestX = rx + rw
+    }
+
+    if (cy < ry) {
+        closestY = ry
+    } elif (cy > ry + rh) {
+        closestY = ry + rh
+    }
+
+    dx = cx - closestX
+    dy = cy - closestY
+    distSq = dx * dx + dy * dy
+    return distSq <= cr * cr
+}
+
+func pointInRect(px, py, rx, ry, rw, rh) {
+    if (px >= rx and px <= rx + rw and py >= ry and py <= ry + rh) {
+        return 1
+    }
+    return 0
+}
+
+func pointInCircle(px, py, cx, cy, cr) {
+    dx = px - cx
+    dy = py - cy
+    distSq = dx * dx + dy * dy
+    return distSq <= cr * cr
+}
+
+func testResult(label, got, expected) {
+    status = "FAIL"
+    if (got == expected) { status = "PASS" }
+    print(status, "-", label, "-> result:", got, "(expected:", expected, ")")
+}
+
+// Main Execution
+print("=== Nevaarize 2D Collision Detection ===\n")
+
+start = t.millis()
+
+// --- AABB Tests ---
+print("--- AABB Collision Tests ---")
+
+// Overlapping boxes
+testResult("Overlapping boxes", aabbCollides(0.0, 0.0, 10.0, 10.0, 5.0, 5.0, 10.0, 10.0), 1)
+
+// Non-overlapping (right gap)
+testResult("Gap right", aabbCollides(0.0, 0.0, 5.0, 5.0, 10.0, 0.0, 5.0, 5.0), 0)
+
+// Edge case: touching edges (no overlap, boundary exclusive)
+testResult("Touching edges", aabbCollides(0.0, 0.0, 5.0, 5.0, 5.0, 0.0, 5.0, 5.0), 0)
+
+// Edge case: one box inside another
+testResult("Nested boxes", aabbCollides(0.0, 0.0, 20.0, 20.0, 5.0, 5.0, 3.0, 3.0), 1)
+
+// Edge case: zero-size box
+testResult("Zero size", aabbCollides(5.0, 5.0, 0.0, 0.0, 5.0, 5.0, 10.0, 10.0), 0)
+
+// --- Circle Collision Tests ---
+print("\n--- Circle Collision Tests ---")
+
+// Overlapping circles
+testResult("Overlapping circles", circleCollides(0.0, 0.0, 5.0, 3.0, 0.0, 5.0), 1)
+
+// Non-overlapping circles
+testResult("Separated circles", circleCollides(0.0, 0.0, 2.0, 10.0, 0.0, 2.0), 0)
+
+// Edge case: concentric circles
+testResult("Concentric", circleCollides(5.0, 5.0, 10.0, 5.0, 5.0, 3.0), 1)
+
+// Edge case: touching circles (distance == r1+r2)
+testResult("Touching circles", circleCollides(0.0, 0.0, 5.0, 10.0, 0.0, 5.0), 1)
+
+// Edge case: zero radius
+testResult("Zero radius", circleCollides(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), 1)
+
+// --- Circle vs AABB Tests ---
+print("\n--- Circle vs AABB Tests ---")
+
+// Circle overlapping rect
+testResult("Circle hits rect", circleAabbCollides(5.0, 5.0, 3.0, 0.0, 0.0, 10.0, 10.0), 1)
+
+// Circle outside rect
+testResult("Circle misses rect", circleAabbCollides(20.0, 20.0, 2.0, 0.0, 0.0, 5.0, 5.0), 0)
+
+// Circle touching corner
+testResult("Circle at corner", circleAabbCollides(12.0, 12.0, 3.0, 0.0, 0.0, 10.0, 10.0), 1)
+
+// --- Point Tests ---
+print("\n--- Point Containment Tests ---")
+
+testResult("Point in rect", pointInRect(5.0, 5.0, 0.0, 0.0, 10.0, 10.0), 1)
+testResult("Point outside rect", pointInRect(15.0, 5.0, 0.0, 0.0, 10.0, 10.0), 0)
+testResult("Point on rect edge", pointInRect(10.0, 5.0, 0.0, 0.0, 10.0, 10.0), 1)
+testResult("Point in circle", pointInCircle(1.0, 1.0, 0.0, 0.0, 5.0), 1)
+testResult("Point outside circle", pointInCircle(10.0, 10.0, 0.0, 0.0, 5.0), 0)
+
+// Edge case: point on circle boundary
+testResult("Point on circle edge", pointInCircle(5.0, 0.0, 0.0, 0.0, 5.0), 1)
+
+elapsed = t.millis() - start
+print("\nAll collision tests completed in", elapsed, "ms")
+print("Collision detection demo finished.")
