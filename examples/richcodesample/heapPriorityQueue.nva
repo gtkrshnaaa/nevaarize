@@ -1,0 +1,153 @@
+import stdlib time as t
+
+// Binary Min-Heap and Priority Queue
+// Manual heap implementation with siftUp/siftDown operations.
+// Demonstrates heap insert, extractMin, heapSort, and edge cases.
+
+func siftUp(heap, heapSize, idx) {
+    while (idx > 0) {
+        parent = (idx - 1) / 2
+        if (heap[idx] < heap[parent]) {
+            // Swap
+            tmp = heap[idx]
+            heap[idx] = heap[parent]
+            heap[parent] = tmp
+            idx = parent
+        } else {
+            idx = 0
+        }
+    }
+}
+
+func siftDown(heap, heapSize, idx) {
+    while (idx < heapSize) {
+        smallest = idx
+        left = 2 * idx + 1
+        right = 2 * idx + 2
+
+        if (left < heapSize and heap[left] < heap[smallest]) {
+            smallest = left
+        }
+        if (right < heapSize and heap[right] < heap[smallest]) {
+            smallest = right
+        }
+
+        if (smallest != idx) {
+            tmp = heap[idx]
+            heap[idx] = heap[smallest]
+            heap[smallest] = tmp
+            idx = smallest
+        } else {
+            idx = heapSize
+        }
+    }
+}
+
+func heapInsert(heap, heapSize, val) {
+    heap[heapSize] = val
+    siftUp(heap, heapSize + 1, heapSize)
+    return heapSize + 1
+}
+
+func heapExtractMin(heap, heapSize) {
+    minVal = heap[0]
+    heapSize = heapSize - 1
+    heap[0] = heap[heapSize]
+    siftDown(heap, heapSize, 0)
+    return minVal
+}
+
+func heapPeek(heap) {
+    return heap[0]
+}
+
+// Main Execution
+print("=== Nevaarize Min-Heap Priority Queue ===")
+
+// Pre-allocate heap storage
+maxSize = 20
+heap = []
+i = 0
+while (i < maxSize) {
+    heap.push(0)
+    i = i + 1
+}
+heapSize = 0
+
+// Insert elements in random order
+insertOrder = [42, 15, 7, 23, 3, 55, 1, 99, 8, 31]
+print("Inserting:", insertOrder[0], insertOrder[1], insertOrder[2], insertOrder[3], insertOrder[4], insertOrder[5], insertOrder[6], insertOrder[7], insertOrder[8], insertOrder[9])
+
+start = t.millis()
+i = 0
+while (i < 10) {
+    heapSize = heapInsert(heap, heapSize, insertOrder[i])
+    i = i + 1
+}
+elapsed = t.millis() - start
+
+print("Heap size:", heapSize)
+print("Min element (peek):", heapPeek(heap), "(expected: 1)")
+print("Insert time:", elapsed, "ms")
+
+// Extract all elements in sorted order (heap sort)
+print("\n--- Heap Sort (Extract Min Repeatedly) ---")
+sorted = []
+start = t.millis()
+while (heapSize > 0) {
+    val = heapExtractMin(heap, heapSize)
+    heapSize = heapSize - 1
+    sorted.push(val)
+}
+elapsed = t.millis() - start
+
+print("Sorted output:")
+for (val in sorted) {
+    print(" ", val)
+}
+print("Sort time:", elapsed, "ms")
+
+// Verify sorted order
+isSorted = 1
+i = 1
+while (i < sorted.size()) {
+    if (sorted[i] < sorted[i - 1]) {
+        isSorted = 0
+    }
+    i = i + 1
+}
+print("Is correctly sorted:", isSorted, "(expected: 1)")
+
+// Edge case: single element
+print("\n--- Edge Case: Single Element ---")
+singleHeap = [0, 0, 0]
+singleSize = 0
+singleSize = heapInsert(singleHeap, singleSize, 42)
+print("Peek:", heapPeek(singleHeap), "(expected: 42)")
+extracted = heapExtractMin(singleHeap, singleSize)
+singleSize = singleSize - 1
+print("Extracted:", extracted, "(expected: 42)")
+print("Heap size after extract:", singleSize, "(expected: 0)")
+
+// Edge case: duplicate values
+print("\n--- Edge Case: Duplicate Values ---")
+dupHeap = []
+di = 0
+while (di < 10) {
+    dupHeap.push(0)
+    di = di + 1
+}
+dupSize = 0
+dupSize = heapInsert(dupHeap, dupSize, 5)
+dupSize = heapInsert(dupHeap, dupSize, 5)
+dupSize = heapInsert(dupHeap, dupSize, 5)
+dupSize = heapInsert(dupHeap, dupSize, 3)
+dupSize = heapInsert(dupHeap, dupSize, 3)
+print("Min with duplicates:", heapPeek(dupHeap), "(expected: 3)")
+v1 = heapExtractMin(dupHeap, dupSize)
+dupSize = dupSize - 1
+v2 = heapExtractMin(dupHeap, dupSize)
+dupSize = dupSize - 1
+print("First two extracts:", v1, v2, "(expected: 3 3)")
+
+print("\nHeap priority queue demo finished.")
