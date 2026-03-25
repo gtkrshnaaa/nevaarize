@@ -1,0 +1,136 @@
+import stdlib time as t
+
+// Hash Table Simulation via Arrays
+// Demonstrates open-addressing hash table with linear probing.
+
+print("=== Nevaarize Hash Table Simulation ===\n")
+
+start = t.millis()
+
+// Hash table: keys[], values[], occupied[] (0/1)
+// Table size = 16 (power of 2 for bitmask)
+htKeys =     [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+htValues =   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+htOccupied = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+htSize = 16
+
+// Simple hash: key modulo table size
+func hashKey(key, size) {
+    // Handle positive modulo
+    h = key % size
+    if (h < 0) { h = h + size }
+    return h
+}
+
+// --- Insert ---
+print("--- Insert ---")
+
+// Insert (key=5, val=50)
+k = 5
+v = 50
+h = hashKey(k, htSize)
+probes = 0
+while (htOccupied[h] == 1) {
+    if (htKeys[h] == k) {
+        // Update existing
+        htValues[h] = v
+        probes = -1
+    }
+    if (probes != -1) {
+        h = (h + 1) % htSize
+        probes = probes + 1
+    }
+}
+if (probes != -1) {
+    htKeys[h] = k
+    htValues[h] = v
+    htOccupied[h] = 1
+}
+print("Inserted (5, 50) at slot", h)
+
+// Insert (key=21, val=210) - same hash bucket as 5 if size=16
+k = 21
+v = 210
+h = hashKey(k, htSize)
+probes = 0
+while (htOccupied[h] == 1) {
+    if (htKeys[h] == k) {
+        htValues[h] = v
+        probes = -1
+    }
+    if (probes != -1) {
+        h = (h + 1) % htSize
+        probes = probes + 1
+    }
+}
+if (probes != -1) {
+    htKeys[h] = k
+    htValues[h] = v
+    htOccupied[h] = 1
+}
+print("Inserted (21, 210) at slot", h)
+
+// Insert more
+keys = [10, 26, 3, 42, 7]
+vals = [100, 260, 30, 420, 70]
+ni = 0
+while (ni < 5) {
+    k = keys[ni]
+    v = vals[ni]
+    h = hashKey(k, htSize)
+    done = 0
+    while (done == 0) {
+        if (htOccupied[h] == 0) {
+            htKeys[h] = k
+            htValues[h] = v
+            htOccupied[h] = 1
+            done = 1
+        } elif (htKeys[h] == k) {
+            htValues[h] = v
+            done = 1
+        } else {
+            h = (h + 1) % htSize
+        }
+    }
+    ni = ni + 1
+}
+print("Inserted 5 more entries")
+
+// --- Lookup ---
+print("\n--- Lookup ---")
+func htGet(keys, values, occupied, size, key) {
+    h = key % size
+    if (h < 0) { h = h + size }
+    steps = 0
+    while (steps < size) {
+        if (occupied[h] == 0) { return -1 }
+        if (keys[h] == key) { return values[h] }
+        h = (h + 1) % size
+        steps = steps + 1
+    }
+    return -1
+}
+print("Get(5):", htGet(htKeys, htValues, htOccupied, htSize, 5), "(expected: 50)")
+print("Get(21):", htGet(htKeys, htValues, htOccupied, htSize, 21), "(expected: 210)")
+print("Get(42):", htGet(htKeys, htValues, htOccupied, htSize, 42), "(expected: 420)")
+print("Get(99):", htGet(htKeys, htValues, htOccupied, htSize, 99), "(expected: -1)")
+print("Get(3):", htGet(htKeys, htValues, htOccupied, htSize, 3), "(expected: 30)")
+
+// --- Count ---
+print("\n--- Count ---")
+count = 0
+i = 0
+while (i < htSize) {
+    if (htOccupied[i] == 1) { count = count + 1 }
+    i = i + 1
+}
+print("Total entries:", count, "(expected: 7)")
+
+// --- Load Factor ---
+print("\n--- Load Factor ---")
+loadPct = count * 100 / htSize
+print("Load factor:", loadPct, "% (expected: 43)")
+
+elapsed = t.millis() - start
+print("\nAll hash table tests completed in", elapsed, "ms")
+print("Hash table simulation finished.")
