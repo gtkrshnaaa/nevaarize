@@ -1,0 +1,132 @@
+import stdlib math as m
+import stdlib time as t
+
+// Arithmetic Edge Cases
+// Tests integer/float boundaries, negative math, division, and precision.
+
+print("=== Nevaarize Arithmetic Edge Cases ===\n")
+
+start = t.millis()
+
+// --- Integer Arithmetic ---
+print("--- Integer Arithmetic ---")
+
+// Large numbers
+a = 1000000
+b = 1000000
+print("1M * 1M:", a * b, "(expected: 1000000000000)")
+
+// Negative multiplication
+print("-3 * -7:", -3 * -7, "(expected: 21)")
+print("-5 * 3:", -5 * 3, "(expected: -15)")
+print("0 * 999:", 0 * 999, "(expected: 0)")
+
+// Integer division
+print("7 / 2:", 7 / 2, "(expected: 3 or 3.5)")
+print("10 / 3:", 10 / 3, "(expected: 3 or 3.33)")
+print("-7 / 2:", -7 / 2)
+print("1 / 1:", 1 / 1, "(expected: 1)")
+
+// Modulo
+print("7 % 3:", 7 % 3, "(expected: 1)")
+print("10 % 5:", 10 % 5, "(expected: 0)")
+print("1 % 7:", 1 % 7, "(expected: 1)")
+print("0 % 5:", 0 % 5, "(expected: 0)")
+
+// Negative modulo
+print("-7 % 3:", -7 % 3)
+print("7 % -3:", 7 % -3)
+
+// --- Float Arithmetic ---
+print("\n--- Float Arithmetic ---")
+
+// Basic float ops
+print("1.5 + 2.5:", 1.5 + 2.5, "(expected: 4.0)")
+print("10.0 / 3.0:", 10.0 / 3.0, "(expected: ~3.333)")
+
+// Precision test
+sum = 0.1 + 0.2
+print("0.1 + 0.2:", sum, "(note: IEEE 754 imprecision expected)")
+
+// Very small numbers
+tiny = 0.000001
+print("tiny * tiny:", tiny * tiny)
+
+// Very large floats
+big = 999999.999
+print("big * big:", big * big)
+
+// --- Boundary Values ---
+print("\n--- Boundary Values ---")
+
+// Zero operations
+print("0 + 0:", 0 + 0, "(expected: 0)")
+print("0 - 0:", 0 - 0, "(expected: 0)")
+print("0 * 100:", 0 * 100, "(expected: 0)")
+
+// Identity operations
+print("42 + 0:", 42 + 0, "(expected: 42)")
+print("42 * 1:", 42 * 1, "(expected: 42)")
+print("42 - 42:", 42 - 42, "(expected: 0)")
+
+// Negative zero
+nz = 0.0 - 0.0
+print("-0.0:", nz)
+
+// --- Accumulator Stress ---
+print("\n--- Accumulator Stress ---")
+
+// Sum 1 to 100
+acc = 0
+i = 1
+while (i <= 100) {
+    acc = acc + i
+    i = i + 1
+}
+print("Sum 1..100:", acc, "(expected: 5050)")
+
+// Factorial via iteration (12! = 479001600)
+fact = 1
+i = 1
+while (i <= 12) {
+    fact = fact * i
+    i = i + 1
+}
+print("12!:", fact, "(expected: 479001600)")
+
+// Alternating sum: 1 - 2 + 3 - 4 + ... + 99 - 100
+altSum = 0
+i = 1
+while (i <= 100) {
+    if (i % 2 == 1) {
+        altSum = altSum + i
+    } else {
+        altSum = altSum - i
+    }
+    i = i + 1
+}
+print("Alt sum 1..100:", altSum, "(expected: -50)")
+
+// --- Power of 2 Chain ---
+print("\n--- Powers of 2 ---")
+p = 1
+i = 0
+while (i < 20) {
+    p = p * 2
+    i = i + 1
+}
+print("2^20:", p, "(expected: 1048576)")
+
+// --- Math stdlib ---
+print("\n--- Math Functions ---")
+print("abs(-42):", m.abs(-42), "(expected: 42)")
+print("abs(42):", m.abs(42), "(expected: 42)")
+print("max(3,7):", m.max(3, 7), "(expected: 7)")
+print("min(3,7):", m.min(3, 7), "(expected: 3)")
+print("sqrt(144):", m.sqrt(144), "(expected: 12)")
+print("floor(3.7):", m.floor(3.7), "(expected: 3)")
+print("ceil(3.2):", m.ceil(3.2), "(expected: 4)")
+
+elapsed = t.millis() - start
+print("\nAll arithmetic tests completed in", elapsed, "ms")
+print("Arithmetic edge cases finished.")
