@@ -1,0 +1,170 @@
+import stdlib time as t
+
+// Control Flow Stress Test
+// Tests complex branching, deep nesting, early returns, and loop patterns.
+
+print("=== Nevaarize Control Flow Stress Test ===\n")
+
+start = t.millis()
+
+// --- Deep While Nesting (3 levels) ---
+print("--- Deep While Nesting ---")
+sum3 = 0
+i = 0
+while (i < 3) {
+    j = 0
+    while (j < 3) {
+        k = 0
+        while (k < 3) {
+            sum3 = sum3 + 1
+            k = k + 1
+        }
+        j = j + 1
+    }
+    i = i + 1
+}
+print("3x3x3 iterations:", sum3, "(expected: 27)")
+
+// --- If/Elif/Else Chain (10 branches) ---
+print("\n--- 10-branch elif ---")
+func gradeLabel(score) {
+    if (score >= 97) { return "A+" }
+    elif (score >= 93) { return "A" }
+    elif (score >= 90) { return "A-" }
+    elif (score >= 87) { return "B+" }
+    elif (score >= 83) { return "B" }
+    elif (score >= 80) { return "B-" }
+    elif (score >= 77) { return "C+" }
+    elif (score >= 73) { return "C" }
+    elif (score >= 70) { return "C-" }
+    elif (score >= 60) { return "D" }
+    return "F"
+}
+print("99 ->", gradeLabel(99), "(expected: A+)")
+print("93 ->", gradeLabel(93), "(expected: A)")
+print("85 ->", gradeLabel(85), "(expected: B)")
+print("73 ->", gradeLabel(73), "(expected: C)")
+print("55 ->", gradeLabel(55), "(expected: F)")
+print("60 ->", gradeLabel(60), "(expected: D)")
+
+// --- Early Return from Loop ---
+print("\n--- Early Return ---")
+func findFirst(arr, n, target) {
+    i = 0
+    while (i < n) {
+        if (arr[i] == target) {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+data = [7, 3, 9, 1, 5, 8, 2]
+print("Find 1:", findFirst(data, 7, 1), "(expected: 3)")
+print("Find 8:", findFirst(data, 7, 8), "(expected: 5)")
+print("Find 99:", findFirst(data, 7, 99), "(expected: -1)")
+
+// --- While-based For Loop ---
+print("\n--- Counted Loop ---")
+total = 0
+counter = 0
+while (counter < 1000) {
+    total = total + 1
+    counter = counter + 1
+}
+print("1000 iterations:", total, "(expected: 1000)")
+
+// --- Nested If in While ---
+print("\n--- Nested If in While ---")
+fizzBuzz = 0
+i = 1
+while (i <= 15) {
+    if (i % 15 == 0) {
+        fizzBuzz = fizzBuzz + 3
+    } elif (i % 3 == 0) {
+        fizzBuzz = fizzBuzz + 1
+    } elif (i % 5 == 0) {
+        fizzBuzz = fizzBuzz + 2
+    }
+    i = i + 1
+}
+print("FizzBuzz score (1..15):", fizzBuzz, "(expected: 11)")
+// 3,6,9,12=+1(4), 5,10=+2(4), 15=+3(3) -> 4+4+3=11? Let me recalc:
+// 3->1, 5->2, 6->1, 9->1, 10->2, 12->1, 15->3 = 1+2+1+1+2+1+3 = 11
+// Hmm, expected should be 11. Let me check again:
+// i=3: 3%15!=0, 3%3==0 -> +1
+// i=5: 5%15!=0, 5%3!=0, 5%5==0 -> +2
+// i=6: %15!=0, %3==0 -> +1
+// i=9: %15!=0, %3==0 -> +1
+// i=10: %15!=0, %3!=0, %5==0 -> +2
+// i=12: %15!=0, %3==0 -> +1
+// i=15: %15==0 -> +3
+// Total: 1+2+1+1+2+1+3 = 11
+
+// --- Bubble Sort Correctness ---
+print("\n--- Sort Verification ---")
+arr = [64, 34, 25, 12, 22, 11, 90]
+n = 7
+i = 0
+while (i < n) {
+    j = 0
+    while (j < n - 1 - i) {
+        if (arr[j] > arr[j + 1]) {
+            tmp = arr[j]
+            arr[j] = arr[j + 1]
+            arr[j + 1] = tmp
+        }
+        j = j + 1
+    }
+    i = i + 1
+}
+print("Sorted:", arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6])
+print("(expected: 11 12 22 25 34 64 90)")
+
+// Verify sorted
+isSorted = 1
+vi = 1
+while (vi < 7) {
+    if (arr[vi] < arr[vi - 1]) {
+        isSorted = 0
+    }
+    vi = vi + 1
+}
+print("Is sorted:", isSorted, "(expected: 1)")
+
+// --- Function Dispatch ---
+print("\n--- Function Dispatch ---")
+func doOp(op, a, b) {
+    if (op == 1) { return a + b }
+    elif (op == 2) { return a - b }
+    elif (op == 3) { return a * b }
+    elif (op == 4) { return a / b }
+    return 0
+}
+print("add(3,4):", doOp(1, 3, 4), "(expected: 7)")
+print("sub(10,3):", doOp(2, 10, 3), "(expected: 7)")
+print("mul(6,7):", doOp(3, 6, 7), "(expected: 42)")
+print("div(20,4):", doOp(4, 20, 4), "(expected: 5)")
+print("unknown:", doOp(99, 1, 1), "(expected: 0)")
+
+// --- Collatz Sequence ---
+print("\n--- Collatz Conjecture ---")
+func collatzSteps(n) {
+    steps = 0
+    while (n != 1) {
+        if (n % 2 == 0) {
+            n = n / 2
+        } else {
+            n = 3 * n + 1
+        }
+        steps = steps + 1
+    }
+    return steps
+}
+print("Collatz(1):", collatzSteps(1), "(expected: 0)")
+print("Collatz(6):", collatzSteps(6), "(expected: 8)")
+print("Collatz(27):", collatzSteps(27), "(expected: 111)")
+
+elapsed = t.millis() - start
+print("\nAll control flow tests completed in", elapsed, "ms")
+print("Control flow stress test finished.")
