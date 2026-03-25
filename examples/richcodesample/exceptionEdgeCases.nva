@@ -1,0 +1,144 @@
+import stdlib time as t
+
+// Exception Edge Cases
+// Tests try/catch/finally behavior in various complex scenarios.
+
+print("=== Nevaarize Exception Edge Cases ===\n")
+
+start = t.millis()
+
+// --- Basic Exception Types ---
+print("--- Exception Types ---")
+
+// String exception
+try {
+    throw "string error"
+} catch(e) {
+    print("String exception:", e, "(expected: string error)")
+}
+
+// Integer exception
+try {
+    throw 42
+} catch(e) {
+    print("Integer exception:", e, "(expected: 42)")
+}
+
+// Float exception
+try {
+    throw 3.14
+} catch(e) {
+    print("Float exception:", e, "(expected: 3.14)")
+}
+
+// --- No Exception Path ---
+print("\n--- No Exception ---")
+caught = 0
+try {
+    x = 10 + 20
+} catch(e) {
+    caught = 1
+}
+print("Caught on no-throw:", caught, "(expected: 0)")
+
+// --- Finally Always Runs ---
+print("\n--- Finally Block ---")
+finallyRan = 0
+try {
+    throw "boom"
+} catch(e) {
+    print("Caught:", e)
+} finally {
+    finallyRan = 1
+}
+print("Finally ran (exception):", finallyRan, "(expected: 1)")
+
+finallyRan2 = 0
+try {
+    x = 42
+} catch(e) {
+    print("ERROR: should not catch")
+} finally {
+    finallyRan2 = 1
+}
+print("Finally ran (no exception):", finallyRan2, "(expected: 1)")
+
+// --- Exception in Loop ---
+print("\n--- Exception in Loop ---")
+loopCount = 0
+i = 0
+while (i < 5) {
+    try {
+        if (i == 3) {
+            throw "stop at 3"
+        }
+        loopCount = loopCount + 1
+    } catch(e) {
+        print("Loop caught at i=3:", e)
+    }
+    i = i + 1
+}
+print("Loop iterations without throw:", loopCount, "(expected: 4)")
+
+// --- Nested Try/Catch ---
+print("\n--- Nested Try/Catch ---")
+outerCaught = 0
+innerCaught = 0
+try {
+    try {
+        throw "inner error"
+    } catch(e1) {
+        innerCaught = 1
+        print("Inner caught:", e1)
+    }
+    print("Outer continues after inner catch")
+} catch(e2) {
+    outerCaught = 1
+}
+print("Inner caught:", innerCaught, "(expected: 1)")
+print("Outer caught:", outerCaught, "(expected: 0)")
+
+// --- Re-throw ---
+print("\n--- Re-throw ---")
+try {
+    try {
+        throw "original"
+    } catch(e) {
+        throw "re-thrown: " + e
+    }
+} catch(e2) {
+    print("Re-thrown:", e2)
+}
+
+// --- Exception After Computation ---
+print("\n--- Exception After Work ---")
+result = 0
+try {
+    result = 10
+    result = result + 20
+    result = result + 30
+    throw "after computation"
+} catch(e) {
+    print("Result before throw:", result, "(expected: 60)")
+    print("Caught:", e)
+}
+
+// --- Multiple Catches (sequential) ---
+print("\n--- Sequential Try/Catch ---")
+results = [0, 0, 0]
+i = 0
+while (i < 3) {
+    try {
+        if (i == 0) { throw "error-0" }
+        if (i == 1) { throw "error-1" }
+        if (i == 2) { throw "error-2" }
+    } catch(e) {
+        results[i] = 1
+    }
+    i = i + 1
+}
+print("All caught:", results[0], results[1], results[2], "(expected: 1 1 1)")
+
+elapsed = t.millis() - start
+print("\nAll exception tests completed in", elapsed, "ms")
+print("Exception edge cases finished.")
