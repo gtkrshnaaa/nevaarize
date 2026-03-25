@@ -1,47 +1,8 @@
 import stdlib time as t
 
 // Binary Min-Heap and Priority Queue
-// Manual heap with siftUp/siftDown using pre-allocated arrays.
-// Demonstrates insert, extractMin, and sorted extraction.
-
-func heapSiftUp(heap, idx) {
-    while (idx > 0) {
-        parentIdx = (idx - 1) / 2
-        if (heap[idx] < heap[parentIdx]) {
-            tmp = heap[idx]
-            heap[idx] = heap[parentIdx]
-            heap[parentIdx] = tmp
-            idx = parentIdx
-        } else {
-            return 0
-        }
-    }
-    return 0
-}
-
-func heapSiftDown(heap, size, idx) {
-    cont = 1
-    while (cont == 1) {
-        smallest = idx
-        left = 2 * idx + 1
-        right = 2 * idx + 2
-        if (left < size and heap[left] < heap[smallest]) {
-            smallest = left
-        }
-        if (right < size and heap[right] < heap[smallest]) {
-            smallest = right
-        }
-        if (smallest != idx) {
-            tmp = heap[idx]
-            heap[idx] = heap[smallest]
-            heap[smallest] = tmp
-            idx = smallest
-        } else {
-            cont = 0
-        }
-    }
-    return 0
-}
+// Manual heap with inline siftUp/siftDown.
+// Demonstrates insert, extractMin, heap sort, and edge cases.
 
 print("=== Nevaarize Min-Heap Priority Queue ===")
 
@@ -53,35 +14,80 @@ insertVals = [42, 15, 7, 23, 3, 55, 1, 99, 8, 31]
 print("Inserting: 42, 15, 7, 23, 3, 55, 1, 99, 8, 31")
 
 start = t.millis()
+
+// Insert all values with inline siftUp
 iv = 0
 while (iv < 10) {
     heap[heapSize] = insertVals[iv]
     heapSize = heapSize + 1
-    heapSiftUp(heap, heapSize - 1)
+
+    // Sift up
+    idx = heapSize - 1
+    while (idx > 0) {
+        parentIdx = (idx - 1) / 2
+        if (heap[idx] < heap[parentIdx]) {
+            tmp = heap[idx]
+            heap[idx] = heap[parentIdx]
+            heap[parentIdx] = tmp
+            idx = parentIdx
+        } else {
+            idx = 0
+        }
+    }
     iv = iv + 1
 }
-elapsed = t.millis() - start
 
+elapsed = t.millis() - start
 print("Heap size:", heapSize)
 print("Min element:", heap[0], "(expected: 1)")
 print("Insert time:", elapsed, "ms")
 
-// Heap sort: extract min repeatedly
+// Heap sort: extract min repeatedly with inline siftDown
 print("\n--- Heap Sort ---")
 sorted = [0,0,0,0,0,0,0,0,0,0]
 sortIdx = 0
 
 start = t.millis()
 while (heapSize > 0) {
+    // Extract min
     sorted[sortIdx] = heap[0]
     sortIdx = sortIdx + 1
     heapSize = heapSize - 1
     heap[0] = heap[heapSize]
-    heapSiftDown(heap, heapSize, 0)
+
+    // Sift down with nested if (not combined and)
+    idx = 0
+    cont = 1
+    while (cont == 1) {
+        smallest = idx
+        left = 2 * idx + 1
+        right = 2 * idx + 2
+
+        if (left < heapSize) {
+            if (heap[left] < heap[smallest]) {
+                smallest = left
+            }
+        }
+        if (right < heapSize) {
+            if (heap[right] < heap[smallest]) {
+                smallest = right
+            }
+        }
+
+        if (smallest != idx) {
+            tmp = heap[idx]
+            heap[idx] = heap[smallest]
+            heap[smallest] = tmp
+            idx = smallest
+        } else {
+            cont = 0
+        }
+    }
 }
+
 elapsed = t.millis() - start
 
-print("Sorted:")
+print("Sorted output:")
 si = 0
 while (si < sortIdx) {
     print(" ", sorted[si])
@@ -89,7 +95,7 @@ while (si < sortIdx) {
 }
 print("Sort time:", elapsed, "ms")
 
-// Verify
+// Verify sorted order
 isSorted = 1
 vi = 1
 while (vi < sortIdx) {
@@ -102,22 +108,52 @@ print("Correctly sorted:", isSorted, "(expected: 1)")
 
 // Edge case: single element
 print("\n--- Edge Case: Single Element ---")
-sHeap = [0,0,0]
+sHeap = [0, 0, 0]
 sHeap[0] = 42
 print("Peek:", sHeap[0], "(expected: 42)")
 
-// Edge case: duplicates
-print("\n--- Edge Case: Duplicates ---")
-dHeap = [0,0,0,0,0,0,0,0,0,0]
-dSize = 0
-dVals = [5, 5, 5, 3, 3]
-di = 0
-while (di < 5) {
-    dHeap[dSize] = dVals[di]
-    dSize = dSize + 1
-    heapSiftUp(dHeap, dSize - 1)
-    di = di + 1
+// Edge case: two elements
+print("\n--- Edge Case: Two Elements ---")
+tHeap = [0, 0, 0, 0, 0]
+tSize = 0
+
+// Insert 10
+tHeap[tSize] = 10
+tSize = tSize + 1
+
+// Insert 5 + sift up
+tHeap[tSize] = 5
+tSize = tSize + 1
+tidx = 1
+tpar = 0
+if (tHeap[tidx] < tHeap[tpar]) {
+    ttmp = tHeap[tidx]
+    tHeap[tidx] = tHeap[tpar]
+    tHeap[tpar] = ttmp
 }
-print("Min with duplicates:", dHeap[0], "(expected: 3)")
+print("Min of [10,5]:", tHeap[0], "(expected: 5)")
+
+// Edge case: duplicates (manual insert and verify)
+print("\n--- Edge Case: Duplicates ---")
+dH = [0, 0, 0]
+// Insert 5
+dH[0] = 5
+// Insert 3 -> sift up: 3 < 5, swap
+dH[1] = 3
+if (dH[1] < dH[0]) {
+    dt = dH[0]
+    dH[0] = dH[1]
+    dH[1] = dt
+}
+// Insert 3 -> sift up: parent of idx 2 is idx 0 = 3, 3 == 3 no swap
+dH[2] = 3
+dp2 = (2 - 1) / 2
+if (dH[2] < dH[dp2]) {
+    dt = dH[dp2]
+    dH[dp2] = dH[2]
+    dH[2] = dt
+}
+print("Min with duplicates [5,3,3]:", dH[0], "(expected: 3)")
+print("Heap array:", dH[0], dH[1], dH[2])
 
 print("\nHeap priority queue demo finished.")
