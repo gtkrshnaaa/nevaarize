@@ -145,12 +145,16 @@ Built with C++23, Zero External Dependencies</code></pre>
                 
                 <p>Try running the hello world example:</p>
                 
-                <pre data-lang="bash"><code>./bin/nevaarize examples/basics/helloWorld.nva</code></pre>
+                <pre data-lang="bash"><code>./bin/nevaarize examples/basics.nva</code></pre>
                 
-                <p>Output:</p>
+                <p>Output (excerpt):</p>
                 
-                <pre><code>Hello, World!
-Welcome to Nevaarize - Native JIT Performance</code></pre>
+                <pre><code>Integer: 42
+Float: 3.14
+...
+add(7, 3): 10
+...
+=== All Features Demonstrated ===</code></pre>
                 
                 <h2>Optional: Add to PATH</h2>
                 
@@ -175,15 +179,14 @@ source ~/.bashrc</code></pre>
 ├── build/            # Object files
 ├── core/             # Core compiler implementation
 │   ├── include/      # Header files
-│   └── src/          # Source files
-├── stdlib/           # Standard library
-│   ├── include/      # Library headers
-│   └── src/          # Library implementations
-├── examples/         # Example programs
-│   ├── basics/       # Basic examples
-│   ├── async/        # Async examples
+│   ├── src/          # Source files
+│   └── stdlib/       # Standard library (inside core)
+├── examples/         # Example programs (64 verified)
+│   ├── algorithm/    # Sorting, searching, math
 │   ├── benchmarks/   # Performance benchmarks
-│   └── ...
+│   ├── modules/      # Module system demos
+│   ├── richcodesample/ # Advanced code samples
+│   └── stdlibtest/   # Stdlib module tests
 ├── docs/             # Documentation (you are here)
 └── Makefile          # Build configuration</code></pre>
                 
@@ -195,7 +198,7 @@ source ~/.bashrc</code></pre>
                 
                 <p>Run a training script and save the resulting model:</p>
                 
-                <pre data-lang="bash"><code>./bin/nevaarize model train examples/ai/trainModel.nva to demo.nmod</code></pre>
+                <pre data-lang="bash"><code>./bin/nevaarize model train script.nva to model.nmod</code></pre>
                 
                 <p>The output path is resolved relative to the training script's location.</p>
                 
@@ -204,15 +207,16 @@ source ~/.bashrc</code></pre>
                 <p>Load a trained model and run inference:</p>
                 
                 <pre data-lang="bash"><code># View model info
-./bin/nevaarize model run examples/ai/demo.nmod
+./bin/nevaarize model run model.nmod
 
 # Run with input data
-./bin/nevaarize model run examples/ai/demo.nmod --input "[1.0, 0.0, 1.0, 0.0]"</code></pre>
+./bin/nevaarize model run model.nmod --input "[1.0, 0.0, 1.0, 0.0]"</code></pre>
                 
-                <div class="callout callout-tip">
-                    <div class="callout-title">Tip</div>
-                    <p>See the <a href="ai.html">AI Library</a> documentation for the complete 
-                    model training API and examples.</p>
+                <div class="callout callout-warning">
+                    <div class="callout-title">Early Development</div>
+                    <p>Model training and inference features are under active development. 
+                    See <code>examples/modelInference.nva</code> for a verified working demo. 
+                    Behavior for complex models outside the provided examples may vary.</p>
                 </div>
                 
                 <hr>
