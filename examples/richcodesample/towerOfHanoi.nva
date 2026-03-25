@@ -1,0 +1,252 @@
+import stdlib time as t
+
+// Tower of Hanoi - Iterative Solver
+// Moves N disks from peg A to peg C using peg B, tracking all moves.
+
+print("=== Nevaarize Tower of Hanoi ===\n")
+
+start = t.millis()
+
+// Iterative Hanoi for N disks
+// Total moves = 2^N - 1
+// For each move i (1-indexed):
+//   disk = (i & (i-1)) trailing zeros + 1 (simplified below)
+// Simpler iterative approach: track pegs with arrays
+
+// Peg arrays (max 10 disks)
+pegA = [0,0,0,0,0,0,0,0,0,0]
+pegB = [0,0,0,0,0,0,0,0,0,0]
+pegC = [0,0,0,0,0,0,0,0,0,0]
+topA = -1
+topB = -1
+topC = -1
+
+// --- N=3 ---
+print("--- N=3 (7 moves expected) ---")
+n = 3
+// Initialize peg A with disks n, n-1, ..., 1 (bottom to top)
+i = n
+while (i >= 1) {
+    topA = topA + 1
+    pegA[topA] = i
+    i = i - 1
+}
+
+// Iterative Hanoi using move between pegs pattern
+// For odd N: cycle is A->C, A->B, B->C
+// For even N: cycle is A->B, A->C, B->C
+totalMoves = 1
+m = 0
+while (m < n) {
+    totalMoves = totalMoves * 2
+    m = m + 1
+}
+totalMoves = totalMoves - 1
+
+moveCount = 0
+step = 1
+while (step <= totalMoves) {
+    // Determine which pegs to move between
+    // step % 3 determines the pair
+    pair = step % 3
+    if (pair == 1) {
+        // Move between A and C
+        if (topA >= 0) {
+            if (topC >= 0) {
+                if (pegA[topA] < pegC[topC]) {
+                    // A -> C
+                    topC = topC + 1
+                    pegC[topC] = pegA[topA]
+                    topA = topA - 1
+                } else {
+                    // C -> A
+                    topA = topA + 1
+                    pegA[topA] = pegC[topC]
+                    topC = topC - 1
+                }
+            } else {
+                // C empty, A -> C
+                topC = topC + 1
+                pegC[topC] = pegA[topA]
+                topA = topA - 1
+            }
+        } else {
+            // A empty, C -> A
+            topA = topA + 1
+            pegA[topA] = pegC[topC]
+            topC = topC - 1
+        }
+    } elif (pair == 2) {
+        // Move between A and B
+        if (topA >= 0) {
+            if (topB >= 0) {
+                if (pegA[topA] < pegB[topB]) {
+                    topB = topB + 1
+                    pegB[topB] = pegA[topA]
+                    topA = topA - 1
+                } else {
+                    topA = topA + 1
+                    pegA[topA] = pegB[topB]
+                    topB = topB - 1
+                }
+            } else {
+                topB = topB + 1
+                pegB[topB] = pegA[topA]
+                topA = topA - 1
+            }
+        } else {
+            topA = topA + 1
+            pegA[topA] = pegB[topB]
+            topB = topB - 1
+        }
+    } else {
+        // pair == 0: Move between B and C
+        if (topB >= 0) {
+            if (topC >= 0) {
+                if (pegB[topB] < pegC[topC]) {
+                    topC = topC + 1
+                    pegC[topC] = pegB[topB]
+                    topB = topB - 1
+                } else {
+                    topB = topB + 1
+                    pegB[topB] = pegC[topC]
+                    topC = topC - 1
+                }
+            } else {
+                topC = topC + 1
+                pegC[topC] = pegB[topB]
+                topB = topB - 1
+            }
+        } else {
+            topB = topB + 1
+            pegB[topB] = pegC[topC]
+            topC = topC - 1
+        }
+    }
+    moveCount = moveCount + 1
+    step = step + 1
+}
+
+print("Moves:", moveCount, "(expected: 7)")
+print("Peg A disks:", topA + 1, "(expected: 0)")
+print("Peg C disks:", topC + 1, "(expected: 3)")
+
+// Verify peg C has disks 3,2,1 (bottom to top)
+if (topC >= 0) {
+    print("C bottom:", pegC[0], "(expected: 3)")
+    print("C top:", pegC[topC], "(expected: 1)")
+}
+
+// --- N=4 ---
+print("\n--- N=4 (15 moves expected) ---")
+// Reset
+topA = -1
+topB = -1
+topC = -1
+n = 4
+i = n
+while (i >= 1) {
+    topA = topA + 1
+    pegA[topA] = i
+    i = i - 1
+}
+
+totalMoves = 1
+m = 0
+while (m < n) {
+    totalMoves = totalMoves * 2
+    m = m + 1
+}
+totalMoves = totalMoves - 1
+
+// For even N: cycle is A->B, A->C, B->C
+moveCount = 0
+step = 1
+while (step <= totalMoves) {
+    pair = step % 3
+    if (pair == 1) {
+        // A <-> B
+        if (topA >= 0) {
+            if (topB >= 0) {
+                if (pegA[topA] < pegB[topB]) {
+                    topB = topB + 1
+                    pegB[topB] = pegA[topA]
+                    topA = topA - 1
+                } else {
+                    topA = topA + 1
+                    pegA[topA] = pegB[topB]
+                    topB = topB - 1
+                }
+            } else {
+                topB = topB + 1
+                pegB[topB] = pegA[topA]
+                topA = topA - 1
+            }
+        } else {
+            topA = topA + 1
+            pegA[topA] = pegB[topB]
+            topB = topB - 1
+        }
+    } elif (pair == 2) {
+        // A <-> C
+        if (topA >= 0) {
+            if (topC >= 0) {
+                if (pegA[topA] < pegC[topC]) {
+                    topC = topC + 1
+                    pegC[topC] = pegA[topA]
+                    topA = topA - 1
+                } else {
+                    topA = topA + 1
+                    pegA[topA] = pegC[topC]
+                    topC = topC - 1
+                }
+            } else {
+                topC = topC + 1
+                pegC[topC] = pegA[topA]
+                topA = topA - 1
+            }
+        } else {
+            topA = topA + 1
+            pegA[topA] = pegC[topC]
+            topC = topC - 1
+        }
+    } else {
+        // B <-> C
+        if (topB >= 0) {
+            if (topC >= 0) {
+                if (pegB[topB] < pegC[topC]) {
+                    topC = topC + 1
+                    pegC[topC] = pegB[topB]
+                    topB = topB - 1
+                } else {
+                    topB = topB + 1
+                    pegB[topB] = pegC[topC]
+                    topC = topC - 1
+                }
+            } else {
+                topC = topC + 1
+                pegC[topC] = pegB[topB]
+                topB = topB - 1
+            }
+        } else {
+            topB = topB + 1
+            pegB[topB] = pegC[topC]
+            topC = topC - 1
+        }
+    }
+    moveCount = moveCount + 1
+    step = step + 1
+}
+
+print("Moves:", moveCount, "(expected: 15)")
+
+// For even N, destination is peg B (based on standard frame-stewart)
+// Actually, for standard iterative, even N moves to peg B
+dest = topB + 1
+altDest = topC + 1
+print("Peg B disks:", dest)
+print("Peg C disks:", altDest)
+
+elapsed = t.millis() - start
+print("\nAll Hanoi tests completed in", elapsed, "ms")
+print("Tower of Hanoi finished.")
