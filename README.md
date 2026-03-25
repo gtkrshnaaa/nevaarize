@@ -73,6 +73,24 @@ print("Processed", count, "tasks in", elapsed, "seconds")
 | **Array Push** | **3742M ops/sec** | **12.7x faster** | **10.8x faster** | **65x faster** |
 | **Memory Usage** | **4.82 MB** | **53% less** | **38% less** | **21x less** |
 
+### Comparison Table
+
+| Languages | Integer Add | Double Arith | String Concat | Array Push | Struct Access | Peak RAM |
+|-----------|-------------|--------------|---------------|------------|---------------|----------|
+| **Nevaarize** | **4,117M** | **2,077M** | 474M | **3,742M** | 1,457M | **4.82MB** |
+| Zig (ReleaseFast) | 4,044M | 1,041M | 1,413M | 344M | **4,053M** | 7.8MB |
+| Rust (LLVM -O) | 3,904M | 1,042M | 993M | 294M | 3,816M | 10.4MB |
+| Go 1.21 | 3,870M | **3,762M** | 0.03M | 88M | 3,766M | 46.3MB |
+| Node.js (V8) | 1,257M | 1,017M | 15M | 57M | 1,119M | 102MB |
+| PHP 8 JIT | 3,266M | 1,019M | 110M | 81M | 421M | 48.8MB |
+| Java 21 | 3,725M | 518M | 0.06M | 56M | 990M | 626MB |
+| LuaJIT | 1,026M | 966M | 0.01M | 243M | 1,043M | 14.3MB |
+| PHP 8 Std | 463M | 247M | 75M | 62M | 101M | 45.4MB |
+| Lua 5.4 | 208M | 146M | 0.04M | 65M | 98M | 21.6MB |
+| Python 3 | 49M | 34M | 24M | 28M | 34M | 49.6MB |
+
+> See full results in [`languagebench/battle_report.txt`](languagebench/battle_report.txt)
+
 ---
 
 ## Quick Start
