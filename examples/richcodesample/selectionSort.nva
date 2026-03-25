@@ -1,0 +1,136 @@
+import stdlib time as t
+
+// Selection Sort with Verification
+// Demonstrates selection sort and verifies correctness with multiple test cases.
+
+print("=== Nevaarize Selection Sort ===\n")
+
+start = t.millis()
+
+// --- Standard Case ---
+print("--- Standard Sort ---")
+arr1 = [64, 25, 12, 22, 11]
+n1 = 5
+i = 0
+while (i < n1 - 1) {
+    minIdx = i
+    j = i + 1
+    while (j < n1) {
+        if (arr1[j] < arr1[minIdx]) {
+            minIdx = j
+        }
+        j = j + 1
+    }
+    if (minIdx != i) {
+        tmp = arr1[i]
+        arr1[i] = arr1[minIdx]
+        arr1[minIdx] = tmp
+    }
+    i = i + 1
+}
+print("Sorted:", arr1[0], arr1[1], arr1[2], arr1[3], arr1[4])
+print("(expected: 11 12 22 25 64)")
+
+// --- Already Sorted ---
+print("\n--- Already Sorted ---")
+arr2 = [1, 2, 3, 4, 5]
+n2 = 5
+i = 0
+while (i < n2 - 1) {
+    minIdx = i
+    j = i + 1
+    while (j < n2) {
+        if (arr2[j] < arr2[minIdx]) { minIdx = j }
+        j = j + 1
+    }
+    if (minIdx != i) {
+        tmp = arr2[i]
+        arr2[i] = arr2[minIdx]
+        arr2[minIdx] = tmp
+    }
+    i = i + 1
+}
+print("Sorted:", arr2[0], arr2[1], arr2[2], arr2[3], arr2[4])
+print("(expected: 1 2 3 4 5)")
+
+// --- Reverse Sorted ---
+print("\n--- Reverse Sorted ---")
+arr3 = [5, 4, 3, 2, 1]
+n3 = 5
+i = 0
+while (i < n3 - 1) {
+    minIdx = i
+    j = i + 1
+    while (j < n3) {
+        if (arr3[j] < arr3[minIdx]) { minIdx = j }
+        j = j + 1
+    }
+    if (minIdx != i) {
+        tmp = arr3[i]
+        arr3[i] = arr3[minIdx]
+        arr3[minIdx] = tmp
+    }
+    i = i + 1
+}
+print("Sorted:", arr3[0], arr3[1], arr3[2], arr3[3], arr3[4])
+print("(expected: 1 2 3 4 5)")
+
+// --- All Equal ---
+print("\n--- All Equal ---")
+arr4 = [7, 7, 7, 7, 7]
+n4 = 5
+i = 0
+while (i < n4 - 1) {
+    minIdx = i
+    j = i + 1
+    while (j < n4) {
+        if (arr4[j] < arr4[minIdx]) { minIdx = j }
+        j = j + 1
+    }
+    if (minIdx != i) {
+        tmp = arr4[i]
+        arr4[i] = arr4[minIdx]
+        arr4[minIdx] = tmp
+    }
+    i = i + 1
+}
+print("Sorted:", arr4[0], arr4[1], arr4[2], arr4[3], arr4[4])
+print("(expected: 7 7 7 7 7)")
+
+// --- Single Element ---
+print("\n--- Single Element ---")
+arr5 = [42]
+print("Single:", arr5[0], "(expected: 42)")
+
+// --- Verify with Count ---
+print("\n--- Sort 10 Elements ---")
+arr6 = [91, 23, 56, 8, 72, 38, 16, 5, 12, 2]
+n6 = 10
+i = 0
+while (i < n6 - 1) {
+    minIdx = i
+    j = i + 1
+    while (j < n6) {
+        if (arr6[j] < arr6[minIdx]) { minIdx = j }
+        j = j + 1
+    }
+    if (minIdx != i) {
+        tmp = arr6[i]
+        arr6[i] = arr6[minIdx]
+        arr6[minIdx] = tmp
+    }
+    i = i + 1
+}
+isSorted = 1
+vi = 1
+while (vi < n6) {
+    if (arr6[vi] < arr6[vi - 1]) { isSorted = 0 }
+    vi = vi + 1
+}
+print("10 elements sorted:", isSorted, "(expected: 1)")
+print("First:", arr6[0], "(expected: 2)")
+print("Last:", arr6[9], "(expected: 91)")
+
+elapsed = t.millis() - start
+print("\nAll selection sort tests completed in", elapsed, "ms")
+print("Selection sort finished.")
