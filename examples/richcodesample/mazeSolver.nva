@@ -1,207 +1,165 @@
 import stdlib time as t
-import stdlib math as m
 
 // Maze Solver using BFS Pathfinding
-// Demonstrates queue-based BFS traversal, boundary validation,
+// Demonstrates BFS traversal, boundary validation,
 // and shortest path reconstruction on a 2D grid.
+// Uses pre-allocated arrays for JIT compatibility.
 
-// Grid encoding: 0=wall, 1=path, 2=visited, 3=solution path
-func createMaze(w, h) {
-    grid = []
-    total = w * h
-    i = 0
-    while (i < total) {
-        grid.push(0)
-        i = i + 1
-    }
-    return grid
-}
+// Grid: 0=wall, 1=path, 2=visited, 3=solution
 
-func setMazeCell(grid, w, x, y, val) {
-    grid[y * w + x] = val
-}
+// Pre-build a 7x7 maze
+w = 7
+h = 7
+total = w * h
 
-func getMazeCell(grid, w, x, y) {
-    return grid[y * w + x]
-}
+maze = [
+    1, 1, 0, 0, 0, 0, 0,
+    0, 1, 1, 0, 1, 1, 0,
+    0, 0, 1, 0, 1, 0, 0,
+    0, 0, 1, 1, 1, 0, 0,
+    0, 0, 0, 0, 1, 1, 0,
+    0, 1, 1, 0, 0, 1, 0,
+    0, 1, 0, 0, 0, 1, 1
+]
 
-func solveMaze(maze, w, h, startX, startY, endX, endY) {
-    // BFS queue: stores encoded positions (y * w + x)
-    queueX = []
-    queueY = []
-    parentMap = []
+// BFS data (pre-allocated, max possible size = total)
+queueX = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+queueY = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+parent = [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]
 
-    total = w * h
-    i = 0
-    while (i < total) {
-        parentMap.push(-1)
-        i = i + 1
-    }
+// Direction vectors
+dirX = [1, 0, -1, 0]
+dirY = [0, 1, 0, -1]
 
-    queueX.push(startX)
-    queueY.push(startY)
-    parentMap[startY * w + startX] = startY * w + startX
-    maze[startY * w + startX] = 2
-
-    head = 0
-    found = 0
-
-    // Direction vectors: right, down, left, up
-    dirX = [1, 0, -1, 0]
-    dirY = [0, 1, 0, -1]
-
-    while (head < queueX.size() and found == 0) {
-        cx = queueX[head]
-        cy = queueY[head]
-        head = head + 1
-
-        if (cx == endX and cy == endY) {
-            found = 1
-        } else {
-            d = 0
-            while (d < 4) {
-                nx = cx + dirX[d]
-                ny = cy + dirY[d]
-                if (nx >= 0 and nx < w and ny >= 0 and ny < h) {
-                    if (getMazeCell(maze, w, nx, ny) == 1) {
-                        maze[ny * w + nx] = 2
-                        parentMap[ny * w + nx] = cy * w + cx
-                        queueX.push(nx)
-                        queueY.push(ny)
-                    }
-                }
-                d = d + 1
-            }
-        }
-    }
-
-    // Reconstruct path
-    if (found == 1) {
-        pathLen = 0
-        px = endX
-        py = endY
-        while (px != startX or py != startY) {
-            maze[py * w + px] = 3
-            parent = parentMap[py * w + px]
-            py = parent / w
-            px = parent % w
-            pathLen = pathLen + 1
-        }
-        maze[startY * w + startX] = 3
-        return pathLen
-    }
-    return -1
-}
-
-func printMaze(maze, w, h) {
-    y = 0
-    while (y < h) {
-        x = 0
-        while (x < w) {
-            cell = maze[y * w + x]
-            if (cell == 0) {
-                print("#", " ")
-            } elif (cell == 1) {
-                print(".", " ")
-            } elif (cell == 2) {
-                print("~", " ")
-            } elif (cell == 3) {
-                print("*", " ")
-            }
-            x = x + 1
-        }
-        y = y + 1
-    }
-}
-
-// Main Execution
 print("=== Nevaarize Maze Solver ===")
+print("Maze layout (1=path, 0=wall):")
+r = 0
+while (r < h) {
+    c = 0
+    while (c < w) {
+        print(maze[r * w + c], " ")
+        c = c + 1
+    }
+    r = r + 1
+}
 
-w = 9
-h = 9
-maze = createMaze(w, h)
+// BFS from (0,0) to (6,6)
+startX = 0
+startY = 0
+endX = 6
+endY = 6
 
-// Build maze layout (1 = walkable path)
-// Row 0
-setMazeCell(maze, w, 0, 0, 1)
-setMazeCell(maze, w, 1, 0, 1)
-setMazeCell(maze, w, 2, 0, 1)
-// Row 1
-setMazeCell(maze, w, 0, 1, 1)
-setMazeCell(maze, w, 4, 1, 1)
-setMazeCell(maze, w, 5, 1, 1)
-setMazeCell(maze, w, 6, 1, 1)
-// Row 2
-setMazeCell(maze, w, 0, 2, 1)
-setMazeCell(maze, w, 2, 2, 1)
-setMazeCell(maze, w, 3, 2, 1)
-setMazeCell(maze, w, 4, 2, 1)
-setMazeCell(maze, w, 6, 2, 1)
-setMazeCell(maze, w, 8, 2, 1)
-// Row 3
-setMazeCell(maze, w, 0, 3, 1)
-setMazeCell(maze, w, 2, 3, 1)
-setMazeCell(maze, w, 6, 3, 1)
-setMazeCell(maze, w, 7, 3, 1)
-setMazeCell(maze, w, 8, 3, 1)
-// Row 4
-setMazeCell(maze, w, 0, 4, 1)
-setMazeCell(maze, w, 1, 4, 1)
-setMazeCell(maze, w, 2, 4, 1)
-setMazeCell(maze, w, 4, 4, 1)
-setMazeCell(maze, w, 5, 4, 1)
-setMazeCell(maze, w, 8, 4, 1)
-// Row 5
-setMazeCell(maze, w, 4, 5, 1)
-setMazeCell(maze, w, 6, 5, 1)
-setMazeCell(maze, w, 7, 5, 1)
-setMazeCell(maze, w, 8, 5, 1)
-// Row 6
-setMazeCell(maze, w, 0, 6, 1)
-setMazeCell(maze, w, 1, 6, 1)
-setMazeCell(maze, w, 2, 6, 1)
-setMazeCell(maze, w, 3, 6, 1)
-setMazeCell(maze, w, 4, 6, 1)
-setMazeCell(maze, w, 6, 6, 1)
-// Row 7
-setMazeCell(maze, w, 0, 7, 1)
-setMazeCell(maze, w, 4, 7, 1)
-setMazeCell(maze, w, 5, 7, 1)
-setMazeCell(maze, w, 6, 7, 1)
-setMazeCell(maze, w, 8, 7, 1)
-// Row 8
-setMazeCell(maze, w, 0, 8, 1)
-setMazeCell(maze, w, 1, 8, 1)
-setMazeCell(maze, w, 2, 8, 1)
-setMazeCell(maze, w, 6, 8, 1)
-setMazeCell(maze, w, 7, 8, 1)
-setMazeCell(maze, w, 8, 8, 1)
-
-print("Maze before solving:")
-printMaze(maze, w, h)
+queueX[0] = startX
+queueY[0] = startY
+head = 0
+tail = 1
+maze[startY * w + startX] = 2
+parent[startY * w + startX] = startY * w + startX
+found = 0
 
 start = t.millis()
-pathLen = solveMaze(maze, w, h, 0, 0, 8, 8)
+
+while (head < tail and found == 0) {
+    cx = queueX[head]
+    cy = queueY[head]
+    head = head + 1
+
+    if (cx == endX and cy == endY) {
+        found = 1
+    } else {
+        d = 0
+        while (d < 4) {
+            nx = cx + dirX[d]
+            ny = cy + dirY[d]
+            if (nx >= 0 and nx < w and ny >= 0 and ny < h) {
+                if (maze[ny * w + nx] == 1) {
+                    maze[ny * w + nx] = 2
+                    parent[ny * w + nx] = cy * w + cx
+                    queueX[tail] = nx
+                    queueY[tail] = ny
+                    tail = tail + 1
+                }
+            }
+            d = d + 1
+        }
+    }
+}
+
 elapsed = t.millis() - start
 
-print("\nMaze after solving (* = path):")
-printMaze(maze, w, h)
+if (found == 1) {
+    // Reconstruct path
+    pathLen = 0
+    px = endX
+    py = endY
+    while (px != startX or py != startY) {
+        maze[py * w + px] = 3
+        p = parent[py * w + px]
+        py = p / w
+        px = p % w
+        pathLen = pathLen + 1
+    }
+    maze[startY * w + startX] = 3
 
-if (pathLen >= 0) {
+    print("\nSolution path (3=path):")
+    r = 0
+    while (r < h) {
+        c = 0
+        while (c < w) {
+            print(maze[r * w + c], " ")
+            c = c + 1
+        }
+        r = r + 1
+    }
     print("\nShortest path length:", pathLen, "steps")
 } else {
     print("\nNo path found!")
 }
 print("Time:", elapsed, "ms")
 
-// Edge case: no exit maze
+// Edge case: blocked 3x3 maze
 print("\n--- Edge Case: Blocked Maze ---")
-blocked = [1, 1, 0, 0, 1, 0, 0, 0, 1]
-blockedResult = solveMaze(blocked, 3, 3, 0, 0, 2, 2)
-if (blockedResult < 0) {
+blocked = [1, 0, 0, 0, 0, 0, 0, 0, 1]
+bVisited = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+bQueue = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+// Simple connectivity check: try BFS on 3x3
+bQueue[0] = 0
+bHead = 0
+bTail = 1
+bVisited[0] = 1
+bFound = 0
+
+while (bHead < bTail and bFound == 0) {
+    pos = bQueue[bHead]
+    bHead = bHead + 1
+    bx = pos % 3
+    by = pos / 3
+
+    if (bx == 2 and by == 2) {
+        bFound = 1
+    } else {
+        d = 0
+        while (d < 4) {
+            bnx = bx + dirX[d]
+            bny = by + dirY[d]
+            if (bnx >= 0 and bnx < 3 and bny >= 0 and bny < 3) {
+                bPos = bny * 3 + bnx
+                if (blocked[bPos] == 1 and bVisited[bPos] == 0) {
+                    bVisited[bPos] = 1
+                    bQueue[bTail] = bPos
+                    bTail = bTail + 1
+                }
+            }
+            d = d + 1
+        }
+    }
+}
+
+if (bFound == 0) {
     print("Correctly detected: no path exists")
 } else {
-    print("Path found (unexpected):", blockedResult)
+    print("Path found (unexpected)")
 }
 
 print("\nMaze solver finished.")

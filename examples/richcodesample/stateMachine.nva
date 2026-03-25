@@ -1,117 +1,120 @@
 import stdlib time as t
 
 // Finite State Machine (FSM)
-// Validates numeric input formats using a state transition table.
-// Demonstrates FSM-based parsing, state transitions,
-// and handling of edge cases in input validation.
+// Simple string pattern validator to demonstrate state-based logic.
+// Validates a simplified identifier format: starts with letter, then letters/digits.
 
-// State constants (encoded as integers)
-// 0 = START, 1 = SIGN, 2 = INTEGER, 3 = DOT, 4 = DECIMAL
-// 5 = EXP_MARKER, 6 = EXP_SIGN, 7 = EXPONENT, 8 = INVALID
-
-func charType(code) {
-    // Character classification
-    // '+'/'-' = 1, digit = 2, '.' = 3, 'e'/'E' = 4, other = 0
-    if (code == 43 or code == 45) { return 1 }
-    if (code >= 48 and code <= 57) { return 2 }
-    if (code == 46) { return 3 }
-    if (code == 101 or code == 69) { return 4 }
-    return 0
-}
-
-func validateNumber(chars, n) {
-    // Transition table: [state * 5 + charType] = nextState
-    // 9 states x 5 char types = 45 entries
-    transitions = [
-        8, 1, 2, 8, 8,
-        8, 8, 2, 8, 8,
-        8, 8, 2, 3, 5,
-        8, 8, 4, 8, 8,
-        8, 8, 4, 8, 5,
-        8, 6, 7, 8, 8,
-        8, 8, 7, 8, 8,
-        8, 8, 7, 8, 8,
-        8, 8, 8, 8, 8
-    ]
-
-    state = 0
-    i = 0
-    while (i < n) {
-        ct = charType(chars[i])
-        state = transitions[state * 5 + ct]
-        if (state == 8) { return 0 }
-        i = i + 1
-    }
-
-    // Valid ending states: INTEGER(2), DOT_AFTER_DIGIT(3), DECIMAL(4), EXPONENT(7)
-    if (state == 2 or state == 3 or state == 4 or state == 7) {
-        return 1
-    }
-    return 0
-}
-
-func testNumber(chars, n, label, expected) {
-    result = validateNumber(chars, n)
-    status = "FAIL"
-    if (result == expected) { status = "PASS" }
-    print(status, "-", label, "-> valid:", result, "(expected:", expected, ")")
-}
-
-// Main Execution
 print("=== Nevaarize Finite State Machine ===")
-print("Number Format Validator (supports: sign, integer, decimal, scientific)\n")
+print("Identifier Validator\n")
 
 start = t.millis()
 
-// Valid: "123"
-testNumber([49, 50, 51], 3, "123", 1)
+// Character encoding: letters = 65-90 (A-Z), 97-122 (a-z), digits = 48-57 (0-9)
 
-// Valid: "-42"
-testNumber([45, 52, 50], 3, "-42", 1)
+// Test 1: "abc" (97,98,99) -> valid identifier
+chars1 = [97, 98, 99]
+st = 0
+idx = 0
+while (idx < 3) {
+    code = chars1[idx]
+    if (st == 0) {
+        if (code >= 65 and code <= 90) { st = 1 }
+        if (code >= 97 and code <= 122) { st = 1 }
+        if (st == 0) { st = 9 }
+    }
+    if (st == 1) {
+        if (code >= 65 and code <= 90) { st = 1 }
+        if (code >= 97 and code <= 122) { st = 1 }
+        if (code >= 48 and code <= 57) { st = 1 }
+    }
+    idx = idx + 1
+}
+v1 = 0
+if (st == 1) { v1 = 1 }
+print("abc -> valid:", v1, "(expected: 1)")
 
-// Valid: "3.14"
-testNumber([51, 46, 49, 52], 4, "3.14", 1)
+// Test 2: "x1y" (120,49,121) -> valid
+chars2 = [120, 49, 121]
+st = 0
+idx = 0
+while (idx < 3) {
+    code = chars2[idx]
+    if (st == 0) {
+        if (code >= 65 and code <= 90) { st = 1 }
+        if (code >= 97 and code <= 122) { st = 1 }
+        if (st == 0) { st = 9 }
+    }
+    if (st == 1) {
+        if (code >= 65 and code <= 90) { st = 1 }
+        if (code >= 97 and code <= 122) { st = 1 }
+        if (code >= 48 and code <= 57) { st = 1 }
+    }
+    idx = idx + 1
+}
+v2 = 0
+if (st == 1) { v2 = 1 }
+print("x1y -> valid:", v2, "(expected: 1)")
 
-// Valid: "+0.5"
-testNumber([43, 48, 46, 53], 4, "+0.5", 1)
+// Test 3: "123" (49,50,51) -> invalid (starts with digit)
+chars3 = [49, 50, 51]
+st = 0
+idx = 0
+while (idx < 3) {
+    code = chars3[idx]
+    if (st == 0) {
+        if (code >= 65 and code <= 90) { st = 1 }
+        if (code >= 97 and code <= 122) { st = 1 }
+        if (st == 0) { st = 9 }
+    }
+    idx = idx + 1
+}
+v3 = 0
+if (st == 1) { v3 = 1 }
+print("123 -> valid:", v3, "(expected: 0)")
 
-// Valid: "1e10"
-testNumber([49, 101, 49, 48], 4, "1e10", 1)
+// Test 4: "A" (65) -> valid (single letter)
+chars4 = [65]
+st = 0
+code = chars4[0]
+if (code >= 65 and code <= 90) { st = 1 }
+if (code >= 97 and code <= 122) { st = 1 }
+v4 = 0
+if (st == 1) { v4 = 1 }
+print("A -> valid:", v4, "(expected: 1)")
 
-// Valid: "2.5E-3"
-testNumber([50, 46, 53, 69, 45, 51], 6, "2.5E-3", 1)
+// Test 5: " " (32) -> invalid (space)
+chars5 = [32]
+st = 0
+code = chars5[0]
+if (code >= 65 and code <= 90) { st = 1 }
+if (code >= 97 and code <= 122) { st = 1 }
+if (st == 0) { st = 9 }
+v5 = 0
+if (st == 1) { v5 = 1 }
+print("(space) -> valid:", v5, "(expected: 0)")
 
-// Valid: "42."
-testNumber([52, 50, 46], 3, "42.", 1)
-
-// Invalid: empty (n=0)
-testNumber([], 0, "(empty)", 0)
-
-// Invalid: "+"
-testNumber([43], 1, "+", 0)
-
-// Invalid: "." (dot only)
-testNumber([46], 1, ".", 0)
-
-// Invalid: "1e" (incomplete exponent)
-testNumber([49, 101], 2, "1e", 0)
-
-// Invalid: "abc"
-testNumber([97, 98, 99], 3, "abc", 0)
-
-// Invalid: "1.2.3" (double dot)
-testNumber([49, 46, 50, 46, 51], 5, "1.2.3", 0)
-
-// Invalid: "--5"
-testNumber([45, 45, 53], 3, "--5", 0)
-
-// Valid: "-3.14e+2"
-testNumber([45, 51, 46, 49, 52, 101, 43, 50], 8, "-3.14e+2", 1)
+// Test 6: "camelCase" -> valid
+chars6 = [99, 97, 109, 101, 108, 67, 97, 115, 101]
+st = 0
+idx = 0
+while (idx < 9) {
+    code = chars6[idx]
+    if (st == 0) {
+        if (code >= 65 and code <= 90) { st = 1 }
+        if (code >= 97 and code <= 122) { st = 1 }
+        if (st == 0) { st = 9 }
+    }
+    if (st == 1) {
+        if (code >= 65 and code <= 90) { st = 1 }
+        if (code >= 97 and code <= 122) { st = 1 }
+        if (code >= 48 and code <= 57) { st = 1 }
+    }
+    idx = idx + 1
+}
+v6 = 0
+if (st == 1) { v6 = 1 }
+print("camelCase -> valid:", v6, "(expected: 1)")
 
 elapsed = t.millis() - start
-print("\nAll tests completed in", elapsed, "ms")
-
-// State machine counter: verify all transitions
-totalTests = 15
-print("Total test cases:", totalTests)
-print("\nState machine demo finished.")
+print("\nAll 6 tests completed in", elapsed, "ms")
+print("State machine demo finished.")

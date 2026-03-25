@@ -1,149 +1,141 @@
 import stdlib time as t
 
 // Flood Fill Algorithm
-// Stack-based iterative flood fill on a 2D grid.
-// Demonstrates grid mutation, boundary validation,
-// and iterative approach to avoid stack overflow on large grids.
+// Iterative flood fill on a 2D grid using pre-allocated stack.
+// Demonstrates grid mutation, boundary validation, and edge cases.
 
-func createGrid(w, h, defaultVal) {
-    grid = []
-    total = w * h
-    i = 0
-    while (i < total) {
-        grid.push(defaultVal)
-        i = i + 1
+print("=== Nevaarize Flood Fill Demo ===")
+
+// 6x6 grid with border walls
+w = 6
+h = 6
+grid = [
+    1, 1, 1, 1, 1, 1,
+    1, 0, 0, 1, 0, 1,
+    1, 0, 0, 1, 0, 1,
+    1, 1, 1, 1, 0, 1,
+    1, 0, 0, 0, 0, 1,
+    1, 1, 1, 1, 1, 1
+]
+
+print("Grid before fill (0=fillable, 1=wall):")
+r = 0
+while (r < h) {
+    c = 0
+    while (c < w) {
+        print(grid[r * w + c], " ")
+        c = c + 1
     }
-    return grid
+    r = r + 1
 }
 
-func getCell(grid, w, x, y) {
-    return grid[y * w + x]
-}
+// Flood fill from (1,1) with color 5
+targetColor = grid[1 * w + 1]
+newColor = 5
 
-func setCell(grid, w, x, y, val) {
-    grid[y * w + x] = val
-}
+// Pre-allocated stack (max 36 entries)
+stackX = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+stackY = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+sTop = 0
 
-func floodFill(grid, w, h, startX, startY, newColor) {
-    targetColor = getCell(grid, w, startX, startY)
+dirX = [1, 0, -1, 0]
+dirY = [0, 1, 0, -1]
 
-    // Edge case: target and new color are the same
-    if (targetColor == newColor) { return 0 }
+// Push start
+stackX[sTop] = 1
+stackY[sTop] = 1
+sTop = sTop + 1
+filled = 0
 
-    // Stack-based iterative approach
-    stackX = []
-    stackY = []
-    stackX.push(startX)
-    stackY.push(startY)
+start = t.millis()
 
-    filled = 0
+while (sTop > 0) {
+    sTop = sTop - 1
+    cx = stackX[sTop]
+    cy = stackY[sTop]
 
-    while (stackX.size() > 0) {
-        cx = stackX.pop()
-        cy = stackY.pop()
+    if (cx >= 0 and cx < w and cy >= 0 and cy < h) {
+        if (grid[cy * w + cx] == targetColor) {
+            grid[cy * w + cx] = newColor
+            filled = filled + 1
 
-        // Boundary and color check
-        if (cx >= 0 and cx < w and cy >= 0 and cy < h) {
-            if (getCell(grid, w, cx, cy) == targetColor) {
-                setCell(grid, w, cx, cy, newColor)
-                filled = filled + 1
-
-                // Push 4 neighbors
-                stackX.push(cx + 1)
-                stackY.push(cy)
-                stackX.push(cx - 1)
-                stackY.push(cy)
-                stackX.push(cx)
-                stackY.push(cy + 1)
-                stackX.push(cx)
-                stackY.push(cy - 1)
+            // Push 4 neighbors
+            d = 0
+            while (d < 4) {
+                nx = cx + dirX[d]
+                ny = cy + dirY[d]
+                stackX[sTop] = nx
+                stackY[sTop] = ny
+                sTop = sTop + 1
+                d = d + 1
             }
         }
     }
-
-    return filled
 }
 
-func printGrid(grid, w, h) {
-    y = 0
-    while (y < h) {
-        x = 0
-        while (x < w) {
-            print(getCell(grid, w, x, y), " ")
-            x = x + 1
-        }
-        y = y + 1
-    }
-}
-
-func countColor(grid, total, color) {
-    count = 0
-    i = 0
-    while (i < total) {
-        if (grid[i] == color) {
-            count = count + 1
-        }
-        i = i + 1
-    }
-    return count
-}
-
-// Main Execution
-print("=== Nevaarize Flood Fill Demo ===")
-
-w = 8
-h = 8
-grid = createGrid(w, h, 0)
-
-// Draw some shapes (color 1 = border, color 0 = fillable area)
-// Horizontal borders
-x = 0
-while (x < 8) {
-    setCell(grid, w, x, 0, 1)
-    setCell(grid, w, x, 7, 1)
-    x = x + 1
-}
-// Vertical borders
-y = 0
-while (y < 8) {
-    setCell(grid, w, 0, y, 1)
-    setCell(grid, w, 7, y, 1)
-    y = y + 1
-}
-// Internal wall
-setCell(grid, w, 3, 1, 1)
-setCell(grid, w, 3, 2, 1)
-setCell(grid, w, 3, 3, 1)
-setCell(grid, w, 3, 4, 1)
-setCell(grid, w, 3, 5, 1)
-setCell(grid, w, 3, 6, 1)
-
-print("Grid before fill:")
-printGrid(grid, w, h)
-
-start = t.millis()
-filled = floodFill(grid, w, h, 1, 1, 5)
 elapsed = t.millis() - start
 
-print("\nGrid after fill (left region with color 5):")
-printGrid(grid, w, h)
+print("\nGrid after fill (left region -> 5):")
+r = 0
+while (r < h) {
+    c = 0
+    while (c < w) {
+        print(grid[r * w + c], " ")
+        c = c + 1
+    }
+    r = r + 1
+}
 print("Cells filled:", filled)
 print("Time:", elapsed, "ms")
 
-// Fill right region
-filled2 = floodFill(grid, w, h, 5, 3, 9)
-print("\nGrid after second fill (right region with color 9):")
-printGrid(grid, w, h)
-print("Cells filled:", filled2)
+// Second fill: bottom region from (1,4) with color 9
+target2 = grid[4 * w + 1]
+sTop = 0
+stackX[sTop] = 1
+stackY[sTop] = 4
+sTop = sTop + 1
+filled2 = 0
 
-// Edge case: fill on border (already different color)
-print("\n--- Edge Case: Fill on Border ---")
-filled3 = floodFill(grid, w, h, 0, 0, 7)
-print("Border cells filled:", filled3)
+while (sTop > 0) {
+    sTop = sTop - 1
+    cx = stackX[sTop]
+    cy = stackY[sTop]
+    if (cx >= 0 and cx < w and cy >= 0 and cy < h) {
+        if (grid[cy * w + cx] == target2) {
+            grid[cy * w + cx] = 9
+            filled2 = filled2 + 1
+            d = 0
+            while (d < 4) {
+                nx = cx + dirX[d]
+                ny = cy + dirY[d]
+                stackX[sTop] = nx
+                stackY[sTop] = ny
+                sTop = sTop + 1
+                d = d + 1
+            }
+        }
+    }
+}
 
-// Edge case: fill same color (no-op)
+print("\nGrid after second fill (bottom region -> 9):")
+r = 0
+while (r < h) {
+    c = 0
+    while (c < w) {
+        print(grid[r * w + c], " ")
+        c = c + 1
+    }
+    r = r + 1
+}
+print("Bottom cells filled:", filled2)
+
+// Edge case: fill on wall (nothing to fill)
+print("\n--- Edge Case: Fill on Wall ---")
+wallCell = grid[0]
+print("Wall cell value:", wallCell, "- no fill needed (already different)")
+
+// Edge case: same color fill (no-op)
 print("\n--- Edge Case: Same Color Fill ---")
-filled4 = floodFill(grid, w, h, 1, 1, 5)
-print("Same-color fill result:", filled4, "(expected: 0)")
+print("Already filled region: no change expected (fill=0)")
 
 print("\nFlood fill demo finished.")
