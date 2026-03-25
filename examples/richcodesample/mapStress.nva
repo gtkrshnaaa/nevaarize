@@ -1,0 +1,107 @@
+import stdlib time as t
+
+// Map/Dictionary Stress Test
+// Tests map operations: insert, read, update, delete, existence checks, iteration.
+
+print("=== Nevaarize Map Stress Test ===\n")
+
+start = t.millis()
+
+// --- Basic Operations ---
+print("--- Basic Map Ops ---")
+m1 = {}
+m1["name"] = "Nevaarize"
+m1["version"] = 1
+m1["stable"] = true
+
+print("name:", m1["name"], "(expected: Nevaarize)")
+print("version:", m1["version"], "(expected: 1)")
+print("stable:", m1["stable"], "(expected: true)")
+
+// --- Update ---
+print("\n--- Map Update ---")
+m1["version"] = 2
+print("Updated version:", m1["version"], "(expected: 2)")
+
+// --- Has Key ---
+print("\n--- Key Existence ---")
+print("has 'name':", m1.has("name"), "(expected: true)")
+print("has 'missing':", m1.has("missing"), "(expected: false)")
+print("has 'version':", m1.has("version"), "(expected: true)")
+
+// --- Numeric Keys ---
+print("\n--- Numeric Keys ---")
+numMap = {}
+numMap[0] = "zero"
+numMap[1] = "one"
+numMap[99] = "ninety-nine"
+print("numMap[0]:", numMap[0], "(expected: zero)")
+print("numMap[99]:", numMap[99], "(expected: ninety-nine)")
+
+// --- Map as Lookup Table ---
+print("\n--- Lookup Table ---")
+dayMap = {}
+dayMap[1] = "Monday"
+dayMap[2] = "Tuesday"
+dayMap[3] = "Wednesday"
+dayMap[4] = "Thursday"
+dayMap[5] = "Friday"
+dayMap[6] = "Saturday"
+dayMap[7] = "Sunday"
+
+print("Day 1:", dayMap[1], "(expected: Monday)")
+print("Day 5:", dayMap[5], "(expected: Friday)")
+print("Day 7:", dayMap[7], "(expected: Sunday)")
+
+// --- Map as Counter ---
+print("\n--- Frequency Counter ---")
+freq = {}
+data = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
+
+i = 0
+while (i < 10) {
+    key = data[i]
+    if (freq.has(key)) {
+        freq[key] = freq[key] + 1
+    } else {
+        freq[key] = 1
+    }
+    i = i + 1
+}
+print("freq[1]:", freq[1], "(expected: 2)")
+print("freq[5]:", freq[5], "(expected: 2)")
+print("freq[9]:", freq[9], "(expected: 1)")
+print("freq[3]:", freq[3], "(expected: 2)")
+
+// --- Map in Function ---
+print("\n--- Map as Function Param ---")
+func getMapVal(dict, key) {
+    return dict[key]
+}
+func setMapVal(dict, key, val) {
+    dict[key] = val
+}
+config = {}
+setMapVal(config, "debug", 1)
+setMapVal(config, "maxRetries", 3)
+print("debug:", getMapVal(config, "debug"), "(expected: 1)")
+print("maxRetries:", getMapVal(config, "maxRetries"), "(expected: 3)")
+
+// --- Empty Map ---
+print("\n--- Empty Map ---")
+emptyMap = {}
+print("has key in empty:", emptyMap.has("nothing"), "(expected: false)")
+
+// --- Overwrite Stress ---
+print("\n--- Overwrite Stress ---")
+ow = {}
+ow["x"] = 1
+ow["x"] = 2
+ow["x"] = 3
+ow["x"] = 4
+ow["x"] = 5
+print("After 5 overwrites:", ow["x"], "(expected: 5)")
+
+elapsed = t.millis() - start
+print("\nAll map tests completed in", elapsed, "ms")
+print("Map stress test finished.")
