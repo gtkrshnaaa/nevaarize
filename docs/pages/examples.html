@@ -88,13 +88,22 @@
                 <header class="chapter-header">
                     <span class="chapter-number">Reference</span>
                     <h1 class="chapter-title">Examples</h1>
-                    <p class="chapter-subtitle">41 working examples to explore</p>
+                    <p class="chapter-subtitle">64 verified example programs</p>
                 </header>
                 
-                <p>Nevaarize ships with 41 working examples covering various topics. 
-                All examples are in the <code>examples/</code> directory.</p>
+                <p>Nevaarize ships with 64 example programs covering algorithms, async, 
+                benchmarks, modules, and real-world patterns. All examples are in the 
+                <code>examples/</code> directory.</p>
                 
-                <h2>Basics</h2>
+                <div class="callout callout-warning">
+                    <div class="callout-title">Verification Scope</div>
+                    <p>Only scripts listed on this page (inside the <code>examples/</code> directory) 
+                    have been <strong>verified to run correctly</strong>. Scripts written outside these 
+                    examples may work for similar patterns, but are not guaranteed to be free of 
+                    issues. See <code>examples/verification_report.txt</code> for full test results.</p>
+                </div>
+                
+                <h2>Standalone Examples</h2>
                 
                 <div class="table-wrapper"><table>
                     <thead>
@@ -105,47 +114,49 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><code>basics/helloWorld.nva</code></td>
-                            <td>Your first Nevaarize program</td>
+                            <td><code>basics.nva</code></td>
+                            <td>Variables, operators, control flow, functions, arrays</td>
                         </tr>
                         <tr>
-                            <td><code>basics/variables.nva</code></td>
-                            <td>Variable types and assignment</td>
+                            <td><code>advanced.nva</code></td>
+                            <td>Iterative algorithms and complex array operations</td>
                         </tr>
                         <tr>
-                            <td><code>basics/operators.nva</code></td>
-                            <td>Arithmetic and logical operators</td>
+                            <td><code>asyncAwait.nva</code></td>
+                            <td>Async/await pattern demonstration</td>
                         </tr>
                         <tr>
-                            <td><code>basics/controlFlow.nva</code></td>
-                            <td>If, elif, else statements</td>
+                            <td><code>concurrentStress.nva</code></td>
+                            <td>Concurrent stress testing (fan-out, GC pressure, etc.)</td>
                         </tr>
                         <tr>
-                            <td><code>basics/loops.nva</code></td>
-                            <td>For and while loops</td>
+                            <td><code>exceptionDemo.nva</code></td>
+                            <td>Try/catch/finally and exception handling</td>
                         </tr>
                         <tr>
-                            <td><code>basics/functions.nva</code></td>
-                            <td>Function definitions and calls</td>
+                            <td><code>gcDemo.nva</code></td>
+                            <td>Garbage collector behavior demonstration</td>
                         </tr>
                         <tr>
-                            <td><code>basics/arrays.nva</code></td>
-                            <td>Array operations</td>
+                            <td><code>mapDemo.nva</code></td>
+                            <td>Map (hash table) operations</td>
                         </tr>
                         <tr>
-                            <td><code>basics/structs.nva</code></td>
-                            <td>Custom data types</td>
+                            <td><code>modelInference.nva</code></td>
+                            <td>AI model training and inference demo</td>
                         </tr>
                     </tbody>
                 </table></div>
                 
                 <h3>Running an Example</h3>
                 
-                <pre data-lang="bash"><code>./bin/nevaarize examples/basics/helloWorld.nva</code></pre>
+                <pre data-lang="bash"><code>./bin/nevaarize examples/basics.nva</code></pre>
                 
                 <hr>
                 
-                <h2>Recursion</h2>
+                <h2>Algorithms (<code>algorithm/</code>)</h2>
+                
+                <p>15 algorithm implementations covering sorting, searching, math, and more:</p>
                 
                 <div class="table-wrapper"><table>
                     <thead>
@@ -156,31 +167,71 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><code>recursion/factorial.nva</code></td>
-                            <td>Classic factorial function</td>
+                            <td><code>algorithm/arrayManipulation.nva</code></td>
+                            <td>Reverse, rotation, prefix sum, min/max</td>
                         </tr>
                         <tr>
-                            <td><code>recursion/fibonacci.nva</code></td>
-                            <td>Fibonacci sequence</td>
+                            <td><code>algorithm/binarySearch.nva</code></td>
+                            <td>Binary search with lower/upper bound</td>
                         </tr>
                         <tr>
-                            <td><code>recursion/sumArray.nva</code></td>
-                            <td>Recursive array sum</td>
+                            <td><code>algorithm/bitwiseOps.nva</code></td>
+                            <td>Popcount, power-of-2, binary conversion</td>
                         </tr>
                         <tr>
-                            <td><code>recursion/countdown.nva</code></td>
-                            <td>Countdown example</td>
+                            <td><code>algorithm/bubbleSort.nva</code></td>
+                            <td>Bubble sort and cocktail shaker sort</td>
                         </tr>
                         <tr>
-                            <td><code>recursion/gcd.nva</code></td>
-                            <td>Greatest common divisor</td>
+                            <td><code>algorithm/dynamicProgramming.nva</code></td>
+                            <td>Climbing stairs, Kadane's algorithm, LIS</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/floatingPoint.nva</code></td>
+                            <td>Newton's sqrt, integer sqrt, modular power</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/geometry.nva</code></td>
+                            <td>Distance, triangle area, bounding box, collinearity</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/insertionSort.nva</code></td>
+                            <td>Insertion sort and selection sort</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/linearSearch.nva</code></td>
+                            <td>Linear search, sentinel search, count occurrences</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/mathBasics.nva</code></td>
+                            <td>Factorial, fibonacci, power, summation</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/matrixOps.nva</code></td>
+                            <td>Matrix add, multiply, transpose, trace</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/numberTheory.nva</code></td>
+                            <td>GCD, LCM, primality test</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/primeGeneration.nva</code></td>
+                            <td>Prime factor, divisor count, prime check</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/stackQueue.nva</code></td>
+                            <td>Stack (LIFO) and Queue (FIFO) with arrays</td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm/twoPointers.nva</code></td>
+                            <td>Pair sum, Dutch national flag, merge sorted</td>
                         </tr>
                     </tbody>
                 </table></div>
                 
                 <hr>
                 
-                <h2>Async</h2>
+                <h2>Benchmarks (<code>benchmarks/</code>)</h2>
                 
                 <div class="table-wrapper"><table>
                     <thead>
@@ -191,23 +242,21 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><code>async/asyncBasic.nva</code></td>
-                            <td>Basic async/await pattern</td>
-                        </tr>
-                        <tr>
-                            <td><code>async/parallelFetch.nva</code></td>
-                            <td>Parallel data fetching</td>
-                        </tr>
-                        <tr>
-                            <td><code>async/taskQueue.nva</code></td>
-                            <td>Async task queue</td>
+                            <td><code>benchmarks/benchmark.nva</code></td>
+                            <td>Full benchmark suite (integer, float, control flow, function call, array)</td>
                         </tr>
                     </tbody>
                 </table></div>
                 
+                <h3>Run Benchmarks</h3>
+                
+                <pre data-lang="bash"><code>./bin/nevaarize examples/benchmarks/benchmark.nva</code></pre>
+                
                 <hr>
                 
-                <h2>Benchmarks</h2>
+                <h2>Modules (<code>modules/</code>)</h2>
+                
+                <p>Demonstrates the module import system with multi-file project structure:</p>
                 
                 <div class="table-wrapper"><table>
                     <thead>
@@ -218,96 +267,37 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><code>benchmarks/nativeJIT.nva</code></td>
-                            <td>Native JIT performance (500M+ ops/sec)</td>
+                            <td><code>modules/main.nva</code></td>
+                            <td>Entry point that imports and uses other modules</td>
                         </tr>
                         <tr>
-                            <td><code>benchmarks/trueJIT.nva</code></td>
-                            <td>TRUE JIT compilation demo</td>
-                        </tr>
-                        <tr>
-                            <td><code>benchmarks/simd.nva</code></td>
-                            <td>SIMD vectorization benchmark</td>
-                        </tr>
-                        <tr>
-                            <td><code>benchmarks/aiCore.nva</code></td>
-                            <td>Matrix multiply & AI operations</td>
-                        </tr>
-                    </tbody>
-                </table></div>
-                
-                <h3>Run All Benchmarks</h3>
-                
-                <pre data-lang="bash"><code># Native JIT
-./bin/nevaarize examples/benchmarks/nativeJIT.nva
-
-# SIMD
-./bin/nevaarize examples/benchmarks/simd.nva
-
-# AI Core
-./bin/nevaarize examples/benchmarks/aiCore.nva</code></pre>
-                
-                <hr>
-                
-                <h2>Design Patterns</h2>
-                
-                <div class="table-wrapper"><table>
-                    <thead>
-                        <tr>
-                            <th>File</th>
-                            <th>Description</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>patterns/cache.nva</code></td>
-                            <td>In-memory caching</td>
-                        </tr>
-                        <tr>
-                            <td><code>patterns/crud.nva</code></td>
-                            <td>Create, Read, Update, Delete</td>
-                        </tr>
-                        <tr>
-                            <td><code>patterns/eventEmitter.nva</code></td>
-                            <td>Pub/sub pattern</td>
-                        </tr>
-                        <tr>
-                            <td><code>patterns/stateMachine.nva</code></td>
-                            <td>Finite state machine</td>
-                        </tr>
-                    </tbody>
-                </table></div>
-                
-                <hr>
-                
-                <h2>Modules</h2>
-                
-                <div class="table-wrapper"><table>
-                    <thead>
-                        <tr>
-                            <th>File</th>
-                            <th>Description</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>modules/config.nva</code></td>
+                            <td><code>modules/config/settings.nva</code></td>
                             <td>Configuration module</td>
                         </tr>
                         <tr>
-                            <td><code>modules/logger.nva</code></td>
-                            <td>Logging utilities</td>
+                            <td><code>modules/lib/math.nva</code></td>
+                            <td>Custom math utilities (square, cube, abs, etc.)</td>
                         </tr>
                         <tr>
-                            <td><code>modules/validation.nva</code></td>
-                            <td>Input validation</td>
+                            <td><code>modules/lib/arrays.nva</code></td>
+                            <td>Array helper functions (sum, max, min)</td>
+                        </tr>
+                        <tr>
+                            <td><code>modules/lib/strings.nva</code></td>
+                            <td>String manipulation utilities</td>
+                        </tr>
+                        <tr>
+                            <td><code>modules/lib/utils/logger.nva</code></td>
+                            <td>Nested logging utility module</td>
                         </tr>
                     </tbody>
                 </table></div>
                 
                 <hr>
                 
-                <h2>Utilities</h2>
+                <h2>Rich Code Samples (<code>richcodesample/</code>)</h2>
+                
+                <p>25 advanced examples demonstrating complex patterns and real-world use cases:</p>
                 
                 <div class="table-wrapper"><table>
                     <thead>
@@ -318,19 +308,118 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><code>utils/arrays.nva</code></td>
-                            <td>Array helper functions</td>
+                            <td><code>richcodesample/asyncOrchestrator.nva</code></td>
+                            <td>Parallel task orchestration with async</td>
                         </tr>
                         <tr>
-                            <td><code>utils/strings.nva</code></td>
-                            <td>String manipulation</td>
+                            <td><code>richcodesample/bitOps.nva</code></td>
+                            <td>Bit manipulation operations</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/cryptoSystem.nva</code></td>
+                            <td>Caesar cipher and crypto simulation</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/dataProcessor.nva</code></td>
+                            <td>CSV-like data processing pipeline</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/dataStructures.nva</code></td>
+                            <td>Linked list, tree, and graph structures</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/expressionParser.nva</code></td>
+                            <td>Mathematical expression parser</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/gameOfLife.nva</code></td>
+                            <td>Conway's Game of Life simulation</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/graphAlgorithms.nva</code></td>
+                            <td>Graph traversal (BFS, DFS)</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/imageFilters.nva</code></td>
+                            <td>Image filter simulation with matrices</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/jsonValidator.nva</code></td>
+                            <td>JSON structure validation</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/knnClassifier.nva</code></td>
+                            <td>K-Nearest Neighbors classifier</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/linearRegression.nva</code></td>
+                            <td>Simple linear regression</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/mandelbrot.nva</code></td>
+                            <td>Mandelbrot set ASCII renderer</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/matrixOps2.nva</code></td>
+                            <td>Extended matrix operations</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/monteCarlo.nva</code></td>
+                            <td>Monte Carlo Pi estimation</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/neuralNetwork.nva</code></td>
+                            <td>Simple neural network from scratch</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/numberTheory.nva</code></td>
+                            <td>Advanced number theory algorithms</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/physicsSim.nva</code></td>
+                            <td>Physics simulation (projectile motion)</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/producerConsumer.nva</code></td>
+                            <td>Producer-consumer pattern with async</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/recursiveComp.nva</code></td>
+                            <td>Recursive computation patterns</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/sortingBattle.nva</code></td>
+                            <td>Sorting algorithm comparison</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/stringToolkit.nva</code></td>
+                            <td>String manipulation toolkit</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/sudokuSolver.nva</code></td>
+                            <td>Sudoku solver with backtracking</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/textSearch.nva</code></td>
+                            <td>Text search and pattern matching</td>
+                        </tr>
+                        <tr>
+                            <td><code>richcodesample/vectorEngine.nva</code></td>
+                            <td>Vector math engine (dot product, etc.)</td>
                         </tr>
                     </tbody>
                 </table></div>
+
+                <p>The <code>richcodesample/</code> directory also includes multi-file modular examples:</p>
+                
+                <ul>
+                    <li><code>richcodesample/modular/</code> — Modular app with models and utils</li>
+                    <li><code>richcodesample/deepModular/</code> — Deeply nested module imports</li>
+                </ul>
                 
                 <hr>
                 
-                <h2>Real World</h2>
+                <h2>Stdlib Tests (<code>stdlibtest/</code>)</h2>
                 
                 <div class="table-wrapper"><table>
                     <thead>
@@ -341,12 +430,16 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><code>realworld/dataPipeline.nva</code></td>
-                            <td>Data processing pipeline</td>
+                            <td><code>stdlibtest/stdCsv/stdCsv.nva</code></td>
+                            <td>CSV stdlib module test</td>
                         </tr>
                         <tr>
-                            <td><code>server/modelServer.nva</code></td>
-                            <td>Model serving example</td>
+                            <td><code>stdlibtest/stdJson/stdJson.nva</code></td>
+                            <td>JSON stdlib module test</td>
+                        </tr>
+                        <tr>
+                            <td><code>stdlibtest/stdString/stdString.nva</code></td>
+                            <td>String stdlib module test</td>
                         </tr>
                     </tbody>
                 </table></div>
@@ -355,42 +448,57 @@
                 
                 <h2>Quick Code Samples</h2>
                 
-                <h3>Hello World</h3>
+                <h3>Basics</h3>
                 
-                <pre data-lang="nevaarize"><code>// examples/basics/helloWorld.nva
-print("Hello, World!")
-print("Welcome to Nevaarize - Native JIT Performance")</code></pre>
+                <pre data-lang="nevaarize"><code>// examples/basics.nva (excerpt)
+x = 42
+pi = 3.14
+name = "Nevaarize"
+
+func add(a, b) {
+    return a + b
+}
+
+print("add(7, 3):", add(7, 3))</code></pre>
                 
-                <h3>Fibonacci</h3>
+                <h3>Fibonacci (from algorithm/mathBasics.nva)</h3>
                 
-                <pre data-lang="nevaarize"><code>// examples/recursion/fibonacci.nva
+                <pre data-lang="nevaarize"><code>// Iterative fibonacci
 func fib(n) {
     if (n <= 1) {
         return n
     }
-    return fib(n - 1) + fib(n - 2)
-}
-
-for (i in Range(1, 15)) {
-    print("fib(" + str(i) + ") =", fib(i))
-}</code></pre>
-                
-                <h3>State Machine</h3>
-                
-                <pre data-lang="nevaarize"><code>// examples/patterns/stateMachine.nva
-orderState = "pending"
-
-func confirmOrder() {
-    if (orderState == "pending") {
-        orderState = "confirmed"
-        print("Order confirmed!")
-        return true
+    a = 0
+    b = 1
+    for (i in Range(2, n + 1)) {
+        temp = a + b
+        a = b
+        b = temp
     }
-    print("Cannot confirm in state:", orderState)
-    return false
+    return b
 }
 
-confirmOrder()  // Order confirmed!</code></pre>
+print("fib(10) =", fib(10))  // 55
+print("fib(20) =", fib(20))  // 6765</code></pre>
+                
+                <h3>Bubble Sort (from algorithm/bubbleSort.nva)</h3>
+                
+                <pre data-lang="nevaarize"><code>func bubbleSort(arr) {
+    n = len(arr)
+    for (i in Range(0, n)) {
+        for (j in Range(0, n - i - 1)) {
+            if (arr[j] > arr[j + 1]) {
+                temp = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = temp
+            }
+        }
+    }
+    return arr
+}
+
+data = [64, 34, 25, 12, 22, 11, 90]
+bubbleSort(data)</code></pre>
                 
                 <hr>
                 
