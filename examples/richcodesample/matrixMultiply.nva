@@ -1,0 +1,130 @@
+import stdlib time as t
+
+// Matrix Multiplication Edge Cases
+// Tests matrix multiply, identity, transpose using flat arrays with computed indices.
+
+print("=== Nevaarize Matrix Multiply ===\n")
+
+start = t.millis()
+
+// 3x3 matrix stored as flat array, index = row * cols + col
+
+// --- Matrix Multiply ---
+print("--- 3x3 Matrix Multiply ---")
+// A = [[1,2,3],[4,5,6],[7,8,9]]
+matA = [1,2,3, 4,5,6, 7,8,9]
+// B = [[9,8,7],[6,5,4],[3,2,1]]
+matB = [9,8,7, 6,5,4, 3,2,1]
+// Result C = A * B
+matC = [0,0,0, 0,0,0, 0,0,0]
+
+i = 0
+while (i < 3) {
+    j = 0
+    while (j < 3) {
+        sum = 0
+        k = 0
+        while (k < 3) {
+            sum = sum + matA[i * 3 + k] * matB[k * 3 + j]
+            k = k + 1
+        }
+        matC[i * 3 + j] = sum
+        j = j + 1
+    }
+    i = i + 1
+}
+// C[0][0] = 1*9 + 2*6 + 3*3 = 9+12+9 = 30
+// C[0][1] = 1*8 + 2*5 + 3*2 = 8+10+6 = 24
+// C[1][0] = 4*9 + 5*6 + 6*3 = 36+30+18 = 84
+print("C[0][0]:", matC[0], "(expected: 30)")
+print("C[0][1]:", matC[1], "(expected: 24)")
+print("C[1][0]:", matC[3], "(expected: 84)")
+
+// --- Identity Multiply ---
+print("\n--- Identity Matrix ---")
+ident = [1,0,0, 0,1,0, 0,0,1]
+result = [0,0,0, 0,0,0, 0,0,0]
+
+i = 0
+while (i < 3) {
+    j = 0
+    while (j < 3) {
+        sum = 0
+        k = 0
+        while (k < 3) {
+            sum = sum + matA[i * 3 + k] * ident[k * 3 + j]
+            k = k + 1
+        }
+        result[i * 3 + j] = sum
+        j = j + 1
+    }
+    i = i + 1
+}
+// A * I should equal A
+match = 1
+i = 0
+while (i < 9) {
+    if (result[i] != matA[i]) { match = 0 }
+    i = i + 1
+}
+print("A * I == A:", match, "(expected: 1)")
+
+// --- Transpose ---
+print("\n--- Transpose ---")
+trans = [0,0,0, 0,0,0, 0,0,0]
+i = 0
+while (i < 3) {
+    j = 0
+    while (j < 3) {
+        trans[j * 3 + i] = matA[i * 3 + j]
+        j = j + 1
+    }
+    i = i + 1
+}
+// A = [[1,2,3],[4,5,6],[7,8,9]]
+// A^T = [[1,4,7],[2,5,8],[3,6,9]]
+print("T[0][1]:", trans[1], "(expected: 4)")
+print("T[1][0]:", trans[3], "(expected: 2)")
+print("T[2][0]:", trans[6], "(expected: 3)")
+
+// --- Diagonal Sum (Trace) ---
+print("\n--- Trace ---")
+trace = 0
+i = 0
+while (i < 3) {
+    trace = trace + matA[i * 3 + i]
+    i = i + 1
+}
+print("Trace(A):", trace, "(expected: 15)")
+
+// --- Zero Matrix ---
+print("\n--- Zero Matrix ---")
+zero = [0,0,0,0]
+zResult = [0,0,0,0]
+oneTwo = [1,2,3,4]
+i = 0
+while (i < 2) {
+    j = 0
+    while (j < 2) {
+        sum = 0
+        k = 0
+        while (k < 2) {
+            sum = sum + zero[i * 2 + k] * oneTwo[k * 2 + j]
+            k = k + 1
+        }
+        zResult[i * 2 + j] = sum
+        j = j + 1
+    }
+    i = i + 1
+}
+allZero = 1
+i = 0
+while (i < 4) {
+    if (zResult[i] != 0) { allZero = 0 }
+    i = i + 1
+}
+print("Zero * Any == Zero:", allZero, "(expected: 1)")
+
+elapsed = t.millis() - start
+print("\nAll matrix tests completed in", elapsed, "ms")
+print("Matrix multiply finished.")
