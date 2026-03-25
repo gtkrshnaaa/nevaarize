@@ -1,0 +1,121 @@
+import stdlib time as t
+
+// Bitwise Operations Stress Test
+// Uses integer arithmetic to simulate bit operations.
+
+print("=== Nevaarize Bitwise Stress Test ===\n")
+
+start = t.millis()
+
+// --- Popcount ---
+print("--- Popcount ---")
+func popcount(n) {
+    count = 0
+    while (n > 0) {
+        if (n % 2 == 1) { count = count + 1 }
+        n = n / 2
+    }
+    return count
+}
+print("popcount(0):", popcount(0), "(expected: 0)")
+print("popcount(1):", popcount(1), "(expected: 1)")
+print("popcount(7):", popcount(7), "(expected: 3)")
+print("popcount(255):", popcount(255), "(expected: 8)")
+print("popcount(1023):", popcount(1023), "(expected: 10)")
+
+// --- Power of 2 ---
+print("\n--- Power of 2 ---")
+func isPow2(n) {
+    if (n < 1) { return 0 }
+    while (n > 1) {
+        if (n % 2 != 0) { return 0 }
+        n = n / 2
+    }
+    return 1
+}
+print("isPow2(1):", isPow2(1), "(expected: 1)")
+print("isPow2(2):", isPow2(2), "(expected: 1)")
+print("isPow2(4):", isPow2(4), "(expected: 1)")
+print("isPow2(8):", isPow2(8), "(expected: 1)")
+print("isPow2(1024):", isPow2(1024), "(expected: 1)")
+print("isPow2(6):", isPow2(6), "(expected: 0)")
+print("isPow2(0):", isPow2(0), "(expected: 0)")
+
+// --- Extract Bits ---
+print("\n--- Bit Extraction ---")
+val = 171  // binary: 10101011
+bit0 = val % 2
+bit1 = (val / 2) % 2
+bit2 = (val / 4) % 2
+bit3 = (val / 8) % 2
+bit7 = (val / 128) % 2
+print("171 bits [7,3,2,1,0]:", bit7, bit3, bit2, bit1, bit0, "(expected: 1 1 0 1 1)")
+
+// --- Flag Simulation ---
+print("\n--- Flag Simulation ---")
+func checkFlag(value, mask) {
+    return (value / mask) % 2 == 1
+}
+ADMIN = 1
+EDITOR = 2
+VIEWER = 4
+
+perms = ADMIN + EDITOR + VIEWER
+print("Has ADMIN:", checkFlag(perms, ADMIN), "(expected: true)")
+print("Has EDITOR:", checkFlag(perms, EDITOR), "(expected: true)")
+print("Has VIEWER:", checkFlag(perms, VIEWER), "(expected: true)")
+
+perms2 = ADMIN + VIEWER
+print("Has EDITOR:", checkFlag(perms2, EDITOR), "(expected: false)")
+
+// --- Powers of 2 via multiplication ---
+print("\n--- Powers of 2 ---")
+p = 1
+i = 0
+while (i < 16) {
+    print("2^", i, "=", p)
+    p = p * 2
+    i = i + 1
+}
+
+// --- Parity ---
+print("\n--- Parity ---")
+func parity(n) {
+    p = 0
+    while (n > 0) {
+        rem = n % 2
+        if (rem == 1) {
+            if (p == 0) { p = 1 }
+            else { p = 0 }
+        }
+        n = n / 2
+    }
+    return p
+}
+print("Parity(0):", parity(0), "(expected: 0)")
+print("Parity(1):", parity(1), "(expected: 1)")
+print("Parity(3):", parity(3), "(expected: 0)")
+print("Parity(7):", parity(7), "(expected: 1)")
+print("Parity(255):", parity(255), "(expected: 0)")
+
+// --- Binary Conversion ---
+print("\n--- To Binary ---")
+func toBinary(n) {
+    if (n == 0) { return 0 }
+    result = 0
+    place = 1
+    while (n > 0) {
+        bit = n % 2
+        result = result + bit * place
+        place = place * 10
+        n = n / 2
+    }
+    return result
+}
+print("13 binary:", toBinary(13), "(expected: 1101)")
+print("255 binary:", toBinary(255), "(expected: 11111111)")
+print("0 binary:", toBinary(0), "(expected: 0)")
+
+elapsed = t.millis() - start
+print("\nAll bitwise tests completed in", elapsed, "ms")
+print("Bitwise stress test finished.")
