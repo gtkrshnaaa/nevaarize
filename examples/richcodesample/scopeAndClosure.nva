@@ -1,0 +1,110 @@
+import stdlib time as t
+
+// Scope and Closure Stress Test
+// Tests variable scoping, shadowing, function interactions, and return patterns.
+
+print("=== Nevaarize Scope & Closure Stress Test ===\n")
+
+start = t.millis()
+
+// --- Global Variable Access ---
+print("--- Global Variables ---")
+globalVal = 100
+func readGlobal() {
+    return globalVal
+}
+print("Read global:", readGlobal(), "(expected: 100)")
+
+// --- Function Local Scope ---
+print("\n--- Local Scope ---")
+func localScope() {
+    localVar = 42
+    return localVar
+}
+print("Local var:", localScope(), "(expected: 42)")
+
+// --- Variable Shadowing ---
+print("\n--- Variable Shadowing ---")
+x = 10
+func shadow() {
+    x = 99
+    return x
+}
+shadowResult = shadow()
+print("Shadow func returned:", shadowResult, "(expected: 99)")
+print("Outer x after shadow:", x)
+
+// --- Function Modifying Array ---
+print("\n--- Array Mutation via Function ---")
+func setElement(arr, idx, val) {
+    arr[idx] = val
+}
+testArr = [1, 2, 3, 4, 5]
+print("Before:", testArr[2], "(expected: 3)")
+setElement(testArr, 2, 99)
+print("After setElement:", testArr[2], "(expected: 99)")
+
+// --- Nested Function Calls ---
+print("\n--- Nested Functions ---")
+func add(a, b) { return a + b }
+func mul(a, b) { return a * b }
+func addMul(a, b, c) {
+    return add(mul(a, b), c)
+}
+print("addMul(3,4,5):", addMul(3, 4, 5), "(expected: 17)")
+
+// --- Recursion Test (safe depth) ---
+print("\n--- Recursion ---")
+func factorial(n) {
+    if (n < 2) { return 1 }
+    return n * factorial(n - 1)
+}
+print("factorial(5):", factorial(5), "(expected: 120)")
+print("factorial(10):", factorial(10), "(expected: 3628800)")
+
+// Iterative count (avoids recursion limit)
+func iterCount(n) {
+    c = 0
+    while (c < n) { c = c + 1 }
+    return c
+}
+print("iterCount(100):", iterCount(100), "(expected: 100)")
+
+// --- Return Value Chain ---
+print("\n--- Return Value Chain ---")
+func identity(x) { return x }
+func double(x) { return x * 2 }
+func quadruple(x) { return double(double(x)) }
+print("quadruple(5):", quadruple(5), "(expected: 20)")
+print("identity(0):", identity(0), "(expected: 0)")
+print("identity(-1):", identity(-1), "(expected: -1)")
+
+// --- Multiple Return Points ---
+print("\n--- Multiple Return Points ---")
+func classify(n) {
+    if (n < 0) { return "negative" }
+    if (n == 0) { return "zero" }
+    if (n < 10) { return "small" }
+    if (n < 100) { return "medium" }
+    return "large"
+}
+print("classify(-5):", classify(-5), "(expected: negative)")
+print("classify(0):", classify(0), "(expected: zero)")
+print("classify(7):", classify(7), "(expected: small)")
+print("classify(42):", classify(42), "(expected: medium)")
+print("classify(999):", classify(999), "(expected: large)")
+
+// --- Function as Counter ---
+print("\n--- Counter Pattern ---")
+counter = [0]
+func increment() {
+    counter[0] = counter[0] + 1
+}
+increment()
+increment()
+increment()
+print("Counter after 3 increments:", counter[0], "(expected: 3)")
+
+elapsed = t.millis() - start
+print("\nAll scope tests completed in", elapsed, "ms")
+print("Scope and closure stress test finished.")
