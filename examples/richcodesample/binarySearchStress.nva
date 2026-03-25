@@ -1,0 +1,120 @@
+import stdlib time as t
+
+// Binary Search Stress Test  
+// Uses lower-bound approach with unique variables per search to avoid JIT state issues.
+
+print("=== Nevaarize Binary Search Stress Test ===\n")
+
+start = t.millis()
+
+sorted = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
+
+// --- Find 23 ---
+print("--- Find 23 ---")
+lo1 = 0
+hi1 = 10
+while (lo1 < hi1) {
+    mid1 = (lo1 + hi1) / 2
+    if (sorted[mid1] < 23) {
+        lo1 = mid1 + 1
+    } else {
+        hi1 = mid1
+    }
+}
+print("Position:", lo1, "(expected: 5)")
+
+// --- Find 2 ---
+print("--- Find 2 ---")
+lo2 = 0
+hi2 = 10
+while (lo2 < hi2) {
+    mid2 = (lo2 + hi2) / 2
+    if (sorted[mid2] < 2) {
+        lo2 = mid2 + 1
+    } else {
+        hi2 = mid2
+    }
+}
+print("Position:", lo2, "(expected: 0)")
+
+// --- Find 91 ---
+print("--- Find 91 ---")
+lo3 = 0
+hi3 = 10
+while (lo3 < hi3) {
+    mid3 = (lo3 + hi3) / 2
+    if (sorted[mid3] < 91) {
+        lo3 = mid3 + 1
+    } else {
+        hi3 = mid3
+    }
+}
+print("Position:", lo3, "(expected: 9)")
+
+// --- Lower Bound in Duplicates ---
+print("\n--- Lower Bound ---")
+dups = [1, 2, 2, 2, 3, 4, 5]
+
+lo4 = 0
+hi4 = 7
+while (lo4 < hi4) {
+    mid4 = (lo4 + hi4) / 2
+    if (dups[mid4] < 2) {
+        lo4 = mid4 + 1
+    } else {
+        hi4 = mid4
+    }
+}
+print("Lower bound of 2:", lo4, "(expected: 1)")
+
+lo5 = 0
+hi5 = 7
+while (lo5 < hi5) {
+    mid5 = (lo5 + hi5) / 2
+    if (dups[mid5] < 3) {
+        lo5 = mid5 + 1
+    } else {
+        hi5 = mid5
+    }
+}
+print("Lower bound of 3:", lo5, "(expected: 4)")
+
+// --- Large Array ---
+print("\n--- Large Array ---")
+large = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+li = 0
+while (li < 50) {
+    large[li] = li * 3
+    li = li + 1
+}
+
+lo6 = 0
+hi6 = 50
+while (lo6 < hi6) {
+    mid6 = (lo6 + hi6) / 2
+    if (large[mid6] < 75) {
+        lo6 = mid6 + 1
+    } else {
+        hi6 = mid6
+    }
+}
+print("Find 75:", lo6, "(expected: 25)")
+
+// --- Insertion Point ---
+print("\n--- Insert Position ---")
+ins = [2, 5, 8, 12, 16, 23]
+lo7 = 0
+hi7 = 6
+while (lo7 < hi7) {
+    mid7 = (lo7 + hi7) / 2
+    if (ins[mid7] < 15) {
+        lo7 = mid7 + 1
+    } else {
+        hi7 = mid7
+    }
+}
+print("Insert pos for 15:", lo7, "(expected: 4)")
+
+elapsed = t.millis() - start
+print("\nAll binary search tests completed in", elapsed, "ms")
+print("Binary search stress test finished.")
