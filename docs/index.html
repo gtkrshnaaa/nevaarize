@@ -112,6 +112,15 @@
                 </header>
                 
                 <hr>
+
+                <div class="callout callout-warning">
+                    <div class="callout-title">Early Development</div>
+                    <p>Nevaarize is under <strong>active development</strong>. Only scripts inside the 
+                    <code>examples/</code> directory have been verified to run correctly. 
+                    Scripts outside the provided examples may encounter unexpected behavior 
+                    or unsupported edge cases. Features documented here describe the language's 
+                    design goals and current capabilities as demonstrated by the example programs.</p>
+                </div>
                 
                 <!-- Features -->
                 <section class="features">
@@ -164,8 +173,8 @@
                         <div class="feature-icon"></div>
                         <h3 class="feature-title">Clean Syntax</h3>
                         <p class="feature-description">
-                            Python-inspired syntax that's easy to read and write. 
-                            No semicolons, no curly bracket debates.
+                            Readable syntax that's easy to learn and write. 
+                            No semicolons required, dynamic typing, and familiar control flow.
                         </p>
                     </div>
                 </section>
@@ -209,7 +218,7 @@ print("Results:", result1, result2)</code></pre>
 
                 <h3>Native JIT Performance</h3>
                 
-                <pre data-lang="nevaarize"><code>// Benchmark: 4000M+ operations per second
+                <pre data-lang="nevaarize"><code>// JIT benchmark (results vary by hardware)
 iterations = 1000000000
 
 result = nativeSumLoop(iterations)
