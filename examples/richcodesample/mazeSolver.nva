@@ -1,0 +1,207 @@
+import stdlib time as t
+import stdlib math as m
+
+// Maze Solver using BFS Pathfinding
+// Demonstrates queue-based BFS traversal, boundary validation,
+// and shortest path reconstruction on a 2D grid.
+
+// Grid encoding: 0=wall, 1=path, 2=visited, 3=solution path
+func createMaze(w, h) {
+    grid = []
+    total = w * h
+    i = 0
+    while (i < total) {
+        grid.push(0)
+        i = i + 1
+    }
+    return grid
+}
+
+func setMazeCell(grid, w, x, y, val) {
+    grid[y * w + x] = val
+}
+
+func getMazeCell(grid, w, x, y) {
+    return grid[y * w + x]
+}
+
+func solveMaze(maze, w, h, startX, startY, endX, endY) {
+    // BFS queue: stores encoded positions (y * w + x)
+    queueX = []
+    queueY = []
+    parentMap = []
+
+    total = w * h
+    i = 0
+    while (i < total) {
+        parentMap.push(-1)
+        i = i + 1
+    }
+
+    queueX.push(startX)
+    queueY.push(startY)
+    parentMap[startY * w + startX] = startY * w + startX
+    maze[startY * w + startX] = 2
+
+    head = 0
+    found = 0
+
+    // Direction vectors: right, down, left, up
+    dirX = [1, 0, -1, 0]
+    dirY = [0, 1, 0, -1]
+
+    while (head < queueX.size() and found == 0) {
+        cx = queueX[head]
+        cy = queueY[head]
+        head = head + 1
+
+        if (cx == endX and cy == endY) {
+            found = 1
+        } else {
+            d = 0
+            while (d < 4) {
+                nx = cx + dirX[d]
+                ny = cy + dirY[d]
+                if (nx >= 0 and nx < w and ny >= 0 and ny < h) {
+                    if (getMazeCell(maze, w, nx, ny) == 1) {
+                        maze[ny * w + nx] = 2
+                        parentMap[ny * w + nx] = cy * w + cx
+                        queueX.push(nx)
+                        queueY.push(ny)
+                    }
+                }
+                d = d + 1
+            }
+        }
+    }
+
+    // Reconstruct path
+    if (found == 1) {
+        pathLen = 0
+        px = endX
+        py = endY
+        while (px != startX or py != startY) {
+            maze[py * w + px] = 3
+            parent = parentMap[py * w + px]
+            py = parent / w
+            px = parent % w
+            pathLen = pathLen + 1
+        }
+        maze[startY * w + startX] = 3
+        return pathLen
+    }
+    return -1
+}
+
+func printMaze(maze, w, h) {
+    y = 0
+    while (y < h) {
+        x = 0
+        while (x < w) {
+            cell = maze[y * w + x]
+            if (cell == 0) {
+                print("#", " ")
+            } elif (cell == 1) {
+                print(".", " ")
+            } elif (cell == 2) {
+                print("~", " ")
+            } elif (cell == 3) {
+                print("*", " ")
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+}
+
+// Main Execution
+print("=== Nevaarize Maze Solver ===")
+
+w = 9
+h = 9
+maze = createMaze(w, h)
+
+// Build maze layout (1 = walkable path)
+// Row 0
+setMazeCell(maze, w, 0, 0, 1)
+setMazeCell(maze, w, 1, 0, 1)
+setMazeCell(maze, w, 2, 0, 1)
+// Row 1
+setMazeCell(maze, w, 0, 1, 1)
+setMazeCell(maze, w, 4, 1, 1)
+setMazeCell(maze, w, 5, 1, 1)
+setMazeCell(maze, w, 6, 1, 1)
+// Row 2
+setMazeCell(maze, w, 0, 2, 1)
+setMazeCell(maze, w, 2, 2, 1)
+setMazeCell(maze, w, 3, 2, 1)
+setMazeCell(maze, w, 4, 2, 1)
+setMazeCell(maze, w, 6, 2, 1)
+setMazeCell(maze, w, 8, 2, 1)
+// Row 3
+setMazeCell(maze, w, 0, 3, 1)
+setMazeCell(maze, w, 2, 3, 1)
+setMazeCell(maze, w, 6, 3, 1)
+setMazeCell(maze, w, 7, 3, 1)
+setMazeCell(maze, w, 8, 3, 1)
+// Row 4
+setMazeCell(maze, w, 0, 4, 1)
+setMazeCell(maze, w, 1, 4, 1)
+setMazeCell(maze, w, 2, 4, 1)
+setMazeCell(maze, w, 4, 4, 1)
+setMazeCell(maze, w, 5, 4, 1)
+setMazeCell(maze, w, 8, 4, 1)
+// Row 5
+setMazeCell(maze, w, 4, 5, 1)
+setMazeCell(maze, w, 6, 5, 1)
+setMazeCell(maze, w, 7, 5, 1)
+setMazeCell(maze, w, 8, 5, 1)
+// Row 6
+setMazeCell(maze, w, 0, 6, 1)
+setMazeCell(maze, w, 1, 6, 1)
+setMazeCell(maze, w, 2, 6, 1)
+setMazeCell(maze, w, 3, 6, 1)
+setMazeCell(maze, w, 4, 6, 1)
+setMazeCell(maze, w, 6, 6, 1)
+// Row 7
+setMazeCell(maze, w, 0, 7, 1)
+setMazeCell(maze, w, 4, 7, 1)
+setMazeCell(maze, w, 5, 7, 1)
+setMazeCell(maze, w, 6, 7, 1)
+setMazeCell(maze, w, 8, 7, 1)
+// Row 8
+setMazeCell(maze, w, 0, 8, 1)
+setMazeCell(maze, w, 1, 8, 1)
+setMazeCell(maze, w, 2, 8, 1)
+setMazeCell(maze, w, 6, 8, 1)
+setMazeCell(maze, w, 7, 8, 1)
+setMazeCell(maze, w, 8, 8, 1)
+
+print("Maze before solving:")
+printMaze(maze, w, h)
+
+start = t.millis()
+pathLen = solveMaze(maze, w, h, 0, 0, 8, 8)
+elapsed = t.millis() - start
+
+print("\nMaze after solving (* = path):")
+printMaze(maze, w, h)
+
+if (pathLen >= 0) {
+    print("\nShortest path length:", pathLen, "steps")
+} else {
+    print("\nNo path found!")
+}
+print("Time:", elapsed, "ms")
+
+// Edge case: no exit maze
+print("\n--- Edge Case: Blocked Maze ---")
+blocked = [1, 1, 0, 0, 1, 0, 0, 0, 1]
+blockedResult = solveMaze(blocked, 3, 3, 0, 0, 2, 2)
+if (blockedResult < 0) {
+    print("Correctly detected: no path exists")
+} else {
+    print("Path found (unexpected):", blockedResult)
+}
+
+print("\nMaze solver finished.")
