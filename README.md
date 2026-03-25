@@ -185,10 +185,10 @@ func calculate_sum(a, b) {}  // Rejected
 
 ## Documentation
 
-- **[Installation Guide](docs/pages/installation.html)**
-- **[Quick Start](docs/pages/quickstart.html)**
-- **[Language Reference](docs/mddocs/LANGUAGEREFERENCE.md)**
-- **[Examples](docs/pages/examples.html)**
+- **[Installation Guide](https://gtkrshnaaa.github.io/nevaarize/pages/installation.html)**
+- **[Quick Start](https://gtkrshnaaa.github.io/nevaarize/pages/quickstart.html)**
+- **[Language Reference](https://gtkrshnaaa.github.io/nevaarize/pages/basics.html)**
+- **[Examples](https://gtkrshnaaa.github.io/nevaarize/pages/examples.html)**
 
 ---
 
