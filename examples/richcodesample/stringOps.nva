@@ -1,0 +1,86 @@
+import stdlib string as s
+import stdlib time as t
+
+// String Operations Edge Cases
+// Tests string concatenation, length, and search methods.
+// Note: String concat in loops followed by s.length() can segfault (JIT bug).
+
+print("=== Nevaarize String Operations ===\n")
+
+start = t.millis()
+
+// --- Concatenation ---
+print("--- String Concat ---")
+c = "Hello" + " World"
+print("Concat:", c)
+
+d = "a" + "b" + "c" + "d"
+print("Multi concat:", d)
+
+e = "val=" + 42
+print("String+int:", e)
+
+// --- Empty String ---
+print("\n--- Empty String ---")
+r1 = "" + "test"
+print("Empty + text:", r1)
+r2 = "test" + ""
+print("Text + empty:", r2)
+
+// --- String Length ---
+print("\n--- String Length ---")
+print("Nevaarize:", s.length("Nevaarize"), "(expected: 9)")
+print("Empty:", s.length(""), "(expected: 0)")
+print("A:", s.length("a"), "(expected: 1)")
+print("Hello World:", s.length("Hello World"), "(expected: 11)")
+
+// --- Contains ---
+print("\n--- Contains ---")
+str1 = "Nevaarize JIT Compiler"
+print("has JIT:", s.contains(str1, "JIT"), "(expected: true)")
+print("has Python:", s.contains(str1, "Python"), "(expected: false)")
+print("has Nevaarize:", s.contains(str1, "Nevaarize"), "(expected: true)")
+print("has Compiler:", s.contains(str1, "Compiler"), "(expected: true)")
+
+// --- IndexOf ---
+print("\n--- IndexOf ---")
+str2 = "abcdefgh"
+print("indexOf abc:", s.indexOf(str2, "abc"), "(expected: 0)")
+print("indexOf def:", s.indexOf(str2, "def"), "(expected: 3)")
+print("indexOf xyz:", s.indexOf(str2, "xyz"), "(expected: -1)")
+print("indexOf gh:", s.indexOf(str2, "gh"), "(expected: 6)")
+
+// --- StartsWith / EndsWith ---
+print("\n--- Starts/Ends ---")
+str3 = "Nevaarize Language"
+print("starts Neva:", s.startsWith(str3, "Neva"), "(expected: true)")
+print("starts neva:", s.startsWith(str3, "neva"), "(expected: false)")
+print("ends age:", s.endsWith(str3, "age"), "(expected: true)")
+print("ends xyz:", s.endsWith(str3, "xyz"), "(expected: false)")
+print("ends Language:", s.endsWith(str3, "Language"), "(expected: true)")
+
+// --- Build Strings ---
+print("\n--- Build Strings ---")
+msg1 = "Count: " + 42
+msg2 = "Name: " + "Nevaarize"
+msg3 = "Version: " + 2 + ".0"
+print(msg1)
+print(msg2)
+print(msg3)
+
+// --- Length of Concat ---
+print("\n--- Length of Concat ---")
+combo = "abc" + "def"
+print("abc+def length:", s.length(combo), "(expected: 6)")
+
+// --- Multiple Search ---
+print("\n--- Multi Search ---")
+text = "the quick brown fox jumps over the lazy dog"
+print("has fox:", s.contains(text, "fox"), "(expected: true)")
+print("has cat:", s.contains(text, "cat"), "(expected: false)")
+print("indexOf quick:", s.indexOf(text, "quick"), "(expected: 4)")
+print("indexOf lazy:", s.indexOf(text, "lazy"), "(expected: 35)")
+
+elapsed = t.millis() - start
+print("\nAll string tests completed in", elapsed, "ms")
+print("String operations finished.")
