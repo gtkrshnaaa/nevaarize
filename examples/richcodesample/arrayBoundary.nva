@@ -1,0 +1,154 @@
+import stdlib time as t
+
+// Array Boundary Stress Test
+// Tests array operations at boundaries: empty, single, large, mutation, search.
+
+print("=== Nevaarize Array Boundary Stress Test ===\n")
+
+start = t.millis()
+
+// --- Empty Array ---
+print("--- Empty Array ---")
+empty = []
+print("Empty array created (no crash)")
+
+// --- Single Element ---
+print("\n--- Single Element ---")
+single = [42]
+print("Single[0]:", single[0], "(expected: 42)")
+
+// --- Pre-allocated Large Array ---
+print("\n--- Large Pre-allocated Array ---")
+large = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+// Write to all positions
+i = 0
+while (i < 50) {
+    large[i] = i * 2
+    i = i + 1
+}
+print("large[0]:", large[0], "(expected: 0)")
+print("large[24]:", large[24], "(expected: 48)")
+print("large[49]:", large[49], "(expected: 98)")
+
+// --- Stack via Pre-allocated Array ---
+print("\n--- Stack (pre-allocated) ---")
+stack = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+sTop = -1
+
+// Push
+sTop = sTop + 1
+stack[sTop] = 10
+sTop = sTop + 1
+stack[sTop] = 20
+sTop = sTop + 1
+stack[sTop] = 30
+print("Stack size:", sTop + 1, "(expected: 3)")
+print("Top:", stack[sTop], "(expected: 30)")
+
+// Pop
+v1 = stack[sTop]
+sTop = sTop - 1
+print("Pop:", v1, "(expected: 30)")
+v2 = stack[sTop]
+sTop = sTop - 1
+print("Pop:", v2, "(expected: 20)")
+print("Size after 2 pops:", sTop + 1, "(expected: 1)")
+
+// --- Array Copy ---
+print("\n--- Array Copy ---")
+src = [1, 2, 3, 4, 5]
+dst = [0, 0, 0, 0, 0]
+i = 0
+while (i < 5) {
+    dst[i] = src[i]
+    i = i + 1
+}
+print("Copied:", dst[0], dst[1], dst[2], dst[3], dst[4], "(expected: 1 2 3 4 5)")
+
+// --- Reverse Array ---
+print("\n--- Array Reverse ---")
+rev = [10, 20, 30, 40, 50]
+lo = 0
+hi = 4
+while (lo < hi) {
+    tmp = rev[lo]
+    rev[lo] = rev[hi]
+    rev[hi] = tmp
+    lo = lo + 1
+    hi = hi - 1
+}
+print("Reversed:", rev[0], rev[1], rev[2], rev[3], rev[4], "(expected: 50 40 30 20 10)")
+
+// --- Array as Function Param ---
+print("\n--- Array Function Param ---")
+func sumArray(arr, n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + arr[i]
+        i = i + 1
+    }
+    return total
+}
+nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+print("Sum 1..10:", sumArray(nums, 10), "(expected: 55)")
+
+// --- Array Search ---
+print("\n--- Array Search ---")
+func findIndex(arr, n, target) {
+    i = 0
+    while (i < n) {
+        if (arr[i] == target) { return i }
+        i = i + 1
+    }
+    return -1
+}
+searchArr = [5, 12, 3, 8, 42, 7]
+print("Find 42:", findIndex(searchArr, 6, 42), "(expected: 4)")
+print("Find 99:", findIndex(searchArr, 6, 99), "(expected: -1)")
+print("Find 5:", findIndex(searchArr, 6, 5), "(expected: 0)")
+
+// --- Computed 2D Index ---
+print("\n--- Computed Index ---")
+grid = [1,2,3, 4,5,6, 7,8,9]
+w = 3
+print("grid[1][2]:", grid[1 * w + 2], "(expected: 6)")
+print("grid[2][0]:", grid[2 * w + 0], "(expected: 7)")
+print("grid[0][0]:", grid[0 * w + 0], "(expected: 1)")
+
+// --- Fill and Verify ---
+print("\n--- Fill Pattern ---")
+fill = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+i = 0
+while (i < 20) {
+    fill[i] = i * i
+    i = i + 1
+}
+// Verify
+correct = 1
+i = 0
+while (i < 20) {
+    if (fill[i] != i * i) {
+        correct = 0
+    }
+    i = i + 1
+}
+print("20 elements filled and verified:", correct, "(expected: 1)")
+
+// --- Max/Min scan ---
+print("\n--- Max/Min Scan ---")
+data = [34, 12, 78, 5, 91, 23, 67, 45]
+maxVal = data[0]
+minVal = data[0]
+i = 1
+while (i < 8) {
+    if (data[i] > maxVal) { maxVal = data[i] }
+    if (data[i] < minVal) { minVal = data[i] }
+    i = i + 1
+}
+print("Max:", maxVal, "(expected: 91)")
+print("Min:", minVal, "(expected: 5)")
+
+elapsed = t.millis() - start
+print("\nAll array tests completed in", elapsed, "ms")
+print("Array boundary stress test finished.")
