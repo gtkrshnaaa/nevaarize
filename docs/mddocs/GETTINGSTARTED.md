@@ -1,5 +1,7 @@
 # Getting Started with Nevaarize
 
+> **Note:** Nevaarize is under active development. Only scripts inside the `examples/` directory have been verified to run correctly. Scripts outside the provided examples may encounter unexpected behavior.
+
 ## Installation
 
 ### Prerequisites
@@ -12,24 +14,18 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/nevaarize.git
+git clone https://github.com/gtkrshnaaa/nevaarize.git
 cd nevaarize
 
 # Build release version
 make
-
-# Install globally (optional)
-sudo make install
 ```
 
 ### Verify Installation
 
 ```bash
 # Check version
-nevaarize --version
-
-# Start REPL
-nevaarize
+./bin/nevaarize --version
 ```
 
 ---
@@ -46,28 +42,6 @@ Run it:
 
 ```bash
 nevaarize hello.nva
-```
-
----
-
-## REPL (Interactive Mode)
-
-Start the REPL:
-
-```bash
-nevaarize
-```
-
-Try some commands:
-
-```nva
->>> x = 42
->>> print(x)
-42
->>> func add(a, b) { return a + b }
->>> add(10, 20)
-30
->>> exit
 ```
 
 ---
@@ -118,13 +92,13 @@ print(arr[0])
 
 // Structs
 struct Point {
-    x
+    x,
     y
 }
 
-p = Point()
-p.x = 10
-p.y = 20
+p = Point(10, 20)
+print(p.x)  // 10
+print(p.y)  // 20
 ```
 
 ---
@@ -165,7 +139,5 @@ print("Elapsed:", elapsed, "seconds")
 
 ## Next Steps
 
-- Read the [Language Reference](language-reference.html)
-- Explore [Example Programs](../examples/)
-- Learn about [JIT Internals](jit-internals.html)
-- Check [Performance Guide](performance-guide.html)
+- Read the [Language Reference](LANGUAGEREFERENCE.md)
+- Explore [Example Programs](../../examples/)
