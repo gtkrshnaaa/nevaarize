@@ -1,0 +1,108 @@
+import stdlib math as m
+import stdlib time as t
+
+// Math Precision Edge Cases
+// Tests floating-point precision, rounding patterns, and numeric limits.
+
+print("=== Nevaarize Math Precision ===\n")
+
+start = t.millis()
+
+// --- IEEE 754 Precision ---
+print("--- Float Precision ---")
+print("0.1 + 0.2:", 0.1 + 0.2)
+print("1.0 / 3.0:", 1.0 / 3.0)
+print("2.0 / 7.0:", 2.0 / 7.0)
+
+// --- Associativity ---
+print("\n--- Associativity ---")
+r1 = (0.1 + 0.2) + 0.3
+r2 = 0.1 + (0.2 + 0.3)
+print("(0.1+0.2)+0.3:", r1)
+print("0.1+(0.2+0.3):", r2)
+
+// --- Large/Small ---
+print("\n--- Large/Small Numbers ---")
+large = 1e15
+small = 1e-15
+print("1e15:", large)
+print("1e-15:", small)
+print("large * small:", large * small, "(expected: 1.0)")
+
+// --- Power Iteration ---
+print("\n--- Iterative Powers ---")
+p = 1.0
+i = 0
+while (i < 10) {
+    p = p * 2.0
+    i = i + 1
+}
+print("2.0^10:", p, "(expected: 1024.0)")
+
+// --- Square Root Verification ---
+print("\n--- Sqrt Verification ---")
+// Babylonian method for sqrt(2)
+guess = 1.0
+i = 0
+while (i < 20) {
+    guess = (guess + 2.0 / guess) / 2.0
+    i = i + 1
+}
+print("Babylonian sqrt(2):", guess, "(expected: ~1.41421)")
+
+// Verify: guess^2 should be ~2.0
+sqResult = guess * guess
+print("guess^2:", sqResult, "(expected: ~2.0)")
+
+// --- Pi Approximation (Leibniz) ---
+print("\n--- Pi Approximation ---")
+pi = 0.0
+sign = 1.0
+i = 0
+while (i < 1000) {
+    pi = pi + sign / (2.0 * i + 1.0)
+    sign = sign * -1.0
+    i = i + 1
+}
+pi = pi * 4.0
+print("Pi (1000 terms):", pi, "(expected: ~3.14159)")
+
+// --- Euler's Number (e) ---
+print("\n--- Euler's Number ---")
+e = 1.0
+factorial = 1.0
+i = 1
+while (i <= 15) {
+    factorial = factorial * i
+    e = e + 1.0 / factorial
+    i = i + 1
+}
+print("e (15 terms):", e, "(expected: ~2.71828)")
+
+// --- Golden Ratio ---
+print("\n--- Golden Ratio ---")
+a = 1.0
+b = 1.0
+i = 0
+while (i < 30) {
+    temp = b
+    b = a + b
+    a = temp
+    i = i + 1
+}
+phi = b / a
+print("Golden ratio:", phi, "(expected: ~1.61803)")
+
+// --- Harmonic Series ---
+print("\n--- Harmonic Series ---")
+h = 0.0
+i = 1
+while (i <= 100) {
+    h = h + 1.0 / i
+    i = i + 1
+}
+print("H(100):", h, "(expected: ~5.187)")
+
+elapsed = t.millis() - start
+print("\nAll precision tests completed in", elapsed, "ms")
+print("Math precision test finished.")
