@@ -1,0 +1,23 @@
+print("=== Primality Test ===")
+func isPrime(n) {
+    if (n < 2) { return 0 }
+    if (n == 2) { return 1 }
+    if (n % 2 == 0) { return 0 }
+    d = 3
+    while (d * d < n + 1) {
+        if (n % d == 0) { return 0 }
+        d = d + 2
+    }
+    return 1
+}
+print("isPrime(2):", isPrime(2), "(expected: 1)")
+print("isPrime(7):", isPrime(7), "(expected: 1)")
+print("isPrime(9):", isPrime(9), "(expected: 0)")
+print("isPrime(97):", isPrime(97), "(expected: 1)")
+print("isPrime(100):", isPrime(100), "(expected: 0)")
+count = 0
+i = 2
+while (i < 101) { if (isPrime(i) == 1) { count = count + 1 }
+i = i + 1 }
+print("Primes to 100:", count, "(expected: 25)")
+print("Primality finished.")

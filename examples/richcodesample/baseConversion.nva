@@ -1,0 +1,31 @@
+print("=== Base Conversion ===")
+func toBinary(n) {
+    if (n == 0) { return 0 }
+    result = 0
+    place = 1
+    while (n > 0) {
+        bit = n % 2
+        result = result + bit * place
+        place = place * 10
+        n = n / 2
+    }
+    return result
+}
+print("5:", toBinary(5), "(expected: 101)")
+print("10:", toBinary(10), "(expected: 1010)")
+print("13:", toBinary(13), "(expected: 1101)")
+print("255:", toBinary(255), "(expected: 11111111)")
+func fromBinary(b) {
+    result = 0
+    place = 1
+    while (b > 0) {
+        digit = b % 10
+        result = result + digit * place
+        place = place * 2
+        b = b / 10
+    }
+    return result
+}
+print("1101:", fromBinary(1101), "(expected: 13)")
+print("1010:", fromBinary(1010), "(expected: 10)")
+print("Base conversion finished.")

@@ -1,0 +1,40 @@
+print("=== Queue Simulation ===")
+queue = [0,0,0,0,0,0,0,0,0,0]
+front = 0
+rear = 0
+count = 0
+queue[rear] = 10
+rear = rear + 1
+count = count + 1
+queue[rear] = 20
+rear = rear + 1
+count = count + 1
+queue[rear] = 30
+rear = rear + 1
+count = count + 1
+print("Count:", count, "(expected: 3)")
+v1 = queue[front]
+front = front + 1
+count = count - 1
+print("Dequeue:", v1, "(expected: 10)")
+v2 = queue[front]
+front = front + 1
+count = count - 1
+print("Dequeue:", v2, "(expected: 20)")
+print("Remaining:", count, "(expected: 1)")
+print("Front:", queue[front], "(expected: 30)")
+queue[rear] = 40
+rear = rear + 1
+count = count + 1
+queue[rear] = 50
+rear = rear + 1
+count = count + 1
+print("After enqueue:", count, "(expected: 3)")
+processed = 0
+while (count > 0) {
+    processed = processed + queue[front]
+    front = front + 1
+    count = count - 1
+}
+print("Processed sum:", processed, "(expected: 120)")
+print("Queue finished.")

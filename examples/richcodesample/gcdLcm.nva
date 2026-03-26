@@ -1,0 +1,19 @@
+print("=== GCD and LCM ===")
+func gcd(a, b) {
+    while (b != 0) { temp = b
+    b = a % b
+    a = temp }
+    return a
+}
+print("gcd(12,8):", gcd(12, 8), "(expected: 4)")
+print("gcd(100,75):", gcd(100, 75), "(expected: 25)")
+print("gcd(7,13):", gcd(7, 13), "(expected: 1)")
+print("gcd(15,15):", gcd(15, 15), "(expected: 15)")
+print("gcd(48,18):", gcd(48, 18), "(expected: 6)")
+g = gcd(4, 6)
+lcm46 = 4 / g * 6
+print("lcm(4,6):", lcm46, "(expected: 12)")
+g2 = gcd(12, 8)
+lcm128 = 12 / g2 * 8
+print("lcm(12,8):", lcm128, "(expected: 24)")
+print("GCD/LCM finished.")

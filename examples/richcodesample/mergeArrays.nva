@@ -1,0 +1,32 @@
+print("=== Merge Sorted Arrays ===")
+a = [1, 3, 5, 7, 9]
+b = [2, 4, 6, 8, 10]
+merged = [0,0,0,0,0,0,0,0,0,0]
+ai = 0
+bi = 0
+mi = 0
+while (mi < 10) {
+    if (ai < 5) {
+        if (bi < 5) {
+            if (a[ai] < b[bi]) {
+                merged[mi] = a[ai]
+                ai = ai + 1
+            }
+            else {
+                merged[mi] = b[bi]
+                bi = bi + 1
+            }
+        } else { merged[mi] = a[ai]
+        ai = ai + 1 }
+    } else { merged[mi] = b[bi]
+    bi = bi + 1 }
+    mi = mi + 1
+}
+print("Merged:", merged[0], merged[1], merged[2], merged[3], merged[4], merged[5], merged[6], merged[7], merged[8], merged[9])
+print("(expected: 1 2 3 4 5 6 7 8 9 10)")
+isSorted = 1
+i = 1
+while (i < 10) { if (merged[i] < merged[i-1]) { isSorted = 0 }
+i = i + 1 }
+print("Verified:", isSorted, "(expected: 1)")
+print("Merge finished.")

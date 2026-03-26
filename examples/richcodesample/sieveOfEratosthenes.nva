@@ -1,0 +1,22 @@
+print("=== Sieve of Eratosthenes ===")
+isPrime = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+isPrime[0] = 0
+isPrime[1] = 0
+i = 2
+while (i * i < 51) {
+    if (isPrime[i] == 1) {
+        j = i * i
+        while (j < 51) { isPrime[j] = 0
+        j = j + i }
+    }
+    i = i + 1
+}
+count = 0
+i = 2
+while (i < 51) { if (isPrime[i] == 1) { count = count + 1 }
+i = i + 1 }
+print("Primes up to 50:", count, "(expected: 15)")
+print("isPrime(2):", isPrime[2], "(expected: 1)")
+print("isPrime(4):", isPrime[4], "(expected: 0)")
+print("isPrime(47):", isPrime[47], "(expected: 1)")
+print("Sieve finished.")

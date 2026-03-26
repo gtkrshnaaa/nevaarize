@@ -1,0 +1,17 @@
+print("=== Temperature Conversion ===")
+func cToF(c) { return c * 9 / 5 + 32 }
+func fToC(f) { return (f - 32) * 5 / 9 }
+print("0C:", cToF(0), "F (expected: 32)")
+print("100C:", cToF(100), "F (expected: 212)")
+print("32F:", fToC(32), "C (expected: 0)")
+print("212F:", fToC(212), "C (expected: 100)")
+temps = [0, 20, 37, 100]
+i = 0
+while (i < 4) {
+    c = temps[i]
+    f = cToF(c)
+    k = c + 273
+    print(c, "C =", f, "F =", k, "K")
+    i = i + 1
+}
+print("Temperature finished.")

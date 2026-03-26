@@ -1,0 +1,22 @@
+print("=== Distance Calculations ===")
+func manhattan(x1, y1, x2, y2) {
+    dx = x2 - x1
+    if (dx < 0) { dx = 0 - dx }
+    dy = y2 - y1
+    if (dy < 0) { dy = 0 - dy }
+    return dx + dy
+}
+print("(0,0)-(3,4):", manhattan(0, 0, 3, 4), "(expected: 7)")
+print("(1,1)-(4,5):", manhattan(1, 1, 4, 5), "(expected: 7)")
+print("(0,0)-(0,0):", manhattan(0, 0, 0, 0), "(expected: 0)")
+dx = 3
+dy = 4
+distSq = dx * dx + dy * dy
+print("EuclidSq(0,0)-(3,4):", distSq, "(expected: 25)")
+guess = distSq / 2.0
+if (guess < 1.0) { guess = 1.0 }
+j = 0
+while (j < 20) { guess = (guess + distSq / guess) / 2.0
+j = j + 1 }
+print("EuclidDist:", guess, "(expected: 5.0)")
+print("Distance finished.")

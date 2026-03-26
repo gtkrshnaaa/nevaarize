@@ -1,0 +1,21 @@
+print("=== Statistics Calculator ===")
+data = [4, 8, 15, 16, 23, 42]
+n = 6
+total = 0
+i = 0
+while (i < n) { total = total + data[i]
+i = i + 1 }
+mean = total / n
+print("Mean:", mean, "(expected: 18)")
+minV = data[0]
+maxV = data[0]
+i = 1
+while (i < n) {
+    if (data[i] < minV) { minV = data[i] }
+    if (data[i] > maxV) { maxV = data[i] }
+    i = i + 1
+}
+print("Min:", minV, "(expected: 4)")
+print("Max:", maxV, "(expected: 42)")
+print("Range:", maxV - minV, "(expected: 38)")
+print("Statistics finished.")

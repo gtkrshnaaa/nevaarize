@@ -1,0 +1,20 @@
+print("=== Palindrome Check ===")
+p1 = [1, 2, 3, 2, 1]
+ok = 1
+i = 0
+while (i < 2) { if (p1[i] != p1[4 - i]) { ok = 0 }
+i = i + 1 }
+print("[1,2,3,2,1]:", ok, "(expected: 1)")
+p2 = [1, 2, 3, 4, 5]
+ok2 = 1
+i = 0
+while (i < 2) { if (p2[i] != p2[4 - i]) { ok2 = 0 }
+i = i + 1 }
+print("[1,2,3,4,5]:", ok2, "(expected: 0)")
+p3 = [7, 7, 7, 7]
+ok3 = 1
+i = 0
+while (i < 2) { if (p3[i] != p3[3 - i]) { ok3 = 0 }
+i = i + 1 }
+print("[7,7,7,7]:", ok3, "(expected: 1)")
+print("Palindrome check finished.")

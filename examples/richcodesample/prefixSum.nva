@@ -1,0 +1,16 @@
+print("=== Prefix Sum ===")
+data = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
+n = 10
+prefix = [0,0,0,0,0,0,0,0,0,0,0]
+i = 0
+while (i < n) { prefix[i + 1] = prefix[i] + data[i]
+i = i + 1 }
+s1 = prefix[5] - prefix[0]
+print("sum(0..4):", s1, "(expected: 14)")
+s2 = prefix[8] - prefix[3]
+print("sum(3..7):", s2, "(expected: 23)")
+s3 = prefix[10] - prefix[0]
+print("sum(0..9):", s3, "(expected: 39)")
+s4 = prefix[6] - prefix[5]
+print("sum(5..5):", s4, "(expected: 9)")
+print("Prefix sum finished.")

@@ -1,0 +1,36 @@
+print("=== Circular Buffer ===")
+buf = [0,0,0,0,0]
+bufSize = 5
+head = 0
+tail = 0
+count = 0
+buf[tail] = 10
+tail = (tail + 1) % bufSize
+count = count + 1
+buf[tail] = 20
+tail = (tail + 1) % bufSize
+count = count + 1
+buf[tail] = 30
+tail = (tail + 1) % bufSize
+count = count + 1
+print("Count:", count, "(expected: 3)")
+v1 = buf[head]
+head = (head + 1) % bufSize
+count = count - 1
+print("Dequeue:", v1, "(expected: 10)")
+buf[tail] = 40
+tail = (tail + 1) % bufSize
+count = count + 1
+buf[tail] = 50
+tail = (tail + 1) % bufSize
+count = count + 1
+v2 = buf[head]
+head = (head + 1) % bufSize
+count = count - 1
+print("Dequeue:", v2, "(expected: 20)")
+v3 = buf[head]
+head = (head + 1) % bufSize
+count = count - 1
+print("Dequeue:", v3, "(expected: 30)")
+print("Remaining:", count, "(expected: 2)")
+print("Circular buffer finished.")

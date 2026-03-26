@@ -1,0 +1,19 @@
+print("=== Sliding Window ===")
+data = [1, 3, 2, 5, 8, 7, 4, 6]
+n = 8
+ws = 3
+i = 0
+while (i < n - ws + 1) {
+    maxVal = data[i]
+    j = 1
+    while (j < ws) {
+        if (data[i + j] > maxVal) { maxVal = data[i + j] }
+        j = j + 1
+    }
+    print("Window", i, "max:", maxVal)
+    i = i + 1
+}
+print("(expected: 3 5 8 8 8 7)")
+windowSum = data[0] + data[1] + data[2]
+print("Sum window 0:", windowSum, "(expected: 6)")
+print("Sliding window finished.")

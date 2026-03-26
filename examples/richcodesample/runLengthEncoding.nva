@@ -1,0 +1,44 @@
+print("=== Run Length Encoding ===")
+data = [1,1,1,2,2,3,3,3,3,4]
+n = 10
+rleVals = [0,0,0,0,0,0,0,0,0,0]
+rleCnts = [0,0,0,0,0,0,0,0,0,0]
+rLen = 0
+i = 0
+while (i < n) {
+    curVal = data[i]
+    curCnt = 1
+    j = i + 1
+    while (j < n) {
+        if (data[j] == curVal) {
+            curCnt = curCnt + 1
+            j = j + 1
+        }
+        else { j = n }
+    }
+    rleVals[rLen] = curVal
+    rleCnts[rLen] = curCnt
+    rLen = rLen + 1
+    i = i + curCnt
+}
+print("RLE pairs:", rLen, "(expected: 4)")
+print("1 x", rleCnts[0], "(expected: 3)")
+print("2 x", rleCnts[1], "(expected: 2)")
+print("3 x", rleCnts[2], "(expected: 4)")
+print("4 x", rleCnts[3], "(expected: 1)")
+decoded = [0,0,0,0,0,0,0,0,0,0]
+di = 0
+ri = 0
+while (ri < rLen) {
+    c = 0
+    while (c < rleCnts[ri]) { decoded[di] = rleVals[ri]
+    di = di + 1
+    c = c + 1 }
+    ri = ri + 1
+}
+match = 1
+i = 0
+while (i < n) { if (decoded[i] != data[i]) { match = 0 }
+i = i + 1 }
+print("Decode match:", match, "(expected: 1)")
+print("RLE finished.")

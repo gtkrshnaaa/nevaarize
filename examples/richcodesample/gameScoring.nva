@@ -1,0 +1,31 @@
+print("=== Game Scoring ===")
+scores = [150, 300, 200, 450, 100]
+names = [1, 2, 3, 4, 5]
+n = 5
+i = 0
+while (i < n - 1) {
+    maxIdx = i
+    j = i + 1
+    while (j < n) {
+        if (scores[j] > scores[maxIdx]) { maxIdx = j }
+        j = j + 1
+    }
+    if (maxIdx != i) {
+        tmp = scores[i]
+        scores[i] = scores[maxIdx]
+        scores[maxIdx] = tmp
+        tmp = names[i]
+        names[i] = names[maxIdx]
+        names[maxIdx] = tmp
+    }
+    i = i + 1
+}
+print("Rank 1: P", names[0], scores[0], "(expected: P4 450)")
+print("Rank 2: P", names[1], scores[1], "(expected: P2 300)")
+print("Rank 3: P", names[2], scores[2], "(expected: P3 200)")
+total = 0
+i = 0
+while (i < n) { total = total + scores[i]
+i = i + 1 }
+print("Average:", total / n, "(expected: 240)")
+print("Game scoring finished.")

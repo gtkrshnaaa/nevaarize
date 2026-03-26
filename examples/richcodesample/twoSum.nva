@@ -1,0 +1,30 @@
+print("=== Two Sum Problem ===")
+nums = [2, 7, 11, 15, 3, 6]
+n = 6
+found = 0
+i = 0
+while (i < n) {
+    j = i + 1
+    while (j < n) {
+        if (nums[i] + nums[j] == 9) {
+            found = 1
+            j = n
+        }
+        j = j + 1
+    }
+    if (found == 1) { i = n }
+    i = i + 1
+}
+print("Target 9 found:", found, "(expected: 1)")
+found2 = 0
+i = 0
+while (i < n) {
+    j = i + 1
+    while (j < n) {
+        if (nums[i] + nums[j] == 100) { found2 = 1 }
+        j = j + 1
+    }
+    i = i + 1
+}
+print("Target 100 found:", found2, "(expected: 0)")
+print("Two sum finished.")
