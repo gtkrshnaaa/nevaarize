@@ -300,10 +300,8 @@ struct JITMap {
 static bool jit_is_string_key(int64_t key) {
     if (key == 0) return false;
     uint64_t ukey = static_cast<uint64_t>(key);
-    if (ukey < 0x10000) return false; // Not a valid heap pointer
-    
-    // key is a pointer to JITString::data, header is before it
-    JITString* s = (JITString*)((char*)key - offsetof(JITString, data));
+    if (ukey < 0x10000 || ukey > 0x7fffffffffff) return false;
+    volatile JITString* s = reinterpret_cast<volatile JITString*>(ukey - offsetof(JITString, data));
     return s->magic == JIT_STRING_MAGIC;
 }
 
@@ -929,6 +927,47 @@ struct JITValueResult {
 static JITValueResult jit_value_to_result(const nevaarize::Value& val);
 
 // Convert JIT array to Nevaarize Value for Select function
+static nevaarize::Value jit_to_value(int64_t val) {
+    int64_t type = jit_detect_type(val);
+    switch (static_cast<nevaarize::ValueType>(type)) {
+        case nevaarize::ValueType::NIL:
+            return nevaarize::Value::nil();
+        case nevaarize::ValueType::INT:
+            return nevaarize::Value::fromInt(val);
+        case nevaarize::ValueType::FLOAT: {
+            double d;
+            std::memcpy(&d, &val, sizeof(d));
+            return nevaarize::Value::fromFloat(d);
+        }
+        case nevaarize::ValueType::STRING: {
+            JITString* s = (JITString*)((char*)val - offsetof(JITString, data));
+            return nevaarize::Value::fromString(std::string(s->data, s->length));
+        }
+        case nevaarize::ValueType::ARRAY: {
+            JITArray* arr = (JITArray*)((char*)val - offsetof(JITArray, data));
+            std::vector<nevaarize::Value> vec;
+            vec.reserve(arr->size);
+            for (int64_t i = 0; i < arr->size; ++i) {
+                vec.push_back(jit_to_value(arr->data[i]));
+            }
+            return nevaarize::Value::fromArray(vec);
+        }
+        case nevaarize::ValueType::MAP: {
+            JITMap* map = (JITMap*)((char*)val - offsetof(JITMap, entries));
+            auto mapInst = std::make_shared<nevaarize::MapInstance>();
+            for (int64_t i = 0; i < map->capacity; ++i) {
+                if (map->entries[i].state == 1) {
+                    nevaarize::Value k = jit_to_value(map->entries[i].key);
+                    nevaarize::Value v = jit_to_value(map->entries[i].value);
+                    mapInst->entries[k] = v;
+                }
+            }
+            return nevaarize::Value::fromMap(mapInst);
+        }
+    }
+    return nevaarize::Value::nil();
+}
+
 static nevaarize::Value jit_array_to_value(void* dataPtr) {
     if (!dataPtr) return nevaarize::Value::fromArray({});
     JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
@@ -936,75 +975,7 @@ static nevaarize::Value jit_array_to_value(void* dataPtr) {
     vec.reserve(arr->size);
 
     for (int64_t i = 0; i < arr->size; ++i) {
-        void* mapPtr = reinterpret_cast<void*>(arr->data[i]);
-        if (!mapPtr) {
-            vec.push_back(nevaarize::Value::nil());
-            continue;
-        }
-
-        JITMap* map = (JITMap*)((char*)mapPtr - offsetof(JITMap, entries));
-        auto mapInst = std::make_shared<nevaarize::MapInstance>();
-
-        for (int64_t idx = 0; idx < map->capacity; ++idx) {
-            if (map->entries[idx].state == 1) {
-                nevaarize::Value k;
-                int64_t keyRaw = map->entries[idx].key;
-                if (jit_is_string_key(keyRaw)) {
-                    JITString* s = (JITString*)((char*)keyRaw - offsetof(JITString, data));
-                    k = nevaarize::Value::fromString(std::string(s->data, s->length));
-                } else {
-                    k = nevaarize::Value::fromInt(keyRaw);
-                }
-
-                nevaarize::Value v;
-                int64_t valRaw = map->entries[idx].value;
-                if (k.isString()) {
-                    const std::string& keyStr = *k.stringVal;
-                    if (keyStr == "parentId") {
-                        if (valRaw == 0) {
-                            v = nevaarize::Value::nil();
-                        } else {
-                            v = nevaarize::Value::fromInt(valRaw);
-                        }
-                    } else if (keyStr == "id_index") {
-                        v = nevaarize::Value::fromInt(valRaw);
-                    } else if (keyStr == "attrs") {
-                        auto attrsMapInst = std::make_shared<nevaarize::MapInstance>();
-                        if (valRaw != 0) {
-                            JITMap* attrMap = (JITMap*)((char*)valRaw - offsetof(JITMap, entries));
-                            for (int64_t aIdx = 0; aIdx < attrMap->capacity; ++aIdx) {
-                                if (attrMap->entries[aIdx].state == 1) {
-                                    int64_t aKeyRaw = attrMap->entries[aIdx].key;
-                                    int64_t aValRaw = attrMap->entries[aIdx].value;
-                                    nevaarize::Value ak, av;
-                                    if (jit_is_string_key(aKeyRaw)) {
-                                        JITString* s = (JITString*)((char*)aKeyRaw - offsetof(JITString, data));
-                                        ak = nevaarize::Value::fromString(std::string(s->data, s->length));
-                                    }
-                                    if (jit_is_string_key(aValRaw)) {
-                                        JITString* s = (JITString*)((char*)aValRaw - offsetof(JITString, data));
-                                        av = nevaarize::Value::fromString(std::string(s->data, s->length));
-                                    }
-                                    if (ak.isString()) {
-                                        attrsMapInst->entries[ak] = av;
-                                    }
-                                }
-                            }
-                        }
-                        v = nevaarize::Value::fromMap(attrsMapInst);
-                    } else {
-                        if (valRaw != 0 && jit_is_string_key(valRaw)) {
-                            JITString* s = (JITString*)((char*)valRaw - offsetof(JITString, data));
-                            v = nevaarize::Value::fromString(std::string(s->data, s->length));
-                        } else {
-                            v = nevaarize::Value::fromString("");
-                        }
-                    }
-                    mapInst->entries[k] = v;
-                }
-            }
-        }
-        vec.push_back(nevaarize::Value::fromMap(mapInst));
+        vec.push_back(jit_to_value(arr->data[i]));
     }
     return nevaarize::Value::fromArray(std::move(vec));
 }
