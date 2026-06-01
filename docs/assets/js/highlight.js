@@ -8,7 +8,7 @@
 
     // Nevaarize language keywords
     const KEYWORDS = [
-        'func', 'async', 'await', 'return', 'if', 'elif', 'else',
+        'function', 'async', 'await', 'return', 'if', 'elif', 'else',
         'for', 'while', 'in', 'break', 'continue',
         'struct', 'import', 'as', 'stdlib',
         'true', 'false', 'nil', 'and', 'or', 'not'
