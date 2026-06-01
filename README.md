@@ -164,7 +164,7 @@ Source Code (.nva)
 |--------|--------|-----------|
 | **Math** | `import stdlib math as m` | `m.Sqrt()`, `m.Pow()`, `m.Sin()`, `m.Abs()`, etc. |
 | **Time** | `import stdlib time as t` | `t.clock()`, `t.nanos()`, `t.sleep()`, `t.format()` |
-| **IO** | `import stdlib io as io` | `io.Input()`, `io.Print()`, `io.Write()` |
+| **IO** | `import stdlib io as io` | `io.Input()`, `io.Println()`, `io.Write()` |
 | **AI** | `import stdlib ai as ai` | Tensor ops, layers, optimizers, model persistence |
 
 ---

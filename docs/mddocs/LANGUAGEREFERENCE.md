@@ -473,7 +473,7 @@ m.Tan(x)      // Tangent
 ```nva
 import stdlib io as io
 
-io.Print(...)         // Print with newline
+io.Println(...)       // Print with newline
 io.Input(prompt)      // Read line
 io.Write(...)         // Print without newline
 ```
