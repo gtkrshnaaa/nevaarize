@@ -1,46 +1,46 @@
 import stdlib string as s
 import stdlib io as io
 
-io.print("==== Nevaarize std.string JIT Test ====")
+io.Println("==== Nevaarize std.string JIT Test ====")
 
 text = "  Hello Nevaarize Native JIT!  "
-io.print("Original:", text)
-io.print("Length:", s.length(text))
+io.Println("Original:", text)
+io.Println("Length:", s.length(text))
 
 trimmed = s.trim(text)
-io.print("Trimmed:", trimmed)
-io.print("Trimmed Length:", s.length(trimmed))
+io.Println("Trimmed:", trimmed)
+io.Println("Trimmed Length:", s.length(trimmed))
 
-io.print("Upper:", s.toUpperCase(trimmed))
-io.print("Lower:", s.toLowerCase(trimmed))
+io.Println("Upper:", s.toUpperCase(trimmed))
+io.Println("Lower:", s.toLowerCase(trimmed))
 
 containsJit = s.contains(trimmed, "JIT")
-io.print("Contains 'JIT':", containsJit)
+io.Println("Contains 'JIT':", containsJit)
 
 idx = s.indexOf(trimmed, "Native")
-io.print("IndexOf 'Native':", idx)
+io.Println("IndexOf 'Native':", idx)
 
 starts = s.startsWith(trimmed, "Hello")
 ends = s.endsWith(trimmed, "JIT!")
-io.print("Starts with 'Hello':", starts)
-io.print("Ends with 'JIT!':", ends)
+io.Println("Starts with 'Hello':", starts)
+io.Println("Ends with 'JIT!':", ends)
 
 sub = s.substring(trimmed, 6, 9)
-io.print("Substring(6, 9):", sub)
+io.Println("Substring(6, 9):", sub)
 
 replaced = s.replace(trimmed, "Native", "C++")
-io.print("Replaced:", replaced)
+io.Println("Replaced:", replaced)
 
 words = s.split(trimmed, " ")
-io.print("Split into Array Size:", words.size())
+io.Println("Split into Array Size:", words.size())
 for (w in words) {
-    io.print("-", w)
+    io.Println("-", w)
 }
 
-io.print("==== String Benchmark / GC Test ====")
+io.Println("==== String Benchmark / GC Test ====")
 bench = "start"
 for (i in Range(0, 5000)) {
     bench = s.replace(bench, "start", "start")
 }
-io.print("GC Test Complete:", s.length(bench) == 5)
+io.Println("GC Test Complete:", s.length(bench) == 5)
 
