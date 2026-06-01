@@ -3468,8 +3468,135 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
 
                             return result;
                         }
-                    }
-                }
+
+                        if (moduleName == "claw") {
+                            jit_claw_source_dir = sourceDir;
+                            CodeBuffer& buf = codegen.getCode();
+
+                            if (memberName == "CrawlFile" || memberName == "CrawlString") {
+                                if (node.children.empty()) {
+                                    X64Reg dst = allocateReg();
+                                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                                    emitMovImm64(buf, X64Reg::RDI, 0);
+                                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_alloc_array));
+                                    buf.emit8(0xFF); buf.emit8(0xD0);
+                                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                    buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                                    buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(dst) & 0x7));
+                                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                                    JITValue result;
+                                    result.valueReg = dst;
+                                    result.typeReg = allocateReg();
+                                    emitMovImm64(buf, result.typeReg, 5); // Array
+                                    return result;
+                                }
+
+                                JITValue argVal = compileExpr(ast, node.children[0]);
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                                bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                                buf.emit8(0x48 | (argHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3) | 7); // RDI = argVal
+
+                                if (memberName == "CrawlFile") {
+                                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_claw_crawl_file));
+                                } else {
+                                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_claw_crawl_string));
+                                }
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                int32_t retSlot = allocateStackSlot();
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                                freeReg(argVal.valueReg);
+                                freeReg(argVal.typeReg);
+
+                                X64Reg dst = allocateReg();
+                                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                                buf.emit8(0x8B);
+                                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                JITValue result;
+                                result.valueReg = dst;
+                                result.typeReg = allocateReg();
+                                emitMovImm64(buf, result.typeReg, 5); // Array
+                                return result;
+                            }
+
+                            if (memberName == "Select" || memberName == "SaveCSV" || memberName == "SaveJSON") {
+                                if (node.children.size() < 2) {
+                                    std::cerr << "Runtime Error: Invalid arguments for claw." << memberName << std::endl;
+                                    exit(1);
+                                }
+                                JITValue arg1 = compileExpr(ast, node.children[0]);
+                                JITValue arg2 = compileExpr(ast, node.children[1]);
+
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                                // RDI = arg1
+                                bool arg1High = static_cast<uint8_t>(arg1.valueReg) >= 8;
+                                buf.emit8(0x48 | (arg1High ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg1.valueReg) & 0x7) << 3) | 7);
+
+                                // RSI = arg2
+                                bool arg2High = static_cast<uint8_t>(arg2.valueReg) >= 8;
+                                buf.emit8(0x48 | (arg2High ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg2.valueReg) & 0x7) << 3) | 6);
+
+                                if (memberName == "Select") {
+                                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_claw_select));
+                                } else if (memberName == "SaveCSV") {
+                                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_claw_save_csv));
+                                } else {
+                                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_claw_save_json));
+                                }
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                int32_t retSlot = allocateStackSlot();
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                                freeReg(arg1.valueReg); freeReg(arg1.typeReg);
+                                freeReg(arg2.valueReg); freeReg(arg2.typeReg);
+
+                                X64Reg dst = allocateReg();
+                                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                                buf.emit8(0x8B);
+                                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                JITValue result;
+                                result.valueReg = dst;
+                                result.typeReg = allocateReg();
+
+                                int64_t retType = 5; // Array for Select
+                                if (memberName == "SaveCSV" || memberName == "SaveJSON") {
+                                    retType = 1; // Bool for save status
+                                }
+                                emitMovImm64(buf, result.typeReg, retType);
+                                return result;
+                            }
+                        }
                 
                 // Module function calls like ai.loadModel()
                 // Compile the object first
