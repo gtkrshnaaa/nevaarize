@@ -25,7 +25,7 @@ struct KeywordEntry {
 };
 
 constexpr std::array<KeywordEntry, 22> keywords = {{
-    {"func", TokenType::FUNC},
+    {"function", TokenType::FUNC},
     {"async", TokenType::ASYNC},
     {"await", TokenType::AWAIT},
     {"return", TokenType::RETURN},
