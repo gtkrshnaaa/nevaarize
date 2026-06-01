@@ -18,7 +18,7 @@ namespace stdlib {
 std::unordered_map<std::string, NativeFunction> getIOLibrary() {
     std::unordered_map<std::string, NativeFunction> funcs;
 
-    funcs["Print"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
+    funcs["Println"] = [](Evaluator&, const std::vector<Value>& args) -> Value {
         for (size_t i = 0; i < args.size(); ++i) {
             if (i > 0) std::cout << " ";
             std::cout << args[i].toString();
