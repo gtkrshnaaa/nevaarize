@@ -156,11 +156,13 @@ extern "C" void jit_print_jitstring_no_newline(void* dataPtr) {
     JITExecutionGuard guard;
     if (!dataPtr) {
         std::cout << "nil";
+        std::cout.flush();
         return;
     }
     JITString* str = reinterpret_cast<JITString*>(
         reinterpret_cast<char*>(dataPtr) - offsetof(JITString, data));
     std::cout << std::string(str->data, str->length);
+    std::cout.flush();
 }
 
 extern "C" void jit_debug_value_type(int64_t value, int64_t type) {
