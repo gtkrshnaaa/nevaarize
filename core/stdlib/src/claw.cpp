@@ -197,7 +197,7 @@ std::vector<ParsedElement> parseHTML(const std::string& html) {
                 }
 
                 if (matchIdx != -1) {
-                    for (size_t s = openStack.size() - 1; s >= (size_t)matchIdx; --s) {
+                    for (int s = (int)openStack.size() - 1; s >= matchIdx; --s) {
                         size_t elIdx = openStack[s];
                         elements[elIdx].endPos = endTag + 1;
                         elements[elIdx].html = html.substr(elements[elIdx].startPos, elements[elIdx].endPos - elements[elIdx].startPos);
