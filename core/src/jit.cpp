@@ -3777,12 +3777,12 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     
                     // rdi = objReg (array ptr)
                     bool objHigh = static_cast<uint8_t>(objReg) >= 8;
-                    buf.emit8(0x48 | (objHigh ? 0x01 : 0));
+                    buf.emit8(0x48 | (objHigh ? 0x04 : 0));
                     buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
                     
                     // rsi = argVal.valueReg (value)
                     bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
-                    buf.emit8(0x48 | (argHigh ? 0x01 : 0));
+                    buf.emit8(0x48 | (argHigh ? 0x04 : 0));
                     buf.emit8(0x89); buf.emit8(0xC6 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
                     
                     // rax = jit_array_push
