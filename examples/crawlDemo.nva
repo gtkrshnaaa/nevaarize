@@ -78,7 +78,7 @@ while (i < numLinks) {
     row["text"] = el["text"]
     row["href"] = attrs["href"]
     
-    exportData.append(row)
+    exportData.push(row)
     i = i + 1
 }
 
