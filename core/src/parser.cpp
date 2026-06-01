@@ -200,7 +200,7 @@ NodeIndex Parser::declaration() {
 
 NodeIndex Parser::funcDeclaration(bool isAsync) {
     if (isAsync) {
-        consume(TokenType::FUNC, "Expected 'func' after 'async'");
+        consume(TokenType::FUNC, "Expected 'function' after 'async'");
     }
 
     Token nameToken = consume(TokenType::IDENTIFIER, "Expected function name");
