@@ -7356,36 +7356,16 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
         }
         
         if (!isStdlibIoCall) {
-            // Fallback for other member calls
             if (userFunctions.count(memberName)) {
-                 // Treat as user function if name matches
                  JITValue result = compileUserCall(ast, idx, memberName);
                  freeReg(result.valueReg);
                  freeReg(result.typeReg);
                  return;
             }
             
-            // Time module functions - call native C++ helpers via FFI
-            if (memberName == "nanos" || memberName == "clock") {
-                // Allocate result registers for expression return
-                // Note: This is a STATEMENT context (void), but we store result
-                // for when called as expression. The caller will handle unused regs.
-                
-                // Call jit_get_nanos() which returns int64_t
-                // mov rax, &jit_get_nanos
-                buf.emit8(0x48); buf.emit8(0xB8);
-                if (memberName == "nanos") {
-                    buf.emit64(reinterpret_cast<uint64_t>(&jit_get_nanos));
-                } else {
-                    buf.emit64(reinterpret_cast<uint64_t>(&jit_get_clock_ns));
-                }
-                // call rax
-                buf.emit8(0xFF); buf.emit8(0xD0);
-                // Result is in RAX - for statement context we don't need to store it
-                // But if used as expression, the caller needs it...
-                // For now, statement calls ignore result.
-                return;
-            }
+            JITValue result = compileExpr(ast, idx);
+            freeReg(result.valueReg);
+            freeReg(result.typeReg);
             return;
         }
     }
