@@ -3502,6 +3502,11 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
                                 buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
 
+                                // Align Stack
+                                buf.emit8(0x53); // push rbx
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
                                 bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
                                 buf.emit8(0x48 | (argHigh ? 0x04 : 0));
                                 buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3) | 7); // RDI = argVal
@@ -3512,6 +3517,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                     emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_claw_crawl_string));
                                 }
                                 buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                // Restore Stack
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                                buf.emit8(0x5B); // pop rbx
 
                                 int32_t retSlot = allocateStackSlot();
                                 buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
@@ -3550,6 +3559,11 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
                                 buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
 
+                                // Align Stack
+                                buf.emit8(0x53); // push rbx
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
                                 // RDI = arg1
                                 bool arg1High = static_cast<uint8_t>(arg1.valueReg) >= 8;
                                 buf.emit8(0x48 | (arg1High ? 0x04 : 0));
@@ -3568,6 +3582,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                     emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_claw_save_json));
                                 }
                                 buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                // Restore Stack
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                                buf.emit8(0x5B); // pop rbx
 
                                 int32_t retSlot = allocateStackSlot();
                                 buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
