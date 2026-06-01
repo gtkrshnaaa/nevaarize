@@ -1,0 +1,63 @@
+import stdlib claw as claw
+import stdlib io as io
+
+function extractLinkData(links) {
+    exportData = []
+    i = 0
+    while (i < links.size()) {
+        el = links[i]
+        attrs = el["attrs"]
+        row = {}
+        row["tag"] = el["tag"]
+        row["text"] = el["text"]
+        row["href"] = attrs["href"]
+        exportData.push(row)
+        i = i + 1
+    }
+    return exportData
+}
+
+function runClawTest() {
+    print("--- Nevaarize Claw Stdlib Test ---")
+    
+    elements = claw.CrawlFile("data/crawler_test.html")
+    if (elements == 0) {
+        print("Error: Could not crawl file.")
+        return 0
+    }
+    
+    total = elements.size()
+    print("Parsed elements:", total)
+    
+    cards = claw.Select(elements, "div.card")
+    print("Cards found:", cards.size())
+    
+    headings = claw.Select(elements, "div.card h2.card-title")
+    print("Card titles:", headings.size())
+    
+    links = claw.Select(elements, "a.link")
+    print("Links found:", links.size())
+    
+    exportData = extractLinkData(links)
+    print("exportData size:", exportData.size())
+    
+    csvOk = claw.SaveCSV("data/links.csv", exportData)
+    jsonOk = claw.SaveJSON("data/links.json", exportData)
+    
+    if (csvOk) {
+        print("CSV export successful")
+    } else {
+        print("CSV export failed")
+    }
+    
+    if (jsonOk) {
+        print("JSON export successful")
+    } else {
+        print("JSON export failed")
+    }
+    
+    print("--- Claw Test Completed ---")
+    return 1
+}
+
+runClawTest()
