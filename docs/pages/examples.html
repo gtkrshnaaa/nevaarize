@@ -455,7 +455,7 @@ x = 42
 pi = 3.14
 name = "Nevaarize"
 
-func add(a, b) {
+function add(a, b) {
     return a + b
 }
 
@@ -464,7 +464,7 @@ print("add(7, 3):", add(7, 3))</code></pre>
                 <h3>Fibonacci (from algorithm/mathBasics.nva)</h3>
                 
                 <pre data-lang="nevaarize"><code>// Iterative fibonacci
-func fib(n) {
+function fib(n) {
     if (n <= 1) {
         return n
     }
@@ -483,7 +483,7 @@ print("fib(20) =", fib(20))  // 6765</code></pre>
                 
                 <h3>Bubble Sort (from algorithm/bubbleSort.nva)</h3>
                 
-                <pre data-lang="nevaarize"><code>func bubbleSort(arr) {
+                <pre data-lang="nevaarize"><code>function bubbleSort(arr) {
     n = len(arr)
     for (i in Range(0, n)) {
         for (j in Range(0, n - i - 1)) {

@@ -93,9 +93,9 @@
                 
                 <h2>Defining Functions</h2>
                 
-                <p>Use the <code>func</code> keyword to define functions:</p>
+                <p>Use the <code>function</code> keyword to define functions:</p>
                 
-                <pre data-lang="nevaarize"><code>func greet() {
+                <pre data-lang="nevaarize"><code>function greet() {
     print("Hello, World!")
 }
 
@@ -106,7 +106,7 @@ greet()  // Hello, World!</code></pre>
                 
                 <p>Functions can accept parameters:</p>
                 
-                <pre data-lang="nevaarize"><code>func greetPerson(name) {
+                <pre data-lang="nevaarize"><code>function greetPerson(name) {
     print("Hello,", name + "!")
 }
 
@@ -115,11 +115,11 @@ greetPerson("Bob")    // Hello, Bob!</code></pre>
                 
                 <h3>Multiple Parameters</h3>
                 
-                <pre data-lang="nevaarize"><code>func add(a, b) {
+                <pre data-lang="nevaarize"><code>function add(a, b) {
     return a + b
 }
 
-func introduce(name, age, city) {
+function introduce(name, age, city) {
     print(name, "is", age, "years old from", city)
 }
 
@@ -132,11 +132,11 @@ introduce("Alice", 30, "Jakarta")</code></pre>
                 
                 <p>Use <code>return</code> to return a value from a function:</p>
                 
-                <pre data-lang="nevaarize"><code>func square(x) {
+                <pre data-lang="nevaarize"><code>function square(x) {
     return x * x
 }
 
-func max(a, b) {
+function max(a, b) {
     if (a > b) {
         return a
     }
@@ -156,7 +156,7 @@ print(max(10, 20))   // 20</code></pre>
                 <p>Functions can call themselves recursively:</p>
                 
                 <pre data-lang="nevaarize"><code>// Classic factorial
-func factorial(n) {
+function factorial(n) {
     if (n <= 1) {
         return 1
     }
@@ -166,7 +166,7 @@ func factorial(n) {
 print(factorial(5))  // 120
 
 // Fibonacci sequence
-func fib(n) {
+function fib(n) {
     if (n <= 1) {
         return n
     }
@@ -182,10 +182,10 @@ for (i in Range(1, 11)) {
                 <p>Functions can capture variables from their enclosing scope:</p>
                 
                 <pre data-lang="nevaarize"><code>// Counter using closure
-func makeCounter() {
+function makeCounter() {
     count = 0
     
-    func increment() {
+    function increment() {
         count = count + 1
         return count
     }
@@ -199,8 +199,8 @@ print(counter())  // 2
 print(counter())  // 3
 
 // Multiplier factory
-func makeMultiplier(factor) {
-    func multiply(x) {
+function makeMultiplier(factor) {
+    function multiply(x) {
         return x * factor
     }
     return multiply
@@ -217,13 +217,13 @@ print(triple(5))  // 15</code></pre>
                 <p>Functions can be passed as arguments:</p>
                 
                 <pre data-lang="nevaarize"><code>// Apply function to each element
-func forEach(arr, fn) {
+function forEach(arr, fn) {
     for (item in arr) {
         fn(item)
     }
 }
 
-func printSquare(x) {
+function printSquare(x) {
     print(x * x)
 }
 

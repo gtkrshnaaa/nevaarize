@@ -132,15 +132,15 @@ print("Awesome:", isAwesome, "Type:", type(isAwesome))</code></pre>
                 
                 <h2>Functions</h2>
                 
-                <p>Define functions with the <code>func</code> keyword:</p>
+                <p>Define functions with the <code>function</code> keyword:</p>
                 
                 <pre data-lang="nevaarize"><code>// Simple function
-func greet(name) {
+function greet(name) {
     return "Hello, " + name + "!"
 }
 
 // Function with condition
-func max(a, b) {
+function max(a, b) {
     if (a > b) {
         return a
     }
@@ -254,7 +254,7 @@ print("Time:", elapsed, "seconds")</code></pre>
                 <pre data-lang="nevaarize"><code>import stdlib time as t
 
 // Define async function
-async func fetchData(source) {
+async function fetchData(source) {
     print("Fetching from:", source)
     t.sleep(100)  // Simulate delay
     return "Data from " + source

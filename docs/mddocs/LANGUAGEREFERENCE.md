@@ -294,7 +294,7 @@ while (condition) {
 ### Basic Functions
 
 ```nva
-func add(a, b) {
+function add(a, b) {
     return a + b
 }
 
@@ -304,10 +304,10 @@ result = add(10, 20)
 ### Closures
 
 ```nva
-func makeCounter() {
+function makeCounter() {
     count = 0
     
-    func increment() {
+    function increment() {
         count = count + 1
         return count
     }
@@ -331,7 +331,7 @@ struct Vector3 {
     z
 }
 
-func magnitude(v) {
+function magnitude(v) {
     return sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
 }
 
@@ -381,7 +381,7 @@ result = utils.square(5)
 ### Basic Async
 
 ```nva
-async func fetchData(id) {
+async function fetchData(id) {
     // Async operation
     return "Data" + str(id)
 }
@@ -392,7 +392,7 @@ data = await fetchData(1)
 ### Sequential Async
 
 ```nva
-async func loadUser(id) {
+async function loadUser(id) {
     user = await fetchUser(id)
     posts = await fetchPosts(user)
     return posts
@@ -402,7 +402,7 @@ async func loadUser(id) {
 ### Parallel Async
 
 ```nva
-async func parallelFetch() {
+async function parallelFetch() {
     task1 = fetchData(1)
     task2 = fetchData(2)
     
@@ -423,11 +423,11 @@ async func parallelFetch() {
 ```nva
 // REJECTED
 my_variable = 10
-func calculate_sum(a, b) { }
+function calculate_sum(a, b) { }
 
 // ACCEPTED
 myVariable = 10
-func calculateSum(a, b) { }
+function calculateSum(a, b) { }
 ```
 
 This policy ensures:

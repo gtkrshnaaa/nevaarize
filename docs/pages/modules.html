@@ -166,19 +166,19 @@ print(config.appName)</code></pre>
 PI = 3.14159265359
 
 // Functions that will be available to importers
-func square(x) {
+function square(x) {
     return x * x
 }
 
-func cube(x) {
+function cube(x) {
     return x * x * x
 }
 
-func circleArea(radius) {
+function circleArea(radius) {
     return PI * radius * radius
 }
 
-func clamp(value, minVal, maxVal) {
+function clamp(value, minVal, maxVal) {
     if (value < minVal) {
         return minVal
     }
@@ -203,15 +203,15 @@ print("Clamped value:", myMath.clamp(150, 0, 100))</code></pre>
                 
                 <pre data-lang="nevaarize"><code>// Good: Single responsibility
 // validation.nva - Only validation functions
-func isEmail(s) { ... }
-func isPhone(s) { ... }
-func isRequired(s) { ... }
+function isEmail(s) { ... }
+function isPhone(s) { ... }
+function isRequired(s) { ... }
 
 // Bad: Mixed concerns
 // stuff.nva - Random utilities
-func isEmail(s) { ... }
-func calculateTax(amount) { ... }
-func formatDate(d) { ... }</code></pre>
+function isEmail(s) { ... }
+function calculateTax(amount) { ... }
+function formatDate(d) { ... }</code></pre>
                 
                 <h3>2. Use Clear Aliases</h3>
                 

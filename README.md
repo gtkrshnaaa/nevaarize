@@ -24,7 +24,7 @@ struct Task {
 }
 
 // Function with logic
-func filterHighPriority(tasks) {
+function filterHighPriority(tasks) {
     result = []
     for (task in tasks) {
         if (task.priority >= 3) {
@@ -35,7 +35,7 @@ func filterHighPriority(tasks) {
 }
 
 // Async computation
-async func processQueue(tasks) {
+async function processQueue(tasks) {
     high = filterHighPriority(tasks)
     print("High priority tasks:", len(high))
     for (name in high) {
@@ -175,10 +175,10 @@ Nevaarize enforces a **No-Underscore Policy** — use `camelCase`:
 
 ```nva
 myVariable = 10              // OK
-func calculateSum(a, b) {}   // OK
+function calculateSum(a, b) {}   // OK
 
 my_variable = 10             // Rejected
-func calculate_sum(a, b) {}  // Rejected
+function calculate_sum(a, b) {}  // Rejected
 ```
 
 ---

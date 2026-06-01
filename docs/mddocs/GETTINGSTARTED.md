@@ -60,7 +60,7 @@ flag = true         // Boolean
 ### Functions
 
 ```nva
-func greet(name) {
+function greet(name) {
     return "Hello, " + name
 }
 

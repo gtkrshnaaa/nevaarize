@@ -105,12 +105,12 @@
                 
                 <h2>Defining Async Functions</h2>
                 
-                <p>Use the <code>async</code> keyword before <code>func</code>:</p>
+                <p>Use the <code>async</code> keyword before <code>function</code>:</p>
                 
                 <pre data-lang="nevaarize"><code>import stdlib time as t
 
 // Define an async function
-async func fetchUserData(userId) {
+async function fetchUserData(userId) {
     print("Fetching user", userId, "...")
     t.sleep(100)  // Simulate network delay
     return "User_" + str(userId)
@@ -126,7 +126,7 @@ print("Got:", user)</code></pre>
                 
                 <pre data-lang="nevaarize"><code>import stdlib time as t
 
-async func slowOperation() {
+async function slowOperation() {
     t.sleep(200)
     return "Result after delay"
 }
@@ -146,7 +146,7 @@ print(result)  // "Result after delay"</code></pre>
                 
                 <pre data-lang="nevaarize"><code>import stdlib time as t
 
-async func fetch(name) {
+async function fetch(name) {
     print("Start:", name)
     t.sleep(100)
     print("Done:", name)
@@ -169,26 +169,26 @@ print("Total time:", elapsed, "seconds")
                 <pre data-lang="nevaarize"><code>import stdlib time as t
 
 // Simulate fetching from different sources
-async func fetchFromDatabase(query) {
+async function fetchFromDatabase(query) {
     print("DB: Executing query...")
     t.sleep(50)
     return ["row1", "row2", "row3"]
 }
 
-async func fetchFromAPI(endpoint) {
+async function fetchFromAPI(endpoint) {
     print("API: Calling", endpoint)
     t.sleep(80)
     return "API response"
 }
 
-async func processData(data) {
+async function processData(data) {
     print("Processing", len(data), "items...")
     t.sleep(30)
     return "Processed: " + str(len(data)) + " items"
 }
 
 // Build a data pipeline
-async func runPipeline() {
+async function runPipeline() {
     // Step 1: Fetch raw data
     dbData = await fetchFromDatabase("SELECT * FROM users")
     print("Got DB data:", dbData)
@@ -213,7 +213,7 @@ print("Pipeline complete:", finalResult)</code></pre>
                 
                 <pre data-lang="nevaarize"><code>import stdlib time as t
 
-async func riskyOperation(shouldFail) {
+async function riskyOperation(shouldFail) {
     t.sleep(50)
     if (shouldFail) {
         return "ERROR"
@@ -237,7 +237,7 @@ if (result == "ERROR") {
 // Task queue processing
 taskQueue = ["Task A", "Task B", "Task C"]
 
-async func processTask(task) {
+async function processTask(task) {
     print("Processing:", task)
     t.sleep(50)
     return task + " done"
