@@ -3831,7 +3831,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     
                     // RDI = objReg (pointer to map or array data)
                     bool objHi = static_cast<uint8_t>(objReg) >= 8;
-                    buf.emit8(0x48 | (objHi ? 0x01 : 0));
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
                     buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
                     
                     // Check type: cmp typeReg, ValueType::MAP
@@ -3903,7 +3903,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
                     
                     bool objHi = static_cast<uint8_t>(objReg) >= 8;
-                    buf.emit8(0x48 | (objHi ? 0x01 : 0));
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
                     buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
                     
                     bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
@@ -3953,7 +3953,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
                     
                     bool objHi = static_cast<uint8_t>(objReg) >= 8;
-                    buf.emit8(0x48 | (objHi ? 0x01 : 0));
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
                     buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
                     
                     bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
@@ -4001,7 +4001,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
                     
                     bool objHi = static_cast<uint8_t>(objReg) >= 8;
-                    buf.emit8(0x48 | (objHi ? 0x01 : 0));
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
                     buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
                     
                     buf.emit8(0x48); buf.emit8(0xB8);
@@ -4043,7 +4043,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
                     
                     bool objHi = static_cast<uint8_t>(objReg) >= 8;
-                    buf.emit8(0x48 | (objHi ? 0x01 : 0));
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
                     buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
                     
                     buf.emit8(0x48); buf.emit8(0xB8);
