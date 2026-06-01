@@ -5,14 +5,14 @@ import stdlib claw as claw
 import stdlib io as io
 
 function loadElements(filePath) {
-    print("Crawling '" + filePath + "'...")
+    print("Crawling '", filePath, "'...")
     elements = claw.CrawlFile(filePath)
     if (elements == 0) {
-        print("Error: Could not crawl file: " + filePath)
+        print("Error: Could not crawl file:", filePath)
         return 0
     }
     print("Successfully parsed offline HTML document.")
-    print("Total parsed elements: " + str(elements.size()))
+    print("Total parsed elements:", elements.size())
     print("")
     return elements
 }
@@ -20,12 +20,12 @@ function loadElements(filePath) {
 function printHeadings(elements) {
     print("Selecting headings using 'div.card h2.card-title'...")
     headings = claw.Select(elements, "div.card h2.card-title")
-    print("Found card titles: " + str(headings.size()))
+    print("Found card titles:", headings.size())
     
     i = 0
     while (i < headings.size()) {
         el = headings[i]
-        print(" - Title tag: " + el["tag"] + " | Text: " + el["text"])
+        print(" - Title tag:", el["tag"], "| Text:", el["text"])
         i = i + 1
     }
     print("")
@@ -34,12 +34,12 @@ function printHeadings(elements) {
 function printFeatured(elements) {
     print("Selecting featured card using attribute selector '[data-category=featured]'...")
     featured = claw.Select(elements, "[data-category=featured]")
-    print("Found featured elements: " + str(featured.size()))
+    print("Found featured elements:", featured.size())
     
     i = 0
     while (i < featured.size()) {
         el = featured[i]
-        print(" - Tag: " + el["tag"] + " | Text content: " + el["text"])
+        print(" - Tag:", el["tag"], "| Text content:", el["text"])
         i = i + 1
     }
     print("")
@@ -95,13 +95,13 @@ function runCrawlerDemo() {
     
     print("Selecting links using 'div.card a.link'...")
     links = claw.Select(elements, "div.card a.link")
-    print("Found links: " + str(links.size()))
+    print("Found links:", links.size())
     
     i = 0
     while (i < links.size()) {
         el = links[i]
         attrs = el["attrs"]
-        print(" - Tag: " + el["tag"] + " | Text: " + el["text"] + " | Href: " + attrs["href"])
+        print(" - Tag:", el["tag"], "| Text:", el["text"], "| Href:", attrs["href"])
         i = i + 1
     }
     print("")
