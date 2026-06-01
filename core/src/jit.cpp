@@ -15,6 +15,7 @@
 #include "threadPool.hpp"
 #include "csv.hpp"
 #include "json.hpp"
+#include "claw.hpp"
 #include <cstring>
 #include <cstdio>
 #include <chrono>
@@ -873,6 +874,129 @@ extern "C" int64_t jit_string_length(void* strPtr) {
 // Global source directory for CSV path resolution (set per-compilation)
 static std::string jit_csv_source_dir;
 static std::string jit_json_source_dir;
+static std::string jit_claw_source_dir;
+
+// Convert JIT array to Nevaarize Value for Select function
+static nevaarize::Value jit_array_to_value(void* dataPtr) {
+    if (!dataPtr) return nevaarize::Value::fromArray({});
+    JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
+    std::vector<nevaarize::Value> vec;
+    vec.reserve(arr->size);
+
+    for (int64_t i = 0; i < arr->size; ++i) {
+        void* mapPtr = reinterpret_cast<void*>(arr->data[i]);
+        if (!mapPtr) {
+            vec.push_back(nevaarize::Value::nil());
+            continue;
+        }
+
+        JITMap* map = (JITMap*)((char*)mapPtr - offsetof(JITMap, entries));
+        auto mapInst = std::make_shared<nevaarize::MapInstance>();
+
+        for (int64_t idx = 0; idx < map->capacity; ++idx) {
+            if (map->entries[idx].state == 1) {
+                nevaarize::Value k;
+                int64_t keyRaw = map->entries[idx].key;
+                if (jit_is_string_key(keyRaw)) {
+                    JITString* s = (JITString*)((char*)keyRaw - offsetof(JITString, data));
+                    k = nevaarize::Value::fromString(std::string(s->data, s->length));
+                } else {
+                    k = nevaarize::Value::fromInt(keyRaw);
+                }
+
+                nevaarize::Value v;
+                int64_t valRaw = map->entries[idx].value;
+                if (k.isString()) {
+                    const std::string& keyStr = *k.stringVal;
+                    if (keyStr == "parentId") {
+                        if (valRaw == 0) {
+                            v = nevaarize::Value::nil();
+                        } else {
+                            v = nevaarize::Value::fromInt(valRaw);
+                        }
+                    } else if (keyStr == "id_index") {
+                        v = nevaarize::Value::fromInt(valRaw);
+                    } else if (keyStr == "attrs") {
+                        auto attrsMapInst = std::make_shared<nevaarize::MapInstance>();
+                        if (valRaw != 0) {
+                            JITMap* attrMap = (JITMap*)((char*)valRaw - offsetof(JITMap, entries));
+                            for (int64_t aIdx = 0; aIdx < attrMap->capacity; ++aIdx) {
+                                if (attrMap->entries[aIdx].state == 1) {
+                                    int64_t aKeyRaw = attrMap->entries[aIdx].key;
+                                    int64_t aValRaw = attrMap->entries[aIdx].value;
+                                    nevaarize::Value ak, av;
+                                    if (jit_is_string_key(aKeyRaw)) {
+                                        JITString* s = (JITString*)((char*)aKeyRaw - offsetof(JITString, data));
+                                        ak = nevaarize::Value::fromString(std::string(s->data, s->length));
+                                    }
+                                    if (jit_is_string_key(aValRaw)) {
+                                        JITString* s = (JITString*)((char*)aValRaw - offsetof(JITString, data));
+                                        av = nevaarize::Value::fromString(std::string(s->data, s->length));
+                                    }
+                                    if (ak.isString()) {
+                                        attrsMapInst->entries[ak] = av;
+                                    }
+                                }
+                            }
+                        }
+                        v = nevaarize::Value::fromMap(attrsMapInst);
+                    } else {
+                        if (valRaw != 0 && jit_is_string_key(valRaw)) {
+                            JITString* s = (JITString*)((char*)valRaw - offsetof(JITString, data));
+                            v = nevaarize::Value::fromString(std::string(s->data, s->length));
+                        } else {
+                            v = nevaarize::Value::fromString("");
+                        }
+                    }
+                    mapInst->entries[k] = v;
+                }
+            }
+        }
+        vec.push_back(nevaarize::Value::fromMap(mapInst));
+    }
+    return nevaarize::Value::fromArray(std::move(vec));
+}
+
+extern "C" void* jit_claw_crawl_file(const char* path) {
+    JITExecutionGuard guard;
+    if (!path) return jit_alloc_array(0);
+    auto result = nevaarize::stdlib::parseHTMLFile(path, jit_claw_source_dir);
+    JITValueResult res = jit_value_to_result(result);
+    return res.ptr;
+}
+
+extern "C" void* jit_claw_crawl_string(const char* content) {
+    JITExecutionGuard guard;
+    if (!content) return jit_alloc_array(0);
+    auto result = nevaarize::stdlib::parseHTMLString(content);
+    JITValueResult res = jit_value_to_result(result);
+    return res.ptr;
+}
+
+extern "C" void* jit_claw_select(void* elementsPtr, const char* selector) {
+    JITExecutionGuard guard;
+    if (!selector) return jit_alloc_array(0);
+    nevaarize::Value elements = jit_array_to_value(elementsPtr);
+    auto result = nevaarize::stdlib::selectElements(elements, selector);
+    JITValueResult res = jit_value_to_result(result);
+    return res.ptr;
+}
+
+extern "C" int64_t jit_claw_save_csv(const char* path, void* elementsPtr) {
+    JITExecutionGuard guard;
+    if (!path) return 0;
+    nevaarize::Value elements = jit_array_to_value(elementsPtr);
+    bool ok = nevaarize::stdlib::writeCSVFile(path, elements, jit_claw_source_dir);
+    return ok ? 1 : 0;
+}
+
+extern "C" int64_t jit_claw_save_json(const char* path, void* elementsPtr) {
+    JITExecutionGuard guard;
+    if (!path) return 0;
+    nevaarize::Value elements = jit_array_to_value(elementsPtr);
+    bool ok = nevaarize::stdlib::writeJSONFile(path, elements, jit_claw_source_dir);
+    return ok ? 1 : 0;
+}
 
 /**
  * FFI bridge: Parse a CSV file from JIT-compiled code.
