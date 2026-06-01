@@ -308,29 +308,41 @@ static bool jit_is_string_key(int64_t key) {
 extern "C" int64_t jit_detect_type(int64_t val) {
     JITExecutionGuard guard;
     volatile int64_t vval = val;
-    if (vval == 0) return static_cast<int64_t>(nevaarize::ValueType::NIL);
+    fprintf(stderr, "DEBUG JIT_DETECT_TYPE: val = %ld (0x%lx)\n", (long)vval, (unsigned long)vval);
+    if (vval == 0) {
+        fprintf(stderr, "  -> NIL\n");
+        return static_cast<int64_t>(nevaarize::ValueType::NIL);
+    }
     
     uint64_t uval = static_cast<uint64_t>(vval);
     if (uval < 0x10000 || uval > 0x7fffffffffff) {
+        fprintf(stderr, "  -> INT (out of user range)\n");
         return static_cast<int64_t>(nevaarize::ValueType::INT);
     }
     
     // Use volatile pointer to prevent compiler optimization
     volatile JITString* sStr = reinterpret_cast<volatile JITString*>(uval - offsetof(JITString, data));
+    fprintf(stderr, "  -> String magic check at 0x%lx\n", (unsigned long)sStr);
     if (sStr->magic == JIT_STRING_MAGIC) {
+        fprintf(stderr, "  -> STRING\n");
         return static_cast<int64_t>(nevaarize::ValueType::STRING);
     }
 
     volatile JITArray* sArr = reinterpret_cast<volatile JITArray*>(uval - offsetof(JITArray, data));
+    fprintf(stderr, "  -> Array magic check at 0x%lx\n", (unsigned long)sArr);
     if (sArr->magic == JIT_ARRAY_MAGIC) {
+        fprintf(stderr, "  -> ARRAY\n");
         return static_cast<int64_t>(nevaarize::ValueType::ARRAY);
     }
 
     volatile JITMap* sMap = reinterpret_cast<volatile JITMap*>(uval - offsetof(JITMap, entries));
+    fprintf(stderr, "  -> Map magic check at 0x%lx\n", (unsigned long)sMap);
     if (sMap->magic == JIT_MAP_MAGIC) {
+        fprintf(stderr, "  -> MAP\n");
         return static_cast<int64_t>(nevaarize::ValueType::MAP);
     }
 
+    fprintf(stderr, "  -> INT (fallback)\n");
     return static_cast<int64_t>(nevaarize::ValueType::INT);
 }
 
@@ -6691,7 +6703,7 @@ void JIT::emitPrintInt(X64Reg valueReg) {
     if (valueReg != X64Reg::RDI) {
         bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
         // mov rdi, valueReg
-        buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+        buf.emit8(0x48 | (valHigh ? 0x04 : 0));
         buf.emit8(0x89);
         buf.emit8(0xC7 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
     }
@@ -6975,7 +6987,7 @@ void JIT::emitPrintIntNoNewline(X64Reg valueReg) {
     
     if (valueReg != X64Reg::RDI) {
         bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
-        buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+        buf.emit8(0x48 | (valHigh ? 0x04 : 0));
         buf.emit8(0x89);
         buf.emit8(0xC7 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
     }
@@ -7015,7 +7027,7 @@ void JIT::emitPrintMapNoNewline(X64Reg valueReg) {
     
     // Move to RDI
     bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
-    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
     buf.emit8(0x89);
     buf.emit8(0xC7 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
     
@@ -7039,7 +7051,7 @@ void JIT::emitPrintArrayNoNewline(X64Reg valueReg) {
     
     // Move to RDI
     bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
-    buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
     buf.emit8(0x89);
     buf.emit8(0xC7 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3));
     
@@ -7503,7 +7515,7 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
                 // === STRING PRINT ===
                 size_t strPrintLabel = buf.getOffset();
                 buf.patch32(jeStrPatch, static_cast<uint32_t>(strPrintLabel - (jeStrPatch + 4)));
-                buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
                 buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
                 buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
                 buf.emit8(0x48); buf.emit8(0xB8);
@@ -7630,7 +7642,7 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
                 buf.patch32(jeStrPatch, static_cast<uint32_t>(strPrintLabel - (jeStrPatch + 4)));
                 
                 // RDI = valueReg (JITString data pointer)
-                buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
                 buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
                 
                 buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); // push rax, rcx, rdx
