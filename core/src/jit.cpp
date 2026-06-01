@@ -6982,6 +6982,8 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
     if (callee.type != NodeType::IDENTIFIER && callee.type != NodeType::MEMBER_ACCESS) return;
     
     CodeBuffer& buf = codegen.getCode();
+    std::string funcName = callee.name;
+    bool isStdlibIoCall = false;
     
     // Check for MEMBER_ACCESS (module calls)
     if (callee.type == NodeType::MEMBER_ACCESS) {
@@ -7010,8 +7012,8 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
                 
                 // Check if this is a loaded module
                 if (modules.count(moduleAlias)) {
-                    const std::string& funcName = callee.name;
-                    std::string namespacedName = moduleAlias + "_" + funcName;
+                    const std::string& memberFuncName = callee.name;
+                    std::string namespacedName = moduleAlias + "_" + memberFuncName;
                     
                     // Call the namespaced function
                     if (userFunctions.count(namespacedName)) {
@@ -7021,43 +7023,57 @@ void JIT::compileCall(const AST& ast, NodeIndex idx) {
                         return;
                     }
                 }
+                
+                // Check if this is a standard library alias
+                if (stdlibAliases.count(moduleAlias)) {
+                    const std::string& moduleName = stdlibAliases[moduleAlias];
+                    if (moduleName == "io") {
+                        if (memberName == "Println" || memberName == "print") {
+                            funcName = "print";
+                            isStdlibIoCall = true;
+                        } else if (memberName == "Write" || memberName == "write") {
+                            funcName = "write";
+                            isStdlibIoCall = true;
+                        }
+                    }
+                }
             }
         }
         
-        // Fallback for other member calls
-        if (userFunctions.count(memberName)) {
-             // Treat as user function if name matches
-             JITValue result = compileUserCall(ast, idx, memberName);
-             freeReg(result.valueReg);
-             freeReg(result.typeReg);
-             return;
-        }
-        
-        // Time module functions - call native C++ helpers via FFI
-        if (memberName == "nanos" || memberName == "clock") {
-            // Allocate result registers for expression return
-            // Note: This is a STATEMENT context (void), but we store result
-            // for when called as expression. The caller will handle unused regs.
+        if (!isStdlibIoCall) {
+            // Fallback for other member calls
+            if (userFunctions.count(memberName)) {
+                 // Treat as user function if name matches
+                 JITValue result = compileUserCall(ast, idx, memberName);
+                 freeReg(result.valueReg);
+                 freeReg(result.typeReg);
+                 return;
+            }
             
-            // Call jit_get_nanos() which returns int64_t
-            // mov rax, &jit_get_nanos
-            buf.emit8(0x48); buf.emit8(0xB8);
-            if (memberName == "nanos") {
-                buf.emit64(reinterpret_cast<uint64_t>(&jit_get_nanos));
-            } else {
-                buf.emit64(reinterpret_cast<uint64_t>(&jit_get_clock_ns));
+            // Time module functions - call native C++ helpers via FFI
+            if (memberName == "nanos" || memberName == "clock") {
+                // Allocate result registers for expression return
+                // Note: This is a STATEMENT context (void), but we store result
+                // for when called as expression. The caller will handle unused regs.
+                
+                // Call jit_get_nanos() which returns int64_t
+                // mov rax, &jit_get_nanos
+                buf.emit8(0x48); buf.emit8(0xB8);
+                if (memberName == "nanos") {
+                    buf.emit64(reinterpret_cast<uint64_t>(&jit_get_nanos));
+                } else {
+                    buf.emit64(reinterpret_cast<uint64_t>(&jit_get_clock_ns));
+                }
+                // call rax
+                buf.emit8(0xFF); buf.emit8(0xD0);
+                // Result is in RAX - for statement context we don't need to store it
+                // But if used as expression, the caller needs it...
+                // For now, statement calls ignore result.
+                return;
             }
-            // call rax
-            buf.emit8(0xFF); buf.emit8(0xD0);
-            // Result is in RAX - for statement context we don't need to store it
-            // But if used as expression, the caller needs it...
-            // For now, statement calls ignore result.
             return;
         }
-        return;
     }
-    
-    const std::string& funcName = callee.name;
     
     // Handle built-in print function
     if (funcName == "print") {
