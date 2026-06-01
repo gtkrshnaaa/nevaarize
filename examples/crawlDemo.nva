@@ -1,0 +1,99 @@
+// crawlDemo.nva - Claw Standard Library Crawler Demo
+// Demonstrates offline HTML crawling, css selectors, and CSV/JSON output.
+
+import stdlib claw as claw
+import stdlib io as io
+
+print("=== Nevaarize Claw Crawler Demo ===")
+print("")
+
+// 1. Crawl the local HTML file (relative to this script path)
+print("Crawling 'crawler_test.html'...")
+elements = claw.CrawlFile("crawler_test.html")
+
+totalElements = elements.size()
+print("Successfully parsed offline HTML document.")
+print("Total parsed elements:", totalElements)
+print("")
+
+// 2. Select card headings
+print("Selecting headings using 'div.card h2.card-title'...")
+headings = claw.Select(elements, "div.card h2.card-title")
+numHeadings = headings.size()
+print("Found card titles:", numHeadings)
+
+i = 0
+while (i < numHeadings) {
+    el = headings[i]
+    print(" - Title tag:", el["tag"], " | Text:", el["text"])
+    i = i + 1
+}
+print("")
+
+// 3. Select descendant links
+print("Selecting links using 'div.card a.link'...")
+links = claw.Select(elements, "div.card a.link")
+numLinks = links.size()
+print("Found links:", numLinks)
+
+i = 0
+while (i < numLinks) {
+    el = links[i]
+    attrs = el["attrs"]
+    href = attrs["href"]
+    print(" - Tag:", el["tag"], " | Text:", el["text"], " | Href:", href)
+    i = i + 1
+}
+print("")
+
+// 4. Select elements with category=featured
+print("Selecting featured card using attribute selector '[data-category=featured]'...")
+featured = claw.Select(elements, "[data-category=featured]")
+numFeatured = featured.size()
+print("Found featured elements:", numFeatured)
+
+i = 0
+while (i < numFeatured) {
+    el = featured[i]
+    print(" - Tag:", el["tag"], " | Text content:", el["text"])
+    i = i + 1
+}
+print("")
+
+// 5. Save crawled links metadata to CSV and JSON
+print("Saving crawled links data to 'links_output.csv' and 'links_output.json'...")
+
+// Transform links to flat export list
+exportData = []
+i = 0
+while (i < numLinks) {
+    el = links[i]
+    attrs = el["attrs"]
+    
+    // Create map for each row
+    row = {}
+    row["tag"] = el["tag"]
+    row["text"] = el["text"]
+    row["href"] = attrs["href"]
+    
+    exportData.append(row)
+    i = i + 1
+}
+
+csvOk = claw.SaveCSV("links_output.csv", exportData)
+jsonOk = claw.SaveJSON("links_output.json", exportData)
+
+if (csvOk) {
+    print("Successfully exported to CSV.")
+} else {
+    print("Failed to export to CSV.")
+}
+
+if (jsonOk) {
+    print("Successfully exported to JSON.")
+} else {
+    print("Failed to export to JSON.")
+}
+
+print("")
+print("=== Claw Crawler Demo Complete ===")
