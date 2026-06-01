@@ -308,41 +308,31 @@ static bool jit_is_string_key(int64_t key) {
 extern "C" int64_t jit_detect_type(int64_t val) {
     JITExecutionGuard guard;
     volatile int64_t vval = val;
-    fprintf(stderr, "DEBUG JIT_DETECT_TYPE: val = %ld (0x%lx)\n", (long)vval, (unsigned long)vval);
     if (vval == 0) {
-        fprintf(stderr, "  -> NIL\n");
         return static_cast<int64_t>(nevaarize::ValueType::NIL);
     }
     
     uint64_t uval = static_cast<uint64_t>(vval);
     if (uval < 0x10000 || uval > 0x7fffffffffff) {
-        fprintf(stderr, "  -> INT (out of user range)\n");
         return static_cast<int64_t>(nevaarize::ValueType::INT);
     }
     
     // Use volatile pointer to prevent compiler optimization
     volatile JITString* sStr = reinterpret_cast<volatile JITString*>(uval - offsetof(JITString, data));
-    fprintf(stderr, "  -> String magic check at 0x%lx\n", (unsigned long)sStr);
     if (sStr->magic == JIT_STRING_MAGIC) {
-        fprintf(stderr, "  -> STRING\n");
         return static_cast<int64_t>(nevaarize::ValueType::STRING);
     }
 
     volatile JITArray* sArr = reinterpret_cast<volatile JITArray*>(uval - offsetof(JITArray, data));
-    fprintf(stderr, "  -> Array magic check at 0x%lx\n", (unsigned long)sArr);
     if (sArr->magic == JIT_ARRAY_MAGIC) {
-        fprintf(stderr, "  -> ARRAY\n");
         return static_cast<int64_t>(nevaarize::ValueType::ARRAY);
     }
 
     volatile JITMap* sMap = reinterpret_cast<volatile JITMap*>(uval - offsetof(JITMap, entries));
-    fprintf(stderr, "  -> Map magic check at 0x%lx\n", (unsigned long)sMap);
     if (sMap->magic == JIT_MAP_MAGIC) {
-        fprintf(stderr, "  -> MAP\n");
         return static_cast<int64_t>(nevaarize::ValueType::MAP);
     }
 
-    fprintf(stderr, "  -> INT (fallback)\n");
     return static_cast<int64_t>(nevaarize::ValueType::INT);
 }
 

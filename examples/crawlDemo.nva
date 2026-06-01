@@ -19,12 +19,14 @@ print("")
 // 2. Select card headings
 print("Selecting headings using 'div.card h2.card-title'...")
 headings = claw.Select(elements, "div.card h2.card-title")
+print("Raw headings list:", headings)
 numHeadings = headings.size()
 print("Found card titles:", numHeadings)
 
 i = 0
 while (i < numHeadings) {
     el = headings[i]
+    print("Raw element map:", el)
     print(" - Title tag:", el["tag"], " | Text:", el["text"])
     i = i + 1
 }
