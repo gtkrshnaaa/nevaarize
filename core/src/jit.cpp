@@ -876,6 +876,13 @@ static std::string jit_csv_source_dir;
 static std::string jit_json_source_dir;
 static std::string jit_claw_source_dir;
 
+struct JITValueResult {
+    void* ptr;
+    int64_t type;
+};
+
+static JITValueResult jit_value_to_result(const nevaarize::Value& val);
+
 // Convert JIT array to Nevaarize Value for Select function
 static nevaarize::Value jit_array_to_value(void* dataPtr) {
     if (!dataPtr) return nevaarize::Value::fromArray({});
@@ -1041,11 +1048,6 @@ extern "C" void* jit_csv_parse_file(const char* path) {
     }
     return outerArr;
 }
-
-struct JITValueResult {
-    void* ptr;
-    int64_t type;
-};
 
 /**
  * FFI bridge: Convert Nevaarize Value to JIT-compatible results.
@@ -3597,6 +3599,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 return result;
                             }
                         }
+                    }
+                }
                 
                 // Module function calls like ai.loadModel()
                 // Compile the object first
