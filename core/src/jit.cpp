@@ -307,23 +307,26 @@ static bool jit_is_string_key(int64_t key) {
 
 extern "C" int64_t jit_detect_type(int64_t val) {
     JITExecutionGuard guard;
-    if (val == 0) return static_cast<int64_t>(nevaarize::ValueType::NIL);
-    uint64_t uval = static_cast<uint64_t>(val);
+    volatile int64_t vval = val;
+    if (vval == 0) return static_cast<int64_t>(nevaarize::ValueType::NIL);
+    
+    uint64_t uval = static_cast<uint64_t>(vval);
     if (uval < 0x10000 || uval > 0x7fffffffffff) {
         return static_cast<int64_t>(nevaarize::ValueType::INT);
     }
     
-    JITString* sStr = (JITString*)((char*)val - offsetof(JITString, data));
+    // Use volatile pointer to prevent compiler optimization
+    volatile JITString* sStr = reinterpret_cast<volatile JITString*>(uval - offsetof(JITString, data));
     if (sStr->magic == JIT_STRING_MAGIC) {
         return static_cast<int64_t>(nevaarize::ValueType::STRING);
     }
 
-    JITArray* sArr = (JITArray*)((char*)val - offsetof(JITArray, data));
+    volatile JITArray* sArr = reinterpret_cast<volatile JITArray*>(uval - offsetof(JITArray, data));
     if (sArr->magic == JIT_ARRAY_MAGIC) {
         return static_cast<int64_t>(nevaarize::ValueType::ARRAY);
     }
 
-    JITMap* sMap = (JITMap*)((char*)val - offsetof(JITMap, entries));
+    volatile JITMap* sMap = reinterpret_cast<volatile JITMap*>(uval - offsetof(JITMap, entries));
     if (sMap->magic == JIT_MAP_MAGIC) {
         return static_cast<int64_t>(nevaarize::ValueType::MAP);
     }
