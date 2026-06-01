@@ -256,7 +256,7 @@ print("Done!")</code></pre>
                     </thead>
                     <tbody>
                         <tr>
-                            <td><code>Print(...)</code></td>
+                            <td><code>Println(...)</code></td>
                             <td>Print with newline</td>
                         </tr>
                         <tr>
@@ -292,7 +292,7 @@ print("Done!")</code></pre>
 
 // User input
 name = io.Input("Enter your name: ")
-io.Print("Hello,", name)
+io.Println("Hello,", name)
 
 // File operations
 content = "Hello, File!"
@@ -300,7 +300,7 @@ io.WriteFile("test.txt", content)
 
 if (io.FileExists("test.txt")) {
     data = io.ReadFile("test.txt")
-    io.Print("File contents:", data)
+    io.Println("File contents:", data)
 }
 
 io.AppendFile("test.txt", "\nMore content")</code></pre>
