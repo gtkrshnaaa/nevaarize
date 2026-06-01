@@ -81,7 +81,7 @@ print("Reversed:", rev[0], rev[1], rev[2], rev[3], rev[4], "(expected: 50 40 30 
 
 // --- Array as Function Param ---
 print("\n--- Array Function Param ---")
-func sumArray(arr, n) {
+function sumArray(arr, n) {
     total = 0
     i = 0
     while (i < n) {
@@ -95,7 +95,7 @@ print("Sum 1..10:", sumArray(nums, 10), "(expected: 55)")
 
 // --- Array Search ---
 print("\n--- Array Search ---")
-func findIndex(arr, n, target) {
+function findIndex(arr, n, target) {
     i = 0
     while (i < n) {
         if (arr[i] == target) { return i }

@@ -1,6 +1,6 @@
 print("=== Roman Numeral ===")
 romVals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
-func romanValue(n) {
+function romanValue(n) {
     total = 0
     i = 0
     while (i < 13) {

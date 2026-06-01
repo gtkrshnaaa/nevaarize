@@ -6,7 +6,7 @@ import stdlib math as m
 // Manual expression evaluation using Reverse Polish Notation (RPN)
 // Operand stack approach
 
-func rpnEval(rpnTokens, rpnTypes) {
+function rpnEval(rpnTokens, rpnTypes) {
     // rpnTypes: 0=number, 1=add, 2=sub, 3=mul, 4=div
     stack = []
     i = 0

@@ -7,12 +7,12 @@ print("=== Stack (LIFO) ===")
 stack = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 stackTop = -1
 
-func stackPush(val) {
+function stackPush(val) {
     stackTop = stackTop + 1
     stack[stackTop] = val
 }
 
-func stackPop() {
+function stackPop() {
     if (stackTop < 0) {
         return -1
     }
@@ -21,12 +21,12 @@ func stackPop() {
     return val
 }
 
-func stackPeek() {
+function stackPeek() {
     if (stackTop < 0) { return -1 }
     return stack[stackTop]
 }
 
-func stackSize() {
+function stackSize() {
     return stackTop + 1
 }
 
@@ -54,19 +54,19 @@ queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 qFront = 0
 qBack = 0
 
-func enqueue(val) {
+function enqueue(val) {
     queue[qBack] = val
     qBack = qBack + 1
 }
 
-func dequeue() {
+function dequeue() {
     if (qFront >= qBack) { return -1 }
     val = queue[qFront]
     qFront = qFront + 1
     return val
 }
 
-func queueSize() {
+function queueSize() {
     return qBack - qFront
 }
 

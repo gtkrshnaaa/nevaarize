@@ -4,7 +4,7 @@
 
 print("=== Array Reverse ===")
 
-func printArray(arr, n) {
+function printArray(arr, n) {
     i = 0
     while (i < n) {
         print(" ", arr[i])
@@ -12,7 +12,7 @@ func printArray(arr, n) {
     }
 }
 
-func reverseArray(arr, n) {
+function reverseArray(arr, n) {
     left = 0
     right = n - 1
     while (left < right) {
@@ -35,7 +35,7 @@ printArray(data1, 7)
 print("")
 print("=== Left Rotation ===")
 
-func reverseRange(arr, l, r) {
+function reverseRange(arr, l, r) {
     while (l < r) {
         temp = arr[l]
         arr[l] = arr[r]
@@ -45,7 +45,7 @@ func reverseRange(arr, l, r) {
     }
 }
 
-func leftRotate(arr, n, k) {
+function leftRotate(arr, n, k) {
     k = k % n
     reverseRange(arr, 0, k - 1)
     reverseRange(arr, k, n - 1)
@@ -74,7 +74,7 @@ while (i < 8) {
 }
 
 // Range sum query: sum(arr[l..r]) = prefix[r+1] - prefix[l]
-func rangeSum(pfx, l, r) {
+function rangeSum(pfx, l, r) {
     return pfx[r + 1] - pfx[l]
 }
 
@@ -86,7 +86,7 @@ print("Sum[0..7] =", rangeSum(prefix, 0, 7))
 print("")
 print("=== Find Min/Max ===")
 
-func findMin(arr, n) {
+function findMin(arr, n) {
     min = arr[0]
     i = 1
     while (i < n) {
@@ -96,7 +96,7 @@ func findMin(arr, n) {
     return min
 }
 
-func findMax(arr, n) {
+function findMax(arr, n) {
     max = arr[0]
     i = 1
     while (i < n) {

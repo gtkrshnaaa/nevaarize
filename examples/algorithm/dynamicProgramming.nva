@@ -6,7 +6,7 @@ print("=== Climbing Stairs (Dynamic Programming) ===")
 // Pre-allocate DP array (max size 25)
 dp = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-func climbStairs(n) {
+function climbStairs(n) {
     dp[0] = 1
     dp[1] = 1
     i = 2
@@ -27,7 +27,7 @@ print("Ways to climb 20 stairs:", climbStairs(20))
 print("")
 print("=== Kadane's Algorithm (Max Subarray Sum) ===")
 
-func maxSubarraySum(arr, n) {
+function maxSubarraySum(arr, n) {
     maxSoFar = arr[0]
     maxEndingHere = arr[0]
 
@@ -65,7 +65,7 @@ print("=== Longest Increasing Subsequence Length ===")
 // Pre-allocate DP array for LIS
 lis = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-func lisLength(arr, n) {
+function lisLength(arr, n) {
     i = 0
     while (i < n) {
         lis[i] = 1

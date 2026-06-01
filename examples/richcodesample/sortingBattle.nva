@@ -4,7 +4,7 @@ import stdlib time as t
 // Sorting Battle: QuickSort vs BubbleSort
 // Demonstrates efficiency of recursive algorithms vs naive ones under JIT
 
-func bubbleSort(arr) {
+function bubbleSort(arr) {
     n = arr.size()
     i = 0
     while (i < n) {
@@ -21,7 +21,7 @@ func bubbleSort(arr) {
     }
 }
 
-func quickSort(arr, low, high) {
+function quickSort(arr, low, high) {
     if (low < high) {
         p = partition(arr, low, high)
         quickSort(arr, low, p - 1)
@@ -29,7 +29,7 @@ func quickSort(arr, low, high) {
     }
 }
 
-func partition(arr, low, high) {
+function partition(arr, low, high) {
     pivot = arr[high]
     i = low - 1
     
@@ -52,7 +52,7 @@ func partition(arr, low, high) {
 }
 
 // Data generation
-func generateRandomArray(size) {
+function generateRandomArray(size) {
     a = []
     for (i in Range(0, size)) {
         a.push(m.RandomInt(0, 10000))

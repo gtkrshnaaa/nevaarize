@@ -4,7 +4,7 @@ import stdlib time as t
 // Linear Regression from Scratch
 // Demonstrates Gradient Descent using while loops for JIT compatibility
 
-func calculatePrediction(x, w, b) {
+function calculatePrediction(x, w, b) {
     return (w * x) + b
 }
 

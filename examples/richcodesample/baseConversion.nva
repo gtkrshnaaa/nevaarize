@@ -1,5 +1,5 @@
 print("=== Base Conversion ===")
-func toBinary(n) {
+function toBinary(n) {
     if (n == 0) { return 0 }
     result = 0
     place = 1
@@ -15,7 +15,7 @@ print("5:", toBinary(5), "(expected: 101)")
 print("10:", toBinary(10), "(expected: 1010)")
 print("13:", toBinary(13), "(expected: 1101)")
 print("255:", toBinary(255), "(expected: 11111111)")
-func fromBinary(b) {
+function fromBinary(b) {
     result = 0
     place = 1
     while (b > 0) {

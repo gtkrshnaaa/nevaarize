@@ -14,7 +14,7 @@ textLen = 10
 pat = [1, 2, 3]
 patLen = 3
 
-func naiveSearch(text, tLen, pat, pLen) {
+function naiveSearch(text, tLen, pat, pLen) {
     i = 0
     while (i <= tLen - pLen) {
         match = 1
@@ -38,7 +38,7 @@ print("First match [1,2,3] at:", pos, "(expected: 0)")
 
 // --- Count Occurrences ---
 print("\n--- Count Occurrences ---")
-func countPattern(text, tLen, pat, pLen) {
+function countPattern(text, tLen, pat, pLen) {
     count = 0
     i = 0
     while (i <= tLen - pLen) {
@@ -89,7 +89,7 @@ print("Full match:", pos5, "(expected: 0)")
 
 // --- Max Subarray (Kadane's Algorithm) ---
 print("\n--- Kadane's Max Subarray ---")
-func kadane(arr, n) {
+function kadane(arr, n) {
     maxEnding = arr[0]
     maxSoFar = arr[0]
     i = 1
@@ -116,7 +116,7 @@ print("Max subarray [1,2,3]:", kadane(data2, 3), "(expected: 6)")
 
 // --- Longest Run of Equal Values ---
 print("\n--- Longest Run ---")
-func longestRun(arr, n) {
+function longestRun(arr, n) {
     if (n == 0) { return 0 }
     maxRun = 1
     curRun = 1

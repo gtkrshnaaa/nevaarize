@@ -2,7 +2,7 @@ print("=== Sparse Array ===")
 sparseIdx = [5, 20, 50, 99]
 sparseVal = [42, 99, 7, 1]
 sLen = 4
-func sparseGet(sIdx, sVal, sL, index) {
+function sparseGet(sIdx, sVal, sL, index) {
     i = 0
     while (i < sL) {
         if (sIdx[i] == index) { return sVal[i] }

@@ -3,7 +3,7 @@
 
 print("=== Binary Search ===")
 
-func binarySearch(arr, n, target) {
+function binarySearch(arr, n, target) {
     low = 0
     high = n - 1
     while (low <= high) {
@@ -41,7 +41,7 @@ print("Search 91: found at index", idx5)
 print("")
 print("=== Lower Bound ===")
 
-func lowerBound(arr, n, target) {
+function lowerBound(arr, n, target) {
     low = 0
     high = n
     while (low < high) {
@@ -69,7 +69,7 @@ print("Lower bound of 1: index", lb3)
 print("")
 print("=== Upper Bound ===")
 
-func upperBound(arr, n, target) {
+function upperBound(arr, n, target) {
     low = 0
     high = n
     while (low < high) {

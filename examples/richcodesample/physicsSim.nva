@@ -15,7 +15,7 @@ struct Particle {
     mass
 }
 
-func applyGravity(p, dt) {
+function applyGravity(p, dt) {
     // Gravity constant (uniform float for JIT)
     g = 9.81
     

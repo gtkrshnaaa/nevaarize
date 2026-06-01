@@ -3,7 +3,7 @@
 
 print("=== Newton's Square Root ===")
 
-func sqrt(x) {
+function sqrt(x) {
     if (x <= 0) { return 0 }
 
     guess = x / 2
@@ -27,7 +27,7 @@ print("sqrt(144) =", sqrt(144))
 print("")
 print("=== Integer Square Root (exact) ===")
 
-func isqrt(n) {
+function isqrt(n) {
     if (n <= 1) { return n }
     x = n
     y = (x + 1) / 2
@@ -49,7 +49,7 @@ print("isqrt(10000) =", isqrt(10000))
 print("")
 print("=== Absolute Value ===")
 
-func abs(n) {
+function abs(n) {
     if (n < 0) { return 0 - n }
     return n
 }
@@ -61,7 +61,7 @@ print("abs(0) =", abs(0))
 print("")
 print("=== Integer Power with Modulus ===")
 
-func modpow(base, exp, mod) {
+function modpow(base, exp, mod) {
     result = 1
     base = base % mod
     while (exp > 0) {

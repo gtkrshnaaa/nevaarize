@@ -1,4 +1,4 @@
-func fibIterative(n) {
+function fibIterative(n) {
     if (n <= 1) {
         return n
     }
@@ -24,7 +24,7 @@ print("fibIter(20):", fibIterative(20))
 print("")
 
 
-func arraySum(arr, length) {
+function arraySum(arr, length) {
     total = 0
     i = 0
     while (i < length) {
@@ -34,7 +34,7 @@ func arraySum(arr, length) {
     return total
 }
 
-func arrayMax(arr, length) {
+function arrayMax(arr, length) {
     max = arr[0]
     i = 1
     while (i < length) {
@@ -55,7 +55,7 @@ print("Max:", arrayMax(data, length))
 print("")
 
 
-func power(base, exp) {
+function power(base, exp) {
     result = 1
     i = 0
     while (i < exp) {
@@ -71,7 +71,7 @@ print("power(3, 5):", power(3, 5))
 print("")
 
 
-func factorialIter(n) {
+function factorialIter(n) {
     result = 1
     i = 2
     while (i <= n) {

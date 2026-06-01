@@ -6,7 +6,7 @@ nil = 0
 // Matrix Operations 2
 // Demonstrates advanced matrix manipulation and AI module interoperability
 
-func transposeMatrix(matrix, rows, cols) {
+function transposeMatrix(matrix, rows, cols) {
     print("Transposing", rows, "x", cols, "matrix...")
     
     // Flattened representation
@@ -21,13 +21,13 @@ func transposeMatrix(matrix, rows, cols) {
     return transposed
 }
 
-func determinant2x2(m2) {
+function determinant2x2(m2) {
     // m2 is [a, b, c, d]
     // det = ad - bc
     return (m2[0] * m2[3]) - (m2[1] * m2[2])
 }
 
-func invert2x2(m2) {
+function invert2x2(m2) {
     det = determinant2x2(m2)
     if (det == 0.0) {
         print("Matrix is singular, cannot invert.")

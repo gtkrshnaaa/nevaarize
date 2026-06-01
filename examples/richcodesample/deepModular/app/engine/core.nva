@@ -4,7 +4,7 @@
 import "../../lib/utils/logger.nva" as logger
 import stdlib math as m
 
-func initializeEngine() {
+function initializeEngine() {
     logger.logInfo("Engine", "Initializing JIT optimization kernels...")
     
     // Simulate some work
@@ -17,7 +17,7 @@ func initializeEngine() {
     logger.logInfo("Engine", "System ready.")
 }
 
-func processComputeTask(data) {
+function processComputeTask(data) {
     logger.logInfo("Engine", "Processing compute task...")
     result = m.Sqrt(data)
     logger.logInfo("Engine", "Task finished.")

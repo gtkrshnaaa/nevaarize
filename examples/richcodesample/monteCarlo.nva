@@ -4,7 +4,7 @@ import stdlib time as t
 // Monte Carlo Simulation
 // Demonstrates high-performance loop execution for stochastic estimation
 
-func estimatePi(iterations) {
+function estimatePi(iterations) {
     insideCircle = 0.0
     total = 0.0 + iterations // Ensure float math
     

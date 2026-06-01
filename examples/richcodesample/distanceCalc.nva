@@ -1,5 +1,5 @@
 print("=== Distance Calculations ===")
-func manhattan(x1, y1, x2, y2) {
+function manhattan(x1, y1, x2, y2) {
     dx = x2 - x1
     if (dx < 0) { dx = 0 - dx }
     dy = y2 - y1

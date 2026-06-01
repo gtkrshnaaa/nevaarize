@@ -9,7 +9,7 @@ start = t.millis()
 
 // --- Popcount ---
 print("--- Popcount ---")
-func popcount(n) {
+function popcount(n) {
     count = 0
     while (n > 0) {
         if (n % 2 == 1) { count = count + 1 }
@@ -25,7 +25,7 @@ print("popcount(1023):", popcount(1023), "(expected: 10)")
 
 // --- Power of 2 ---
 print("\n--- Power of 2 ---")
-func isPow2(n) {
+function isPow2(n) {
     if (n < 1) { return 0 }
     while (n > 1) {
         if (n % 2 != 0) { return 0 }
@@ -53,7 +53,7 @@ print("171 bits [7,3,2,1,0]:", bit7, bit3, bit2, bit1, bit0, "(expected: 1 1 0 1
 
 // --- Flag Simulation ---
 print("\n--- Flag Simulation ---")
-func checkFlag(value, mask) {
+function checkFlag(value, mask) {
     return (value / mask) % 2 == 1
 }
 ADMIN = 1
@@ -80,7 +80,7 @@ while (i < 16) {
 
 // --- Parity ---
 print("\n--- Parity ---")
-func parity(n) {
+function parity(n) {
     p = 0
     while (n > 0) {
         rem = n % 2
@@ -100,7 +100,7 @@ print("Parity(255):", parity(255), "(expected: 0)")
 
 // --- Binary Conversion ---
 print("\n--- To Binary ---")
-func toBinary(n) {
+function toBinary(n) {
     if (n == 0) { return 0 }
     result = 0
     place = 1

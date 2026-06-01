@@ -8,7 +8,7 @@ import stdlib time as t
 // Spawn 10 async tasks, each summing 500 million integers.
 // ---------------------------------------------------------------------------
 
-async func asyncSum(n) {
+async function asyncSum(n) {
     total = 0
     i = 0
     while (i < n) {
@@ -18,7 +18,7 @@ async func asyncSum(n) {
     return total
 }
 
-func testAsyncFanOut() {
+function testAsyncFanOut() {
     print("--- Test 1: Async Fan-Out (10 x 500M iterations) ---")
     s = t.nanos()
 
@@ -60,7 +60,7 @@ func testAsyncFanOut() {
 // 8 async tasks, each allocating 1M arrays (8 million total allocs).
 // ---------------------------------------------------------------------------
 
-async func asyncAllocator(count) {
+async function asyncAllocator(count) {
     i = 0
     while (i < count) {
         arr = [i, i + 1, i + 2, i + 3, i + 4, i + 5, i + 6, i + 7]
@@ -69,7 +69,7 @@ async func asyncAllocator(count) {
     return count
 }
 
-func testGCPressure() {
+function testGCPressure() {
     print("--- Test 2: GC Pressure (8 tasks x 1M allocs = 8M total) ---")
     s = t.nanos()
 
@@ -110,7 +110,7 @@ func testGCPressure() {
 // 6 async tasks with 50M ops each.
 // ---------------------------------------------------------------------------
 
-async func asyncSafe(n) {
+async function asyncSafe(n) {
     total = 0
     i = 0
     while (i < n) {
@@ -120,7 +120,7 @@ async func asyncSafe(n) {
     return total
 }
 
-func testAsyncExceptionSafety() {
+function testAsyncExceptionSafety() {
     print("--- Test 3: Exception Safety (6 tasks x 50M ops) ---")
     s = t.nanos()
 
@@ -157,7 +157,7 @@ func testAsyncExceptionSafety() {
 // 4 tasks x 200M iterations each. Should show clear parallel advantage.
 // ---------------------------------------------------------------------------
 
-func syncSum(n) {
+function syncSum(n) {
     total = 0
     i = 0
     while (i < n) {
@@ -167,7 +167,7 @@ func syncSum(n) {
     return total
 }
 
-func testSpeedComparison() {
+function testSpeedComparison() {
     print("--- Test 4: Sequential vs Parallel (4 x 200M) ---")
 
     // Sequential: run 4 tasks one after another
@@ -216,7 +216,7 @@ func testSpeedComparison() {
 // 500k nested array pairs hammering the GC.
 // ---------------------------------------------------------------------------
 
-func testAllocationStorm() {
+function testAllocationStorm() {
     print("--- Test 5: Allocation Storm (500K nested arrays) ---")
     s = t.nanos()
 

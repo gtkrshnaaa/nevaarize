@@ -7,7 +7,7 @@ import stdlib time as t
 // Utility
 // ---------------------------------------------------------------------------
 
-func report(label, ops, startNs, endNs, check) {
+function report(label, ops, startNs, endNs, check) {
     dur = endNs - startNs
     if (dur == 0) { dur = 1 }
     ms  = dur / 1000000
@@ -22,7 +22,7 @@ func report(label, ops, startNs, endNs, check) {
 // While-Loop Benchmarks
 // ---------------------------------------------------------------------------
 
-func whileIntArith(n) {
+function whileIntArith(n) {
     acc = 0
     s = t.nanos()
     i = 0
@@ -35,7 +35,7 @@ func whileIntArith(n) {
     report("[while] Integer Arithmetic", n * 2, s, e, acc)
 }
 
-func whileFloatArith(n) {
+function whileFloatArith(n) {
     acc = 0.0
     s = t.nanos()
     i = 0
@@ -48,7 +48,7 @@ func whileFloatArith(n) {
     report("[while] Float Arithmetic", n * 2, s, e, acc)
 }
 
-func whileControlFlow(n) {
+function whileControlFlow(n) {
     acc = 0
     s = t.nanos()
     i = 0
@@ -64,11 +64,11 @@ func whileControlFlow(n) {
     report("[while] Control Flow", n, s, e, acc)
 }
 
-func addOne(v) {
+function addOne(v) {
     return v + 1
 }
 
-func whileFuncCall(n) {
+function whileFuncCall(n) {
     acc = 0
     s = t.nanos()
     i = 0
@@ -80,7 +80,7 @@ func whileFuncCall(n) {
     report("[while] Function Call", n, s, e, acc)
 }
 
-func whileArrayWrite(n) {
+function whileArrayWrite(n) {
     arr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     s = t.nanos()
     i = 0
@@ -96,7 +96,7 @@ func whileArrayWrite(n) {
 // For-In Range Benchmarks
 // ---------------------------------------------------------------------------
 
-func forIntArith(n) {
+function forIntArith(n) {
     acc = 0
     s = t.nanos()
     for (i in Range(0, n)) {
@@ -107,7 +107,7 @@ func forIntArith(n) {
     report("[for]   Integer Arithmetic", n * 2, s, e, acc)
 }
 
-func forFloatArith(n) {
+function forFloatArith(n) {
     acc = 0.0
     s = t.nanos()
     for (i in Range(0, n)) {
@@ -118,7 +118,7 @@ func forFloatArith(n) {
     report("[for]   Float Arithmetic", n * 2, s, e, acc)
 }
 
-func forControlFlow(n) {
+function forControlFlow(n) {
     acc = 0
     s = t.nanos()
     for (i in Range(0, n)) {
@@ -132,7 +132,7 @@ func forControlFlow(n) {
     report("[for]   Control Flow", n, s, e, acc)
 }
 
-func forFuncCall(n) {
+function forFuncCall(n) {
     acc = 0
     s = t.nanos()
     for (i in Range(0, n)) {
@@ -142,7 +142,7 @@ func forFuncCall(n) {
     report("[for]   Function Call", n, s, e, acc)
 }
 
-func forArrayWrite(n) {
+function forArrayWrite(n) {
     arr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     s = t.nanos()
     for (i in Range(0, n)) {

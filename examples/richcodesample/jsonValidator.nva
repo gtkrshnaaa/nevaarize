@@ -3,7 +3,7 @@ import stdlib json as j
 // Deep JSON Validator
 // Demonstrates nested Map traversal and type checking logic
 
-func validateUserConfig(config) {
+function validateUserConfig(config) {
     print("Validating Deep User Config...")
     
     // Check top level

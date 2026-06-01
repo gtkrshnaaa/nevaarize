@@ -4,7 +4,7 @@ import stdlib math as m
 // Data Processor Simulation
 // Demonstrates ETL-like workflow with CSV parsing and numeric aggregation
 
-func processRecord(record) {
+function processRecord(record) {
     price = 0.0 + record["price"]
     quantity = 0.0 + record["quantity"]
 

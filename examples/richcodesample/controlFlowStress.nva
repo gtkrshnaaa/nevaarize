@@ -27,7 +27,7 @@ print("3x3x3 iterations:", sum3, "(expected: 27)")
 
 // --- If/Elif/Else Chain (10 branches) ---
 print("\n--- 10-branch elif ---")
-func gradeLabel(score) {
+function gradeLabel(score) {
     if (score >= 97) { return "A+" }
     elif (score >= 93) { return "A" }
     elif (score >= 90) { return "A-" }
@@ -49,7 +49,7 @@ print("60 ->", gradeLabel(60), "(expected: D)")
 
 // --- Early Return from Loop ---
 print("\n--- Early Return ---")
-func findFirst(arr, n, target) {
+function findFirst(arr, n, target) {
     i = 0
     while (i < n) {
         if (arr[i] == target) {
@@ -134,7 +134,7 @@ print("Is sorted:", isSorted, "(expected: 1)")
 
 // --- Function Dispatch ---
 print("\n--- Function Dispatch ---")
-func doOp(op, a, b) {
+function doOp(op, a, b) {
     if (op == 1) { return a + b }
     elif (op == 2) { return a - b }
     elif (op == 3) { return a * b }
@@ -149,7 +149,7 @@ print("unknown:", doOp(99, 1, 1), "(expected: 0)")
 
 // --- Collatz Sequence ---
 print("\n--- Collatz Conjecture ---")
-func collatzSteps(n) {
+function collatzSteps(n) {
     steps = 0
     while (n != 1) {
         if (n % 2 == 0) {

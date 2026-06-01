@@ -4,7 +4,7 @@ import stdlib time as t
 // Conway's Game of Life
 // Uses flat 1D array representation for JIT compatibility
 
-func createGrid(w, h) {
+function createGrid(w, h) {
     cells = []
     total = w * h
     i = 0
@@ -15,15 +15,15 @@ func createGrid(w, h) {
     return cells
 }
 
-func getCell(cells, w, x, y) {
+function getCell(cells, w, x, y) {
     return cells[y * w + x]
 }
 
-func setCell(cells, w, x, y, val) {
+function setCell(cells, w, x, y, val) {
     cells[y * w + x] = val
 }
 
-func countNeighbors(cells, w, h, x, y) {
+function countNeighbors(cells, w, h, x, y) {
     count = 0
     dy = -1
     while (dy <= 1) {
@@ -43,7 +43,7 @@ func countNeighbors(cells, w, h, x, y) {
     return count
 }
 
-func tick(cells, w, h) {
+function tick(cells, w, h) {
     newCells = createGrid(w, h)
     y = 0
     while (y < h) {
@@ -67,7 +67,7 @@ func tick(cells, w, h) {
     return newCells
 }
 
-func countAlive(cells, total) {
+function countAlive(cells, total) {
     count = 0
     i = 0
     while (i < total) {

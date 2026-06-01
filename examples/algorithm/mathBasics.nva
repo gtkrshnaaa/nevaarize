@@ -3,7 +3,7 @@
 
 print("=== Factorial ===")
 
-func factorial(n) {
+function factorial(n) {
     result = 1
     i = 2
     while (i <= n) {
@@ -22,7 +22,7 @@ print("12! =", factorial(12))
 print("")
 print("=== Fibonacci Sequence ===")
 
-func fibonacci(n) {
+function fibonacci(n) {
     if (n <= 0) { return 0 }
     if (n == 1) { return 1 }
 
@@ -48,7 +48,7 @@ print("fib(30) =", fibonacci(30))
 print("")
 print("=== Power Function ===")
 
-func power(base, exp) {
+function power(base, exp) {
     result = 1
     i = 0
     while (i < exp) {
@@ -65,7 +65,7 @@ print("7^3 =", power(7, 3))
 print("")
 print("=== Summation ===")
 
-func sumRange(a, b) {
+function sumRange(a, b) {
     total = 0
     i = a
     while (i <= b) {

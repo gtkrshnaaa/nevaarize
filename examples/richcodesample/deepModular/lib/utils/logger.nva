@@ -3,12 +3,12 @@ import stdlib time as t
 // Utility Logger
 // Demonstrates low-level logging utility in a nested structure
 
-func logInfo(tag, message) {
+function logInfo(tag, message) {
     currentTime = t.format("%Y-%m-%d %H:%M:%S")
     print("[" + currentTime + "] [INFO] [" + tag + "] " + message)
 }
 
-func logWarning(tag, message) {
+function logWarning(tag, message) {
     currentTime = t.format("%Y-%m-%d %H:%M:%S")
     print("[" + currentTime + "] [WARN] [" + tag + "] " + message)
 }

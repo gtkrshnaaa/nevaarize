@@ -4,7 +4,7 @@ import stdlib time as t
 // String Toolkit Demonstration
 // Demonstrates string operations that return numeric values (JIT compatible)
 
-func demonstrateStringInfo(text) {
+function demonstrateStringInfo(text) {
     print("Original Text: Nevaarize is a high-performance JIT-compiled language.")
     
     // Numeric returns from string stdlib (safe in JIT)
@@ -17,7 +17,7 @@ func demonstrateStringInfo(text) {
     print("- Ends with 'language.':", s.endsWith(text, "language."))
 }
 
-func benchmarkStringOps(text, iterations) {
+function benchmarkStringOps(text, iterations) {
     print("Benchmarking", iterations, "string operations...")
     start = t.millis()
     

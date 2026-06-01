@@ -75,10 +75,10 @@ print("freq[3]:", freq[3], "(expected: 2)")
 
 // --- Map in Function ---
 print("\n--- Map as Function Param ---")
-func getMapVal(dict, key) {
+function getMapVal(dict, key) {
     return dict[key]
 }
-func setMapVal(dict, key, val) {
+function setMapVal(dict, key, val) {
     dict[key] = val
 }
 config = {}

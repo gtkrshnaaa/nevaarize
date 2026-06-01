@@ -1,33 +1,33 @@
-func square(x) {
+function square(x) {
     return x * x
 }
 
-func cube(x) {
+function cube(x) {
     return x * x * x
 }
 
-func abs(x) {
+function abs(x) {
     if (x < 0) {
         return -x
     }
     return x
 }
 
-func max(a, b) {
+function max(a, b) {
     if (a > b) {
         return a
     }
     return b
 }
 
-func min(a, b) {
+function min(a, b) {
     if (a < b) {
         return a
     }
     return b
 }
 
-func clamp(value, minVal, maxVal) {
+function clamp(value, minVal, maxVal) {
     if (value < minVal) {
         return minVal
     }

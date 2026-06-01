@@ -15,7 +15,7 @@ htOccupied = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 htSize = 16
 
 // Simple hash: key modulo table size
-func hashKey(key, size) {
+function hashKey(key, size) {
     // Handle positive modulo
     h = key % size
     if (h < 0) { h = h + size }
@@ -98,7 +98,7 @@ print("Inserted 5 more entries")
 
 // --- Lookup ---
 print("\n--- Lookup ---")
-func htGet(keys, values, occupied, size, key) {
+function htGet(keys, values, occupied, size, key) {
     h = key % size
     if (h < 0) { h = h + size }
     steps = 0

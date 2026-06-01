@@ -1,4 +1,4 @@
-func sum(arr, length) {
+function sum(arr, length) {
     total = 0
     i = 0
     while (i < length) {
@@ -8,14 +8,14 @@ func sum(arr, length) {
     return total
 }
 
-func average(arr, length) {
+function average(arr, length) {
     if (length == 0) {
         return 0
     }
     return sum(arr, length) / length
 }
 
-func findMax(arr, length) {
+function findMax(arr, length) {
     if (length == 0) {
         return 0
     }
@@ -31,7 +31,7 @@ func findMax(arr, length) {
     return maximum
 }
 
-func findMin(arr, length) {
+function findMin(arr, length) {
     if (length == 0) {
         return 0
     }
@@ -47,7 +47,7 @@ func findMin(arr, length) {
     return minimum
 }
 
-func reverse(arr, length) {
+function reverse(arr, length) {
     i = 0
     while (i < length / 2) {
         temp = arr[i]

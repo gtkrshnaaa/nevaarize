@@ -2,7 +2,7 @@
 // Shows task-based concurrency with async functions
 
 // Regular synchronous function
-func computeSum(n) {
+function computeSum(n) {
     total = 0
     i = 0
     while (i < n) {
@@ -13,7 +13,7 @@ func computeSum(n) {
 }
 
 // Async function - runs on a separate thread
-async func asyncCompute(n) {
+async function asyncCompute(n) {
     total = 0
     i = 0
     while (i < n) {

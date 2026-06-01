@@ -4,7 +4,7 @@ import stdlib time as t
 // Text Search Algorithm
 // Demonstrates character-level searching using numeric string operations
 
-func naiveSearch(text, pattern) {
+function naiveSearch(text, pattern) {
     n = s.length(text)
     m = s.length(pattern)
 
@@ -23,7 +23,7 @@ func naiveSearch(text, pattern) {
     return indices
 }
 
-func countOccurrences(text, pattern) {
+function countOccurrences(text, pattern) {
     n = s.length(text)
     m = s.length(pattern)
     count = 0

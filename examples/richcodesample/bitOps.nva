@@ -3,7 +3,7 @@ import stdlib time as t
 
 // Bitwise Operations Demonstration
 
-func popcount(n) {
+function popcount(n) {
     count = 0
     temp = n
     while (temp > 0) {
@@ -18,7 +18,7 @@ func popcount(n) {
     return count
 }
 
-func isPowerOfTwo(n) {
+function isPowerOfTwo(n) {
     if (n <= 0) { return false }
     // Check if it's a power of 2: n & (n - 1) == 0
     // Using division-based check for maximum compatibility with all JIT versions
@@ -33,7 +33,7 @@ func isPowerOfTwo(n) {
 }
 
 // Bit Mask Simulation
-func checkFlag(value, mask) {
+function checkFlag(value, mask) {
     // Simulated bitwise check
     return (value / mask) % 2 == 1
 }

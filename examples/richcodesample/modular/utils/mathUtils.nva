@@ -3,7 +3,7 @@ import stdlib math as m
 // Math Utilities Module
 // Demonstrates custom function exporting and camelCase enforcement
 
-func calculateMean(arr) {
+function calculateMean(arr) {
     if (arr.size() == 0) {
         return 0.0
     }
@@ -15,7 +15,7 @@ func calculateMean(arr) {
     return sum / arr.size()
 }
 
-func calculateStandardDeviation(arr) {
+function calculateStandardDeviation(arr) {
     mean = calculateMean(arr)
     sumSqDiff = 0.0
     
@@ -28,6 +28,6 @@ func calculateStandardDeviation(arr) {
     return m.Sqrt(variance)
 }
 
-func isEvenNumber(n) {
+function isEvenNumber(n) {
     return (n % 2) == 0
 }

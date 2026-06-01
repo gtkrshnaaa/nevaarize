@@ -4,7 +4,7 @@ import stdlib time as t
 // Number Theory Algorithms in Nevaarize
 // High-performance implementations of classic mathematical functions
 
-func isPrime(n) {
+function isPrime(n) {
     if (n <= 1) { return false }
     if (n <= 3) { return true }
     if (n % 2 == 0 or n % 3 == 0) { return false }
@@ -20,7 +20,7 @@ func isPrime(n) {
     return true
 }
 
-func calculateGCD(a, b) {
+function calculateGCD(a, b) {
     while (b != 0) {
         t = b
         b = a % b
@@ -29,7 +29,7 @@ func calculateGCD(a, b) {
     return a
 }
 
-func getPrimeFactors(n) {
+function getPrimeFactors(n) {
     factors = []
     d = 2
     temp = n

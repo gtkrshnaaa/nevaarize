@@ -9,7 +9,7 @@ struct DataPoint {
     label
 }
 
-func euclideanDistance(f1, f2) {
+function euclideanDistance(f1, f2) {
     sumSq = 0.0
     for (i in Range(0, f1.size())) {
         diff = f1[i] - f2[i]
@@ -18,7 +18,7 @@ func euclideanDistance(f1, f2) {
     return m.Sqrt(sumSq)
 }
 
-func getMajorityClass(neighbors) {
+function getMajorityClass(neighbors) {
     counts = {}
     maxCount = 0
     bestLabel = ""
@@ -38,7 +38,7 @@ func getMajorityClass(neighbors) {
     return bestLabel
 }
 
-func classifyKNN(k, dataset, targetFeatures) {
+function classifyKNN(k, dataset, targetFeatures) {
     // Calculate distances to all points
     distances = []
     

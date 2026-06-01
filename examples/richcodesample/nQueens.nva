@@ -4,7 +4,7 @@ import stdlib time as t
 // Uses iterative approach with manual backtracking to avoid recursion limits.
 // Demonstrates constraint satisfaction, conflict detection, and solution counting.
 
-func isSafe(queens, row, col, n) {
+function isSafe(queens, row, col, n) {
     i = 0
     while (i < row) {
         qCol = queens[i]
@@ -18,7 +18,7 @@ func isSafe(queens, row, col, n) {
     return 1
 }
 
-func solveNQueens(n) {
+function solveNQueens(n) {
     queens = []
     i = 0
     while (i < n) {

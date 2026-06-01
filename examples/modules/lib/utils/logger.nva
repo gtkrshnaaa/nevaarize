@@ -1,19 +1,19 @@
-func info(message) {
+function info(message) {
     print("[INFO]", message)
 }
 
-func warn(message) {
+function warn(message) {
     print("[WARN]", message)
 }
 
-func error(message) {
+function error(message) {
     print("[ERROR]", message)
 }
 
-func success(message) {
+function success(message) {
     print("[OK]", message)
 }
 
-func debug(label, value) {
+function debug(label, value) {
     print("[DEBUG]", label, "=", value)
 }

@@ -5,13 +5,13 @@ import stdlib time as t
 
 struct Obj { val }
 
-func printHeader() {
+function printHeader() {
     print("  -------------------------------------------------------------")
     print("  Benchmark       |     Performance     | Time")
     print("  -------------------------------------------------------------")
 }
 
-func benchInt() {
+function benchInt() {
     limit = 1000000000
     start = t.nanos()
     i = 0
@@ -28,7 +28,7 @@ func benchInt() {
     print("  Integer Add     |", ops, "ops/sec |", sec, "s")
 }
 
-func benchDouble() {
+function benchDouble() {
     limit = 100000000
     val = 0.0
     start = t.nanos()
@@ -47,7 +47,7 @@ func benchDouble() {
     print("  Double Arith    |", ops, "ops/sec |", sec, "s")
 }
 
-func benchString() {
+function benchString() {
     limit = 500000
     s = ""
     start = t.nanos()
@@ -66,7 +66,7 @@ func benchString() {
     print("  String Concat   |", ops, "ops/sec |", sec, "s")
 }
 
-func benchArray() {
+function benchArray() {
     limit = 1000000
     arr = []
     start = t.nanos()
@@ -85,7 +85,7 @@ func benchArray() {
     print("  Array Push      |", ops, "ops/sec |", sec, "s")
 }
 
-func benchStruct() {
+function benchStruct() {
     limit = 50000000
     o = Obj(0)
     start = t.nanos()

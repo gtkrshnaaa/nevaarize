@@ -5,7 +5,7 @@ import stdlib time as t
 // This script calculates the escape time for points in the complex plane
 // and "visualizes" it by printing different characters to the console.
 
-func mandelbrot(real, imag, maxIter) {
+function mandelbrot(real, imag, maxIter) {
     zReal = real
     zImag = imag
     
@@ -25,7 +25,7 @@ func mandelbrot(real, imag, maxIter) {
     return maxIter
 }
 
-func visualizeMandelbrot() {
+function visualizeMandelbrot() {
     print("=== Nevaarize Mandelbrot Fractal Simulation ===")
     start = t.millis()
     

@@ -6,36 +6,36 @@ import stdlib time as t
 
 // Vectors represented as [x, y, z] arrays
 
-func vecAdd(v1, v2) {
+function vecAdd(v1, v2) {
     return [v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2]]
 }
 
-func vecSub(v1, v2) {
+function vecSub(v1, v2) {
     return [v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]]
 }
 
-func vecDot(v1, v2) {
+function vecDot(v1, v2) {
     return (v1[0] * v2[0]) + (v1[1] * v2[1]) + (v1[2] * v2[2])
 }
 
-func vecCross(v1, v2) {
+function vecCross(v1, v2) {
     nx = (v1[1] * v2[2]) - (v1[2] * v2[1])
     ny = (v1[2] * v2[0]) - (v1[0] * v2[2])
     nz = (v1[0] * v2[1]) - (v1[1] * v2[0])
     return [nx, ny, nz]
 }
 
-func vecLength(v) {
+function vecLength(v) {
     return m.Sqrt((v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]))
 }
 
-func vecNormalize(v) {
+function vecNormalize(v) {
     l = vecLength(v)
     if (l == 0.0) { return [0.0, 0.0, 0.0] }
     return [v[0] / l, v[1] / l, v[2] / l]
 }
 
-func printVec(label, v) {
+function printVec(label, v) {
     print(label, v[0], v[1], v[2])
 }
 

@@ -4,7 +4,7 @@ import stdlib math as m
 // Producer-Consumer Pattern Simulation
 // Demonstrates async/await coordination with numeric returns
 
-async func produceItem(id) {
+async function produceItem(id) {
     procTime = m.RandomInt(10, 50)
     t.sleep(procTime)
     value = m.Random() * 100.0
@@ -12,7 +12,7 @@ async func produceItem(id) {
     return value
 }
 
-async func consumeItem(id, value) {
+async function consumeItem(id, value) {
     procTime = m.RandomInt(10, 30)
     t.sleep(procTime)
     result = value * 2.0

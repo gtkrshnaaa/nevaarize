@@ -7,7 +7,7 @@ print("")
 // Heavy array allocation to trigger GC
 print("Creating arrays with GC-managed memory...")
 
-func allocateArrays(count) {
+function allocateArrays(count) {
     i = 0
     while (i < count) {
         arr = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -23,7 +23,7 @@ print("")
 // Heavy string allocation
 print("Creating strings with GC-managed memory...")
 
-func allocateStrings(count) {
+function allocateStrings(count) {
     i = 0
     while (i < count) {
         s = "nevaarize"
@@ -39,7 +39,7 @@ print("")
 // Nested allocation stress test
 print("Nested allocation stress test...")
 
-func stressTest(outer, inner) {
+function stressTest(outer, inner) {
     i = 0
     total = 0
     while (i < outer) {

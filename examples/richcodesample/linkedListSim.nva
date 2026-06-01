@@ -54,7 +54,7 @@ print("Node count:", count, "(expected: 3)")
 
 // --- Search ---
 print("\n--- Search ---")
-func searchList(nodeData, nodeNext, head, target) {
+function searchList(nodeData, nodeNext, head, target) {
     curr = head
     pos = 0
     while (curr != -1) {

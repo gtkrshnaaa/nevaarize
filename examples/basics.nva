@@ -51,11 +51,11 @@ while (i < 5) {
 print("")
 
 
-func add(x, y) {
+function add(x, y) {
     return x + y
 }
 
-func multiply(x, y) {
+function multiply(x, y) {
     return x * y
 }
 
@@ -64,7 +64,7 @@ print("multiply(6, 4):", multiply(6, 4))
 print("")
 
 
-func factorialIter(n) {
+function factorialIter(n) {
     result = 1
     i = 2
     while (i <= n) {

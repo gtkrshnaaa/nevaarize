@@ -4,7 +4,7 @@ import stdlib time as t
 // Solves a 4x4 puzzle using recursive backtracking.
 // Demonstrates logic and recursion in a JIT-friendly way.
 
-func printGrid(grid) {
+function printGrid(grid) {
     r = 0
     while (r < 4) {
         print("Row", r, ":", grid[r*4+0], grid[r*4+1], "|", grid[r*4+2], grid[r*4+3])
@@ -15,7 +15,7 @@ func printGrid(grid) {
     }
 }
 
-func isSafe(grid, row, col, num) {
+function isSafe(grid, row, col, num) {
     // Check row
     c = 0
     while (c < 4) {
@@ -53,7 +53,7 @@ func isSafe(grid, row, col, num) {
     return 1
 }
 
-func solveSudoku(grid) {
+function solveSudoku(grid) {
     row = -1
     col = -1
     found = 0

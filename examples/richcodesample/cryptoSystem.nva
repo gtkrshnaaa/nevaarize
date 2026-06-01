@@ -5,7 +5,7 @@ import stdlib time as t
 // Demonstrates numeric string transformations and XOR-like cipher logic.
 
 // Simplified Caesar Cipher Demo
-func caesarDemo(shift) {
+function caesarDemo(shift) {
     print("Caesar Cipher Simulation - Shift:", shift)
     
     // S=18, E=4, C=2, R=17, E=4, T=19
@@ -35,7 +35,7 @@ func caesarDemo(shift) {
 }
 
 // Cipher using pre-allocated arrays and simplified indexing
-func xorDemo() {
+function xorDemo() {
     print("\nSimplistic Cipher Simulation")
     
     // "Hello"
@@ -72,7 +72,7 @@ func xorDemo() {
     print("Decrypted Data:", d[0], d[1], d[2], d[3], d[4])
 }
 
-func runCryptoDemo() {
+function runCryptoDemo() {
     print("=== Nevaarize Crypto System Simulation ===")
     start = t.millis()
     caesarDemo(3)

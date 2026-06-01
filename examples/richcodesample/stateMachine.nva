@@ -4,7 +4,7 @@ import stdlib time as t
 // Validates identifier format: must start with letter, then letters or digits.
 // Uses nested if blocks instead of `and` operator for JIT compatibility.
 
-func isLetter(c) {
+function isLetter(c) {
     if (c >= 65) {
         if (c <= 90) { return 1 }
     }
@@ -14,7 +14,7 @@ func isLetter(c) {
     return 0
 }
 
-func isDigit(c) {
+function isDigit(c) {
     if (c >= 48) {
         if (c <= 57) { return 1 }
     }

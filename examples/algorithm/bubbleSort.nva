@@ -3,7 +3,7 @@
 
 print("=== Bubble Sort ===")
 
-func printArray(arr, n) {
+function printArray(arr, n) {
     i = 0
     while (i < n) {
         print(" ", arr[i])
@@ -11,7 +11,7 @@ func printArray(arr, n) {
     }
 }
 
-func bubbleSort(arr, n) {
+function bubbleSort(arr, n) {
     i = 0
     while (i < n) {
         j = 0
@@ -38,7 +38,7 @@ printArray(data1, 7)
 print("")
 print("=== Cocktail Shaker Sort ===")
 
-func cocktailSort(arr, n) {
+function cocktailSort(arr, n) {
     start = 0
     end = n - 1
     swapped = 1

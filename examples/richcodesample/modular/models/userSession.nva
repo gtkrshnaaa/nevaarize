@@ -9,15 +9,15 @@ struct UserSession {
     isActive
 }
 
-func createSession(userId, name) {
+function createSession(userId, name) {
     now = t.millis()
     return UserSession(userId, name, now, true)
 }
 
-func endSession(session) {
+function endSession(session) {
     session.isActive = false
 }
 
-func getSessionDuration(session) {
+function getSessionDuration(session) {
     return t.millis() - session.startTime
 }

@@ -11,7 +11,7 @@ b = [9, 8, 7, 6, 5, 4, 3, 2, 1]
 print("")
 print("=== Matrix Addition (3x3) ===")
 
-func matAdd(a, b, result, size) {
+function matAdd(a, b, result, size) {
     i = 0
     while (i < size) {
         result[i] = a[i] + b[i]
@@ -19,7 +19,7 @@ func matAdd(a, b, result, size) {
     }
 }
 
-func printMat3x3(mat) {
+function printMat3x3(mat) {
     print("  |", mat[0], mat[1], mat[2], "|")
     print("  |", mat[3], mat[4], mat[5], "|")
     print("  |", mat[6], mat[7], mat[8], "|")
@@ -33,7 +33,7 @@ printMat3x3(sum)
 print("")
 print("=== Matrix Multiplication (3x3) ===")
 
-func matMul3(a, b, result) {
+function matMul3(a, b, result) {
     i = 0
     while (i < 3) {
         j = 0
@@ -59,7 +59,7 @@ printMat3x3(prod)
 print("")
 print("=== Matrix Transpose ===")
 
-func matTranspose3(src, dst) {
+function matTranspose3(src, dst) {
     i = 0
     while (i < 3) {
         j = 0
@@ -79,7 +79,7 @@ printMat3x3(trans)
 print("")
 print("=== Trace (sum of diagonal) ===")
 
-func trace3(mat) {
+function trace3(mat) {
     return mat[0] + mat[4] + mat[8]
 }
 

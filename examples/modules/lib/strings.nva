@@ -1,7 +1,7 @@
 // Module: String Utilities
 // String manipulation helpers
 
-func repeat(str, times) {
+function repeat(str, times) {
     // Since string concatenation might not work, we demonstrate logic
     result = str
     i = 1
@@ -15,6 +15,6 @@ func repeat(str, times) {
 
 import stdlib string as s
 
-func countChars(str) {
+function countChars(str) {
     return s.length(str)
 }

@@ -4,7 +4,7 @@
 
 print("=== Popcount (Count Set Bits) ===")
 
-func popcount(n) {
+function popcount(n) {
     count = 0
     while (n > 0) {
         if (n % 2 == 1) {
@@ -25,7 +25,7 @@ print("popcount(1023) =", popcount(1023))
 print("")
 print("=== Power of 2 Check ===")
 
-func isPowerOf2(n) {
+function isPowerOf2(n) {
     if (n <= 0) { return 0 }
     count = popcount(n)
     if (count == 1) { return 1 }
@@ -44,7 +44,7 @@ print("=== Integer to Binary (8-bit) ===")
 
 bits = [0, 0, 0, 0, 0, 0, 0, 0]
 
-func toBinary(n) {
+function toBinary(n) {
     i = 7
     while (i >= 0) {
         bits[i] = n % 2
@@ -53,7 +53,7 @@ func toBinary(n) {
     }
 }
 
-func printBits() {
+function printBits() {
     print(" ", bits[0], bits[1], bits[2], bits[3], bits[4], bits[5], bits[6], bits[7])
 }
 
@@ -72,7 +72,7 @@ printBits()
 print("")
 print("=== Next Power of 2 ===")
 
-func nextPow2(n) {
+function nextPow2(n) {
     if (n <= 1) { return 1 }
     power = 1
     while (power < n) {
@@ -89,7 +89,7 @@ print("nextPow2(100) =", nextPow2(100))
 print("")
 print("=== Log Base 2 (Integer) ===")
 
-func log2(n) {
+function log2(n) {
     result = 0
     while (n > 1) {
         n = n / 2

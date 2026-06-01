@@ -3,7 +3,7 @@
 
 print("=== Linear Search ===")
 
-func linearSearch(arr, n, target) {
+function linearSearch(arr, n, target) {
     i = 0
     while (i < n) {
         if (arr[i] == target) {
@@ -31,7 +31,7 @@ print("Search 55: found at index", idx4)
 print("")
 print("=== Sentinel Search ===")
 
-func sentinelSearch(arr, n, target) {
+function sentinelSearch(arr, n, target) {
     last = arr[n - 1]
     arr[n - 1] = target
 
@@ -65,7 +65,7 @@ print("Sentinel search 1: found at index", idx6)
 print("")
 print("=== Count Occurrences ===")
 
-func countOccurrences(arr, n, target) {
+function countOccurrences(arr, n, target) {
     count = 0
     i = 0
     while (i < n) {

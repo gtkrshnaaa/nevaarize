@@ -4,7 +4,7 @@ import stdlib math as m
 // Async Orchestrator
 // Demonstrates parallel task execution and awaiting results
 
-async func fetchRemoteData(id, delay) {
+async function fetchRemoteData(id, delay) {
     print("Task", id, "- Starting fetch (mock)...")
     t.sleep(delay)
     result = m.RandomInt(100, 999)
@@ -12,7 +12,7 @@ async func fetchRemoteData(id, delay) {
     return result
 }
 
-async func processBatch(ids) {
+async function processBatch(ids) {
     tasks = []
     print("Orchestrator - Spawning", ids.size(), "parallel tasks")
     

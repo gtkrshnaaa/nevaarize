@@ -3,7 +3,7 @@
 
 print("=== Insertion Sort ===")
 
-func printArray(arr, n) {
+function printArray(arr, n) {
     i = 0
     while (i < n) {
         print(" ", arr[i])
@@ -11,7 +11,7 @@ func printArray(arr, n) {
     }
 }
 
-func insertionSort(arr, n) {
+function insertionSort(arr, n) {
     i = 1
     while (i < n) {
         key = arr[i]
@@ -45,7 +45,7 @@ printArray(data1, 6)
 print("")
 print("=== Selection Sort ===")
 
-func selectionSort(arr, n) {
+function selectionSort(arr, n) {
     i = 0
     while (i < n - 1) {
         minIdx = i
