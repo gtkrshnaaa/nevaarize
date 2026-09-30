@@ -295,6 +295,96 @@ extern "C" void* jit_alloc_typed_array(int64_t size, int64_t elemType) {
     return ptr;
 }
 
+extern "C" void jit_repl_print_result(int64_t val, int64_t type) {
+    JITExecutionGuard guard;
+    switch (type) {
+        case 0: // INT
+            std::cout << val << std::endl;
+            break;
+            
+        case 1: { // FLOAT
+            double d;
+            std::memcpy(&d, &val, sizeof(d));
+            if (d == static_cast<int64_t>(d)) {
+                printf("%.1f\n", d);
+            } else {
+                printf("%g\n", d);
+            }
+            fflush(stdout);
+            break;
+        }
+            
+        case 2: // BOOL
+            std::cout << (val ? "true" : "false") << std::endl;
+            break;
+            
+        case 3: // NIL
+            std::cout << "nil" << std::endl;
+            break;
+            
+        case 4: { // STRING
+            void* dataPtr = reinterpret_cast<void*>(val);
+            if (!dataPtr) {
+                std::cout << "nil" << std::endl;
+                break;
+            }
+            JITString* str = reinterpret_cast<JITString*>(
+                reinterpret_cast<char*>(dataPtr) - offsetof(JITString, data));
+            std::cout << "\"" << std::string(str->data, str->length) << "\"" << std::endl;
+            break;
+        }
+            
+        case 5: { // ARRAY
+            void* dataPtr = reinterpret_cast<void*>(val);
+            if (!dataPtr) {
+                std::cout << "nil" << std::endl;
+                break;
+            }
+            JITArray* arr = reinterpret_cast<JITArray*>(
+                reinterpret_cast<char*>(dataPtr) - offsetof(JITArray, data));
+            std::cout << "[";
+            for (int64_t i = 0; i < arr->size; ++i) {
+                if (i > 0) std::cout << ", ";
+                if (arr->elemType == 0) {
+                    std::cout << arr->data[i];
+                } else if (arr->elemType == 1) {
+                    double d;
+                    std::memcpy(&d, &arr->data[i], sizeof(d));
+                    if (d == static_cast<int64_t>(d)) printf("%.1f", d);
+                    else printf("%g", d);
+                } else if (arr->elemType == 4) {
+                    void* strPtr = reinterpret_cast<void*>(arr->data[i]);
+                    if (strPtr) {
+                        JITString* s = reinterpret_cast<JITString*>(
+                            reinterpret_cast<char*>(strPtr) - offsetof(JITString, data));
+                        std::cout << "\"" << std::string(s->data, s->length) << "\"";
+                    } else {
+                        std::cout << "nil";
+                    }
+                } else {
+                    std::cout << arr->data[i];
+                }
+            }
+            std::cout << "]" << std::endl;
+            break;
+        }
+            
+        case 6: { // MAP
+            void* dataPtr = reinterpret_cast<void*>(val);
+            if (!dataPtr) {
+                std::cout << "nil" << std::endl;
+            } else {
+                std::cout << "[Map at " << dataPtr << "]" << std::endl;
+            }
+            break;
+        }
+            
+        default:
+            std::cout << val << std::endl;
+            break;
+    }
+}
+
 constexpr uint32_t JIT_STRUCT_MAGIC = 0x53545255; // 'STRU'
 
 struct JITStructField {
@@ -3603,6 +3693,59 @@ JITValue JIT::emitNativeCall(uint64_t fnPtr, const std::vector<int32_t>& argSlot
     return result;
 }
 
+void JIT::emitReplPrint(JITValue val) {
+    CodeBuffer& buf = codegen.getCode();
+
+    // 1. Save caller-saved registers
+    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); // push rax, rcx, rdx
+    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
+    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
+
+    // 2. Transfer registers safely using push/pop to prevent overlap
+    bool vHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+    if (vHigh) buf.emit8(0x41);
+    buf.emit8(0x50 + (static_cast<uint8_t>(val.valueReg) & 0x7)); // push valueReg
+
+    bool tHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+    if (tHigh) buf.emit8(0x41);
+    buf.emit8(0x50 + (static_cast<uint8_t>(val.typeReg) & 0x7)); // push typeReg
+
+    buf.emit8(0x5E); // pop rsi (arg 2: type)
+    buf.emit8(0x5F); // pop rdi (arg 1: value)
+
+    // 3. Align stack to 16 bytes
+    buf.emit8(0x53); // push rbx
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+    // 4. Call jit_repl_print_result
+    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_repl_print_result));
+    buf.emit8(0xFF); buf.emit8(0xD0);
+
+    // 5. Restore stack pointer
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+    buf.emit8(0x5B); // pop rbx
+
+    // 6. Restore caller-saved registers
+    buf.emit8(0x41); buf.emit8(0x5B); // pop r11
+    buf.emit8(0x41); buf.emit8(0x5A); // pop r10
+    buf.emit8(0x41); buf.emit8(0x59); // pop r9
+    buf.emit8(0x41); buf.emit8(0x58); // pop r8
+    buf.emit8(0x5A); // pop rdx
+    buf.emit8(0x59); // pop rcx
+    buf.emit8(0x58); // pop rax
+}
+
+void JIT::resetReplState() {
+    replVariables.clear();
+    replASTHistory.clear();
+    userFunctions.clear();
+    structs.clear();
+    stdlibAliases.clear();
+    modules.clear();
+    importedFiles.clear();
+    importedASTs.clear();
+}
 
 bool JIT::canCompileLoop(const AST& ast, NodeIndex forNode) {
     if (forNode == INVALID_NODE) return false;
@@ -3809,6 +3952,24 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
                     buf.emit32(static_cast<uint32_t>(offset + 8));
                 }
+            } else if (isReplMode && replVariables.count(node.name)) {
+                auto replIt = replVariables.find(node.name);
+                uint64_t valAddr = reinterpret_cast<uint64_t>(&replIt->second->value);
+                uint64_t typeAddr = reinterpret_cast<uint64_t>(&replIt->second->type);
+                
+                // Load Value
+                emitMovImm64(buf, X64Reg::RAX, valAddr);
+                bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x00 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                
+                // Load Type
+                emitMovImm64(buf, X64Reg::RAX, typeAddr);
+                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x00 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
             }
             return result;
         }
@@ -8683,7 +8844,7 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
     
     // Peephole Optimization: Direct Arithmetic for Accumulators (Registers & Stack)
     bool peepholeOptimized = false;
-    if (node.left != INVALID_NODE) {
+    if (!isReplMode && node.left != INVALID_NODE) {
         const ASTNode& exprNode = ast.get(node.left);
         if (exprNode.type == NodeType::BINARY_OP && 
             (exprNode.binaryOp == BinaryOp::ADD || exprNode.binaryOp == BinaryOp::SUB)) {
@@ -8974,6 +9135,30 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
         }
     }
     
+    if (isReplMode && !inFunctionCall) {
+        auto replIt = replVariables.find(node.name);
+        if (replIt == replVariables.end()) {
+            replVariables[node.name] = std::make_shared<REPLVariable>();
+            replIt = replVariables.find(node.name);
+        }
+        uint64_t valAddr = reinterpret_cast<uint64_t>(&replIt->second->value);
+        uint64_t typeAddr = reinterpret_cast<uint64_t>(&replIt->second->type);
+
+        emitMovImm64(buf, X64Reg::RAX, valAddr);
+        bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+        buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x00 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
+
+        if (val.typeReg != X64Reg::RSP) {
+            emitMovImm64(buf, X64Reg::RAX, typeAddr);
+            bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0x00 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
+        }
+    }
+
     freeReg(val.valueReg);
     if (val.typeReg != X64Reg::RSP) freeReg(val.typeReg);
     
@@ -9174,8 +9359,10 @@ int64_t JIT::execute(CompiledFunc fn) {
 CompiledFunc JIT::compile(const AST& ast) {
     codegen = CodeGenerator();
     variables.clear();
-    userFunctions.clear();
-    stdlibAliases.clear();
+    if (!isReplMode) {
+        userFunctions.clear();
+        stdlibAliases.clear();
+    }
     currentAST = &ast;
     stackSize = 0;
     nextStackSlot = 0;
@@ -9456,12 +9643,21 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::EXPR_STMT: {
-            // Check if this is a function call like print()
             const ASTNode& exprNode = ast.get(node.left);
-            if (exprNode.type == NodeType::CALL) {
-                compileCall(ast, node.left);
-            } else {
+            bool isPrintCall = false;
+            if (exprNode.type == NodeType::CALL && exprNode.left != INVALID_NODE) {
+                const ASTNode& callee = ast.get(exprNode.left);
+                if (callee.type == NodeType::IDENTIFIER &&
+                    (callee.name == "print" || callee.name == "write")) {
+                    isPrintCall = true;
+                    compileCall(ast, node.left);
+                }
+            }
+            if (!isPrintCall) {
                 JITValue val = compileExpr(ast, node.left);
+                if (isReplMode && !inFunctionCall) {
+                    emitReplPrint(val);
+                }
                 freeReg(val.valueReg);
                 freeReg(val.typeReg);
             }
@@ -11313,7 +11509,7 @@ void JIT::compileFuncDecl(const AST& ast, NodeIndex idx, bool isAsync) {
     info.compiledOffset = 0;
     info.isCompiled = false;
     info.isAsync = isAsync;
-    info.sourceAST = nullptr;  // Local function uses currentAST
+    info.sourceAST = &ast;  // Retain pointer to defining AST
     userFunctions[node.name] = info;
 }
 

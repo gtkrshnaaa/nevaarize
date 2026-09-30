@@ -86,6 +86,22 @@ public:
      */
     bool canCompileLoop(const AST& ast, NodeIndex forNode);
 
+    /**
+     * Enable or disable interactive REPL execution mode.
+     */
+    void setReplMode(bool enable) { isReplMode = enable; }
+    bool getReplMode() const { return isReplMode; }
+
+    /**
+     * Reset all persistent REPL state (variables, functions, aliases).
+     */
+    void resetReplState();
+
+    /**
+     * Retain an AST to keep function AST nodes alive across REPL turns.
+     */
+    void retainReplAST(std::shared_ptr<AST> ast) { replASTHistory.push_back(std::move(ast)); }
+
 private:
     std::unique_ptr<ExecutableMemory> execMem;
     CodeGenerator codegen;
@@ -93,6 +109,17 @@ private:
     int32_t stackSize;
     int32_t nextStackSlot;
     size_t prologueStackSizePatch = 0;
+
+    // REPL state
+    bool isReplMode = false;
+    struct REPLVariable {
+        int64_t value = 0;
+        int64_t type = 3; // NIL
+    };
+    std::unordered_map<std::string, std::shared_ptr<REPLVariable>> replVariables;
+    std::vector<std::shared_ptr<AST>> replASTHistory;
+
+    void emitReplPrint(JITValue val);
     
     // User function storage
     struct FuncInfo {
