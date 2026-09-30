@@ -106,6 +106,7 @@ case "$MODE" in
             echo "[x] Error: specify script path. Usage: ./test.sh run <path/to/script.nva>"
             exit 1
         fi
+        run_sandbox bash -c "test -f bin/nevaarize || make release"
         echo "[*] Executing script: $2"
         run_sandbox ./bin/nevaarize "$2"
         ;;
