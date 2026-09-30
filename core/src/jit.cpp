@@ -238,6 +238,43 @@ extern "C" void* jit_alloc_typed_array(int64_t size, int64_t elemType) {
     return ptr;
 }
 
+constexpr uint32_t JIT_STRUCT_MAGIC = 0x53545255; // 'STRU'
+
+struct JITStructField {
+    int64_t value;
+    int64_t type;
+};
+
+struct JITStruct {
+    uint32_t magic;
+    uint32_t numFields;
+    int64_t reserved;
+    JITStructField fields[1];
+};
+
+extern "C" void* jit_alloc_struct(int64_t numFields) {
+    JITExecutionGuard guard;
+    if (numFields < 0) numFields = 0;
+    size_t count = static_cast<size_t>(numFields > 0 ? numFields : 1);
+    size_t totalBytes = sizeof(JITStruct) + (count - 1) * sizeof(JITStructField);
+    
+    void* mem = jitGC.allocate(totalBytes);
+    if (!mem) {
+        mem = malloc(totalBytes);
+    }
+    if (!mem) return nullptr;
+    
+    JITStruct* st = static_cast<JITStruct*>(mem);
+    st->magic = JIT_STRUCT_MAGIC;
+    st->numFields = static_cast<uint32_t>(numFields);
+    st->reserved = 0;
+    for (size_t i = 0; i < count; ++i) {
+        st->fields[i].value = 0;
+        st->fields[i].type = 0;
+    }
+    return static_cast<void*>(st->fields);
+}
+
 extern "C" int64_t jit_array_get_type(void* dataPtr) {
     JITExecutionGuard guard;
     if (!dataPtr) return 0;
@@ -3471,60 +3508,122 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 if (structIt != structs.end()) {
                     const StructInfo& info = structIt->second;
                     
-                    // Allocate stack space for struct (16 bytes per field: value + type)
-                    int32_t baseOffset = allocateStackSlot();
-                    for (size_t i = 1; i < info.fieldNames.size(); ++i) {
-                        allocateStackSlot();
-                    }
-                    
+                    int64_t numFields = static_cast<int64_t>(info.fieldNames.size());
                     CodeBuffer& buf = codegen.getCode();
                     
-                    // Initialize each field with provided arguments or default 0
+                    // Allocate struct on heap via jit_alloc_struct(numFields)
+                    // Save Scratch
+                    buf.emit8(0x51); buf.emit8(0x52); // push rcx, rdx
+                    buf.emit8(0x56); buf.emit8(0x57); // push rsi, rdi
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
+                    
+                    // 16-byte stack align
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                    // mov rdi, numFields
+                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC7);
+                    buf.emit32(static_cast<uint32_t>(numFields));
+
+                    // call jit_alloc_struct
+                    buf.emit8(0x48); buf.emit8(0xB8);
+                    buf.emit64(reinterpret_cast<uint64_t>(jit_alloc_struct));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+
+                    // Restore stack
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+
+                    // Save returned struct ptr from RAX to structSlot
+                    int32_t structSlot = allocateStackSlot();
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(structSlot));
+
+                    // Restore Scratch
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A); // pop r11, r10
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58); // pop r9, r8
+                    buf.emit8(0x5F); buf.emit8(0x5E);                                   // pop rdi, rsi
+                    buf.emit8(0x5A); buf.emit8(0x59);                                   // pop rdx, rcx
+
+                    // Initialize each field
                     for (size_t i = 0; i < info.fieldNames.size(); ++i) {
-                        int32_t fieldOffset = baseOffset + (i * 16);
+                        int32_t fieldOffset = static_cast<int32_t>(i * 16);
                         
                         if (i < node.children.size()) {
-                            // Compile argument expression
                             JITValue val = compileExpr(ast, node.children[i]);
+                            
+                            // Load struct ptr into R11: mov r11, [rbp + structSlot]
+                            buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0x9D);
+                            buf.emit32(static_cast<uint32_t>(structSlot));
+                            
+                            // mov [r11 + fieldOffset], val.valueReg
                             bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
-                            
-                            // Store value: mov [rbp + fieldOffset], valueReg
-                            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                            buf.emit8(0x49 | (valHigh ? 0x04 : 0));
                             buf.emit8(0x89);
-                            buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
-                            buf.emit32(static_cast<uint32_t>(fieldOffset));
+                            if (fieldOffset < 128) {
+                                buf.emit8(0x40 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3) | 3);
+                                buf.emit8(static_cast<uint8_t>(fieldOffset));
+                            } else {
+                                buf.emit8(0x80 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3) | 3);
+                                buf.emit32(static_cast<uint32_t>(fieldOffset));
+                            }
                             
-                            // Store type: mov [rbp + fieldOffset + 8], typeReg
+                            // mov [r11 + fieldOffset + 8], val.typeReg
                             bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
-                            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                            buf.emit8(0x49 | (typeHigh ? 0x04 : 0));
                             buf.emit8(0x89);
-                            buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
-                            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                            if (fieldOffset + 8 < 128) {
+                                buf.emit8(0x40 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3) | 3);
+                                buf.emit8(static_cast<uint8_t>(fieldOffset + 8));
+                            } else {
+                                buf.emit8(0x80 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3) | 3);
+                                buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                            }
                             
                             freeReg(val.valueReg);
                             freeReg(val.typeReg);
                         } else {
-                            // Default to 0 with type Int
-                            buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
-                            buf.emit32(static_cast<uint32_t>(fieldOffset));
+                            // Load struct ptr into R11: mov r11, [rbp + structSlot]
+                            buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0x9D);
+                            buf.emit32(static_cast<uint32_t>(structSlot));
+
+                            // mov qword ptr [r11 + fieldOffset], 0
+                            buf.emit8(0x49); buf.emit8(0xC7);
+                            if (fieldOffset < 128) {
+                                buf.emit8(0x40 | 3);
+                                buf.emit8(static_cast<uint8_t>(fieldOffset));
+                            } else {
+                                buf.emit8(0x80 | 3);
+                                buf.emit32(static_cast<uint32_t>(fieldOffset));
+                            }
                             buf.emit32(0);
-                            buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
-                            buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+
+                            // mov qword ptr [r11 + fieldOffset + 8], 0
+                            buf.emit8(0x49); buf.emit8(0xC7);
+                            if (fieldOffset + 8 < 128) {
+                                buf.emit8(0x40 | 3);
+                                buf.emit8(static_cast<uint8_t>(fieldOffset + 8));
+                            } else {
+                                buf.emit8(0x80 | 3);
+                                buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                            }
                             buf.emit32(0);
                         }
                     }
                     
-                    // Return pointer to struct base
+                    // Return pointer to heap struct
                     JITValue result;
                     result.valueReg = allocateReg();
                     result.typeReg = allocateReg();
                     
+                    // mov result.valueReg, [rbp + structSlot]
                     bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-                    // lea result.valueReg, [rbp + baseOffset]
                     buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-                    buf.emit8(0x8D); // LEA
+                    buf.emit8(0x8B);
                     buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-                    buf.emit32(static_cast<uint32_t>(baseOffset));
+                    buf.emit32(static_cast<uint32_t>(structSlot));
                     
                     bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
                     buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
@@ -5422,54 +5521,122 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 return result;
             }
             
-            int32_t baseOffset = allocateStackSlot();
-            // Allocate enough space for all fields (each field is 16 bytes: 8 for value, 8 for type)
-            for (size_t i = 1; i < fields.size(); ++i) {
-                allocateStackSlot();
-            }
-            
+            int64_t numFields = static_cast<int64_t>(fields.size());
             CodeBuffer& buf = codegen.getCode();
+            
+            // Allocate struct on heap via jit_alloc_struct(numFields)
+            // Save Scratch
+            buf.emit8(0x51); buf.emit8(0x52); // push rcx, rdx
+            buf.emit8(0x56); buf.emit8(0x57); // push rsi, rdi
+            buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
+            buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
+            
+            // 16-byte stack align
+            buf.emit8(0x53); // push rbx
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+            buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+            // mov rdi, numFields
+            buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0xC7);
+            buf.emit32(static_cast<uint32_t>(numFields));
+
+            // call jit_alloc_struct
+            buf.emit8(0x48); buf.emit8(0xB8);
+            buf.emit64(reinterpret_cast<uint64_t>(jit_alloc_struct));
+            buf.emit8(0xFF); buf.emit8(0xD0);
+
+            // Restore stack
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+            buf.emit8(0x5B); // pop rbx
+
+            // Save returned struct ptr from RAX to structSlot
+            int32_t structSlot = allocateStackSlot();
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+            buf.emit32(static_cast<uint32_t>(structSlot));
+
+            // Restore Scratch
+            buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A); // pop r11, r10
+            buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58); // pop r9, r8
+            buf.emit8(0x5F); buf.emit8(0x5E);                                   // pop rdi, rsi
+            buf.emit8(0x5A); buf.emit8(0x59);                                   // pop rdx, rcx
+
+            // Initialize each field
             for (size_t i = 0; i < fields.size(); ++i) {
-                int32_t fieldOffset = baseOffset + (i * 16);
+                int32_t fieldOffset = static_cast<int32_t>(i * 16);
                 
                 if (i < initializers.size()) {
                     JITValue val = compileExpr(ast, initializers[i]);
-                    bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
-                    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-                    buf.emit8(0x89);
-                    buf.emit8(0x85 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
-                    buf.emit32(static_cast<uint32_t>(fieldOffset));
                     
-                    bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                    // Load struct ptr into R11: mov r11, [rbp + structSlot]
+                    buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0x9D);
+                    buf.emit32(static_cast<uint32_t>(structSlot));
+                    
+                    // mov [r11 + fieldOffset], val.valueReg
+                    bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+                    buf.emit8(0x49 | (valHigh ? 0x04 : 0));
                     buf.emit8(0x89);
-                    buf.emit8(0x85 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
-                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                    if (fieldOffset < 128) {
+                        buf.emit8(0x40 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3) | 3);
+                        buf.emit8(static_cast<uint8_t>(fieldOffset));
+                    } else {
+                        buf.emit8(0x80 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3) | 3);
+                        buf.emit32(static_cast<uint32_t>(fieldOffset));
+                    }
+                    
+                    // mov [r11 + fieldOffset + 8], val.typeReg
+                    bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+                    buf.emit8(0x49 | (typeHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    if (fieldOffset + 8 < 128) {
+                        buf.emit8(0x40 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3) | 3);
+                        buf.emit8(static_cast<uint8_t>(fieldOffset + 8));
+                    } else {
+                        buf.emit8(0x80 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3) | 3);
+                        buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                    }
                     
                     freeReg(val.valueReg);
                     freeReg(val.typeReg);
                 } else {
-                    // Default to 0
-                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
-                    buf.emit32(static_cast<uint32_t>(fieldOffset));
+                    // Load struct ptr into R11: mov r11, [rbp + structSlot]
+                    buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0x9D);
+                    buf.emit32(static_cast<uint32_t>(structSlot));
+
+                    // mov qword ptr [r11 + fieldOffset], 0
+                    buf.emit8(0x49); buf.emit8(0xC7);
+                    if (fieldOffset < 128) {
+                        buf.emit8(0x40 | 3);
+                        buf.emit8(static_cast<uint8_t>(fieldOffset));
+                    } else {
+                        buf.emit8(0x80 | 3);
+                        buf.emit32(static_cast<uint32_t>(fieldOffset));
+                    }
                     buf.emit32(0);
-                    // Default type to 0 (Int)
-                    buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
-                    buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+
+                    // mov qword ptr [r11 + fieldOffset + 8], 0
+                    buf.emit8(0x49); buf.emit8(0xC7);
+                    if (fieldOffset + 8 < 128) {
+                        buf.emit8(0x40 | 3);
+                        buf.emit8(static_cast<uint8_t>(fieldOffset + 8));
+                    } else {
+                        buf.emit8(0x80 | 3);
+                        buf.emit32(static_cast<uint32_t>(fieldOffset + 8));
+                    }
                     buf.emit32(0);
                 }
             }
             
+            // Return pointer to heap struct
             JITValue result;
             result.valueReg = allocateReg();
             result.typeReg = allocateReg();
             
+            // mov result.valueReg, [rbp + structSlot]
             bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-            // lea result.valueReg, [rbp + baseOffset]  - compute actual pointer to struct
             buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-            buf.emit8(0x8D); // LEA
+            buf.emit8(0x8B);
             buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-            buf.emit32(static_cast<uint32_t>(baseOffset));
+            buf.emit32(static_cast<uint32_t>(structSlot));
             
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
