@@ -4,9 +4,15 @@
 
 All compilation testing, test suite runs, example script executions, stress tests, and memory profiling conducted during the development of the Nevaarize programming language itself (the compiler, JIT engine, garbage collector, standard library, and runtime in `core/`) MUST ALWAYS be executed inside the isolated Docker container environment via `test.sh` or `docker-compose.yml`.
 
-### Scope and Exemption Boundary
-- **Core Language Development (MANDATORY DOCKER)**: Applies strictly to developing, debugging, benchmarking, and testing Nevaarize itself (`core/src/`, `core/include/`, `core/stdlib/`, `examples/`, `languagebench/`).
-- **Downstream Application Development (FREE CHOICE)**: End-users writing standalone Nevaarize applications or shipping user-facing products using the language are free to run native binaries on bare metal or use containers as they see fit.
+### Two-Tier Development and Verification Protocol
+1. **Tier 1: Pre-Flight Safety Quarantine (MANDATORY DOCKER)**:
+   - Applies to all active language development, unverified `.nva` scripts, new compiler features, bug fixes, and memory allocator modifications (`core/src/`, `core/include/`, `core/stdlib/`).
+   - Must run inside the Docker container (`./test.sh`) constrained to 50% CPU and 50% physical RAM to catch leaks, segfaults, and infinite loops safely without endangering host stability.
+2. **Tier 2: Peak Performance Benchmarking (NATIVE BARE METAL)**:
+   - Once code has passed Tier 1 quarantine verification (zero memory leaks in ASan, zero faults in Valgrind), official performance benchmarks (`languagebench/runComparison.sh`, `battle_report.txt`, and `README.md` metrics) MUST be executed natively on bare metal.
+   - Native execution ensures benchmarks measure true 100% unconstrained hardware throughput without cgroup throttling or container runtime overhead.
+3. **Downstream Application Development (FREE CHOICE)**:
+   - End-users developing standalone software or shipping consumer products with Nevaarize are free to run natively or containerized per their preference.
 
 ---
 

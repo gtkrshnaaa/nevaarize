@@ -108,8 +108,26 @@ git clone https://github.com/gtkrshnaaa/nevaarize.git
 cd nevaarize
 make
 
-# Run an example
+# Run an example natively
 ./bin/nevaarize examples/basics.nva
+```
+
+### Development Testing (Isolated Docker Sandbox)
+
+During core language development, unverified scripts and memory allocators can be tested inside an isolated container sandbox enforcing a 50% CPU and physical RAM boundary:
+
+```bash
+# Clean build and run smoke tests inside sandbox
+./test.sh all
+
+# Run specific script inside sandbox
+./test.sh run examples/basics.nva
+
+# Memory leak detection via AddressSanitizer & LeakSanitizer
+./test.sh asan examples/basics.nva
+
+# Heap validation via Valgrind memcheck
+./test.sh valgrind examples/basics.nva
 ```
 
 ---
