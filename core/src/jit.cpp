@@ -324,6 +324,17 @@ extern "C" int64_t jit_array_size(void* dataPtr) {
     return arr->size;
 }
 
+extern "C" JITArrayGetResult jit_array_pop(void* dataPtr) {
+    JITExecutionGuard guard;
+    if (!dataPtr) return {0, 0};
+    JITArray* arr = (JITArray*)((char*)dataPtr - offsetof(JITArray, data));
+    if (arr->size > 0) {
+        arr->size--;
+        return {arr->data[arr->size], static_cast<int64_t>(arr->elemType)};
+    }
+    return {0, static_cast<int64_t>(arr->elemType)};
+}
+
 
 // Structure to track heap-allocated maps in JIT
 struct JITMapEntry {
@@ -3977,7 +3988,72 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     return result;
                 }
                 
-                // --- Map method dispatch ---
+                // --- Map and Array method dispatch ---
+                
+                if (memberName == "pop") {
+                    // arr.pop() -> returns JITArrayGetResult { int64_t value, int64_t type } in RAX and RDX
+                    int32_t valSlot = allocateStackSlot();
+                    int32_t typeSlot = allocateStackSlot();
+                    
+                    // Save caller-save scratch registers (except RAX, RDX)
+                    buf.emit8(0x51); // push rcx
+                    buf.emit8(0x56); buf.emit8(0x57); // push rsi, rdi
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
+                    
+                    // Align Stack (16-byte boundary)
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+                    
+                    // RDI = objReg (pointer to array data)
+                    bool objHi = static_cast<uint8_t>(objReg) >= 8;
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(objReg) & 0x7) << 3) | 7);
+                    
+                    // Call jit_array_pop
+                    buf.emit8(0x48); buf.emit8(0xB8);
+                    buf.emit64(reinterpret_cast<uint64_t>(jit_array_pop));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+                    
+                    // Restore stack alignment
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+                    
+                    // Save RAX (value) and RDX (type) to stack slots
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(valSlot));
+                    
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x95);
+                    buf.emit32(static_cast<uint32_t>(typeSlot));
+                    
+                    // Restore caller-save registers
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A); // pop r11, r10
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58); // pop r9, r8
+                    buf.emit8(0x5F); buf.emit8(0x5E);                                   // pop rdi, rsi
+                    buf.emit8(0x59);                                                     // pop rcx
+                    
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
+                    // Load result into fresh registers
+                    X64Reg valReg = allocateReg();
+                    bool valHigh = static_cast<uint8_t>(valReg) >= 8;
+                    buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(valReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(valSlot));
+                    
+                    X64Reg typeReg = allocateReg();
+                    bool typeHigh = static_cast<uint8_t>(typeReg) >= 8;
+                    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(typeReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(typeSlot));
+                    
+                    JITValue result;
+                    result.valueReg = valReg;
+                    result.typeReg = typeReg;
+                    return result;
+                }
                 
                 if (memberName == "size") {
                     // map.size() or arr.size() — type-aware dispatch
@@ -3987,10 +4063,15 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
                     
+                    // Align Stack (16-byte boundary)
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+                    
                     // RDI = objReg (pointer to map or array data)
                     bool objHi = static_cast<uint8_t>(objReg) >= 8;
                     buf.emit8(0x48 | (objHi ? 0x04 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+                    buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(objReg) & 0x7) << 3) | 7);
                     
                     // Check type: cmp typeReg, ValueType::MAP
                     bool typeHi = static_cast<uint8_t>(objVal.typeReg) >= 8;
@@ -4022,6 +4103,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     // Done:
                     size_t doneLabel = buf.getOffset();
                     buf.patch8(jmpDonePatch, static_cast<uint8_t>(doneLabel - (jmpDonePatch + 1)));
+                    
+                    // Restore stack alignment
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
                     
                     // Save return value to stack before restoring registers
                     buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
@@ -4254,6 +4339,9 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit64(0);
                     return result;
                 }
+                
+                freeReg(objVal.valueReg);
+                freeReg(objVal.typeReg);
             }
 
             JITValue nullVal;
