@@ -682,7 +682,8 @@ extern "C" void* jit_map_keys(void* entriesPtr) {
     void* arr = jit_alloc_array(0);
     for (int64_t i = 0; i < map->capacity; ++i) {
         if (map->entries[i].state == 1) {
-            arr = jit_array_push(arr, map->entries[i].key);
+            int64_t keyType = jit_detect_type(map->entries[i].key);
+            arr = jit_array_push_typed(arr, map->entries[i].key, keyType);
         }
     }
     return arr;
@@ -699,7 +700,8 @@ extern "C" void* jit_map_values(void* entriesPtr) {
     void* arr = jit_alloc_array(0);
     for (int64_t i = 0; i < map->capacity; ++i) {
         if (map->entries[i].state == 1) {
-            arr = jit_array_push(arr, map->entries[i].value);
+            int64_t valType = jit_detect_type(map->entries[i].value);
+            arr = jit_array_push_typed(arr, map->entries[i].value, valType);
         }
     }
     return arr;
@@ -7084,11 +7086,222 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     if (node.left == INVALID_NODE) return;
     const ASTNode& iterable = ast.get(node.left);
 
-    // Only Range() calls are supported
-    if (iterable.type != NodeType::CALL || iterable.left == INVALID_NODE) return;
-    const ASTNode& callee = ast.get(iterable.left);
-    if (callee.type != NodeType::IDENTIFIER || callee.name != "Range") return;
-    if (iterable.children.size() < 2) return;
+    // Check if iterable is Range() call
+    bool isRange = false;
+    if (iterable.type == NodeType::CALL && iterable.left != INVALID_NODE) {
+        const ASTNode& callee = ast.get(iterable.left);
+        if (callee.type == NodeType::IDENTIFIER && callee.name == "Range" && iterable.children.size() >= 2) {
+            isRange = true;
+        }
+    }
+
+    if (!isRange) {
+        CodeBuffer& buf = codegen.getCode();
+        
+        // Evaluate collection expression
+        JITValue collVal = compileExpr(ast, node.left);
+        
+        int32_t collSlot = allocateStackSlot();
+        int32_t collTypeSlot = allocateStackSlot();
+        int32_t idxSlot = allocateStackSlot();
+        int32_t limitSlot = allocateStackSlot();
+        int32_t iterSlot = allocateStackSlot();
+        
+        // Save collVal to [rbp + collSlot] and [rbp + collTypeSlot]
+        bool collValHigh = static_cast<uint8_t>(collVal.valueReg) >= 8;
+        buf.emit8(0x48 | (collValHigh ? 0x04 : 0));
+        buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(collVal.valueReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(collSlot));
+        
+        bool collTypeHigh = static_cast<uint8_t>(collVal.typeReg) >= 8;
+        buf.emit8(0x48 | (collTypeHigh ? 0x04 : 0));
+        buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(collVal.typeReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(collTypeSlot));
+        
+        freeReg(collVal.valueReg);
+        freeReg(collVal.typeReg);
+        
+        // Check if coll is MAP (type tag == 6). If so, convert to keys array via jit_map_keys
+        buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xBD);
+        buf.emit32(static_cast<uint32_t>(collTypeSlot));
+        buf.emit8(6);
+        buf.emit8(0x75); // jne not_map
+        size_t notMapPatch = buf.getOffset();
+        buf.emit8(0);
+        
+        // Save scratch
+        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+        
+        // 16-byte stack align
+        buf.emit8(0x53); // push rbx
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+        buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+        
+        // mov rdi, [rbp + collSlot]
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+        buf.emit32(static_cast<uint32_t>(collSlot));
+        
+        // call jit_map_keys
+        buf.emit8(0x48); buf.emit8(0xB8);
+        buf.emit64(reinterpret_cast<uint64_t>(jit_map_keys));
+        buf.emit8(0xFF); buf.emit8(0xD0);
+        
+        // Restore stack
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+        buf.emit8(0x5B); // pop rbx
+        
+        // mov [rbp + collSlot], rax
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+        buf.emit32(static_cast<uint32_t>(collSlot));
+        
+        // Restore scratch
+        buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+        buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+        buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+        
+        // mov qword ptr [rbp + collTypeSlot], 5
+        buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+        buf.emit32(static_cast<uint32_t>(collTypeSlot));
+        buf.emit32(5);
+        
+        size_t notMapTarget = buf.getOffset();
+        buf.patch8(notMapPatch, static_cast<uint8_t>(notMapTarget - (notMapPatch + 1)));
+        
+        // Query length: jit_len([rbp + collSlot], [rbp + collTypeSlot])
+        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+        
+        // 16-byte stack align
+        buf.emit8(0x53); // push rbx
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+        buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+        
+        // mov rdi, [rbp + collSlot]
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+        buf.emit32(static_cast<uint32_t>(collSlot));
+        
+        // mov rsi, [rbp + collTypeSlot]
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+        buf.emit32(static_cast<uint32_t>(collTypeSlot));
+        
+        // call jit_len
+        buf.emit8(0x48); buf.emit8(0xB8);
+        buf.emit64(reinterpret_cast<uint64_t>(jit_len));
+        buf.emit8(0xFF); buf.emit8(0xD0);
+        
+        // Restore stack
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+        buf.emit8(0x5B); // pop rbx
+        
+        // mov [rbp + limitSlot], rax
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+        buf.emit32(static_cast<uint32_t>(limitSlot));
+        
+        // Restore scratch
+        buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+        buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+        buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+        
+        // Initialize idx = 0: mov qword ptr [rbp + idxSlot], 0
+        buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+        buf.emit32(static_cast<uint32_t>(idxSlot));
+        buf.emit32(0);
+        
+        // Setup iteration variable
+        VarLocation iterLoc;
+        iterLoc.stackOffset = iterSlot;
+        iterLoc.isRegister = false;
+        
+        auto savedIter = variables.find(iterName);
+        bool hadIter = (savedIter != variables.end());
+        VarLocation oldIterLoc = hadIter ? savedIter->second : iterLoc;
+        variables[iterName] = iterLoc;
+        
+        // Loop start alignment
+        while (buf.getOffset() % 16 != 0) {
+            buf.emit8(0x90);
+        }
+        size_t loopStart = buf.getOffset();
+        
+        // Loop condition: cmp idx, limit; jge loopEnd
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x85); // mov rax, [rbp + idxSlot]
+        buf.emit32(static_cast<uint32_t>(idxSlot));
+        buf.emit8(0x48); buf.emit8(0x3B); buf.emit8(0x85); // cmp rax, [rbp + limitSlot]
+        buf.emit32(static_cast<uint32_t>(limitSlot));
+        buf.emit8(0x0F); buf.emit8(0x8D); // jge rel32
+        size_t jgePatch = buf.getOffset();
+        buf.emit32(0);
+        
+        // Fetch element: jit_array_get([rbp + collSlot], [rbp + idxSlot])
+        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+        
+        // 16-byte stack align
+        buf.emit8(0x53); // push rbx
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+        buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+        
+        // mov rdi, [rbp + collSlot]
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+        buf.emit32(static_cast<uint32_t>(collSlot));
+        
+        // mov rsi, [rbp + idxSlot]
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+        buf.emit32(static_cast<uint32_t>(idxSlot));
+        
+        // call jit_array_get
+        buf.emit8(0x48); buf.emit8(0xB8);
+        buf.emit64(reinterpret_cast<uint64_t>(jit_array_get));
+        buf.emit8(0xFF); buf.emit8(0xD0);
+        
+        // Restore stack
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+        buf.emit8(0x5B); // pop rbx
+        
+        // Store element value to [rbp + iterSlot]
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+        buf.emit32(static_cast<uint32_t>(iterSlot));
+        
+        // Store element type to [rbp + iterSlot + 8]
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x95);
+        buf.emit32(static_cast<uint32_t>(iterSlot + 8));
+        
+        // Restore scratch
+        buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+        buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+        buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+        
+        // Compile loop body
+        if (node.right != INVALID_NODE) {
+            compileStatement(ast, node.right);
+        }
+        
+        // Increment idx: inc qword ptr [rbp + idxSlot]
+        buf.emit8(0x48); buf.emit8(0xFF); buf.emit8(0x85);
+        buf.emit32(static_cast<uint32_t>(idxSlot));
+        
+        // jmp loopStart
+        buf.emit8(0xE9);
+        int32_t jumpBack = static_cast<int32_t>(loopStart - (buf.getOffset() + 4));
+        buf.emit32(static_cast<uint32_t>(jumpBack));
+        
+        // Patch loop exit
+        size_t loopEnd = buf.getOffset();
+        buf.patch32(jgePatch, static_cast<int32_t>(loopEnd - (jgePatch + 4)));
+        
+        // Cleanup iterator variable
+        if (hadIter) {
+            variables[iterName] = oldIterLoc;
+        } else {
+            variables.erase(iterName);
+        }
+        
+        return;
+    }
 
     CodeBuffer& buf = codegen.getCode();
 
