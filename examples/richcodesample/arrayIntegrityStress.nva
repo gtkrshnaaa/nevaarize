@@ -1,0 +1,67 @@
+import stdlib time as t
+import stdlib math as m
+
+// Array Integrity and Numerical Stress Test
+// Exercises array indexing across large integer ranges (> 65536) and floating point vector ops
+
+print("=== Nevaarize Array Integrity Stress Test ===")
+
+startNs = t.nanos()
+
+// --- 1. Large Integer Indexing (Stress > 65535 boundary) ---
+print("\n--- 1. Large Integer Indexing Stress ---")
+buffer = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+k = 0
+limit = 100000
+while (k < limit) {
+    buffer[3] = k
+    buffer[7] = k + 10
+    k = k + 1
+}
+
+print("Buffer[3]:", buffer[3], "(expected: 99999)")
+print("Buffer[7]:", buffer[7], "(expected: 100009)")
+
+// --- 2. Floating-Point Vector Operations ---
+print("\n--- 2. Floating-Point Vector Operations ---")
+
+function addVectors(u, v) {
+    return [u[0] + v[0], u[1] + v[1], u[2] + v[2]]
+}
+
+function dotProduct(u, v) {
+    return (u[0] * v[0]) + (u[1] * v[1]) + (u[2] * v[2])
+}
+
+vec1 = [1.5, 2.5, 3.5]
+vec2 = [4.0, 5.0, 6.0]
+
+sumVec = addVectors(vec1, vec2)
+dotVal = dotProduct(vec1, vec2)
+
+print("Sum Vector:", sumVec[0], sumVec[1], sumVec[2], "(expected: 5.5 7.5 9.5)")
+print("Dot Product:", dotVal, "(expected: 39.5)")
+
+// --- 3. Dynamic Array Mutation ---
+print("\n--- 3. Dynamic Array Push & Accumulate ---")
+dynArr = []
+i = 0
+while (i < 20) {
+    dynArr.push(i * 3)
+    i = i + 1
+}
+
+sumAcc = 0
+idx = 0
+while (idx < len(dynArr)) {
+    sumAcc = sumAcc + dynArr[idx]
+    idx = idx + 1
+}
+
+print("Pushed count:", len(dynArr), "(expected: 20)")
+print("Accumulated sum:", sumAcc, "(expected: 570)")
+
+endNs = t.nanos()
+elapsedMs = (endNs - startNs) / 1000000
+print("\n=== All Tests Passed in", elapsedMs, "ms ===")
