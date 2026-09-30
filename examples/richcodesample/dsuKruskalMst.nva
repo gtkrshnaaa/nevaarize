@@ -1,0 +1,104 @@
+import stdlib time as t
+
+// Disjoint Set Union (DSU) and Kruskal's Minimum Spanning Tree Algorithm
+// Demonstrates path compression, union by rank, and greedy graph optimization
+
+print("=== Nevaarize Kruskal Minimum Spanning Tree ===")
+startTime = t.millis()
+
+numVertices = 6
+numEdges = 9
+
+// Graph edges: u, v, weight flattened into 3 parallel arrays
+edgeU = [0, 0, 1, 1, 2, 2, 3, 3, 4]
+edgeV = [1, 2, 2, 3, 3, 4, 4, 5, 5]
+edgeW = [4, 2, 1, 5, 8, 10, 2, 6, 3]
+
+// Sort edges by weight in ascending order (selection sort)
+i = 0
+while (i < numEdges) {
+    minIdx = i
+    j = i + 1
+    while (j < numEdges) {
+        if (edgeW[j] < edgeW[minIdx]) {
+            minIdx = j
+        }
+        j = j + 1
+    }
+    if (minIdx != i) {
+        tempU = edgeU[i]
+        edgeU[i] = edgeU[minIdx]
+        edgeU[minIdx] = tempU
+
+        tempV = edgeV[i]
+        edgeV[i] = edgeV[minIdx]
+        edgeV[minIdx] = tempV
+
+        tempW = edgeW[i]
+        edgeW[i] = edgeW[minIdx]
+        edgeW[minIdx] = tempW
+    }
+    i = i + 1
+}
+
+// Initialize DSU parent and rank arrays
+dsuParent = [0, 1, 2, 3, 4, 5]
+dsuRank = [0, 0, 0, 0, 0, 0]
+
+func findRoot(node, parent) {
+    curr = node
+    while (parent[curr] != curr) {
+        curr = parent[curr]
+    }
+    // Path compression
+    trace = node
+    while (parent[trace] != curr) {
+        nxt = parent[trace]
+        parent[trace] = curr
+        trace = nxt
+    }
+    return curr
+}
+
+func unionSets(u, v, parent, rank) {
+    rootU = findRoot(u, parent)
+    rootV = findRoot(v, parent)
+    if (rootU != rootV) {
+        if (rank[rootU] < rank[rootV]) {
+            parent[rootU] = rootV
+        } else {
+            if (rank[rootU] > rank[rootV]) {
+                parent[rootV] = rootU
+            } else {
+                parent[rootV] = rootU
+                rank[rootU] = rank[rootU] + 1
+            }
+        }
+        return 1
+    }
+    return 0
+}
+
+mstWeight = 0
+mstEdgesCount = 0
+
+edgeIdx = 0
+while (edgeIdx < numEdges and mstEdgesCount < numVertices - 1) {
+    uNode = edgeU[edgeIdx]
+    vNode = edgeV[edgeIdx]
+    wVal = edgeW[edgeIdx]
+
+    joined = unionSets(uNode, vNode, dsuParent, dsuRank)
+    if (joined == 1) {
+        print("Selected MST edge:", uNode, "-", vNode, "weight:", wVal)
+        mstWeight = mstWeight + wVal
+        mstEdgesCount = mstEdgesCount + 1
+    }
+    edgeIdx = edgeIdx + 1
+}
+
+print("Total Minimum Spanning Tree Weight:", mstWeight)
+print("Total MST Edges Selected:", mstEdgesCount)
+
+elapsed = t.millis() - startTime
+print("Kruskal MST simulation completed in", elapsed, "ms")
