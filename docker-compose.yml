@@ -1,0 +1,35 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nevaarize-test:latest
+    container_name: nevaarize_test_runner
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 3840M
+    memswap_limit: 3840M
+    stdin_open: true
+    tty: true
+    command: ["bash"]
+
+  valgrind:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nevaarize-test:latest
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 3840M
+    memswap_limit: 3840M
+    command: ["valgrind", "--leak-check=full", "--show-leak-kinds=all", "--track-origins=yes", "./bin/nevaarize", "examples/basics.nva"]
