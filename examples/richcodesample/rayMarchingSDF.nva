@@ -1,0 +1,95 @@
+import stdlib math as m
+import stdlib time as t
+
+// 3D Ray Marching and Sphere Tracing via Signed Distance Fields (SDF)
+// Computes ray-surface intersections and analytical normal shading
+
+print("=== Nevaarize 3D Ray Marching & SDF Shading Demo ===")
+startTime = t.millis()
+
+// Sphere properties: center at (0, 0, 0), radius = 1.0
+sphereRadius = 1.0
+
+// Distance function to sphere at origin: length(p) - radius
+func sphereSDF(px, py, pz, radius) {
+    distOrigin = m.Sqrt(px * px + py * py + pz * pz)
+    return distOrigin - radius
+}
+
+// Ray origins (camera at 0, 0, -3.0)
+camX = 0.0
+camY = 0.0
+camZ = -3.0
+
+// Light direction (normalized vector towards light: 0.577, 0.577, -0.577)
+lightX = 0.577
+lightY = 0.577
+lightZ = -0.577
+
+// Test 5 screen-space rays at targets: (-0.5, 0), (-0.2, 0), (0, 0), (0.2, 0), (0.5, 0)
+screenTargetsX = [-0.5, -0.2, 0.0, 0.2, 0.5]
+screenTargetsY = [0.0, 0.0, 0.0, 0.0, 0.0]
+numRays = 5
+
+rayIdx = 0
+while (rayIdx < numRays) {
+    targetX = screenTargetsX[rayIdx]
+    targetY = screenTargetsY[rayIdx]
+    targetZ = 0.0
+
+    // Ray direction: target - cam
+    dirX = targetX - camX
+    dirY = targetY - camY
+    dirZ = targetZ - camZ
+    dirLen = m.Sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ)
+    dirX = dirX / dirLen
+    dirY = dirY / dirLen
+    dirZ = dirZ / dirLen
+
+    // Sphere tracing loop
+    tRay = 0.0
+    maxDist = 10.0
+    hit = 0
+    step = 0
+    maxSteps = 20
+
+    while (step < maxSteps and tRay < maxDist and hit == 0) {
+        currX = camX + tRay * dirX
+        currY = camY + tRay * dirY
+        currZ = camZ + tRay * dirZ
+
+        distToObj = sphereSDF(currX, currY, currZ, sphereRadius)
+        if (distToObj < 0.001) {
+            hit = 1
+        } else {
+            tRay = tRay + distToObj
+        }
+        step = step + 1
+    }
+
+    if (hit == 1) {
+        hitX = camX + tRay * dirX
+        hitY = camY + tRay * dirY
+        hitZ = camZ + tRay * dirZ
+
+        // Normal vector for sphere centered at origin is hit position normalized
+        normLen = m.Sqrt(hitX * hitX + hitY * hitY + hitZ * hitZ)
+        normX = hitX / normLen
+        normY = hitY / normLen
+        normZ = hitZ / normLen
+
+        // Diffuse lighting: max(0, normal . light)
+        diffuse = normX * lightX + normY * lightY + normZ * lightZ
+        if (diffuse < 0.0) {
+            diffuse = 0.0
+        }
+        print("Ray", rayIdx, "HIT at distance:", tRay, "Diffuse Shading:", diffuse)
+    } else {
+        print("Ray", rayIdx, "MISSED surface")
+    }
+
+    rayIdx = rayIdx + 1
+}
+
+elapsed = t.millis() - startTime
+print("Ray marching simulation completed in", elapsed, "ms")
