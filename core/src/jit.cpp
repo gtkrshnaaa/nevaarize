@@ -6978,32 +6978,42 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 auto slots = evalArgsToSlots(node.children);
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_level), slots, 0); // int
                             }
-                            if (memberName == "add" || memberName == "Add") {
+                            if (memberName == "add" || memberName == "Add" || memberName == "VectorAdd") {
                                 auto slots = evalArgsToSlots(node.children);
                                 while (slots.size() < 2) padSlotZero(slots);
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_add), slots, 5); // array
                             }
-                            if (memberName == "sub" || memberName == "Sub") {
+                            if (memberName == "sub" || memberName == "Sub" || memberName == "VectorSub") {
                                 auto slots = evalArgsToSlots(node.children);
                                 while (slots.size() < 2) padSlotZero(slots);
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_sub), slots, 5); // array
                             }
-                            if (memberName == "mul" || memberName == "Mul") {
+                            if (memberName == "mul" || memberName == "Mul" || memberName == "VectorMul") {
                                 auto slots = evalArgsToSlots(node.children);
                                 while (slots.size() < 2) padSlotZero(slots);
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_mul), slots, 5); // array
                             }
-                            if (memberName == "dot" || memberName == "Dot") {
+                            if (memberName == "dot" || memberName == "Dot" || memberName == "VectorDot") {
                                 auto slots = evalArgsToSlots(node.children);
                                 while (slots.size() < 2) padSlotZero(slots);
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_dot), slots, 1); // float
                             }
-                            if (memberName == "sum" || memberName == "Sum") {
+                            if (memberName == "sum" || memberName == "Sum" || memberName == "VectorSum") {
                                 auto slots = evalArgsToSlots(node.children);
                                 while (slots.size() < 1) padSlotZero(slots);
-                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_sum), slots, 0); // int
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_sum), slots, 1); // float
                             }
-                            if (memberName == "scale" || memberName == "Scale") {
+                            if (memberName == "min" || memberName == "Min") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_min), slots, 1); // float
+                            }
+                            if (memberName == "max" || memberName == "Max") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_max), slots, 1); // float
+                            }
+                            if (memberName == "scale" || memberName == "Scale" || memberName == "VectorScale") {
                                 auto slots = evalArgsToSlots(node.children);
                                 while (slots.size() < 2) padSlotZero(slots);
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_scale), slots, 5); // array
@@ -7675,8 +7685,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     return result;
                 }
                 
-                if (memberName == "size") {
-                    // map.size() or arr.size() — type-aware dispatch
+                if (memberName == "size" || memberName == "length") {
+                    // map.size(), arr.size(), arr.length(), str.length()
                     int32_t retSlot = allocateStackSlot();
                     
                     buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
@@ -7688,41 +7698,20 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
                     buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
                     
-                    // RDI = objReg (pointer to map or array data)
+                    // RDI = objReg (pointer)
                     bool objHi = static_cast<uint8_t>(objReg) >= 8;
                     buf.emit8(0x48 | (objHi ? 0x04 : 0));
                     buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(objReg) & 0x7) << 3) | 7);
                     
-                    // Check type: cmp typeReg, ValueType::MAP
+                    // RSI = objVal.typeReg (type tag)
                     bool typeHi = static_cast<uint8_t>(objVal.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHi ? 0x01 : 0));
-                    buf.emit8(0x83);
-                    buf.emit8(0xF8 | (static_cast<uint8_t>(objVal.typeReg) & 0x7));
-                    buf.emit8(static_cast<uint8_t>(ValueType::MAP));
-                    
-                    // je map_size
-                    buf.emit8(0x74);
-                    size_t jeMapPatch = buf.getOffset();
-                    buf.emit8(0x00);
-                    
-                    // Array path: call jit_array_size
+                    buf.emit8(0x48 | (typeHi ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(objVal.typeReg) & 0x7) << 3) | 6);
+
+                    // Call jit_len
                     buf.emit8(0x48); buf.emit8(0xB8);
-                    buf.emit64(reinterpret_cast<uint64_t>(jit_array_size));
+                    buf.emit64(reinterpret_cast<uint64_t>(jit_len));
                     buf.emit8(0xFF); buf.emit8(0xD0);
-                    buf.emit8(0xEB); // jmp done
-                    size_t jmpDonePatch = buf.getOffset();
-                    buf.emit8(0x00);
-                    
-                    // Map path: call jit_map_size
-                    size_t mapSizeLabel = buf.getOffset();
-                    buf.patch8(jeMapPatch, static_cast<uint8_t>(mapSizeLabel - (jeMapPatch + 1)));
-                    buf.emit8(0x48); buf.emit8(0xB8);
-                    buf.emit64(reinterpret_cast<uint64_t>(jit_map_size));
-                    buf.emit8(0xFF); buf.emit8(0xD0);
-                    
-                    // Done:
-                    size_t doneLabel = buf.getOffset();
-                    buf.patch8(jmpDonePatch, static_cast<uint8_t>(doneLabel - (jmpDonePatch + 1)));
                     
                     // Restore stack alignment
                     buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx

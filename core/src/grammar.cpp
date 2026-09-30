@@ -108,10 +108,22 @@ void GrammarChecker::initBuiltins() {
 
     // Known stdlib module names
     knownStdlibModules = {
-        "math", "time", "io", "ai", "http", "csv", "json", "string", "claw"
+        "math", "time", "io", "ai", "http", "csv", "json", "string", "claw", "simd"
     };
 
     // Known methods per stdlib module
+    stdlibMethods["simd"] = {
+        "Detect", "detect", "Level", "level",
+        "Add", "add", "VectorAdd",
+        "Sub", "sub", "VectorSub",
+        "Mul", "mul", "VectorMul",
+        "Dot", "dot", "VectorDot",
+        "Sum", "sum", "VectorSum",
+        "Min", "min", "Max", "max",
+        "Scale", "scale", "VectorScale",
+        "SumLoop", "sumLoop"
+    };
+
     stdlibMethods["math"] = {
         "Abs", "Sqrt", "Pow", "Floor", "Ceil", "Round",
         "Sin", "Cos", "Tan", "Asin", "Acos", "Atan", "Atan2",
