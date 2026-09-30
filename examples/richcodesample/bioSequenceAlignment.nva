@@ -1,0 +1,90 @@
+import stdlib time as t
+
+// Bioinformatics: Needleman-Wunsch Global Sequence Alignment
+// Dynamic programming matrix construction and score computation for DNA sequences
+
+print("=== Nevaarize Bioinformatics Sequence Alignment ===")
+startTime = t.millis()
+
+// DNA sequences represented as integer arrays (A=1, C=2, G=3, T=4)
+seqA = [1, 3, 4, 1, 2, 4, 1] // A G T A C T A (len = 7)
+seqB = [1, 4, 1, 2, 3, 4, 1] // A T A C G T A (len = 7)
+
+lenA = 7
+lenB = 7
+
+// Scoring parameters
+matchScore = 2
+mismatchPenalty = -1
+gapPenalty = -2
+
+// DP table dimensions: (lenA + 1) rows, (lenB + 1) cols = 8 x 8 = 64 cells
+numCols = lenB + 1
+numRows = lenA + 1
+dpTable = [
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0
+]
+
+// Initialize first row and column with gap penalties
+r = 0
+while (r <= lenA) {
+    dpTable[r * numCols + 0] = r * gapPenalty
+    r = r + 1
+}
+
+c = 0
+while (c <= lenB) {
+    dpTable[0 * numCols + c] = c * gapPenalty
+    c = c + 1
+}
+
+// Fill the scoring matrix
+row = 1
+while (row <= lenA) {
+    col = 1
+    while (col <= lenB) {
+        charA = seqA[row - 1]
+        charB = seqB[col - 1]
+
+        scoreSub = mismatchPenalty
+        if (charA == charB) {
+            scoreSub = matchScore
+        }
+
+        matchVal = dpTable[(row - 1) * numCols + (col - 1)] + scoreSub
+        deleteVal = dpTable[(row - 1) * numCols + col] + gapPenalty
+        insertVal = dpTable[row * numCols + (col - 1)] + gapPenalty
+
+        bestVal = matchVal
+        if (deleteVal > bestVal) {
+            bestVal = deleteVal
+        }
+        if (insertVal > bestVal) {
+            bestVal = insertVal
+        }
+
+        dpTable[row * numCols + col] = bestVal
+        col = col + 1
+    }
+    row = row + 1
+}
+
+optimalAlignmentScore = dpTable[lenA * numCols + lenB]
+print("Optimal Global Alignment Score:", optimalAlignmentScore)
+
+// Matrix verification
+if (optimalAlignmentScore > 0) {
+    print("Sequence Alignment Verification: PASSED")
+} else {
+    print("Sequence Alignment Verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Bioinformatics alignment completed in", elapsed, "ms")
