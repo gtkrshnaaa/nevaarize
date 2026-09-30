@@ -273,7 +273,24 @@ ExecutableMemory::~ExecutableMemory() {
 }
 
 bool ExecutableMemory::write(const uint8_t* data, size_t dataSize) {
-    if (!memory || dataSize > size) return false;
+    if (!memory) return false;
+    if (dataSize > size) {
+#ifdef __linux__
+        munmap(memory, size);
+        size = ((dataSize * 2) + 4095) & ~4095;
+        memory = mmap(nullptr, size, PROT_READ | PROT_WRITE, 
+                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (memory == MAP_FAILED) {
+            memory = nullptr;
+            return false;
+        }
+#elif defined(_WIN32)
+        VirtualFree(memory, 0, MEM_RELEASE);
+        size = ((dataSize * 2) + 4095) & ~4095;
+        memory = VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (!memory) return false;
+#endif
+    }
     std::memcpy(memory, data, dataSize);
     return true;
 }

@@ -2305,93 +2305,186 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                          case BinaryOp::NEQ: setcc = 0x95; break; // setne
                          default: break;
                      }
+                     buf.emit8(0x40 | (resHigh ? 0x01 : 0));
                      buf.emit8(0x0F);
                      buf.emit8(setcc);
-                     buf.emit8(0xC0); // al
+                     buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
                      
-                     // movzx rax, al
-                     buf.emit8(0x48 | (resHigh ? 0x04 : 0));
+                     // movzx result, result (low 8-bit to 64-bit)
+                     buf.emit8(0x48 | (resHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
                      buf.emit8(0x0F);
                      buf.emit8(0xB6);
-                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // movzx dst, al
+                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                      break;
                 }
                 case BinaryOp::DIV: {
-                    bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool needSaveRax = regInUse[static_cast<int>(X64Reg::RAX)] && 
+                                       result.valueReg != X64Reg::RAX && 
+                                       right.valueReg != X64Reg::RAX;
+                    bool needSaveRdx = regInUse[static_cast<int>(X64Reg::RDX)] && 
+                                       result.valueReg != X64Reg::RDX && 
+                                       right.valueReg != X64Reg::RDX;
+                    if (needSaveRax) buf.emit8(0x50); // push rax
+                    if (needSaveRdx) buf.emit8(0x52); // push rdx
+
+                    // push right (divisor) to stack
                     bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
-                    buf.emit8(0x51); // push rcx
-                    buf.emit8(0x52); // push rdx
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0));
-                    buf.emit8(0x89);
-                    buf.emit8(0xC1 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3)); // mov rcx, right
+                    if (rValHigh) buf.emit8(0x41);
+                    buf.emit8(0x50 | (static_cast<uint8_t>(right.valueReg) & 0x7));
+
+                    // mov rax, result (dividend)
                     if (result.valueReg != X64Reg::RAX) {
+                        bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                         buf.emit8(0x48 | (resHigh ? 0x04 : 0));
                         buf.emit8(0x89);
-                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // mov rax, result
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     }
                     buf.emit8(0x48); buf.emit8(0x99); // cqo
-                    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0xF9); // idiv rcx
+                    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0x3C); buf.emit8(0x24); // idiv qword ptr [rsp]
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x08); // add rsp, 8
+
+                    // mov result, rax (quotient)
                     if (result.valueReg != X64Reg::RAX) {
+                        bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                         buf.emit8(0x48 | (resHigh ? 0x01 : 0));
                         buf.emit8(0x89);
-                        buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // mov result, rax
+                        buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
                     }
-                    buf.emit8(0x5A); // pop rdx
-                    buf.emit8(0x59); // pop rcx
+
+                    if (needSaveRdx) buf.emit8(0x5A); // pop rdx
+                    if (needSaveRax) buf.emit8(0x58); // pop rax
                     break;
                 }
                 case BinaryOp::MOD: {
-                    bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool needSaveRax = regInUse[static_cast<int>(X64Reg::RAX)] && 
+                                       result.valueReg != X64Reg::RAX && 
+                                       right.valueReg != X64Reg::RAX;
+                    bool needSaveRdx = regInUse[static_cast<int>(X64Reg::RDX)] && 
+                                       result.valueReg != X64Reg::RDX && 
+                                       right.valueReg != X64Reg::RDX;
+                    if (needSaveRax) buf.emit8(0x50); // push rax
+                    if (needSaveRdx) buf.emit8(0x52); // push rdx
+
+                    // push right (divisor) to stack
                     bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
-                    buf.emit8(0x51); // push rcx
-                    buf.emit8(0x52); // push rdx
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0));
-                    buf.emit8(0x89);
-                    buf.emit8(0xC1 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3)); // mov rcx, right
+                    if (rValHigh) buf.emit8(0x41);
+                    buf.emit8(0x50 | (static_cast<uint8_t>(right.valueReg) & 0x7));
+
+                    // mov rax, result (dividend)
                     if (result.valueReg != X64Reg::RAX) {
+                        bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                         buf.emit8(0x48 | (resHigh ? 0x04 : 0));
                         buf.emit8(0x89);
-                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // mov rax, result
+                        buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
                     }
                     buf.emit8(0x48); buf.emit8(0x99); // cqo
-                    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0xF9); // idiv rcx
-                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x89);
-                    buf.emit8(0xD0 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // mov result, rdx (remainder)
+                    buf.emit8(0x48); buf.emit8(0xF7); buf.emit8(0x3C); buf.emit8(0x24); // idiv qword ptr [rsp]
                     buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xC4); buf.emit8(0x08); // add rsp, 8
-                    buf.emit8(0x59); // pop rcx
+
+                    // mov result, rdx (remainder)
+                    if (result.valueReg != X64Reg::RDX) {
+                        bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0xD0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    }
+
+                    if (needSaveRdx) buf.emit8(0x5A); // pop rdx
+                    if (needSaveRax) buf.emit8(0x58); // pop rax
                     break;
                 }
                 case BinaryOp::AND: {
                     bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                     bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                    
+                    // test result, result
+                    buf.emit8(0x48 | (resHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    buf.emit8(0x0F); buf.emit8(0x84); // jz false
+                    size_t jz1 = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // test right, right
+                    buf.emit8(0x48 | (rValHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
+                    
+                    buf.emit8(0x0F); buf.emit8(0x84); // jz false
+                    size_t jz2 = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // mov result, 1
                     buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x85);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7)); // test result, result
-                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0); // setne al
-                    buf.emit8(0x48 | (rValHigh ? 0x01 : 0));
-                    buf.emit8(0x85);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7)); // test right, right
-                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC1); // setne cl
-                    buf.emit8(0x20); buf.emit8(0xC8); // and al, cl
-                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F); buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // movzx result, al
+                    buf.emit8(0xC7);
+                    buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    buf.emit32(1);
+                    
+                    buf.emit8(0xE9); // jmp done
+                    size_t jmpDone = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // false:
+                    size_t falseTarget = buf.getOffset();
+                    buf.patch32(jz1, static_cast<uint32_t>(falseTarget - (jz1 + 4)));
+                    buf.patch32(jz2, static_cast<uint32_t>(falseTarget - (jz2 + 4)));
+                    
+                    // xor result, result
+                    buf.emit8(0x48 | (resHigh ? 0x05 : 0));
+                    buf.emit8(0x31);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // done:
+                    size_t doneTarget = buf.getOffset();
+                    buf.patch32(jmpDone, static_cast<uint32_t>(doneTarget - (jmpDone + 4)));
                     break;
                 }
                 case BinaryOp::OR: {
                     bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                     bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x09);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7)); // or result, right
-                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    
+                    // test result, result
+                    buf.emit8(0x48 | (resHigh ? 0x05 : 0));
                     buf.emit8(0x85);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7)); // test result, result
-                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0); // setne al
-                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F); buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // movzx result, al
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    buf.emit8(0x0F); buf.emit8(0x85); // jnz true
+                    size_t jnz1 = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // test right, right
+                    buf.emit8(0x48 | (rValHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
+                    
+                    buf.emit8(0x0F); buf.emit8(0x85); // jnz true
+                    size_t jnz2 = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // xor result, result (false)
+                    buf.emit8(0x48 | (resHigh ? 0x05 : 0));
+                    buf.emit8(0x31);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    buf.emit8(0xE9); // jmp done
+                    size_t jmpDone = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // true:
+                    size_t trueTarget = buf.getOffset();
+                    buf.patch32(jnz1, static_cast<uint32_t>(trueTarget - (jnz1 + 4)));
+                    buf.patch32(jnz2, static_cast<uint32_t>(trueTarget - (jnz2 + 4)));
+                    
+                    // mov result, 1
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0xC7);
+                    buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    buf.emit32(1);
+                    
+                    // done:
+                    size_t doneTarget = buf.getOffset();
+                    buf.patch32(jmpDone, static_cast<uint32_t>(doneTarget - (jmpDone + 4)));
                     break;
                 }
                 default: break;
@@ -2967,51 +3060,97 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     break;
                 }
                 case BinaryOp::AND: {
-                    // Logical AND: result && right
-                    // TEST result, result (check if result is non-zero)
-                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                    
+                    // test result, result
+                    buf.emit8(0x48 | (resHigh ? 0x05 : 0));
                     buf.emit8(0x85);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                     
-                    // SETNE al (result != 0)
-                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0);
+                    buf.emit8(0x0F); buf.emit8(0x84); // jz false
+                    size_t jz1 = buf.getOffset();
+                    buf.emit32(0);
                     
-                    // TEST right, right
-                    buf.emit8(0x48 | (rValHigh ? 0x01 : 0));
+                    // test right, right
+                    buf.emit8(0x48 | (rValHigh ? 0x05 : 0));
                     buf.emit8(0x85);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
                     
-                    // SETNE cl (right != 0)
-                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC1);
+                    buf.emit8(0x0F); buf.emit8(0x84); // jz false
+                    size_t jz2 = buf.getOffset();
+                    buf.emit32(0);
                     
-                    // AND al, cl
-                    buf.emit8(0x20); buf.emit8(0xC8);
+                    // mov result, 1
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0xC7);
+                    buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    buf.emit32(1);
                     
-                    // MOVZX result, al
-                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F); buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    buf.emit8(0xE9); // jmp done
+                    size_t jmpDone = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // false:
+                    size_t falseTarget = buf.getOffset();
+                    buf.patch32(jz1, static_cast<uint32_t>(falseTarget - (jz1 + 4)));
+                    buf.patch32(jz2, static_cast<uint32_t>(falseTarget - (jz2 + 4)));
+                    
+                    // xor result, result
+                    buf.emit8(0x48 | (resHigh ? 0x05 : 0));
+                    buf.emit8(0x31);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    // done:
+                    size_t doneTarget = buf.getOffset();
+                    buf.patch32(jmpDone, static_cast<uint32_t>(doneTarget - (jmpDone + 4)));
                     break;
                 }
                 case BinaryOp::OR: {
-                    // Logical OR: result || right
-                    // OR result, right (bitwise)
-                    buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
-                    buf.emit8(0x09);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                    bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
                     
-                    // TEST result, result
-                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    // test result, result
+                    buf.emit8(0x48 | (resHigh ? 0x05 : 0));
                     buf.emit8(0x85);
                     buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                     
-                    // SETNE al
-                    buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0);
+                    buf.emit8(0x0F); buf.emit8(0x85); // jnz true
+                    size_t jnz1 = buf.getOffset();
+                    buf.emit32(0);
                     
-                    // MOVZX result, al
-                    buf.emit8(0x48 | (resHigh ? 0x04 : 0));
-                    buf.emit8(0x0F); buf.emit8(0xB6);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                    // test right, right
+                    buf.emit8(0x48 | (rValHigh ? 0x05 : 0));
+                    buf.emit8(0x85);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(right.valueReg) & 0x7));
+                    
+                    buf.emit8(0x0F); buf.emit8(0x85); // jnz true
+                    size_t jnz2 = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // xor result, result (false)
+                    buf.emit8(0x48 | (resHigh ? 0x05 : 0));
+                    buf.emit8(0x31);
+                    buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    
+                    buf.emit8(0xE9); // jmp done
+                    size_t jmpDone = buf.getOffset();
+                    buf.emit32(0);
+                    
+                    // true:
+                    size_t trueTarget = buf.getOffset();
+                    buf.patch32(jnz1, static_cast<uint32_t>(trueTarget - (jnz1 + 4)));
+                    buf.patch32(jnz2, static_cast<uint32_t>(trueTarget - (jnz2 + 4)));
+                    
+                    // mov result, 1
+                    buf.emit8(0x48 | (resHigh ? 0x01 : 0));
+                    buf.emit8(0xC7);
+                    buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                    buf.emit32(1);
+                    
+                    // done:
+                    size_t doneTarget = buf.getOffset();
+                    buf.patch32(jmpDone, static_cast<uint32_t>(doneTarget - (jmpDone + 4)));
                     break;
                 }
                 case BinaryOp::DIV: {
@@ -6205,6 +6344,11 @@ CompiledFunc JIT::compile(const AST& ast) {
     if (prologueStackSizePatch > 0) {
         uint32_t finalStack = static_cast<uint32_t>(std::max<int32_t>(16384, (stackSize + 4095 + 15) & ~15));
         buf.patch32(prologueStackSizePatch, finalStack);
+    }
+    
+    if (!execMem || execMem->getSize() < buf.size()) {
+        size_t requiredSize = ((buf.size() * 2) + 4095) & ~4095;
+        execMem = std::make_unique<ExecutableMemory>(std::max<size_t>(65536, requiredSize));
     }
     
     execMem->write(buf.data(), buf.size());

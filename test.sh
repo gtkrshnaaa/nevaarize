@@ -137,6 +137,33 @@ case "$MODE" in
             ./bin/nevaarize-debug "$2"
         ;;
 
+    quarantine)
+        echo "[*] Ensuring release binary is compiled..."
+        run_sandbox bash -c "test -f bin/nevaarize || make release"
+        echo "[*] Executing quarantine test suite across examples/richcodesample/*.nva..."
+        run_sandbox bash -c '
+            passed=0
+            failed=0
+            total=0
+            for f in examples/richcodesample/*.nva; do
+                total=$((total + 1))
+                fname=$(basename "$f")
+                if ./bin/nevaarize "$f" >/dev/null 2>&1; then
+                    passed=$((passed + 1))
+                    echo "[PASS] $fname"
+                else
+                    failed=$((failed + 1))
+                    echo "[FAIL] $fname"
+                fi
+            done
+            echo "--------------------------------------------------------------------------------"
+            echo "Quarantine results: $passed/$total passed ($failed failed)."
+            if [ "$failed" -gt 0 ]; then
+                exit 1
+            fi
+        '
+        ;;
+
     shell)
         echo "[*] Launching interactive shell inside resource-constrained container..."
         run_sandbox bash
@@ -154,6 +181,7 @@ case "$MODE" in
         echo "  all                  Clean build and run smoke tests (default)"
         echo "  build                Compile release binary inside container"
         echo "  build-asan           Compile binary with AddressSanitizer/LeakSanitizer"
+        echo "  quarantine           Run quarantine test suite across 78 rich code samples"
         echo "  run <script.nva>     Execute script inside container"
         echo "  asan <script.nva>    Execute script under AddressSanitizer & LeakSanitizer"
         echo "  valgrind <script>    Run Valgrind memcheck on script"
