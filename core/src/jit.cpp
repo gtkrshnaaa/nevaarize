@@ -1153,6 +1153,138 @@ extern "C" int64_t jit_time_timestamp() {
     return std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
 }
 
+static inline double jit_to_double(uint64_t bits, int64_t type) {
+    if (type == 0) {
+        return static_cast<double>(static_cast<int64_t>(bits));
+    }
+    double d;
+    std::memcpy(&d, &bits, sizeof(double));
+    return d;
+}
+
+static inline uint64_t jit_from_double(double d) {
+    uint64_t bits;
+    std::memcpy(&bits, &d, sizeof(double));
+    return bits;
+}
+
+extern "C" uint64_t jit_math_random() {
+    JITExecutionGuard guard;
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937_64 gen(rd());
+    static thread_local std::uniform_real_distribution<double> dis(0.0, 1.0);
+    return jit_from_double(dis(gen));
+}
+
+extern "C" int64_t jit_math_random_int(uint64_t minBits, int64_t minType, uint64_t maxBits, int64_t maxType, int64_t numArgs) {
+    JITExecutionGuard guard;
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937_64 gen(rd());
+    int64_t minVal = 0;
+    int64_t maxVal = 100;
+    if (numArgs >= 2) {
+        minVal = static_cast<int64_t>(jit_to_double(minBits, minType));
+        maxVal = static_cast<int64_t>(jit_to_double(maxBits, maxType));
+    } else if (numArgs == 1) {
+        maxVal = static_cast<int64_t>(jit_to_double(minBits, minType));
+    }
+    if (minVal > maxVal) std::swap(minVal, maxVal);
+    std::uniform_int_distribution<int64_t> dis(minVal, maxVal);
+    return dis(gen);
+}
+
+extern "C" uint64_t jit_math_sqrt(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    double v = jit_to_double(bits, type);
+    return jit_from_double(v < 0 ? 0.0 : std::sqrt(v));
+}
+
+extern "C" uint64_t jit_math_abs(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    double v = jit_to_double(bits, type);
+    return jit_from_double(std::abs(v));
+}
+
+extern "C" uint64_t jit_math_pow(uint64_t bBits, int64_t bType, uint64_t eBits, int64_t eType) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::pow(jit_to_double(bBits, bType), jit_to_double(eBits, eType)));
+}
+
+extern "C" uint64_t jit_math_floor(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::floor(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_ceil(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::ceil(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_round(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::round(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_sin(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::sin(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_cos(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::cos(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_tan(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::tan(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_asin(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::asin(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_acos(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::acos(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_atan(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::atan(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_atan2(uint64_t yBits, int64_t yType, uint64_t xBits, int64_t xType) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::atan2(jit_to_double(yBits, yType), jit_to_double(xBits, xType)));
+}
+
+extern "C" uint64_t jit_math_log(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::log(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_log10(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::log10(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_exp(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::exp(jit_to_double(bits, type)));
+}
+
+extern "C" uint64_t jit_math_min(uint64_t aBits, int64_t aType, uint64_t bBits, int64_t bType) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::min(jit_to_double(aBits, aType), jit_to_double(bBits, bType)));
+}
+
+extern "C" uint64_t jit_math_max(uint64_t aBits, int64_t aType, uint64_t bBits, int64_t bType) {
+    JITExecutionGuard guard;
+    return jit_from_double(std::max(jit_to_double(aBits, aType), jit_to_double(bBits, bType)));
+}
+
 /**
  * FFI bridge: Parse a CSV file from JIT-compiled code.
  * Returns a JITArray of JITArrays (rows of string pointers).
@@ -3900,6 +4032,239 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 result.typeReg = allocateReg();
                                 emitMovImm64(buf, result.valueReg, 0);
                                 emitMovImm64(buf, result.typeReg, 6); // Nil
+                                return result;
+                            }
+                        }
+
+                        if (moduleName == "math") {
+                            CodeBuffer& buf = codegen.getCode();
+                            if (memberName == "Random") {
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                                buf.emit8(0x53); // push rbx
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                                emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_math_random));
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                                buf.emit8(0x5B); // pop rbx
+
+                                int32_t retSlot = allocateStackSlot();
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                                X64Reg dst = allocateReg();
+                                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                                buf.emit8(0x8B);
+                                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                JITValue result;
+                                result.valueReg = dst;
+                                result.typeReg = allocateReg();
+                                emitMovImm64(buf, result.typeReg, 1); // Float
+                                return result;
+                            } else if (memberName == "RandomInt") {
+                                size_t nArgs = node.children.size();
+                                JITValue arg1 = compileExpr(ast, nArgs >= 1 ? node.children[0] : INVALID_NODE);
+                                JITValue arg2 = (nArgs >= 2) ? compileExpr(ast, node.children[1]) : JITValue{X64Reg::RAX, X64Reg::RAX};
+
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                                bool a1vHigh = static_cast<uint8_t>(arg1.valueReg) >= 8;
+                                buf.emit8(0x48 | (a1vHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg1.valueReg) & 0x7) << 3) | 7);
+
+                                bool a1tHigh = static_cast<uint8_t>(arg1.typeReg) >= 8;
+                                buf.emit8(0x48 | (a1tHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg1.typeReg) & 0x7) << 3) | 6);
+
+                                if (nArgs >= 2) {
+                                    bool a2vHigh = static_cast<uint8_t>(arg2.valueReg) >= 8;
+                                    buf.emit8(0x48 | (a2vHigh ? 0x04 : 0));
+                                    buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg2.valueReg) & 0x7) << 3) | 2);
+
+                                    bool a2tHigh = static_cast<uint8_t>(arg2.typeReg) >= 8;
+                                    buf.emit8(0x48 | (a2tHigh ? 0x04 : 0));
+                                    buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg2.typeReg) & 0x7) << 3) | 1);
+                                } else {
+                                    emitMovImm64(buf, X64Reg::RDX, 0);
+                                    emitMovImm64(buf, X64Reg::RCX, 0);
+                                }
+
+                                emitMovImm64(buf, X64Reg::R8, nArgs);
+
+                                buf.emit8(0x53); // push rbx
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                                emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_math_random_int));
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                                buf.emit8(0x5B); // pop rbx
+
+                                int32_t retSlot = allocateStackSlot();
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                                freeReg(arg1.valueReg); freeReg(arg1.typeReg);
+                                if (nArgs >= 2) { freeReg(arg2.valueReg); freeReg(arg2.typeReg); }
+
+                                X64Reg dst = allocateReg();
+                                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                                buf.emit8(0x8B);
+                                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                JITValue result;
+                                result.valueReg = dst;
+                                result.typeReg = allocateReg();
+                                emitMovImm64(buf, result.typeReg, 0); // Int
+                                return result;
+                            } else if (memberName == "Pow" || memberName == "Min" || memberName == "Max" || memberName == "Atan2") {
+                                JITValue arg1 = compileExpr(ast, node.children.size() >= 1 ? node.children[0] : INVALID_NODE);
+                                JITValue arg2 = compileExpr(ast, node.children.size() >= 2 ? node.children[1] : INVALID_NODE);
+
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                                bool a1vHigh = static_cast<uint8_t>(arg1.valueReg) >= 8;
+                                buf.emit8(0x48 | (a1vHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg1.valueReg) & 0x7) << 3) | 7);
+
+                                bool a1tHigh = static_cast<uint8_t>(arg1.typeReg) >= 8;
+                                buf.emit8(0x48 | (a1tHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg1.typeReg) & 0x7) << 3) | 6);
+
+                                bool a2vHigh = static_cast<uint8_t>(arg2.valueReg) >= 8;
+                                buf.emit8(0x48 | (a2vHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg2.valueReg) & 0x7) << 3) | 2);
+
+                                bool a2tHigh = static_cast<uint8_t>(arg2.typeReg) >= 8;
+                                buf.emit8(0x48 | (a2tHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg2.typeReg) & 0x7) << 3) | 1);
+
+                                uint64_t fnPtr = 0;
+                                if (memberName == "Pow") fnPtr = reinterpret_cast<uint64_t>(jit_math_pow);
+                                else if (memberName == "Min") fnPtr = reinterpret_cast<uint64_t>(jit_math_min);
+                                else if (memberName == "Max") fnPtr = reinterpret_cast<uint64_t>(jit_math_max);
+                                else if (memberName == "Atan2") fnPtr = reinterpret_cast<uint64_t>(jit_math_atan2);
+
+                                buf.emit8(0x53); // push rbx
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                                emitMovImm64(buf, X64Reg::RAX, fnPtr);
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                                buf.emit8(0x5B); // pop rbx
+
+                                int32_t retSlot = allocateStackSlot();
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                                freeReg(arg1.valueReg); freeReg(arg1.typeReg);
+                                freeReg(arg2.valueReg); freeReg(arg2.typeReg);
+
+                                X64Reg dst = allocateReg();
+                                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                                buf.emit8(0x8B);
+                                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                JITValue result;
+                                result.valueReg = dst;
+                                result.typeReg = allocateReg();
+                                emitMovImm64(buf, result.typeReg, 1); // Float
+                                return result;
+                            } else {
+                                JITValue arg = compileExpr(ast, node.children.empty() ? INVALID_NODE : node.children[0]);
+
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                                bool valHigh = static_cast<uint8_t>(arg.valueReg) >= 8;
+                                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg.valueReg) & 0x7) << 3) | 7);
+
+                                bool typeHigh = static_cast<uint8_t>(arg.typeReg) >= 8;
+                                buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg.typeReg) & 0x7) << 3) | 6);
+
+                                uint64_t fnPtr = 0;
+                                if (memberName == "Sqrt") fnPtr = reinterpret_cast<uint64_t>(jit_math_sqrt);
+                                else if (memberName == "Abs") fnPtr = reinterpret_cast<uint64_t>(jit_math_abs);
+                                else if (memberName == "Floor") fnPtr = reinterpret_cast<uint64_t>(jit_math_floor);
+                                else if (memberName == "Ceil") fnPtr = reinterpret_cast<uint64_t>(jit_math_ceil);
+                                else if (memberName == "Round") fnPtr = reinterpret_cast<uint64_t>(jit_math_round);
+                                else if (memberName == "Sin") fnPtr = reinterpret_cast<uint64_t>(jit_math_sin);
+                                else if (memberName == "Cos") fnPtr = reinterpret_cast<uint64_t>(jit_math_cos);
+                                else if (memberName == "Tan") fnPtr = reinterpret_cast<uint64_t>(jit_math_tan);
+                                else if (memberName == "Asin") fnPtr = reinterpret_cast<uint64_t>(jit_math_asin);
+                                else if (memberName == "Acos") fnPtr = reinterpret_cast<uint64_t>(jit_math_acos);
+                                else if (memberName == "Atan") fnPtr = reinterpret_cast<uint64_t>(jit_math_atan);
+                                else if (memberName == "Log") fnPtr = reinterpret_cast<uint64_t>(jit_math_log);
+                                else if (memberName == "Log10") fnPtr = reinterpret_cast<uint64_t>(jit_math_log10);
+                                else if (memberName == "Exp") fnPtr = reinterpret_cast<uint64_t>(jit_math_exp);
+                                else fnPtr = reinterpret_cast<uint64_t>(jit_math_sqrt);
+
+                                buf.emit8(0x53); // push rbx
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                                emitMovImm64(buf, X64Reg::RAX, fnPtr);
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                                buf.emit8(0x5B); // pop rbx
+
+                                int32_t retSlot = allocateStackSlot();
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                                freeReg(arg.valueReg);
+                                freeReg(arg.typeReg);
+
+                                X64Reg dst = allocateReg();
+                                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                                buf.emit8(0x8B);
+                                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                JITValue result;
+                                result.valueReg = dst;
+                                result.typeReg = allocateReg();
+                                emitMovImm64(buf, result.typeReg, 1); // Float
                                 return result;
                             }
                         }
