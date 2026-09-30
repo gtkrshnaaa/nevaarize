@@ -1,0 +1,76 @@
+import stdlib time as t
+
+// Wolfram 1D Cellular Automaton (Rule 30 Chaos Simulation)
+// Evolves a discrete binary lattice through bitwise neighborhood transitions
+
+print("=== Nevaarize Cellular Automata (Rule 30) Demo ===")
+startTime = t.millis()
+
+gridWidth = 15
+numSteps = 8
+
+// Initial generation with single active center cell
+grid = [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
+nextGrid = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+step = 0
+while (step < numSteps) {
+    // Print current state line
+    col = 0
+    activeCount = 0
+    while (col < gridWidth) {
+        val = grid[col]
+        if (val == 1) {
+            activeCount = activeCount + 1
+        }
+        col = col + 1
+    }
+    print("Generation", step, "- Active Cells:", activeCount)
+
+    // Compute next generation according to Wolfram Rule 30:
+    // next = left XOR (center OR right)
+    idx = 0
+    while (idx < gridWidth) {
+        leftIdx = (idx - 1 + gridWidth) % gridWidth
+        rightIdx = (idx + 1) % gridWidth
+
+        leftVal = grid[leftIdx]
+        centerVal = grid[idx]
+        rightVal = grid[rightIdx]
+
+        // Rule 30 formula: left ^ (center | right)
+        nextVal = leftVal ^ (centerVal | rightVal)
+        nextGrid[idx] = nextVal
+
+        idx = idx + 1
+    }
+
+    // Copy nextGrid back to grid
+    copyIdx = 0
+    while (copyIdx < gridWidth) {
+        grid[copyIdx] = nextGrid[copyIdx]
+        copyIdx = copyIdx + 1
+    }
+
+    step = step + 1
+}
+
+finalActiveCount = 0
+c = 0
+while (c < gridWidth) {
+    if (grid[c] == 1) {
+        finalActiveCount = finalActiveCount + 1
+    }
+    c = c + 1
+}
+
+print("Rule 30 Simulation Complete. Final Active Cells:", finalActiveCount)
+
+if (finalActiveCount > 0) {
+    print("Cellular Automata Verification: PASSED")
+} else {
+    print("Cellular Automata Verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Wolfram Rule 30 finished in", elapsed, "ms")
