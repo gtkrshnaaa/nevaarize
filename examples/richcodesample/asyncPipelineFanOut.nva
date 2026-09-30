@@ -1,0 +1,56 @@
+import stdlib time as t
+
+// Asynchronous Parallel Pipeline Fan-Out & Fan-In
+// Dispatches concurrent worker tasks to thread pool and aggregates computed futures
+
+print("=== Nevaarize Async Pipeline Fan-Out Demo ===")
+startTime = t.millis()
+
+async function workerTask(workerId, multiplier, limit) {
+    acc = 0
+    step = 0
+    while (step < limit) {
+        acc = acc + step * multiplier
+        step = step + 1
+    }
+    return acc
+}
+
+async function stringWorker(prefix, count) {
+    return prefix + "-complete"
+}
+
+// 1. Fan-out: Spawn 4 concurrent tasks
+print("Spawning 4 concurrent async worker tasks...")
+task0 = workerTask(0, 1, 10)  // sum 0..9 * 1 = 45 * 1 = 45
+task1 = workerTask(1, 2, 10)  // sum 0..9 * 2 = 45 * 2 = 90
+task2 = workerTask(2, 3, 10)  // sum 0..9 * 3 = 45 * 3 = 135
+task3 = workerTask(3, 4, 10)  // sum 0..9 * 4 = 45 * 4 = 180
+
+taskStr = stringWorker("job", 1)
+
+// 2. Fan-in: Await and aggregate results
+res0 = await task0
+res1 = await task1
+res2 = await task2
+res3 = await task3
+strRes = await taskStr
+
+print("Worker 0 Result:", res0)
+print("Worker 1 Result:", res1)
+print("Worker 2 Result:", res2)
+print("Worker 3 Result:", res3)
+print("String Worker Result:", strRes)
+
+totalSum = res0 + res1 + res2 + res3
+print("Fan-In Aggregate Sum:", totalSum)
+
+// Expected sum: 45 + 90 + 135 + 180 = 450
+if (totalSum == 450 and res0 == 45 and res1 == 90 and res2 == 135 and res3 == 180) {
+    print("Async Fan-Out Pipeline Verification: PASSED")
+} else {
+    print("Async Fan-Out Pipeline Verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Async pipeline completed in", elapsed, "ms")
