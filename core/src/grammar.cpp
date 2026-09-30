@@ -127,7 +127,8 @@ void GrammarChecker::initBuiltins() {
     stdlibMethods["math"] = {
         "Abs", "Sqrt", "Pow", "Floor", "Ceil", "Round",
         "Sin", "Cos", "Tan", "Asin", "Acos", "Atan", "Atan2",
-        "Log", "Log10", "Exp", "Min", "Max", "Random", "RandomInt"
+        "Log", "Log10", "Exp", "Min", "Max", "Random", "RandomInt",
+        "PI", "pi", "E", "e"
     };
 
     stdlibMethods["time"] = {

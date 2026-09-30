@@ -3490,6 +3490,16 @@ bool JIT::isStaticFloat(const AST& ast, NodeIndex idx) const {
     switch (node.type) {
         case NodeType::LITERAL_FLOAT:
             return true;
+        case NodeType::MEMBER_ACCESS: {
+            const ASTNode& left = ast.get(node.left);
+            if (left.type == NodeType::IDENTIFIER) {
+                auto it = stdlibAliases.find(left.name);
+                if (it != stdlibAliases.end() && it->second == "math") {
+                    if (node.name == "PI" || node.name == "pi" || node.name == "E" || node.name == "e") return true;
+                }
+            }
+            return false;
+        }
         case NodeType::IDENTIFIER:
             return knownFloatVars.count(node.name) > 0;
         case NodeType::BINARY_OP: {
@@ -4587,6 +4597,42 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     case BinaryOp::SUB: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5C); buf.emit8(0xC1); break;
                     case BinaryOp::MUL: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x59); buf.emit8(0xC1); break;
                     case BinaryOp::DIV: buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x5E); buf.emit8(0xC1); break;
+                    case BinaryOp::LT:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
+                        buf.emit8(0x0F); buf.emit8(0x92); buf.emit8(0xC0); // setb al
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
+                        break;
+                    case BinaryOp::GT:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
+                        buf.emit8(0x0F); buf.emit8(0x97); buf.emit8(0xC0); // seta al
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
+                        break;
+                    case BinaryOp::LTE:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
+                        buf.emit8(0x0F); buf.emit8(0x96); buf.emit8(0xC0); // setbe al
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
+                        break;
+                    case BinaryOp::GTE:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
+                        buf.emit8(0x0F); buf.emit8(0x93); buf.emit8(0xC0); // setae al
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
+                        break;
+                    case BinaryOp::EQ:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
+                        buf.emit8(0x0F); buf.emit8(0x94); buf.emit8(0xC0); // sete al
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
+                        break;
+                    case BinaryOp::NEQ:
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
+                        buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0); // setne al
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
+                        break;
                     default: break;
                 }
                 
@@ -4742,39 +4788,39 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                         break;
                     case BinaryOp::LT:
                         buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
-                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0); // xor rax, rax
                         buf.emit8(0x0F); buf.emit8(0x92); buf.emit8(0xC0); // setb al
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
                         buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
                         break;
                     case BinaryOp::GT:
-                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
                         buf.emit8(0x0F); buf.emit8(0x97); buf.emit8(0xC0); // seta al
-                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
                         break;
                     case BinaryOp::LTE:
-                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
                         buf.emit8(0x0F); buf.emit8(0x96); buf.emit8(0xC0); // setbe al
-                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
                         break;
                     case BinaryOp::GTE:
-                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
                         buf.emit8(0x0F); buf.emit8(0x93); buf.emit8(0xC0); // setae al
-                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
                         break;
                     case BinaryOp::EQ:
-                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
                         buf.emit8(0x0F); buf.emit8(0x94); buf.emit8(0xC0); // sete al
-                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
                         break;
                     case BinaryOp::NEQ:
-                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1);
-                        buf.emit8(0x48); buf.emit8(0x31); buf.emit8(0xC0);
+                        buf.emit8(0x66); buf.emit8(0x0F); buf.emit8(0x2E); buf.emit8(0xC1); // ucomisd xmm0, xmm1
                         buf.emit8(0x0F); buf.emit8(0x95); buf.emit8(0xC0); // setne al
-                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0);
+                        buf.emit8(0x0F); buf.emit8(0xB6); buf.emit8(0xC0); // movzx eax, al
+                        buf.emit8(0xF2); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x2A); buf.emit8(0xC0); // cvtsi2sd xmm0, rax
                         break;
                     default: break;
                 }
@@ -6394,6 +6440,23 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
 
                         if (moduleName == "math") {
                             CodeBuffer& buf = codegen.getCode();
+                            if (memberName == "PI" || memberName == "pi" || memberName == "E" || memberName == "e") {
+                                double val = (memberName == "PI" || memberName == "pi") ? 3.14159265358979323846 : 2.71828182845904523536;
+                                uint64_t bits;
+                                std::memcpy(&bits, &val, sizeof(bits));
+                                JITValue result;
+                                result.valueReg = allocateReg();
+                                result.typeReg = allocateReg();
+                                bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                                buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                                buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
+                                buf.emit64(bits);
+                                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                                buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                                buf.emit64(1); // Float
+                                return result;
+                            }
                             if (memberName == "Random") {
                                 buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
                                 buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
@@ -8489,12 +8552,38 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         case NodeType::MEMBER_ACCESS: {
             CodeBuffer& buf = codegen.getCode();
             
+            const ASTNode& leftNode = ast.get(node.left);
+            if (leftNode.type == NodeType::IDENTIFIER) {
+                auto aliasIt = stdlibAliases.find(leftNode.name);
+                if (aliasIt != stdlibAliases.end() && aliasIt->second == "math") {
+                    if (node.name == "PI" || node.name == "pi" || node.name == "E" || node.name == "e") {
+                        double val = (node.name == "PI" || node.name == "pi") ? 3.14159265358979323846 : 2.71828182845904523536;
+                        uint64_t bits;
+                        std::memcpy(&bits, &val, sizeof(bits));
+                        
+                        JITValue result;
+                        result.valueReg = allocateReg();
+                        result.typeReg = allocateReg();
+                        
+                        bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                        buf.emit8(0x48 | (valHigh ? 0x01 : 0));
+                        buf.emit8(0xB8 + (static_cast<uint8_t>(result.valueReg) & 0x7));
+                        buf.emit64(bits);
+                        
+                        bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                        buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                        buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                        buf.emit64(1); // Float
+                        return result;
+                    }
+                }
+            }
+            
             // Fast-path Object Resolution (Avoid Double-Tax)
             X64Reg objReg = X64Reg::RAX;
             bool freeObjVal = false, freeObjType = false;
             JITValue objVal;
             
-            const ASTNode& leftNode = ast.get(node.left);
             auto objIt = (leftNode.type == NodeType::IDENTIFIER) ? variables.find(leftNode.name) : variables.end();
             if (objIt != variables.end() && objIt->second.isRegister && !objIt->second.isXMMRegister) {
                 objReg = objIt->second.reg;
@@ -9941,9 +10030,13 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
 
     // Dynamic Frequency-Based Register Allocation
     std::unordered_map<std::string, int> varFreq;
+    bool loopHasCalls = false;
     std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
         if (currIdx == INVALID_NODE) return;
         const ASTNode& currNode = ast.get(currIdx);
+        if (currNode.type == NodeType::CALL) {
+            loopHasCalls = true;
+        }
         if (currNode.type == NodeType::IDENTIFIER || currNode.type == NodeType::VAR_ASSIGN) {
             varFreq[currNode.name]++;
         }
@@ -9955,6 +10048,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         }
     };
     scanAST(node.right);
+    scanAST(node.left);
     varFreq.erase(pinnedCounter);
     varFreq.erase(pinnedLimit);
     
@@ -9997,41 +10091,43 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
         }
     }
 
-    // XMM Register Pinning for float variables
+    // XMM Register Pinning for float variables (only if loop contains no function calls)
     struct XMMPinnedVar { std::string name; VarLocation oldLoc; X64Reg xmmReg; };
     std::vector<XMMPinnedVar> xmmPins;
 
-    for (const auto& pair : sortedVars) {
-        const std::string& varName = pair.first;
-        if (variables.count(varName) && !variables[varName].isRegister &&
-            !variables[varName].isXMMRegister && knownFloatVars.count(varName) > 0) {
-            
-            X64Reg xmmTarget = allocateXMMReg();
-            if (xmmTarget == X64Reg::XMM0) break; // No free XMM regs
+    if (!loopHasCalls) {
+        for (const auto& pair : sortedVars) {
+            const std::string& varName = pair.first;
+            if (variables.count(varName) && !variables[varName].isRegister &&
+                !variables[varName].isXMMRegister && knownFloatVars.count(varName) > 0) {
+                
+                X64Reg xmmTarget = allocateXMMReg();
+                if (xmmTarget == X64Reg::XMM0) break; // No free XMM regs
 
-            XMMPinnedVar xpv = {varName, variables[varName], xmmTarget};
-            xmmPins.push_back(xpv);
+                XMMPinnedVar xpv = {varName, variables[varName], xmmTarget};
+                xmmPins.push_back(xpv);
 
-            VarLocation newLoc = xpv.oldLoc;
-            newLoc.isXMMRegister = true;
-            newLoc.isRegister = false;
-            newLoc.reg = xmmTarget;
-            variables[varName] = newLoc;
+                VarLocation newLoc = xpv.oldLoc;
+                newLoc.isXMMRegister = true;
+                newLoc.isRegister = false;
+                newLoc.reg = xmmTarget;
+                variables[varName] = newLoc;
 
-            int32_t offset = xpv.oldLoc.stackOffset;
-            uint8_t xmmIdx = static_cast<uint8_t>(xmmTarget) - static_cast<uint8_t>(X64Reg::XMM0);
+                int32_t offset = xpv.oldLoc.stackOffset;
+                uint8_t xmmIdx = static_cast<uint8_t>(xmmTarget) - static_cast<uint8_t>(X64Reg::XMM0);
 
-            // movsd xmmN, [rbp + offset]
-            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x10);
-            buf.emit8(0x85 | (xmmIdx << 3));
-            buf.emit32(static_cast<uint32_t>(offset));
+                // movsd xmmN, [rbp + offset]
+                buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x10);
+                buf.emit8(0x85 | (xmmIdx << 3));
+                buf.emit32(static_cast<uint32_t>(offset));
+            }
         }
     }
 
     // Float Constant Hoisting — scan loop body for accumulator patterns
     // Detects `var = var + <float_literal>` and hoists the constant to an XMM register
     hoistedFloatConstants.clear();
-    if (node.right != INVALID_NODE) {
+    if (!loopHasCalls && node.right != INVALID_NODE) {
         std::function<void(NodeIndex)> scanConstants = [&](NodeIndex scanIdx) {
             if (scanIdx == INVALID_NODE) return;
             const ASTNode& scanNode = ast.get(scanIdx);
@@ -10610,9 +10706,13 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     // --- Phase 3: Dynamic Frequency-Based Variable Pinning ---
 
     std::unordered_map<std::string, int> varFreq;
+    bool loopHasCalls = false;
     std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
         if (currIdx == INVALID_NODE) return;
         const ASTNode& currNode = ast.get(currIdx);
+        if (currNode.type == NodeType::CALL) {
+            loopHasCalls = true;
+        }
         if (currNode.type == NodeType::IDENTIFIER || currNode.type == NodeType::VAR_ASSIGN) {
             varFreq[currNode.name]++;
         }
@@ -10666,34 +10766,36 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     struct XMMPin { std::string name; VarLocation oldLoc; X64Reg xmmReg; };
     std::vector<XMMPin> xmmPins;
 
-    for (const auto& pair : sortedVars) {
-        const std::string& varName = pair.first;
-        if (knownFloatVars.count(varName) && variables.count(varName) &&
-            !variables[varName].isXMMRegister) {
-            X64Reg xmmReg = allocateXMMReg();
-            if (xmmReg == X64Reg::XMM0) break;
+    if (!loopHasCalls) {
+        for (const auto& pair : sortedVars) {
+            const std::string& varName = pair.first;
+            if (knownFloatVars.count(varName) && variables.count(varName) &&
+                !variables[varName].isXMMRegister) {
+                X64Reg xmmReg = allocateXMMReg();
+                if (xmmReg == X64Reg::XMM0) break;
 
-            XMMPin xpv = {varName, variables[varName], xmmReg};
-            xmmPins.push_back(xpv);
+                XMMPin xpv = {varName, variables[varName], xmmReg};
+                xmmPins.push_back(xpv);
 
-            VarLocation newLoc = xpv.oldLoc;
-            newLoc.isXMMRegister = true;
-            newLoc.reg = xmmReg;
-            variables[varName] = newLoc;
+                VarLocation newLoc = xpv.oldLoc;
+                newLoc.isXMMRegister = true;
+                newLoc.reg = xmmReg;
+                variables[varName] = newLoc;
 
-            uint8_t xmmIdx = static_cast<uint8_t>(xmmReg) - static_cast<uint8_t>(X64Reg::XMM0);
-            int32_t offset = xpv.oldLoc.stackOffset;
+                uint8_t xmmIdx = static_cast<uint8_t>(xmmReg) - static_cast<uint8_t>(X64Reg::XMM0);
+                int32_t offset = xpv.oldLoc.stackOffset;
 
-            // movsd xmmN, [rbp + offset]
-            buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x10);
-            buf.emit8(0x85 | (xmmIdx << 3));
-            buf.emit32(static_cast<uint32_t>(offset));
+                // movsd xmmN, [rbp + offset]
+                buf.emit8(0xF2); buf.emit8(0x0F); buf.emit8(0x10);
+                buf.emit8(0x85 | (xmmIdx << 3));
+                buf.emit32(static_cast<uint32_t>(offset));
+            }
         }
     }
 
     // --- Phase 5: Float Constant Hoisting ---
 
-    {
+    if (!loopHasCalls) {
         std::function<void(NodeIndex)> scanConstants = [&](NodeIndex cIdx) {
             if (cIdx == INVALID_NODE) return;
             const ASTNode& scanNode = ast.get(cIdx);

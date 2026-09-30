@@ -138,6 +138,14 @@ std::unordered_map<std::string, NativeFunction> getMathLibrary() {
         return Value::fromInt(dis(gen));
     };
 
+    funcs["PI"] = [](Evaluator&, const std::vector<Value>&) -> Value {
+        return Value::fromFloat(3.14159265358979323846);
+    };
+
+    funcs["E"] = [](Evaluator&, const std::vector<Value>&) -> Value {
+        return Value::fromFloat(2.71828182845904523536);
+    };
+
     return funcs;
 }
 
