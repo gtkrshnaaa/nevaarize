@@ -1,0 +1,67 @@
+import stdlib time as t
+
+// In-Memory Columnar Database Engine Simulation
+// Demonstrates vectorized column scans, predicate filtering, and aggregation
+
+print("=== Nevaarize Columnar Database Query Engine ===")
+startTime = t.millis()
+
+numRows = 8
+
+// Column stores
+colId = [101, 102, 103, 104, 105, 106, 107, 108]
+colAge = [22, 29, 34, 19, 45, 28, 31, 52]
+colScore = [85.5, 92.0, 78.0, 60.5, 95.0, 88.5, 91.0, 74.0]
+colActive = [1, 1, 0, 1, 1, 1, 0, 1]
+
+// Query: SELECT colId, colScore WHERE colAge >= 25 AND colActive == 1
+print("Executing Query: WHERE age >= 25 AND active == 1...")
+
+matchedIds = [0, 0, 0, 0, 0, 0, 0, 0]
+matchedScores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+matchCount = 0
+
+scoreSum = 0.0
+
+r = 0
+while (r < numRows) {
+    age = colAge[r]
+    active = colActive[r]
+
+    if (age >= 25 and active == 1) {
+        idVal = colId[r]
+        scoreVal = colScore[r]
+
+        matchedIds[matchCount] = idVal
+        matchedScores[matchCount] = scoreVal
+        matchCount = matchCount + 1
+
+        scoreSum = scoreSum + scoreVal
+    }
+    r = r + 1
+}
+
+avgScore = 0.0
+if (matchCount > 0) {
+    avgScore = scoreSum / matchCount
+}
+
+print("Query matched records count:", matchCount)
+print("Aggregate SUM(Score):", scoreSum)
+print("Aggregate AVG(Score):", avgScore)
+
+i = 0
+while (i < matchCount) {
+    print("Record", i + 1, "-> ID:", matchedIds[i], "Score:", matchedScores[i])
+    i = i + 1
+}
+
+// Verification: expected 4 matched rows (102, 105, 106, 108)
+if (matchCount == 4 and scoreSum == 349.5) {
+    print("Columnar Query Verification: PASSED")
+} else {
+    print("Columnar Query Verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Columnar database query finished in", elapsed, "ms")
