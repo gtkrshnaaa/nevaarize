@@ -20,6 +20,9 @@
 #include "http.hpp"
 #include "ai.hpp"
 #include "model.hpp"
+#include "simd.hpp"
+#include "vectorOps.hpp"
+#include "tensor.hpp"
 #ifdef __linux__
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -1390,6 +1393,168 @@ extern "C" uint64_t jit_math_min(uint64_t aBits, int64_t aType, uint64_t bBits, 
 extern "C" uint64_t jit_math_max(uint64_t aBits, int64_t aType, uint64_t bBits, int64_t bType) {
     JITExecutionGuard guard;
     return jit_from_double(std::max(jit_to_double(aBits, aType), jit_to_double(bBits, bType)));
+}
+
+// ============================================================================
+// SIMD Vector Operations Bridges
+// ============================================================================
+
+extern "C" char* jit_simd_detect() {
+    JITExecutionGuard guard;
+    nevaarize::SIMDLevel lvl = nevaarize::detectSIMD();
+    const char* str = nevaarize::simdLevelToString(lvl);
+    return static_cast<char*>(jit_alloc_string(str));
+}
+
+extern "C" int64_t jit_simd_level() {
+    JITExecutionGuard guard;
+    return static_cast<int64_t>(nevaarize::detectSIMD());
+}
+
+extern "C" void* jit_simd_add(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return nullptr;
+    JITArray* arrA = reinterpret_cast<JITArray*>((char*)aPtr - offsetof(JITArray, data));
+    JITArray* arrB = reinterpret_cast<JITArray*>((char*)bPtr - offsetof(JITArray, data));
+    if (arrA->magic != JIT_ARRAY_MAGIC || arrB->magic != JIT_ARRAY_MAGIC) return nullptr;
+    
+    int64_t n = arrA->size < arrB->size ? arrA->size : arrB->size;
+    void* resData = jit_alloc_array(n);
+    if (!resData) return nullptr;
+    JITArray* resArr = reinterpret_cast<JITArray*>((char*)resData - offsetof(JITArray, data));
+    
+    if (arrA->elemType == 1 || arrB->elemType == 1) {
+        resArr->elemType = 1;
+        nevaarize::vecAdd_f64(reinterpret_cast<double*>(resArr->data),
+                              reinterpret_cast<const double*>(arrA->data),
+                              reinterpret_cast<const double*>(arrB->data), n);
+    } else {
+        resArr->elemType = 0;
+        nevaarize::vecAdd_i64(resArr->data, arrA->data, arrB->data, n);
+    }
+    return resData;
+}
+
+extern "C" void* jit_simd_sub(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return nullptr;
+    JITArray* arrA = reinterpret_cast<JITArray*>((char*)aPtr - offsetof(JITArray, data));
+    JITArray* arrB = reinterpret_cast<JITArray*>((char*)bPtr - offsetof(JITArray, data));
+    if (arrA->magic != JIT_ARRAY_MAGIC || arrB->magic != JIT_ARRAY_MAGIC) return nullptr;
+    
+    int64_t n = arrA->size < arrB->size ? arrA->size : arrB->size;
+    void* resData = jit_alloc_array(n);
+    if (!resData) return nullptr;
+    JITArray* resArr = reinterpret_cast<JITArray*>((char*)resData - offsetof(JITArray, data));
+    
+    if (arrA->elemType == 1 || arrB->elemType == 1) {
+        resArr->elemType = 1;
+        nevaarize::vecSub_f64(reinterpret_cast<double*>(resArr->data),
+                              reinterpret_cast<const double*>(arrA->data),
+                              reinterpret_cast<const double*>(arrB->data), n);
+    } else {
+        resArr->elemType = 0;
+        nevaarize::vecSub_i64(resArr->data, arrA->data, arrB->data, n);
+    }
+    return resData;
+}
+
+extern "C" void* jit_simd_mul(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return nullptr;
+    JITArray* arrA = reinterpret_cast<JITArray*>((char*)aPtr - offsetof(JITArray, data));
+    JITArray* arrB = reinterpret_cast<JITArray*>((char*)bPtr - offsetof(JITArray, data));
+    if (arrA->magic != JIT_ARRAY_MAGIC || arrB->magic != JIT_ARRAY_MAGIC) return nullptr;
+    
+    int64_t n = arrA->size < arrB->size ? arrA->size : arrB->size;
+    void* resData = jit_alloc_array(n);
+    if (!resData) return nullptr;
+    JITArray* resArr = reinterpret_cast<JITArray*>((char*)resData - offsetof(JITArray, data));
+    
+    if (arrA->elemType == 1 || arrB->elemType == 1) {
+        resArr->elemType = 1;
+        nevaarize::vecMul_f64(reinterpret_cast<double*>(resArr->data),
+                              reinterpret_cast<const double*>(arrA->data),
+                              reinterpret_cast<const double*>(arrB->data), n);
+    } else {
+        resArr->elemType = 0;
+        nevaarize::vecMul_i64(resArr->data, arrA->data, arrB->data, n);
+    }
+    return resData;
+}
+
+extern "C" uint64_t jit_simd_dot(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return 0;
+    JITArray* arrA = reinterpret_cast<JITArray*>((char*)aPtr - offsetof(JITArray, data));
+    JITArray* arrB = reinterpret_cast<JITArray*>((char*)bPtr - offsetof(JITArray, data));
+    if (arrA->magic != JIT_ARRAY_MAGIC || arrB->magic != JIT_ARRAY_MAGIC) return 0;
+    
+    int64_t n = arrA->size < arrB->size ? arrA->size : arrB->size;
+    if (arrA->elemType == 1 || arrB->elemType == 1) {
+        double d = nevaarize::vecDot_f64(reinterpret_cast<const double*>(arrA->data),
+                                         reinterpret_cast<const double*>(arrB->data), n);
+        uint64_t bits;
+        memcpy(&bits, &d, sizeof(double));
+        return bits;
+    } else {
+        int64_t sum = 0;
+        for (int64_t i = 0; i < n; ++i) {
+            sum += arrA->data[i] * arrB->data[i];
+        }
+        return static_cast<uint64_t>(sum);
+    }
+}
+
+extern "C" uint64_t jit_simd_sum(void* arrPtr) {
+    JITExecutionGuard guard;
+    if (!arrPtr) return 0;
+    JITArray* arr = reinterpret_cast<JITArray*>((char*)arrPtr - offsetof(JITArray, data));
+    if (arr->magic != JIT_ARRAY_MAGIC) return 0;
+    
+    if (arr->elemType == 1) {
+        double d = nevaarize::vecSum_f64(reinterpret_cast<const double*>(arr->data), arr->size);
+        uint64_t bits;
+        memcpy(&bits, &d, sizeof(double));
+        return bits;
+    } else {
+        int64_t s = nevaarize::vecSum_i64(arr->data, arr->size);
+        return static_cast<uint64_t>(s);
+    }
+}
+
+extern "C" void* jit_simd_scale(void* arrPtr, uint64_t scalarBits, int64_t scalarType) {
+    JITExecutionGuard guard;
+    if (!arrPtr) return nullptr;
+    JITArray* arr = reinterpret_cast<JITArray*>((char*)arrPtr - offsetof(JITArray, data));
+    if (arr->magic != JIT_ARRAY_MAGIC) return nullptr;
+    
+    int64_t n = arr->size;
+    void* resData = jit_alloc_array(n);
+    if (!resData) return nullptr;
+    JITArray* resArr = reinterpret_cast<JITArray*>((char*)resData - offsetof(JITArray, data));
+    
+    if (arr->elemType == 1 || scalarType == 1) {
+        resArr->elemType = 1;
+        double s = 0.0;
+        if (scalarType == 1) memcpy(&s, &scalarBits, sizeof(double));
+        else s = static_cast<double>(static_cast<int64_t>(scalarBits));
+        
+        nevaarize::vecScalarMul_f64(reinterpret_cast<double*>(resArr->data),
+                                    reinterpret_cast<const double*>(arr->data), s, n);
+    } else {
+        resArr->elemType = 0;
+        int64_t s = static_cast<int64_t>(scalarBits);
+        for (int64_t i = 0; i < n; ++i) {
+            resArr->data[i] = arr->data[i] * s;
+        }
+    }
+    return resData;
+}
+
+extern "C" int64_t jit_simd_sum_loop(int64_t n) {
+    JITExecutionGuard guard;
+    return nevaarize::simdSumLoop(n);
 }
 
 /**
@@ -4772,8 +4937,8 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 // CSV stdlib dispatch (must be before compileExpr on callee.left)
                 if (callee.left != INVALID_NODE) {
                     const ASTNode& aliasNode = ast.get(callee.left);
-                    if (aliasNode.type == NodeType::IDENTIFIER && stdlibAliases.count(aliasNode.name)) {
-                        const std::string& moduleName = stdlibAliases[aliasNode.name];
+                    if (aliasNode.type == NodeType::IDENTIFIER && (stdlibAliases.count(aliasNode.name) || aliasNode.name == "simd")) {
+                        const std::string& moduleName = stdlibAliases.count(aliasNode.name) ? stdlibAliases.at(aliasNode.name) : aliasNode.name;
 
                         auto evalArgsToSlots = [&](const std::vector<NodeIndex>& children) -> std::vector<int32_t> {
                             CodeBuffer& b = codegen.getCode();
@@ -5770,6 +5935,52 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_http_serve), slots, 0);
                             }
                         }
+
+                        if (moduleName == "simd") {
+                            if (memberName == "detect" || memberName == "Detect") {
+                                auto slots = evalArgsToSlots(node.children);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_detect), slots, 4); // string
+                            }
+                            if (memberName == "level" || memberName == "Level") {
+                                auto slots = evalArgsToSlots(node.children);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_level), slots, 0); // int
+                            }
+                            if (memberName == "add" || memberName == "Add") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_add), slots, 5); // array
+                            }
+                            if (memberName == "sub" || memberName == "Sub") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_sub), slots, 5); // array
+                            }
+                            if (memberName == "mul" || memberName == "Mul") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_mul), slots, 5); // array
+                            }
+                            if (memberName == "dot" || memberName == "Dot") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_dot), slots, 1); // float
+                            }
+                            if (memberName == "sum" || memberName == "Sum") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_sum), slots, 0); // int
+                            }
+                            if (memberName == "scale" || memberName == "Scale") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_scale), slots, 5); // array
+                            }
+                            if (memberName == "sumLoop" || memberName == "SumLoop") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_sum_loop), slots, 0); // int
+                            }
+                        }
                     }
                 }
                 
@@ -6343,6 +6554,138 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
                     buf.emit64(static_cast<uint64_t>(ValueType::ARRAY));
                     return result;
+                }
+                
+                if (memberName == "sum") {
+                    // arr.sum() -> uses SIMD acceleration
+                    int32_t retSlot = allocateStackSlot();
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+                    
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+                    
+                    bool objHi = static_cast<uint8_t>(objReg) >= 8;
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+                    
+                    buf.emit8(0x48); buf.emit8(0xB8);
+                    buf.emit64(reinterpret_cast<uint64_t>(jit_simd_sum));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+                    
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+                    
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+                    
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+                    
+                    freeReg(objVal.valueReg);
+                    freeReg(objVal.typeReg);
+                    
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+                    
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    bool tHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                    buf.emit8(0x48 | (tHigh ? 0x01 : 0));
+                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                    buf.emit64(0); // INT / number
+                    return result;
+                }
+                
+                if (memberName == "dot" || memberName == "add" || memberName == "sub" || memberName == "mul" || memberName == "scale") {
+                    if (!node.children.empty()) {
+                        int32_t objSlot = allocateStackSlot();
+                        bool objSaveHigh = static_cast<uint8_t>(objVal.valueReg) >= 8;
+                        buf.emit8(0x48 | (objSaveHigh ? 0x04 : 0));
+                        buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(objVal.valueReg) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(objSlot));
+
+                        JITValue argVal = compileExpr(ast, node.children[0]);
+                        int32_t argValSlot = allocateStackSlot();
+                        int32_t argTypeSlot = allocateStackSlot();
+                        
+                        bool argValHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                        buf.emit8(0x48 | (argValHigh ? 0x04 : 0));
+                        buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(argValSlot));
+
+                        bool argTypeHigh = static_cast<uint8_t>(argVal.typeReg) >= 8;
+                        buf.emit8(0x48 | (argTypeHigh ? 0x04 : 0));
+                        buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.typeReg) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(argTypeSlot));
+
+                        int32_t retSlot = allocateStackSlot();
+                        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                        buf.emit8(0x53); // push rbx
+                        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                        buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                        // RDI = [rbp + objSlot]
+                        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+                        buf.emit32(static_cast<uint32_t>(objSlot));
+                        // RSI = [rbp + argValSlot]
+                        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+                        buf.emit32(static_cast<uint32_t>(argValSlot));
+                        // RDX = [rbp + argTypeSlot]
+                        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x95);
+                        buf.emit32(static_cast<uint32_t>(argTypeSlot));
+
+                        uint64_t targetFn = reinterpret_cast<uint64_t>(jit_simd_add);
+                        int64_t resType = 5; // ARRAY
+                        if (memberName == "sub") targetFn = reinterpret_cast<uint64_t>(jit_simd_sub);
+                        else if (memberName == "mul") targetFn = reinterpret_cast<uint64_t>(jit_simd_mul);
+                        else if (memberName == "dot") { targetFn = reinterpret_cast<uint64_t>(jit_simd_dot); resType = 1; }
+                        else if (memberName == "scale") targetFn = reinterpret_cast<uint64_t>(jit_simd_scale);
+
+                        buf.emit8(0x48); buf.emit8(0xB8);
+                        buf.emit64(targetFn);
+                        buf.emit8(0xFF); buf.emit8(0xD0);
+
+                        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                        buf.emit8(0x5B); // pop rbx
+
+                        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                        buf.emit32(static_cast<uint32_t>(retSlot));
+
+                        buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                        buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                        buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                        freeReg(argVal.valueReg);
+                        freeReg(argVal.typeReg);
+                        freeReg(objVal.valueReg);
+                        freeReg(objVal.typeReg);
+
+                        X64Reg dst = allocateReg();
+                        bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                        buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                        buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(retSlot));
+
+                        JITValue result;
+                        result.valueReg = dst;
+                        result.typeReg = allocateReg();
+                        bool tHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                        buf.emit8(0x48 | (tHigh ? 0x01 : 0));
+                        buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                        buf.emit64(resType);
+                        return result;
+                    }
                 }
                 
                 if (memberName == "serve") {
