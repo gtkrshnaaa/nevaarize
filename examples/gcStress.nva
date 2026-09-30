@@ -1,0 +1,33 @@
+total = 100
+liveArrays = []
+
+i = 0
+while (i < total) {
+    arr = [i, i * 2, i * 3]
+    liveArrays.push(arr)
+    
+    temp = [i, i + 1, i + 2, i + 3]
+    i = i + 1
+}
+
+valid = 1
+j = 0
+while (j < total) {
+    item = liveArrays[j]
+    if (item[0] != j) {
+        valid = 0
+    }
+    if (item[1] != j * 2) {
+        valid = 0
+    }
+    if (item[2] != j * 3) {
+        valid = 0
+    }
+    j = j + 1
+}
+
+if (valid == 1) {
+    print("GC Stress Test: PASSED")
+} else {
+    print("GC Stress Test: FAILED")
+}

@@ -70,14 +70,14 @@ extern "C" void nevaarize_hardware_trap_handler(int sig, siginfo_t *si, void *un
 
 // Hardware trap initialization (called from main)
 void setup_hardware_traps() {
-    // Allocate alternate signal stack for Stack Overflow recovery
+    // Alternate signal stack for Stack Overflow recovery
+    static constexpr size_t ALT_STACK_SIZE = 64 * 1024;
+    static uint8_t altstack[ALT_STACK_SIZE];
     stack_t ss;
-    ss.ss_sp = malloc(SIGSTKSZ * 4); // Use larger stack just in case
-    if (ss.ss_sp != NULL) {
-        ss.ss_size = SIGSTKSZ * 4;
-        ss.ss_flags = 0;
-        sigaltstack(&ss, NULL);
-    }
+    ss.ss_sp = altstack;
+    ss.ss_size = sizeof(altstack);
+    ss.ss_flags = 0;
+    sigaltstack(&ss, NULL);
 
     struct sigaction sa;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK; // Run on alternate stack
@@ -776,6 +776,16 @@ extern "C" void* jit_alloc_string(const char* s) {
 extern "C" void jit_gc_collect() {
     JITExecutionGuard guard;
     jitGC.collectYoung();
+}
+
+extern "C" void jit_gc_inhibit() {
+    JITExecutionGuard guard;
+    jitGC.inhibitGC();
+}
+
+extern "C" void jit_gc_resume() {
+    JITExecutionGuard guard;
+    jitGC.resumeGC();
 }
 
 extern "C" char* jit_string_concat(char* s1, char* s2) {
@@ -7516,12 +7526,16 @@ CompiledFunc JIT::compileExpression(const AST& ast, NodeIndex exprNode) {
 int64_t JIT::execute(CompiledFunc fn) {
     in_jit_execution = true;
     jit_return_sp = jit_return_stack;
+    void* stack_top = __builtin_frame_address(0);
+    jitGC.setStackTop(stack_top);
     
     if (sigsetjmp(jit_recovery_env, 1) == 0) {
         int64_t result = fn();
+        jitGC.setStackTop(nullptr);
         in_jit_execution = false;
         return result;
     } else {
+        jitGC.setStackTop(nullptr);
         in_jit_execution = false;
         throw std::runtime_error(
             "Fatal Runtime Error: Segmentation Fault (SIGSEGV) / Memory Access Violation occurred.\n"

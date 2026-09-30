@@ -16,6 +16,8 @@
 #include <vector>
 #include <memory>
 #include <cstring>
+#include <algorithm>
+#include <csetjmp>
 
 namespace nevaarize {
 
@@ -79,6 +81,12 @@ public:
     size_t getCapacity() const { return capacity; }
     uint8_t* getData() const { return data; }
 
+    bool contains(const void* ptr) const {
+        if (!data || !ptr) return false;
+        const uint8_t* p = static_cast<const uint8_t*>(ptr);
+        return p >= data && p < (data + used);
+    }
+
 private:
     uint8_t* data;
     size_t capacity;
@@ -111,10 +119,19 @@ public:
         , totalAllocated(0)
         , allocsSinceCollect(0)
         , collectCount(0)
-        , objectList(nullptr) {}
+        , objectList(nullptr)
+        , stackTop(nullptr)
+        , gcInhibitCount(0) {}
+
+    void setStackTop(void* top) { stackTop = top; }
+    void* getStackTop() const { return stackTop; }
+
+    void inhibitGC() { gcInhibitCount++; }
+    void resumeGC() { if (gcInhibitCount > 0) gcInhibitCount--; }
+    bool isGCLocked() const { return gcInhibitCount > 0; }
 
     /**
-     * Allocate memory from young generation.
+     * Allocate memory from young generation or fallback to old generation/overflow.
      */
     void* allocate(size_t size) {
         size_t totalSize = sizeof(GCHeader) + size;
@@ -124,10 +141,23 @@ public:
             collectYoung();
             ptr = youngGen.allocate(totalSize);
             if (!ptr) {
-                collectFull();
-                ptr = youngGen.allocate(totalSize);
+                ptr = oldGen.allocate(totalSize);
                 if (!ptr) {
-                    return nullptr;
+                    collectFull();
+                    ptr = oldGen.allocate(totalSize);
+                    if (!ptr) {
+                        if (!overflowRegions.empty()) {
+                            ptr = overflowRegions.back()->allocate(totalSize);
+                        }
+                        if (!ptr) {
+                            size_t overflowSize = totalSize > YOUNG_SIZE ? totalSize * 2 : YOUNG_SIZE;
+                            overflowRegions.push_back(std::make_unique<MemoryRegion>(overflowSize));
+                            ptr = overflowRegions.back()->allocate(totalSize);
+                            if (!ptr) {
+                                return nullptr;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -143,9 +173,8 @@ public:
         totalAllocated += size;
         allocsSinceCollect++;
 
-        // Adaptive collection: trigger when young generation is 80% full
-        // Avoids GC thrashing while keeping RAM usage low
-        if (youngGen.getUsed() >= (youngGen.getCapacity() * 4) / 5) {
+        // Adaptive collection: trigger when young generation is 80% full and not inhibited
+        if (!isGCLocked() && youngGen.getUsed() >= (youngGen.getCapacity() * 4) / 5) {
             collectYoung();
         }
 
@@ -173,7 +202,6 @@ public:
 
     /**
      * Register a root pointer for GC scanning.
-     * Root pointers are locations that reference GC-managed objects.
      */
     void addRoot(void** rootPtr) {
         roots.push_back(rootPtr);
@@ -195,53 +223,156 @@ public:
     void markFromRoots() {
         for (void** root : roots) {
             if (*root) {
-                GCHeader* header = reinterpret_cast<GCHeader*>(
-                    static_cast<uint8_t*>(*root) - sizeof(GCHeader));
-                markObject(header);
+                scanCandidatePointer(*root);
             }
         }
     }
 
     /**
-     * Sweep phase: unmark live objects, count dead bytes.
+     * Conservative stack scanning across active JIT execution stack.
+     * Inspects active stack memory from current RSP to stackTop and marks live objects.
      */
-    size_t sweep() {
+    void scanStackRoots() {
+        if (!stackTop) return;
+
+        jmp_buf cpuRegs;
+        setjmp(cpuRegs);
+
+        void* currentSp = nullptr;
+#if defined(__x86_64__) || defined(_M_X64)
+        asm volatile("mov %%rsp, %0" : "=r"(currentSp));
+#else
+        currentSp = __builtin_frame_address(0);
+#endif
+
+        if (!currentSp) return;
+
+        uintptr_t low = reinterpret_cast<uintptr_t>(currentSp);
+        uintptr_t high = reinterpret_cast<uintptr_t>(stackTop);
+        if (low > high) {
+            std::swap(low, high);
+        }
+
+        if (high - low > 2 * 1024 * 1024) {
+            low = high - (2 * 1024 * 1024);
+        }
+
+        low &= ~static_cast<uintptr_t>(sizeof(void*) - 1);
+
+        for (uintptr_t p = low; p < high; p += sizeof(void*)) {
+            void* candidate = *reinterpret_cast<void**>(p);
+            if (!candidate) continue;
+
+            scanCandidatePointer(candidate);
+        }
+    }
+
+    /**
+     * Evaluates a candidate pointer against GC memory regions and marks enclosing object.
+     */
+    void scanCandidatePointer(void* candidate) {
+        if (!candidate) return;
+        uintptr_t uaddr = reinterpret_cast<uintptr_t>(candidate);
+        if (uaddr < 0x1000 || (uaddr & 0x7) != 0) return;
+
+        bool inGC = youngGen.contains(candidate) || oldGen.contains(candidate);
+        if (!inGC) {
+            for (const auto& reg : overflowRegions) {
+                if (reg->contains(candidate)) {
+                    inGC = true;
+                    break;
+                }
+            }
+        }
+        if (!inGC) return;
+
+        const uint8_t* p = static_cast<const uint8_t*>(candidate);
+        for (GCHeader* cur = objectList; cur != nullptr; cur = cur->next) {
+            if (cur->marked) continue;
+            const uint8_t* start = reinterpret_cast<const uint8_t*>(cur);
+            const uint8_t* end = start + sizeof(GCHeader) + cur->size;
+            if (p >= start && p < end) {
+                markObject(cur);
+                break;
+            }
+        }
+    }
+
+    /**
+     * Mark an object and transitively trace interior GC pointers.
+     */
+    void markObject(GCHeader* header) {
+        if (!header || header->marked) return;
+        header->marked = 1;
+
+        uint8_t* payload = reinterpret_cast<uint8_t*>(header) + sizeof(GCHeader);
+        size_t words = header->size / sizeof(void*);
+        void** slots = reinterpret_cast<void**>(payload);
+        for (size_t i = 0; i < words; ++i) {
+            void* slotVal = slots[i];
+            if (slotVal) {
+                scanCandidatePointer(slotVal);
+            }
+        }
+    }
+
+    /**
+     * Sweep phase: unmark live objects, reclaim dead blocks.
+     */
+    size_t sweep(bool isFull = false) {
         size_t freedBytes = 0;
+        GCHeader** prev = &objectList;
         GCHeader* current = objectList;
+        bool hasLiveInYoung = false;
+        bool hasLiveInOld = false;
 
         while (current) {
             if (current->marked) {
                 current->marked = 0;
+                if (youngGen.contains(current)) {
+                    hasLiveInYoung = true;
+                } else if (oldGen.contains(current)) {
+                    hasLiveInOld = true;
+                }
+                prev = &current->next;
+                current = current->next;
             } else {
                 freedBytes += current->size;
+                *prev = current->next;
+                current = current->next;
             }
-            current = current->next;
         }
 
+        if (!hasLiveInYoung) {
+            youngGen.reset();
+        }
+        if (isFull && !hasLiveInOld) {
+            oldGen.reset();
+        }
         return freedBytes;
     }
 
     /**
-     * Collect young generation with mark-sweep.
+     * Collect young generation with conservative stack mark-sweep.
      */
     void collectYoung() {
+        if (isGCLocked()) return;
         collectCount++;
         markFromRoots();
-        sweep();
-        youngGen.reset();
-        objectList = nullptr;
+        scanStackRoots();
+        sweep(false);
         allocsSinceCollect = 0;
     }
 
     /**
-     * Full garbage collection.
+     * Full garbage collection across young and old generations.
      */
     void collectFull() {
+        if (isGCLocked()) return;
         collectCount++;
         markFromRoots();
-        sweep();
-        youngGen.reset();
-        objectList = nullptr;
+        scanStackRoots();
+        sweep(true);
         allocsSinceCollect = 0;
     }
 
@@ -252,18 +383,26 @@ public:
 private:
     MemoryRegion youngGen;
     MemoryRegion oldGen;
+    std::vector<std::unique_ptr<MemoryRegion>> overflowRegions;
     size_t totalAllocated;
     size_t allocsSinceCollect;
     size_t collectCount;
     GCHeader* objectList;
     std::vector<void**> roots;
+    void* stackTop;
+    size_t gcInhibitCount;
+};
 
-    /**
-     * Mark a single object as reachable.
-     */
-    void markObject(GCHeader* header) {
-        if (!header || header->marked) return;
-        header->marked = 1;
+/**
+ * RAII guard to inhibit garbage collection during critical native expression evaluations.
+ */
+struct ScopedGCLock {
+    GarbageCollector& gc;
+    explicit ScopedGCLock(GarbageCollector& collector) : gc(collector) {
+        gc.inhibitGC();
+    }
+    ~ScopedGCLock() {
+        gc.resumeGC();
     }
 };
 
