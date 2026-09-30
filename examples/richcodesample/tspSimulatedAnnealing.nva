@@ -39,7 +39,8 @@ bestTour = [0, 1, 2, 3, 4, 5]
 currentCost = calcTourLength(currentTour, numCities, cityX, cityY)
 bestCost = currentCost
 
-print("Initial Tour Length:", initialCost := currentCost)
+initialCost = currentCost
+print("Initial Tour Length:", initialCost)
 
 // Simulated Annealing Parameters
 temperature = 100.0
