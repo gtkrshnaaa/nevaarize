@@ -4428,6 +4428,22 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
 
                     // Compile argument (the value to push)
                     JITValue argVal = compileExpr(ast, node.children[0]);
+
+                    // Allocate dedicated stack slots for argument value and type to eliminate register clobbering
+                    int32_t valSlot = allocateStackSlot();
+                    int32_t typeSlot = allocateStackSlot();
+
+                    // Spill argVal.valueReg to [rbp + valSlot]
+                    bool argValHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (argValHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(valSlot));
+
+                    // Spill argVal.typeReg to [rbp + typeSlot]
+                    bool argTypeHigh = static_cast<uint8_t>(argVal.typeReg) >= 8;
+                    buf.emit8(0x48 | (argTypeHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.typeReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(typeSlot));
                     
                     // Save caller-save scratch registers (rcx, rdx, rsi, rdi, r8-r11) - don't save rax
                     buf.emit8(0x51); buf.emit8(0x52); // push rcx, rdx
@@ -4435,24 +4451,31 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
                     buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
                     
-                    // rdi = [rbp + objSlot] (reloaded array ptr)
+                    // 16-byte stack alignment
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                    // RDI = [rbp + objSlot] (reloaded array ptr)
                     buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
                     buf.emit32(static_cast<uint32_t>(objSlot));
-                    
-                    // rsi = argVal.valueReg (value)
-                    bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
-                    buf.emit8(0x48 | (argHigh ? 0x04 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3) | 6);
-                    
-                    // rdx = argVal.typeReg (type)
-                    bool typeHigh = static_cast<uint8_t>(argVal.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
-                    buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(argVal.typeReg) & 0x7) << 3) | 2);
-                    
-                    // rax = jit_array_push_typed
+
+                    // RSI = [rbp + valSlot] (reloaded value)
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+                    buf.emit32(static_cast<uint32_t>(valSlot));
+
+                    // RDX = [rbp + typeSlot] (reloaded type tag)
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x95);
+                    buf.emit32(static_cast<uint32_t>(typeSlot));
+
+                    // Call jit_array_push_typed
                     buf.emit8(0x48); buf.emit8(0xB8);
                     buf.emit64(reinterpret_cast<uint64_t>(jit_array_push_typed));
                     buf.emit8(0xFF); buf.emit8(0xD0);
+
+                    // Restore stack frame
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
                     
                     // Resulting array pointer is in RAX (may have changed due to realloc)
                     // We MUST update the variable if it's an identifier
@@ -7445,20 +7468,31 @@ void JIT::compileReturn(const AST& ast, NodeIndex idx) {
     if (node.left != INVALID_NODE) {
         JITValue result = compileExpr(ast, node.left);
         
-        // Move value to RAX
-        if (result.valueReg != X64Reg::RAX) {
-            bool srcHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-            buf.emit8(0x48 | (srcHigh ? 0x04 : 0));
-            buf.emit8(0x89);
-            buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | 0);
-        }
-        
-        // Move type to RDX (convention: RAX=value, RDX=type)
-        if (result.typeReg != X64Reg::RDX) {
-            bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
-            buf.emit8(0x89);
-            buf.emit8(0xC2 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
+        // Move value to RAX and type to RDX safely without clobbering
+        if (result.valueReg == X64Reg::RDX && result.typeReg == X64Reg::RAX) {
+            buf.emit8(0x48); buf.emit8(0x87); buf.emit8(0xD0); // xchg rax, rdx
+        } else if (result.typeReg == X64Reg::RAX) {
+            // Move type from RAX to RDX before overwriting RAX with value
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xC2); // mov rdx, rax
+            if (result.valueReg != X64Reg::RAX) {
+                bool srcHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                buf.emit8(0x48 | (srcHigh ? 0x04 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | 0);
+            }
+        } else {
+            if (result.valueReg != X64Reg::RAX) {
+                bool srcHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                buf.emit8(0x48 | (srcHigh ? 0x04 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | 0);
+            }
+            if (result.typeReg != X64Reg::RDX) {
+                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+                buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC2 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
+            }
         }
         
         freeReg(result.valueReg);
@@ -7982,20 +8016,38 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
         dst.valueReg = allocateReg();
         dst.typeReg = allocateReg();
         
-        // Copy value from RAX
-        if (dst.valueReg != X64Reg::RAX) {
-            bool dstHigh = static_cast<uint8_t>(dst.valueReg) >= 8;
-            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-            buf.emit8(0x89); // mov reg, rax
-            buf.emit8(0xC0 | (0 << 3) | (static_cast<uint8_t>(dst.valueReg) & 0x7));
-        }
-        
-        // Copy type from RDX
-        if (dst.typeReg != X64Reg::RDX) {
-            bool typeHigh = static_cast<uint8_t>(dst.typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-            buf.emit8(0x89); // mov reg, rdx
-            buf.emit8(0xC0 | (2 << 3) | (static_cast<uint8_t>(dst.typeReg) & 0x7));
+        // Copy from RAX/RDX to dst safely without clobbering
+        if (dst.valueReg == X64Reg::RDX && dst.typeReg == X64Reg::RAX) {
+            buf.emit8(0x48); buf.emit8(0x87); buf.emit8(0xD0); // xchg rax, rdx
+        } else if (dst.valueReg == X64Reg::RDX) {
+            if (dst.typeReg != X64Reg::RDX) {
+                bool typeHigh = static_cast<uint8_t>(dst.typeReg) >= 8;
+                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC0 | (2 << 3) | (static_cast<uint8_t>(dst.typeReg) & 0x7));
+            }
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xC2); // mov rdx, rax
+        } else if (dst.typeReg == X64Reg::RAX) {
+            if (dst.valueReg != X64Reg::RAX) {
+                bool dstHigh = static_cast<uint8_t>(dst.valueReg) >= 8;
+                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC0 | (0 << 3) | (static_cast<uint8_t>(dst.valueReg) & 0x7));
+            }
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xD0); // mov rax, rdx
+        } else {
+            if (dst.valueReg != X64Reg::RAX) {
+                bool dstHigh = static_cast<uint8_t>(dst.valueReg) >= 8;
+                buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC0 | (0 << 3) | (static_cast<uint8_t>(dst.valueReg) & 0x7));
+            }
+            if (dst.typeReg != X64Reg::RDX) {
+                bool typeHigh = static_cast<uint8_t>(dst.typeReg) >= 8;
+                buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+                buf.emit8(0x89);
+                buf.emit8(0xC0 | (2 << 3) | (static_cast<uint8_t>(dst.typeReg) & 0x7));
+            }
         }
         
         return dst;
@@ -8098,20 +8150,38 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     finalRes.valueReg = allocateReg();
     finalRes.typeReg = allocateReg();
     
-    // Copy value from RAX to allocated register
-    if (finalRes.valueReg != X64Reg::RAX) {
-        bool dstHigh = static_cast<uint8_t>(finalRes.valueReg) >= 8;
-        buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
-        buf.emit8(0x89);
-        buf.emit8(0xC0 | (0 << 3) | (static_cast<uint8_t>(finalRes.valueReg) & 0x7));
-    }
-    
-    // Copy type from RDX to allocated register
-    if (finalRes.typeReg != X64Reg::RDX) {
-        bool typeHigh = static_cast<uint8_t>(finalRes.typeReg) >= 8;
-        buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-        buf.emit8(0x89);
-        buf.emit8(0xC0 | (2 << 3) | (static_cast<uint8_t>(finalRes.typeReg) & 0x7));
+    // Copy from RAX/RDX to finalRes safely without clobbering
+    if (finalRes.valueReg == X64Reg::RDX && finalRes.typeReg == X64Reg::RAX) {
+        buf.emit8(0x48); buf.emit8(0x87); buf.emit8(0xD0); // xchg rax, rdx
+    } else if (finalRes.valueReg == X64Reg::RDX) {
+        if (finalRes.typeReg != X64Reg::RDX) {
+            bool typeHigh = static_cast<uint8_t>(finalRes.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | (2 << 3) | (static_cast<uint8_t>(finalRes.typeReg) & 0x7));
+        }
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xC2); // mov rdx, rax
+    } else if (finalRes.typeReg == X64Reg::RAX) {
+        if (finalRes.valueReg != X64Reg::RAX) {
+            bool dstHigh = static_cast<uint8_t>(finalRes.valueReg) >= 8;
+            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | (0 << 3) | (static_cast<uint8_t>(finalRes.valueReg) & 0x7));
+        }
+        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xD0); // mov rax, rdx
+    } else {
+        if (finalRes.valueReg != X64Reg::RAX) {
+            bool dstHigh = static_cast<uint8_t>(finalRes.valueReg) >= 8;
+            buf.emit8(0x48 | (dstHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | (0 << 3) | (static_cast<uint8_t>(finalRes.valueReg) & 0x7));
+        }
+        if (finalRes.typeReg != X64Reg::RDX) {
+            bool typeHigh = static_cast<uint8_t>(finalRes.typeReg) >= 8;
+            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | (2 << 3) | (static_cast<uint8_t>(finalRes.typeReg) & 0x7));
+        }
     }
     
     return finalRes;
