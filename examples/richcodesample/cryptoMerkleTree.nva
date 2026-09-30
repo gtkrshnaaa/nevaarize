@@ -1,0 +1,89 @@
+import stdlib time as t
+
+// Cryptographic Merkle Tree Simulation
+// Constructs a binary hash tree from leaf records and verifies audit proofs
+
+print("=== Nevaarize Cryptographic Merkle Tree Demo ===")
+startTime = t.millis()
+
+// 64-bit integer hash mixer
+func hashCombine(leftHash, rightHash) {
+    primeA = 1099511628211
+    primeB = 1469598103934665603
+    h = leftHash * primeA + rightHash * primeB
+    h = h ^ (h / 65536)
+    if (h < 0) {
+        h = 0 - h
+    }
+    return h % 1000000007
+}
+
+func hashLeaf(val) {
+    seed = 2166136261
+    h = (seed ^ val) * 16777619
+    if (h < 0) {
+        h = 0 - h
+    }
+    return h % 1000000007
+}
+
+// 8 transaction values as leaves
+leaves = [1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008]
+numLeaves = 8
+
+// Tree storage: full binary tree has 2*numLeaves - 1 nodes
+// Level 0 (leaves): indices 7..14 in a 1-based or flat array
+tree = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+idx = 0
+while (idx < numLeaves) {
+    leafVal = leaves[idx]
+    tree[numLeaves + idx] = hashLeaf(leafVal)
+    idx = idx + 1
+}
+
+// Build internal nodes from bottom to top
+nodeIdx = numLeaves - 1
+while (nodeIdx > 0) {
+    leftChild = tree[2 * nodeIdx]
+    rightChild = tree[2 * nodeIdx + 1]
+    tree[nodeIdx] = hashCombine(leftChild, rightChild)
+    nodeIdx = nodeIdx - 1
+}
+
+merkleRoot = tree[1]
+print("Calculated Merkle Root:", merkleRoot)
+
+// Verify proof for leaf 2 (transaction 1003)
+targetLeafIdx = 2
+targetVal = leaves[targetLeafIdx]
+targetHash = hashLeaf(targetVal)
+print("Verifying membership of leaf index", targetLeafIdx, "value:", targetVal)
+
+// Walk from leaf to root
+currentPos = numLeaves + targetLeafIdx
+computedHash = targetHash
+
+while (currentPos > 1) {
+    isRightSibling = currentPos % 2
+    if (isRightSibling == 0) {
+        siblingPos = currentPos + 1
+        siblingHash = tree[siblingPos]
+        computedHash = hashCombine(computedHash, siblingHash)
+    } else {
+        siblingPos = currentPos - 1
+        siblingHash = tree[siblingPos]
+        computedHash = hashCombine(siblingHash, computedHash)
+    }
+    currentPos = currentPos / 2
+}
+
+print("Computed proof root:", computedHash)
+if (computedHash == merkleRoot) {
+    print("Merkle Audit Proof: VERIFIED SUCCESS")
+} else {
+    print("Merkle Audit Proof: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Merkle Tree benchmark completed in", elapsed, "ms")
