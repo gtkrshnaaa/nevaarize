@@ -42,9 +42,11 @@ public:
      * Returns a shared_future that can be awaited.
      * Blocks if the task queue has reached max capacity.
      */
-    std::shared_future<int64_t> submit(std::function<int64_t()> task) {
-        auto promise = std::make_shared<std::promise<int64_t>>();
-        std::shared_future<int64_t> future = promise->get_future();
+    template <typename F>
+    auto submit(F&& task) -> std::shared_future<std::decay_t<decltype(task())>> {
+        using ReturnType = std::decay_t<decltype(task())>;
+        auto promise = std::make_shared<std::promise<ReturnType>>();
+        std::shared_future<ReturnType> future = promise->get_future();
 
         {
             std::unique_lock<std::mutex> lock(queueMutex);
@@ -58,10 +60,14 @@ public:
                 return future;
             }
 
-            tasks.emplace([promise, task = std::move(task)]() {
+            tasks.emplace([promise, task = std::forward<F>(task)]() mutable {
                 try {
-                    int64_t result = task();
-                    promise->set_value(result);
+                    if constexpr (std::is_void_v<ReturnType>) {
+                        task();
+                        promise->set_value();
+                    } else {
+                        promise->set_value(task());
+                    }
                 } catch (...) {
                     promise->set_exception(std::current_exception());
                 }

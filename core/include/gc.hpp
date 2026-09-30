@@ -18,6 +18,7 @@
 #include <cstring>
 #include <algorithm>
 #include <csetjmp>
+#include <mutex>
 
 namespace nevaarize {
 
@@ -104,6 +105,80 @@ struct GCHeader {
     uint8_t reserved : 5;
     GCHeader* next;   // Intrusive linked list for allocated objects
 };
+
+/**
+ * Thread-safe shared old-generation memory region for cross-thread async task payloads.
+ */
+class SharedMemoryRegion {
+public:
+    static SharedMemoryRegion& instance() {
+        static SharedMemoryRegion shared(64 * 1024 * 1024);
+        return shared;
+    }
+
+    explicit SharedMemoryRegion(size_t cap)
+        : data(static_cast<uint8_t*>(malloc(cap)))
+        , capacity(cap)
+        , used(0) {}
+
+    ~SharedMemoryRegion() {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (data) free(data);
+        for (void* p : overflow) {
+            free(p);
+        }
+        overflow.clear();
+    }
+
+    void* allocate(size_t bytes, size_t alignment = 8) {
+        std::lock_guard<std::mutex> lock(mutex);
+        size_t alignedUsed = (used + alignment - 1) & ~(alignment - 1);
+        if (alignedUsed + bytes <= capacity) {
+            void* ptr = data + alignedUsed;
+            used = alignedUsed + bytes;
+            return ptr;
+        }
+        void* ptr = malloc(bytes);
+        if (ptr) {
+            overflow.push_back(ptr);
+        }
+        return ptr;
+    }
+
+    bool contains(const void* ptr) const {
+        if (!ptr) return false;
+        std::lock_guard<std::mutex> lock(mutex);
+        if (data && ptr >= data && ptr < (data + used)) return true;
+        for (void* p : overflow) {
+            if (p == ptr) return true;
+        }
+        return false;
+    }
+
+private:
+    uint8_t* data;
+    size_t capacity;
+    size_t used;
+    mutable std::mutex mutex;
+    std::vector<void*> overflow;
+};
+
+/**
+ * Allocate shared memory for cross-thread objects with an immortal GCHeader.
+ */
+inline void* allocateShared(size_t size) {
+    size_t total = sizeof(GCHeader) + size;
+    void* mem = SharedMemoryRegion::instance().allocate(total);
+    if (!mem) return nullptr;
+    GCHeader* hdr = static_cast<GCHeader*>(mem);
+    hdr->size = static_cast<uint32_t>(size);
+    hdr->type = 0;
+    hdr->marked = 1;      // Permanently marked so thread-local GC never sweeps
+    hdr->generation = 2;  // Old/shared generation
+    hdr->reserved = 0;
+    hdr->next = nullptr;
+    return static_cast<uint8_t*>(mem) + sizeof(GCHeader);
+}
 
 /**
  * Generational garbage collector with mark-sweep.

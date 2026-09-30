@@ -149,6 +149,7 @@ const uint32_t JIT_MAP_MAGIC    = 0x4D415053; // "MAPS"
 thread_local void* current_exception_frame = nullptr;
 thread_local int64_t current_exception_val = 0;
 thread_local int64_t current_exception_type = 0;
+thread_local jmp_buf* current_async_task_env = nullptr;
 
 /**
  * Handle unhandled exceptions with human-readable output.
@@ -156,8 +157,11 @@ thread_local int64_t current_exception_type = 0;
  */
 extern "C" void jit_unhandled_exception() {
     JITExecutionGuard guard;
+    if (current_async_task_env) {
+        longjmp(*current_async_task_env, 1);
+    }
     if (current_exception_type == 4 && current_exception_val != 0) {
-        // String exception — print the message
+        // String exception: print the message
         void* dataPtr = reinterpret_cast<void*>(current_exception_val);
         JITString* str = reinterpret_cast<JITString*>(
             reinterpret_cast<char*>(dataPtr) - offsetof(JITString, data));
@@ -171,6 +175,36 @@ extern "C" void jit_unhandled_exception() {
                   << ", value=" << current_exception_val << ")" << std::endl;
     }
     exit(1);
+}
+
+/**
+ * Throw exception into active JIT frame or unhandled handler.
+ */
+extern "C" [[noreturn]] void jit_throw_from_runtime(int64_t val, int64_t type) {
+    current_exception_val = val;
+    current_exception_type = type;
+    if (current_exception_frame) {
+        void* framePtr = current_exception_frame;
+        void* prevFrame = *reinterpret_cast<void**>(framePtr);
+        void* catchRip = *reinterpret_cast<void**>(static_cast<char*>(framePtr) + 8);
+        void* savedRbp = *reinterpret_cast<void**>(static_cast<char*>(framePtr) + 16);
+        void* savedRsp = *reinterpret_cast<void**>(static_cast<char*>(framePtr) + 24);
+        
+        current_exception_frame = prevFrame;
+        
+        asm volatile (
+            "mov %0, %%rsp\n\t"
+            "mov %1, %%rbp\n\t"
+            "jmp *%2\n\t"
+            :
+            : "r"(savedRsp), "r"(savedRbp), "r"(catchRip)
+            : "memory"
+        );
+        __builtin_unreachable();
+    } else {
+        jit_unhandled_exception();
+        __builtin_unreachable();
+    }
 }
 
 /**
@@ -887,39 +921,274 @@ extern "C" void* jit_string_concat_dynamic(int64_t val1, int64_t type1, int64_t 
 /**
  * Async/Await Runtime Support
  *
- * Thread pool backed concurrency model. Tasks are submitted to a fixed-size
- * pool (hardware_concurrency threads) instead of spawning OS threads.
- * Results are retrieved via std::shared_future.
+ * Thread pool backed concurrency model with cross-thread memory safety
+ * and structured error propagation.
  */
-struct JITTask {
-    std::shared_future<int64_t> future;
+struct JITTaskResult {
+    int64_t val{0};
+    int64_t type{0};
+    bool hasError{false};
+    int64_t errorVal{0};
+    int64_t errorType{0};
+    std::string errorMsg;
 };
 
+const uint32_t JIT_TASK_MAGIC = 0x5441534B; // "TASK"
+
+struct JITTask {
+    uint32_t magic{JIT_TASK_MAGIC};
+    std::shared_future<JITTaskResult> future;
+};
+
+static std::mutex g_taskRegistryMutex;
+static std::unordered_set<JITTask*> g_taskRegistry;
+
+static bool is_valid_task(void* ptr) {
+    if (!ptr) return false;
+    uintptr_t uaddr = reinterpret_cast<uintptr_t>(ptr);
+    if (uaddr < 0x1000 || (uaddr & 0x7) != 0) return false;
+    std::lock_guard<std::mutex> lock(g_taskRegistryMutex);
+    return g_taskRegistry.count(static_cast<JITTask*>(ptr)) > 0;
+}
+
 using JITCompiledFunc = int64_t (*)();
+
+static void* cloneStringToShared(const char* str) {
+    if (!str) return nullptr;
+    int64_t len = static_cast<int64_t>(strlen(str));
+    size_t totalBytes = sizeof(JITString) + len + 1;
+    void* mem = nevaarize::allocateShared(totalBytes);
+    if (!mem) return nullptr;
+    JITString* s = reinterpret_cast<JITString*>(mem);
+    s->magic = JIT_STRING_MAGIC;
+    s->padding = 0;
+    s->capacity = len + 1;
+    s->length = len;
+    memcpy(s->data, str, len);
+    s->data[len] = '\0';
+    return s->data;
+}
+
+static void* cloneForCrossThread(void* ptr, int64_t type) {
+    if (!ptr) return nullptr;
+    if (nevaarize::SharedMemoryRegion::instance().contains(ptr)) {
+        return ptr;
+    }
+    
+    if (type == 4) { // STRING
+        JITString* s = reinterpret_cast<JITString*>(static_cast<char*>(ptr) - offsetof(JITString, data));
+        if (s->magic == JIT_STRING_MAGIC) {
+            size_t totalBytes = sizeof(JITString) + s->length + 1;
+            void* mem = nevaarize::allocateShared(totalBytes);
+            if (!mem) return ptr;
+            JITString* cloned = reinterpret_cast<JITString*>(mem);
+            cloned->magic = JIT_STRING_MAGIC;
+            cloned->padding = 0;
+            cloned->capacity = s->length + 1;
+            cloned->length = s->length;
+            memcpy(cloned->data, s->data, s->length);
+            cloned->data[s->length] = '\0';
+            return cloned->data;
+        }
+    } else if (type == 5) { // ARRAY
+        JITArray* arr = reinterpret_cast<JITArray*>(static_cast<char*>(ptr) - offsetof(JITArray, data));
+        if (arr->magic == JIT_ARRAY_MAGIC) {
+            int64_t cap = arr->capacity > arr->size ? arr->capacity : arr->size;
+            size_t totalBytes = sizeof(JITArray) + cap * sizeof(int64_t);
+            void* mem = nevaarize::allocateShared(totalBytes);
+            if (!mem) return ptr;
+            JITArray* cloned = reinterpret_cast<JITArray*>(mem);
+            cloned->magic = JIT_ARRAY_MAGIC;
+            cloned->elemType = arr->elemType;
+            cloned->capacity = cap;
+            cloned->size = arr->size;
+            for (int64_t i = 0; i < arr->size; ++i) {
+                if (arr->elemType == 4 || arr->elemType == 5 || arr->elemType == 6) {
+                    cloned->data[i] = reinterpret_cast<int64_t>(
+                        cloneForCrossThread(reinterpret_cast<void*>(arr->data[i]), arr->elemType)
+                    );
+                } else {
+                    cloned->data[i] = arr->data[i];
+                }
+            }
+            return cloned->data;
+        }
+    } else if (type == 6) { // MAP
+        JITMap* map = reinterpret_cast<JITMap*>(static_cast<char*>(ptr) - offsetof(JITMap, entries));
+        if (map->magic == JIT_MAP_MAGIC) {
+            size_t totalBytes = sizeof(JITMap) + map->capacity * sizeof(JITMapEntry);
+            void* mem = nevaarize::allocateShared(totalBytes);
+            if (!mem) return ptr;
+            JITMap* cloned = reinterpret_cast<JITMap*>(mem);
+            cloned->magic = JIT_MAP_MAGIC;
+            cloned->padding = 0;
+            cloned->capacity = map->capacity;
+            cloned->size = map->size;
+            for (int64_t i = 0; i < map->capacity; ++i) {
+                cloned->entries[i] = map->entries[i];
+            }
+            return cloned->entries;
+        }
+    }
+    return ptr;
+}
 
 extern "C" void* jit_async_spawn(void* funcPtr) {
     JITExecutionGuard guard;
     auto fn = reinterpret_cast<JITCompiledFunc>(funcPtr);
     JITTask* task = new JITTask();
-    task->future = nevaarize::ThreadPool::instance().submit([fn]() -> int64_t {
-        return fn();
+    {
+        std::lock_guard<std::mutex> lock(g_taskRegistryMutex);
+        g_taskRegistry.insert(task);
+    }
+    task->future = nevaarize::ThreadPool::instance().submit([fn]() -> JITTaskResult {
+        JITTaskResult result;
+        jmp_buf env;
+        current_async_task_env = &env;
+        if (setjmp(env) == 0) {
+            try {
+                result.val = fn();
+                result.type = 0;
+                result.hasError = false;
+            } catch (const std::exception& e) {
+                result.hasError = true;
+                result.errorType = 4;
+                result.errorVal = reinterpret_cast<int64_t>(cloneStringToShared(e.what()));
+                result.errorMsg = e.what();
+            } catch (...) {
+                result.hasError = true;
+                result.errorType = 4;
+                result.errorVal = reinterpret_cast<int64_t>(cloneStringToShared("Unknown runtime exception in async task"));
+                result.errorMsg = "Unknown runtime exception in async task";
+            }
+        } else {
+            result.hasError = true;
+            result.errorType = current_exception_type;
+            result.errorVal = reinterpret_cast<int64_t>(
+                cloneForCrossThread(reinterpret_cast<void*>(current_exception_val), current_exception_type)
+            );
+            if (current_exception_type == 4 && current_exception_val != 0) {
+                JITString* s = reinterpret_cast<JITString*>(
+                    reinterpret_cast<char*>(current_exception_val) - offsetof(JITString, data));
+                result.errorMsg = std::string(s->data, s->length);
+            } else {
+                result.errorMsg = "Task threw exception: " + std::to_string(current_exception_val);
+            }
+        }
+        current_async_task_env = nullptr;
+        return result;
+    });
+    return static_cast<void*>(task);
+}
+
+extern "C" void* jit_async_spawn_with_arg(void* funcPtr, int64_t argVal, int64_t argType) {
+    JITExecutionGuard guard;
+    int64_t safeArgVal = argVal;
+    if (argType == 4 || argType == 5 || argType == 6) {
+        safeArgVal = reinterpret_cast<int64_t>(
+            cloneForCrossThread(reinterpret_cast<void*>(argVal), argType)
+        );
+    }
+    
+    using JITArgFunc = int64_t (*)(int64_t);
+    auto fn = reinterpret_cast<JITArgFunc>(funcPtr);
+    JITTask* task = new JITTask();
+    {
+        std::lock_guard<std::mutex> lock(g_taskRegistryMutex);
+        g_taskRegistry.insert(task);
+    }
+    task->future = nevaarize::ThreadPool::instance().submit([fn, safeArgVal]() -> JITTaskResult {
+        JITTaskResult result;
+        jmp_buf env;
+        current_async_task_env = &env;
+        if (setjmp(env) == 0) {
+            try {
+                result.val = fn(safeArgVal);
+                result.type = 0;
+                result.hasError = false;
+            } catch (const std::exception& e) {
+                result.hasError = true;
+                result.errorType = 4;
+                result.errorVal = reinterpret_cast<int64_t>(cloneStringToShared(e.what()));
+                result.errorMsg = e.what();
+            } catch (...) {
+                result.hasError = true;
+                result.errorType = 4;
+                result.errorVal = reinterpret_cast<int64_t>(cloneStringToShared("Unknown runtime exception in async task"));
+                result.errorMsg = "Unknown runtime exception in async task";
+            }
+        } else {
+            result.hasError = true;
+            result.errorType = current_exception_type;
+            result.errorVal = reinterpret_cast<int64_t>(
+                cloneForCrossThread(reinterpret_cast<void*>(current_exception_val), current_exception_type)
+            );
+            if (current_exception_type == 4 && current_exception_val != 0) {
+                JITString* s = reinterpret_cast<JITString*>(
+                    reinterpret_cast<char*>(current_exception_val) - offsetof(JITString, data));
+                result.errorMsg = std::string(s->data, s->length);
+            } else {
+                result.errorMsg = "Task threw exception: " + std::to_string(current_exception_val);
+            }
+        }
+        current_async_task_env = nullptr;
+        return result;
     });
     return static_cast<void*>(task);
 }
 
 extern "C" int64_t jit_await_task(void* taskPtr) {
     JITExecutionGuard guard;
-    if (!taskPtr) return 0;
+    if (!taskPtr || !is_valid_task(taskPtr)) {
+        return reinterpret_cast<int64_t>(taskPtr);
+    }
     JITTask* task = static_cast<JITTask*>(taskPtr);
-    int64_t result = task->future.get();
-    return result;
+    JITTaskResult res;
+    try {
+        res = task->future.get();
+    } catch (const std::exception& e) {
+        res.hasError = true;
+        res.errorType = 4;
+        res.errorVal = reinterpret_cast<int64_t>(cloneStringToShared(e.what()));
+    } catch (...) {
+        res.hasError = true;
+        res.errorType = 4;
+        res.errorVal = reinterpret_cast<int64_t>(cloneStringToShared("Async task error"));
+    }
+    if (res.hasError) {
+        jit_throw_from_runtime(res.errorVal, res.errorType);
+    }
+    return res.val;
+}
+
+extern "C" int64_t jit_is_task(void* taskPtr) {
+    return is_valid_task(taskPtr) ? 1 : 0;
+}
+
+extern "C" void* jit_task_status(void* taskPtr) {
+    JITExecutionGuard guard;
+    if (!is_valid_task(taskPtr)) return jit_alloc_string("invalid");
+    JITTask* task = static_cast<JITTask*>(taskPtr);
+    
+    auto status = task->future.wait_for(std::chrono::seconds(0));
+    if (status == std::future_status::ready) {
+        return jit_alloc_string("ready");
+    } else {
+        return jit_alloc_string("pending");
+    }
 }
 
 extern "C" void jit_task_free(void* taskPtr) {
     JITExecutionGuard guard;
     if (!taskPtr) return;
-    JITTask* task = static_cast<JITTask*>(taskPtr);
-    delete task;
+    if (is_valid_task(taskPtr)) {
+        JITTask* task = static_cast<JITTask*>(taskPtr);
+        {
+            std::lock_guard<std::mutex> lock(g_taskRegistryMutex);
+            g_taskRegistry.erase(task);
+        }
+        delete task;
+    }
 }
 
 // ============================================================================
@@ -5981,6 +6250,34 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_simd_sum_loop), slots, 0); // int
                             }
                         }
+
+                        if (moduleName == "async") {
+                            if (memberName == "spawn" || memberName == "Spawn") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_async_spawn), slots, 10); // ASYNC_HANDLE
+                            }
+                            if (memberName == "await" || memberName == "Await") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_await_task), slots, 0);
+                            }
+                            if (memberName == "status" || memberName == "Status") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_task_status), slots, 4); // string
+                            }
+                            if (memberName == "isTask" || memberName == "IsTask") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_is_task), slots, 0); // int
+                            }
+                            if (memberName == "free" || memberName == "Free") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_task_free), slots, 0);
+                            }
+                        }
                     }
                 }
                 
@@ -7375,11 +7672,47 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         }
         
         case NodeType::AWAIT_EXPR: {
-            // Synchronous evaluation: current single-pass JIT inlines function bodies,
-            // so there is no compiled function pointer to spawn on a thread.
-            // The jit_async_spawn/jit_await_task helpers are available for future
-            // IR pipeline integration (Nevaarize 2.0).
-            return compileExpr(ast, node.left);
+            JITValue val = compileExpr(ast, node.left);
+            CodeBuffer& buf = codegen.getCode();
+            
+            // Check if val.typeReg == 10 (ASYNC_HANDLE)
+            bool tHigh = static_cast<uint8_t>(val.typeReg) >= 8;
+            buf.emit8(0x48 | (tHigh ? 0x01 : 0));
+            buf.emit8(0x83);
+            buf.emit8(0xF8 + (static_cast<uint8_t>(val.typeReg) & 0x7));
+            buf.emit8(10); // ASYNC_HANDLE
+            
+            // jne skip_await (rel8 jump)
+            buf.emit8(0x75);
+            size_t jnePatch = buf.getOffset();
+            buf.emit8(0);
+            
+            // mov rdi, val.valueReg
+            bool vHigh = static_cast<uint8_t>(val.valueReg) >= 8;
+            buf.emit8(0x48 | (vHigh ? 0x01 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3) | 7);
+            
+            buf.emit8(0x48); buf.emit8(0xB8);
+            buf.emit64(reinterpret_cast<uint64_t>(jit_await_task));
+            buf.emit8(0xFF); buf.emit8(0xD0);
+            
+            // mov val.valueReg, rax
+            buf.emit8(0x48 | (vHigh ? 0x04 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0xC0 | (static_cast<uint8_t>(val.valueReg) & 0x7));
+            
+            // mov val.typeReg, 0
+            buf.emit8(0x48 | (tHigh ? 0x01 : 0));
+            buf.emit8(0xC7);
+            buf.emit8(0xC0 + (static_cast<uint8_t>(val.typeReg) & 0x7));
+            buf.emit32(0);
+            
+            // patch jne
+            size_t endPos = buf.getOffset();
+            buf.patch8(jnePatch, static_cast<uint8_t>(endPos - (jnePatch + 1)));
+            
+            return val;
         }
         
         default: {

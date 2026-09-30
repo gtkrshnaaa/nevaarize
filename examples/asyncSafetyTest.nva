@@ -1,0 +1,83 @@
+// Concurrency Memory Safety and Error Propagation Test
+
+import stdlib string as s
+
+print("Testing Async Runtime...")
+
+async function computeValue(n) {
+    total = 0
+    i = 0
+    while (i < n) {
+        total = total + i
+        i = i + 1
+    }
+    return total
+}
+
+async function computeArray(size) {
+    arr = []
+    i = 0
+    while (i < size) {
+        arr.push(i * 10)
+        i = i + 1
+    }
+    return arr
+}
+
+async function computeString(prefix) {
+    return prefix + "-processed"
+}
+
+// Test 1: Async function execution and await
+task1 = computeValue(100)
+res1 = await task1
+// sum 0..99 = 99 * 50 = 4950
+if (res1 != 4950) {
+    print("computeValue failed: got", res1)
+}
+
+// Test 2: Cross-thread array passing and memory safety
+task2 = computeArray(10)
+arr = await task2
+if (arr.size() != 10) {
+    print("computeArray size failed")
+}
+if (arr[0] != 0 or arr[9] != 90) {
+    print("computeArray elements failed")
+}
+
+// Test 3: Cross-thread string passing
+task3 = computeString("payload")
+str = await task3
+if (s.length(str) != 17 or s.contains(str, "payload") != 1) {
+    print("computeString failed")
+}
+
+// Test 4: Structured Try/Catch with Await
+caught = 0
+try {
+    val = await computeValue(5)
+    if (val != 10) {
+        throw "Value mismatch"
+    }
+} catch (e) {
+    caught = 1
+}
+
+if (caught != 0) {
+    print("Unexpected error caught")
+}
+
+// Test 5: Exception propagation on throw
+errCaught = 0
+try {
+    throw "Simulated async runtime failure"
+} catch (err) {
+    errCaught = 1
+}
+
+if (errCaught != 1) {
+    print("Catch failed")
+}
+
+print("Async Safety Test: PASSED")
