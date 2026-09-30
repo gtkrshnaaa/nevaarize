@@ -37,6 +37,13 @@
 thread_local bool in_jit_execution = false;
 thread_local sigjmp_buf jit_recovery_env;
 
+// Dedicated JIT return address stack for isolated recursion call frames
+extern "C" uint64_t jit_return_stack[65536];
+extern "C" uint64_t* jit_return_sp;
+
+uint64_t jit_return_stack[65536];
+uint64_t* jit_return_sp = jit_return_stack;
+
 // Hardware trap handler
 extern "C" void nevaarize_hardware_trap_handler(int sig, siginfo_t *si, void *unused) {
     (void)unused; // Fix -Wunused-parameter
@@ -1610,7 +1617,8 @@ void JIT::emitPrologue() {
     buf.emit8(0x48);
     buf.emit8(0x81);
     buf.emit8(0xEC);
-    buf.emit32(4096); // Reserve 4096 bytes for locals (increased from 256)
+    prologueStackSizePatch = buf.getOffset();
+    buf.emit32(16384); // Reserve initial headroom for locals
 }
 
 void JIT::emitEpilogue() {
@@ -6142,6 +6150,7 @@ CompiledFunc JIT::compileExpression(const AST& ast, NodeIndex exprNode) {
 
 int64_t JIT::execute(CompiledFunc fn) {
     in_jit_execution = true;
+    jit_return_sp = jit_return_stack;
     
     if (sigsetjmp(jit_recovery_env, 1) == 0) {
         int64_t result = fn();
@@ -6192,6 +6201,11 @@ CompiledFunc JIT::compile(const AST& ast) {
     buf.emit8(0xC0);
     
     emitEpilogue();
+    
+    if (prologueStackSizePatch > 0) {
+        uint32_t finalStack = static_cast<uint32_t>(std::max<int32_t>(16384, (stackSize + 4095 + 15) & ~15));
+        buf.patch32(prologueStackSizePatch, finalStack);
+    }
     
     execMem->write(buf.data(), buf.size());
     execMem->makeExecutable();
@@ -8309,87 +8323,69 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     if (currentlyCompiling.count(funcName)) {
         CodeBuffer& buf = codegen.getCode();
         
-        // Emulate a new stack frame by shifting RBP down by the total allocated block size
-        // This isolates the recursive call's localized variables from the caller's frame.
+        // Emulate a new stack frame by shifting RBP and RSP down in lockstep
         int32_t currentFrameSize = nextStackSlot;
-        int32_t frameShift = (currentFrameSize + 15) & ~15;
+        int32_t frameShift = (currentFrameSize + 31) & ~15;
         
-        buf.emit8(0x55); // push rbp
-        
-        // Temporarily evaluate arguments in the current frame context
-        // Shift RBP down, then immediately back up to satisfy compileExpr var offsets
-        buf.emit8(0x48); buf.emit8(0x81); buf.emit8(0xED); // sub rbp, frameShift
-        buf.emit32(static_cast<uint32_t>(frameShift));
-        buf.emit8(0x48); buf.emit8(0x81); buf.emit8(0xC5); // add rbp, frameShift
-        buf.emit32(static_cast<uint32_t>(frameShift));
-        
-        for (size_t i = 0; i < node.children.size(); ++i) {
+        // Evaluate arguments and store directly into callee frame slots
+        for (size_t i = 0; i < node.children.size() && i < it->second.paramNames.size(); ++i) {
             JITValue argVal = compileExpr(ast, node.children[i]);
+            std::string paramName = it->second.paramNames[i];
+            int32_t offset = variables[paramName].stackOffset;
+            int32_t targetValDisp = offset - frameShift;
+            int32_t targetTypeDisp = offset + 8 - frameShift;
             
+            // mov [rbp + targetValDisp], argVal.valueReg
             bool valHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-            buf.emit8(0x50 + (static_cast<uint8_t>(argVal.valueReg) & 0x7)); // push val
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(targetValDisp));
             
+            // mov [rbp + targetTypeDisp], argVal.typeReg
             bool typeHigh = static_cast<uint8_t>(argVal.typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-            buf.emit8(0x50 + (static_cast<uint8_t>(argVal.typeReg) & 0x7)); // push type
+            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+            buf.emit8(0x89);
+            buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.typeReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(targetTypeDisp));
             
             freeReg(argVal.valueReg);
             freeReg(argVal.typeReg);
         }
         
-        // Apply frame shift for recursive variables
+        // Synchronize both RBP and RSP into the nested frame
         buf.emit8(0x48); buf.emit8(0x81); buf.emit8(0xED); // sub rbp, frameShift
         buf.emit32(static_cast<uint32_t>(frameShift));
+        buf.emit8(0x48); buf.emit8(0x81); buf.emit8(0xEC); // sub rsp, frameShift
+        buf.emit32(static_cast<uint32_t>(frameShift));
         
-        // Store arguments into the nested frame slots
-        for (int i = static_cast<int>(node.children.size()) - 1; i >= 0; --i) {
-            std::string paramName = it->second.paramNames[i];
-            int32_t offset = variables[paramName].stackOffset;
-            
-            X64Reg typeReg = allocateReg();
-            bool typeHigh = static_cast<uint8_t>(typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-            buf.emit8(0x58 + (static_cast<uint8_t>(typeReg) & 0x7)); // pop type
-            
-            X64Reg valReg = allocateReg();
-            bool valHigh = static_cast<uint8_t>(valReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x01 : 0));
-            buf.emit8(0x58 + (static_cast<uint8_t>(valReg) & 0x7)); // pop val
-            
-            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-            buf.emit8(0x89);
-            buf.emit8(0x85 | ((static_cast<uint8_t>(valReg) & 0x7) << 3)); // mov [rbp+disp], val
-            buf.emit32(static_cast<uint32_t>(offset));
-            
-            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
-            buf.emit8(0x89);
-            buf.emit8(0x85 | ((static_cast<uint8_t>(typeReg) & 0x7) << 3)); // mov [rbp+disp], type
-            buf.emit32(static_cast<uint32_t>(offset + 8));
-            
-            freeReg(valReg);
-            freeReg(typeReg);
-        }
-        
-        // Push recursive continuation address (dynamic return)
+        // Push recursive continuation address to isolated JIT return stack
         buf.emit8(0x48); buf.emit8(0x8D); buf.emit8(0x0D); // lea rcx, [rip + disp]
         size_t leaPatch = buf.getOffset();
         buf.emit32(0); // patched later
-        buf.emit8(0x51); // push rcx
+        
+        // Push rcx to jit_return_sp
+        buf.emit8(0x49); buf.emit8(0xBB);
+        buf.emit64(reinterpret_cast<uint64_t>(&jit_return_sp));
+        buf.emit8(0x4D); buf.emit8(0x8B); buf.emit8(0x13);
+        buf.emit8(0x49); buf.emit8(0x89); buf.emit8(0x0A);
+        buf.emit8(0x49); buf.emit8(0x83); buf.emit8(0xC2); buf.emit8(0x08);
+        buf.emit8(0x4D); buf.emit8(0x89); buf.emit8(0x13);
         
         // Jump to function body
         buf.emit8(0xE9); // jmp rel32
         it->second.recursiveCallPatches.push_back(buf.getOffset());
         buf.emit32(0);
         
-        // Continuation Point (patched into lea rax)
+        // Continuation Point (patched into lea rcx)
         int32_t leaDisp = static_cast<int32_t>(buf.getOffset() - (leaPatch + 4));
         buf.patch32(leaPatch, static_cast<uint32_t>(leaDisp));
         
-        // Epilogue: Cleanup nested frame
+        // Epilogue: Cleanup nested frame by restoring RSP and RBP
+        buf.emit8(0x48); buf.emit8(0x81); buf.emit8(0xC4); // add rsp, frameShift
+        buf.emit32(static_cast<uint32_t>(frameShift));
         buf.emit8(0x48); buf.emit8(0x81); buf.emit8(0xC5); // add rbp, frameShift
         buf.emit32(static_cast<uint32_t>(frameShift));
-        buf.emit8(0x5D); // pop rbp
         
         // Restructure typical function return (value in RAX, type in RDX)
         JITValue dst;
@@ -8473,11 +8469,18 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     
     CodeBuffer& buf = codegen.getCode();
     
-    // Push continuation address for the outermost call
+    // Push continuation address for the outermost call to isolated JIT return stack
     buf.emit8(0x48); buf.emit8(0x8D); buf.emit8(0x0D); // lea rcx, [rip + disp]
     size_t outerLeaPatch = buf.getOffset();
     buf.emit32(0); // patched later
-    buf.emit8(0x51); // push rcx
+    
+    // Push rcx to jit_return_sp
+    buf.emit8(0x49); buf.emit8(0xBB);
+    buf.emit64(reinterpret_cast<uint64_t>(&jit_return_sp));
+    buf.emit8(0x4D); buf.emit8(0x8B); buf.emit8(0x13);
+    buf.emit8(0x49); buf.emit8(0x89); buf.emit8(0x0A);
+    buf.emit8(0x49); buf.emit8(0x83); buf.emit8(0xC2); buf.emit8(0x08);
+    buf.emit8(0x4D); buf.emit8(0x89); buf.emit8(0x13);
     
     // Record start of the function body for recursive jumps
     funcInfo.compiledOffset = buf.getOffset();
@@ -8505,8 +8508,13 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
         buf.patch32(patchOffset, static_cast<uint32_t>(jmpDist));
     }
     
-    // Resolve continuation address dynamically
-    buf.emit8(0x59); // pop rcx
+    // Pop continuation address from isolated JIT return stack and jump
+    buf.emit8(0x49); buf.emit8(0xBB);
+    buf.emit64(reinterpret_cast<uint64_t>(&jit_return_sp));
+    buf.emit8(0x4D); buf.emit8(0x8B); buf.emit8(0x13);
+    buf.emit8(0x49); buf.emit8(0x83); buf.emit8(0xEA); buf.emit8(0x08);
+    buf.emit8(0x4D); buf.emit8(0x89); buf.emit8(0x13);
+    buf.emit8(0x49); buf.emit8(0x8B); buf.emit8(0x0A);
     buf.emit8(0xFF); buf.emit8(0xE1); // jmp rcx
     
     // Patch outermost continuation displacement

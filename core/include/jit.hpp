@@ -92,6 +92,7 @@ private:
     std::unordered_map<std::string, VarLocation> variables;
     int32_t stackSize;
     int32_t nextStackSlot;
+    size_t prologueStackSizePatch = 0;
     
     // User function storage
     struct FuncInfo {
