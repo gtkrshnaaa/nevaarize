@@ -30,6 +30,8 @@
 #include <csignal>
 #include <csetjmp>
 #include <cstdlib>
+#include <cmath>
+#include <random>
 
 // Global JIT runtime state (used by JITExecutionGuard and trap handler)
 thread_local bool in_jit_execution = false;
@@ -1106,6 +1108,49 @@ extern "C" int64_t jit_claw_save_json(const char* path, void* elementsPtr) {
     nevaarize::Value elements = jit_array_to_value(elementsPtr);
     bool ok = nevaarize::stdlib::writeJSONFile(path, elements, jit_claw_source_dir);
     return ok ? 1 : 0;
+}
+
+extern "C" int64_t jit_time_millis() {
+    JITExecutionGuard guard;
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+}
+
+extern "C" int64_t jit_time_nanos() {
+    JITExecutionGuard guard;
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+}
+
+extern "C" uint64_t jit_time_clock() {
+    JITExecutionGuard guard;
+    auto now = std::chrono::high_resolution_clock::now();
+    auto epoch = now.time_since_epoch();
+    double seconds = std::chrono::duration<double>(epoch).count();
+    uint64_t bits;
+    std::memcpy(&bits, &seconds, sizeof(bits));
+    return bits;
+}
+
+extern "C" void jit_time_sleep(uint64_t bits, int64_t type) {
+    JITExecutionGuard guard;
+    int64_t ms = 0;
+    if (type == 1) {
+        double d;
+        std::memcpy(&d, &bits, sizeof(double));
+        ms = static_cast<int64_t>(d);
+    } else {
+        ms = static_cast<int64_t>(bits);
+    }
+    if (ms > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    }
+}
+
+extern "C" int64_t jit_time_timestamp() {
+    JITExecutionGuard guard;
+    auto now = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
 }
 
 /**
@@ -3770,6 +3815,91 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                     retType = 1; // Bool for save status
                                 }
                                 emitMovImm64(buf, result.typeReg, retType);
+                                return result;
+                            }
+                        }
+
+                        if (moduleName == "time") {
+                            CodeBuffer& buf = codegen.getCode();
+                            if (memberName == "millis" || memberName == "nanos" || 
+                                memberName == "timestamp" || memberName == "clock") {
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                                buf.emit8(0x53); // push rbx
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                                uint64_t fnPtr = 0;
+                                int64_t retType = 0; // Int
+                                if (memberName == "millis") fnPtr = reinterpret_cast<uint64_t>(jit_time_millis);
+                                else if (memberName == "nanos") fnPtr = reinterpret_cast<uint64_t>(jit_time_nanos);
+                                else if (memberName == "timestamp") fnPtr = reinterpret_cast<uint64_t>(jit_time_timestamp);
+                                else if (memberName == "clock") { fnPtr = reinterpret_cast<uint64_t>(jit_time_clock); retType = 1; }
+
+                                emitMovImm64(buf, X64Reg::RAX, fnPtr);
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                                buf.emit8(0x5B); // pop rbx
+
+                                int32_t retSlot = allocateStackSlot();
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                                X64Reg dst = allocateReg();
+                                bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                                buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                                buf.emit8(0x8B);
+                                buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                                buf.emit32(static_cast<uint32_t>(retSlot));
+
+                                JITValue result;
+                                result.valueReg = dst;
+                                result.typeReg = allocateReg();
+                                emitMovImm64(buf, result.typeReg, retType);
+                                return result;
+                            } else if (memberName == "sleep") {
+                                JITValue arg = compileExpr(ast, node.children.empty() ? INVALID_NODE : node.children[0]);
+                                buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                                buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                                buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                                bool valHigh = static_cast<uint8_t>(arg.valueReg) >= 8;
+                                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg.valueReg) & 0x7) << 3) | 7);
+
+                                bool typeHigh = static_cast<uint8_t>(arg.typeReg) >= 8;
+                                buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
+                                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arg.typeReg) & 0x7) << 3) | 6);
+
+                                buf.emit8(0x53); // push rbx
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                                emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_time_sleep));
+                                buf.emit8(0xFF); buf.emit8(0xD0);
+
+                                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                                buf.emit8(0x5B); // pop rbx
+
+                                buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                                buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                                buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                                freeReg(arg.valueReg);
+                                freeReg(arg.typeReg);
+
+                                JITValue result;
+                                result.valueReg = allocateReg();
+                                result.typeReg = allocateReg();
+                                emitMovImm64(buf, result.valueReg, 0);
+                                emitMovImm64(buf, result.typeReg, 6); // Nil
                                 return result;
                             }
                         }
