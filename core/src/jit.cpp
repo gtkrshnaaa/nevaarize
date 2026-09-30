@@ -2510,7 +2510,10 @@ extern "C" int64_t jit_ai_load_model(const char* path) {
     if (!path) return -1;
     std::string pathStr(path);
     if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
-        pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+        std::string full = (fs::path(jit_csv_source_dir) / pathStr).string();
+        if (fs::exists(full)) {
+            pathStr = full;
+        }
     }
     auto model = nevaarize::Model::load(pathStr);
     if (!model) return -1;
@@ -2527,6 +2530,10 @@ extern "C" int64_t jit_ai_save_model(int64_t modelId, const char* path) {
     std::string pathStr(path);
     if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
         pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+    }
+    if (fs::path(pathStr).has_parent_path()) {
+        std::error_code ec;
+        fs::create_directories(fs::path(pathStr).parent_path(), ec);
     }
     return it->second->save(pathStr) ? 1 : 0;
 }
@@ -2549,11 +2556,46 @@ extern "C" void* jit_ai_get_model_info(int64_t modelId) {
     return arrPtr;
 }
 
+extern "C" int64_t jit_ai_model_num_layers(int64_t modelId) {
+    JITExecutionGuard guard;
+    auto it = jit_ai_models.find(modelId);
+    if (it == jit_ai_models.end()) return 0;
+    return static_cast<int64_t>(it->second->numLayers());
+}
+
 extern "C" void* jit_ai_predict(int64_t modelId, void* inputPtr) {
     JITExecutionGuard guard;
     auto it = jit_ai_models.find(modelId);
     if (it == jit_ai_models.end() || !inputPtr) return jit_alloc_typed_array(0, 1);
     JITArray* inArr = (JITArray*)((char*)inputPtr - offsetof(JITArray, data));
+    if (inArr->size == 0) return jit_alloc_typed_array(0, 1);
+
+    if (inArr->elemType == 5 || (inArr->size > 0 && inArr->elemType == 0 && inArr->data[0] != 0)) {
+        void* firstElem = reinterpret_cast<void*>(inArr->data[0]);
+        JITArray* checkSub = (JITArray*)((char*)firstElem - offsetof(JITArray, data));
+        if (checkSub->magic == JIT_ARRAY_MAGIC) {
+            void* batchOutPtr = jit_alloc_typed_array(inArr->size, 5);
+            JITArray* batchOut = (JITArray*)((char*)batchOutPtr - offsetof(JITArray, data));
+            for (int64_t b = 0; b < inArr->size; ++b) {
+                void* subPtr = reinterpret_cast<void*>(inArr->data[b]);
+                if (!subPtr) continue;
+                JITArray* subArr = (JITArray*)((char*)subPtr - offsetof(JITArray, data));
+                std::vector<float> sample(subArr->size);
+                for (int64_t i = 0; i < subArr->size; ++i) {
+                    sample[i] = static_cast<float>(jit_get_array_num(subArr, i));
+                }
+                auto out = it->second->predict(sample);
+                void* rowOutPtr = jit_alloc_typed_array(out.size(), 1);
+                JITArray* rowOut = (JITArray*)((char*)rowOutPtr - offsetof(JITArray, data));
+                for (size_t i = 0; i < out.size(); ++i) {
+                    jit_set_array_float(rowOut, i, static_cast<double>(out[i]));
+                }
+                batchOut->data[b] = reinterpret_cast<int64_t>(rowOutPtr);
+            }
+            return batchOutPtr;
+        }
+    }
+
     std::vector<float> input(inArr->size);
     for (int64_t i = 0; i < inArr->size; ++i) {
         input[i] = static_cast<float>(jit_get_array_num(inArr, i));
@@ -2583,15 +2625,19 @@ extern "C" int64_t jit_ai_sequential(void* layersArrPtr) {
         nevaarize::Layer layer;
         layer.type = nevaarize::stringToLayerType(layerType);
         if (layerType == "linear" && layerArr->size >= 3) {
-            layer.inputSize = static_cast<size_t>(layerArr->data[1]);
-            layer.outputSize = static_cast<size_t>(layerArr->data[2]);
+            layer.inputSize = static_cast<size_t>(jit_get_array_num(layerArr, 1));
+            layer.outputSize = static_cast<size_t>(jit_get_array_num(layerArr, 2));
         } else if (layerType == "leakyrelu" && layerArr->size >= 2) {
             layer.param = static_cast<float>(jit_get_array_num(layerArr, 1));
         } else if (layerType == "dropout" && layerArr->size >= 2) {
             layer.param = static_cast<float>(jit_get_array_num(layerArr, 1));
+        } else if (layerType == "layernorm" && layerArr->size >= 2) {
+            layer.inputSize = static_cast<size_t>(jit_get_array_num(layerArr, 1));
+            layer.outputSize = layer.inputSize;
         }
         model->addLayer(layer);
     }
+    model->initializeWeights();
     int64_t id = jit_ai_next_model_id++;
     jit_ai_models[id] = model;
     return id;
@@ -2626,15 +2672,17 @@ extern "C" uint64_t jit_ai_train(int64_t modelId, void* xDataPtr, void* yDataPtr
     std::string loss = "crossentropy";
     if (configPtr) {
         JITArray* cArr = (JITArray*)((char*)configPtr - offsetof(JITArray, data));
-        if (cArr->size >= 1) epochs = static_cast<int>(jit_get_array_num(cArr, 0));
-        if (cArr->size >= 2) lr = static_cast<float>(jit_get_array_num(cArr, 1));
-        if (cArr->size >= 3) {
-            const char* opt = reinterpret_cast<const char*>(cArr->data[2]);
-            if (opt) optimizer = opt;
-        }
-        if (cArr->size >= 4) {
-            const char* l = reinterpret_cast<const char*>(cArr->data[3]);
-            if (l) loss = l;
+        if (cArr->magic == JIT_ARRAY_MAGIC) {
+            if (cArr->size >= 1) epochs = static_cast<int>(jit_get_array_num(cArr, 0));
+            if (cArr->size >= 2) lr = static_cast<float>(jit_get_array_num(cArr, 1));
+            if (cArr->size >= 3) {
+                const char* opt = reinterpret_cast<const char*>(cArr->data[2]);
+                if (opt) optimizer = opt;
+            }
+            if (cArr->size >= 4) {
+                const char* l = reinterpret_cast<const char*>(cArr->data[3]);
+                if (l) loss = l;
+            }
         }
     }
     model->train(xData, yData, epochs, lr, optimizer, loss, true);
@@ -2642,6 +2690,459 @@ extern "C" uint64_t jit_ai_train(int64_t modelId, void* xDataPtr, void* yDataPtr
     uint64_t lossBits;
     std::memcpy(&lossBits, &finalLoss, sizeof(double));
     return lossBits;
+}
+
+extern "C" void* jit_ai_leaky_relu(void* aPtr, uint64_t alphaBits) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    double alpha = 0.01;
+    if (alphaBits != 0) std::memcpy(&alpha, &alphaBits, sizeof(double));
+    void* resPtr = jit_alloc_typed_array(a->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < a->size; ++i) {
+        double v = jit_get_array_num(a, i);
+        jit_set_array_float(res, i, v > 0.0 ? v : alpha * v);
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_gelu(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    void* resPtr = jit_alloc_typed_array(a->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    constexpr double sqrt2pi = 0.7978845608;
+    constexpr double coef = 0.044715;
+    for (int64_t i = 0; i < a->size; ++i) {
+        double x = jit_get_array_num(a, i);
+        double x3 = x * x * x;
+        double val = 0.5 * x * (1.0 + std::tanh(sqrt2pi * (x + coef * x3)));
+        jit_set_array_float(res, i, val);
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_silu(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    void* resPtr = jit_alloc_typed_array(a->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < a->size; ++i) {
+        double x = jit_get_array_num(a, i);
+        jit_set_array_float(res, i, x / (1.0 + std::exp(-x)));
+    }
+    return resPtr;
+}
+
+extern "C" uint64_t jit_ai_mse_loss(void* predPtr, void* targetPtr) {
+    JITExecutionGuard guard;
+    if (!predPtr || !targetPtr) return 0;
+    JITArray* pred = (JITArray*)((char*)predPtr - offsetof(JITArray, data));
+    JITArray* tgt = (JITArray*)((char*)targetPtr - offsetof(JITArray, data));
+    int64_t n = std::min(pred->size, tgt->size);
+    if (n <= 0) return 0;
+    double sum = 0.0;
+    for (int64_t i = 0; i < n; ++i) {
+        double d = jit_get_array_num(pred, i) - jit_get_array_num(tgt, i);
+        sum += d * d;
+    }
+    double loss = sum / static_cast<double>(n);
+    uint64_t bits;
+    std::memcpy(&bits, &loss, sizeof(double));
+    return bits;
+}
+
+extern "C" uint64_t jit_ai_l1_loss(void* predPtr, void* targetPtr) {
+    JITExecutionGuard guard;
+    if (!predPtr || !targetPtr) return 0;
+    JITArray* pred = (JITArray*)((char*)predPtr - offsetof(JITArray, data));
+    JITArray* tgt = (JITArray*)((char*)targetPtr - offsetof(JITArray, data));
+    int64_t n = std::min(pred->size, tgt->size);
+    if (n <= 0) return 0;
+    double sum = 0.0;
+    for (int64_t i = 0; i < n; ++i) {
+        sum += std::abs(jit_get_array_num(pred, i) - jit_get_array_num(tgt, i));
+    }
+    double loss = sum / static_cast<double>(n);
+    uint64_t bits;
+    std::memcpy(&bits, &loss, sizeof(double));
+    return bits;
+}
+
+extern "C" uint64_t jit_ai_bce_loss(void* predPtr, void* targetPtr) {
+    JITExecutionGuard guard;
+    if (!predPtr || !targetPtr) return 0;
+    JITArray* pred = (JITArray*)((char*)predPtr - offsetof(JITArray, data));
+    JITArray* tgt = (JITArray*)((char*)targetPtr - offsetof(JITArray, data));
+    int64_t n = std::min(pred->size, tgt->size);
+    if (n <= 0) return 0;
+    constexpr double eps = 1e-7;
+    double sum = 0.0;
+    for (int64_t i = 0; i < n; ++i) {
+        double p = std::clamp(jit_get_array_num(pred, i), eps, 1.0 - eps);
+        double t = jit_get_array_num(tgt, i);
+        sum -= t * std::log(p) + (1.0 - t) * std::log(1.0 - p);
+    }
+    double loss = sum / static_cast<double>(n);
+    uint64_t bits;
+    std::memcpy(&bits, &loss, sizeof(double));
+    return bits;
+}
+
+extern "C" uint64_t jit_ai_cross_entropy_loss(void* predPtr, void* targetPtrOrIdx) {
+    JITExecutionGuard guard;
+    if (!predPtr) return 0;
+    JITArray* pred = (JITArray*)((char*)predPtr - offsetof(JITArray, data));
+    if (pred->size == 0) return 0;
+    double maxVal = jit_get_array_num(pred, 0);
+    for (int64_t i = 1; i < pred->size; ++i) {
+        maxVal = std::max(maxVal, jit_get_array_num(pred, i));
+    }
+    double sum = 0.0;
+    std::vector<double> softmaxed(pred->size);
+    for (int64_t i = 0; i < pred->size; ++i) {
+        softmaxed[i] = std::exp(jit_get_array_num(pred, i) - maxVal);
+        sum += softmaxed[i];
+    }
+    for (int64_t i = 0; i < pred->size; ++i) {
+        softmaxed[i] = (sum > 0.0) ? (softmaxed[i] / sum) : 0.0;
+    }
+    constexpr double eps = 1e-7;
+    double loss = 0.0;
+    if (targetPtrOrIdx) {
+        JITArray* tgt = (JITArray*)((char*)targetPtrOrIdx - offsetof(JITArray, data));
+        if (tgt->magic == JIT_ARRAY_MAGIC) {
+            int64_t n = std::min(pred->size, tgt->size);
+            for (int64_t i = 0; i < n; ++i) {
+                double t = jit_get_array_num(tgt, i);
+                loss -= t * std::log(std::max(softmaxed[i], eps));
+            }
+            uint64_t bits;
+            std::memcpy(&bits, &loss, sizeof(double));
+            return bits;
+        }
+    }
+    int64_t targetIdx = reinterpret_cast<int64_t>(targetPtrOrIdx);
+    if (targetIdx >= 0 && targetIdx < pred->size) {
+        loss = -std::log(std::max(softmaxed[targetIdx], eps));
+    }
+    uint64_t bits;
+    std::memcpy(&bits, &loss, sizeof(double));
+    return bits;
+}
+
+extern "C" uint64_t jit_ai_huber_loss(void* predPtr, void* targetPtr, uint64_t deltaBits) {
+    JITExecutionGuard guard;
+    if (!predPtr || !targetPtr) return 0;
+    JITArray* pred = (JITArray*)((char*)predPtr - offsetof(JITArray, data));
+    JITArray* tgt = (JITArray*)((char*)targetPtr - offsetof(JITArray, data));
+    int64_t n = std::min(pred->size, tgt->size);
+    if (n <= 0) return 0;
+    double delta = 1.0;
+    if (deltaBits != 0) std::memcpy(&delta, &deltaBits, sizeof(double));
+    if (delta <= 0.0) delta = 1.0;
+    double sum = 0.0;
+    for (int64_t i = 0; i < n; ++i) {
+        double diff = std::abs(jit_get_array_num(pred, i) - jit_get_array_num(tgt, i));
+        if (diff <= delta) {
+            sum += 0.5 * diff * diff;
+        } else {
+            sum += delta * (diff - 0.5 * delta);
+        }
+    }
+    double loss = sum / static_cast<double>(n);
+    uint64_t bits;
+    std::memcpy(&bits, &loss, sizeof(double));
+    return bits;
+}
+
+extern "C" void* jit_ai_layer(const char* typeStr, int64_t inSize, int64_t outSize, uint64_t paramBits) {
+    JITExecutionGuard guard;
+    void* arrPtr = jit_alloc_array(4);
+    JITArray* arr = (JITArray*)((char*)arrPtr - offsetof(JITArray, data));
+    arr->data[0] = reinterpret_cast<int64_t>(typeStr ? jit_alloc_string(typeStr) : jit_alloc_string("relu"));
+    arr->data[1] = inSize;
+    arr->data[2] = outSize;
+    arr->data[3] = static_cast<int64_t>(paramBits);
+    return arrPtr;
+}
+
+extern "C" void* jit_ai_linear(int64_t inSize, int64_t outSize) {
+    JITExecutionGuard guard;
+    void* arrPtr = jit_alloc_array(3);
+    JITArray* arr = (JITArray*)((char*)arrPtr - offsetof(JITArray, data));
+    arr->data[0] = reinterpret_cast<int64_t>(jit_alloc_string("linear"));
+    arr->data[1] = inSize;
+    arr->data[2] = outSize;
+    return arrPtr;
+}
+
+extern "C" void* jit_ai_dropout(uint64_t paramBits) {
+    JITExecutionGuard guard;
+    void* arrPtr = jit_alloc_array(2);
+    JITArray* arr = (JITArray*)((char*)arrPtr - offsetof(JITArray, data));
+    arr->data[0] = reinterpret_cast<int64_t>(jit_alloc_string("dropout"));
+    arr->data[1] = static_cast<int64_t>(paramBits);
+    return arrPtr;
+}
+
+extern "C" void* jit_ai_layer_norm(void* xPtr, void* gammaPtr, void* betaPtr, uint64_t epsBits) {
+    JITExecutionGuard guard;
+    if (!xPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* x = (JITArray*)((char*)xPtr - offsetof(JITArray, data));
+    if (x->size == 0) return jit_alloc_typed_array(0, 1);
+    JITArray* gamma = gammaPtr ? (JITArray*)((char*)gammaPtr - offsetof(JITArray, data)) : nullptr;
+    JITArray* beta = betaPtr ? (JITArray*)((char*)betaPtr - offsetof(JITArray, data)) : nullptr;
+    double eps = 1e-5;
+    if (epsBits != 0) std::memcpy(&eps, &epsBits, sizeof(double));
+    double sum = 0.0;
+    for (int64_t i = 0; i < x->size; ++i) sum += jit_get_array_num(x, i);
+    double mean = sum / static_cast<double>(x->size);
+    double varSum = 0.0;
+    for (int64_t i = 0; i < x->size; ++i) {
+        double d = jit_get_array_num(x, i) - mean;
+        varSum += d * d;
+    }
+    double var = varSum / static_cast<double>(x->size);
+    double invStd = 1.0 / std::sqrt(var + eps);
+    void* resPtr = jit_alloc_typed_array(x->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < x->size; ++i) {
+        double g = (gamma && i < gamma->size) ? jit_get_array_num(gamma, i) : 1.0;
+        double b = (beta && i < beta->size) ? jit_get_array_num(beta, i) : 0.0;
+        double val = g * (jit_get_array_num(x, i) - mean) * invStd + b;
+        jit_set_array_float(res, i, val);
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_one_hot(int64_t idx, int64_t numClasses) {
+    JITExecutionGuard guard;
+    if (numClasses <= 0) return jit_alloc_typed_array(0, 1);
+    void* resPtr = jit_alloc_typed_array(numClasses, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < numClasses; ++i) {
+        jit_set_array_float(res, i, (i == idx) ? 1.0 : 0.0);
+    }
+    return resPtr;
+}
+
+extern "C" int64_t jit_ai_shape(void* arrPtr) {
+    JITExecutionGuard guard;
+    if (!arrPtr) return 0;
+    JITArray* arr = (JITArray*)((char*)arrPtr - offsetof(JITArray, data));
+    if (arr->magic != JIT_ARRAY_MAGIC) return 0;
+    return arr->size;
+}
+
+extern "C" void* jit_ai_flatten(void* arrPtr) {
+    JITExecutionGuard guard;
+    if (!arrPtr) return jit_alloc_typed_array(0, 1);
+    std::vector<double> flattened;
+    std::function<void(void*)> recurse = [&](void* ptr) {
+        if (!ptr) return;
+        JITArray* arr = (JITArray*)((char*)ptr - offsetof(JITArray, data));
+        if (arr->magic != JIT_ARRAY_MAGIC) return;
+        if (arr->elemType == 5) {
+            for (int64_t i = 0; i < arr->size; ++i) {
+                recurse(reinterpret_cast<void*>(arr->data[i]));
+            }
+        } else {
+            for (int64_t i = 0; i < arr->size; ++i) {
+                flattened.push_back(jit_get_array_num(arr, i));
+            }
+        }
+    };
+    recurse(arrPtr);
+    void* resPtr = jit_alloc_typed_array(flattened.size(), 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (size_t i = 0; i < flattened.size(); ++i) {
+        jit_set_array_float(res, i, flattened[i]);
+    }
+    return resPtr;
+}
+
+extern "C" int64_t jit_ai_sample_token(void* logitsPtr, uint64_t tempBits) {
+    JITExecutionGuard guard;
+    if (!logitsPtr) return 0;
+    JITArray* arr = (JITArray*)((char*)logitsPtr - offsetof(JITArray, data));
+    if (arr->size == 0) return 0;
+    double temp = 1.0;
+    if (tempBits != 0) std::memcpy(&temp, &tempBits, sizeof(double));
+    if (temp < 1e-6) temp = 1e-6;
+    double maxVal = jit_get_array_num(arr, 0) / temp;
+    for (int64_t i = 1; i < arr->size; ++i) {
+        maxVal = std::max(maxVal, jit_get_array_num(arr, i) / temp);
+    }
+    std::vector<double> probs(arr->size);
+    double sum = 0.0;
+    for (int64_t i = 0; i < arr->size; ++i) {
+        probs[i] = std::exp((jit_get_array_num(arr, i) / temp) - maxVal);
+        sum += probs[i];
+    }
+    for (int64_t i = 0; i < arr->size; ++i) {
+        probs[i] = sum > 0.0 ? (probs[i] / sum) : 0.0;
+    }
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dis(0.0, 1.0);
+    double r = dis(gen);
+    double cum = 0.0;
+    for (int64_t i = 0; i < arr->size; ++i) {
+        cum += probs[i];
+        if (r <= cum) return i;
+    }
+    return arr->size - 1;
+}
+
+extern "C" void* jit_ai_embedding(void* tablePtr, int64_t tokenIdx, int64_t embedDim) {
+    JITExecutionGuard guard;
+    if (!tablePtr || embedDim <= 0) return jit_alloc_typed_array(0, 1);
+    JITArray* table = (JITArray*)((char*)tablePtr - offsetof(JITArray, data));
+    int64_t offset = tokenIdx * embedDim;
+    if (offset < 0 || offset + embedDim > table->size) return jit_alloc_typed_array(0, 1);
+    void* resPtr = jit_alloc_typed_array(embedDim, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < embedDim; ++i) {
+        jit_set_array_float(res, i, jit_get_array_num(table, offset + i));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_top_k(void* logitsPtr, int64_t k) {
+    JITExecutionGuard guard;
+    if (!logitsPtr || k <= 0) return jit_alloc_typed_array(0, 0);
+    JITArray* arr = (JITArray*)((char*)logitsPtr - offsetof(JITArray, data));
+    if (k > arr->size) k = arr->size;
+    std::vector<int64_t> indices(arr->size);
+    std::iota(indices.begin(), indices.end(), 0);
+    std::partial_sort(indices.begin(), indices.begin() + k, indices.end(),
+        [&arr](int64_t a, int64_t b) {
+            return jit_get_array_num(arr, a) > jit_get_array_num(arr, b);
+        });
+    void* resPtr = jit_alloc_typed_array(k, 0);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < k; ++i) {
+        res->data[i] = indices[i];
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_xavier_init(int64_t fanIn, int64_t fanOut) {
+    JITExecutionGuard guard;
+    if (fanIn <= 0 || fanOut <= 0) return jit_alloc_typed_array(0, 1);
+    int64_t sz = fanIn * fanOut;
+    double stddev = std::sqrt(2.0 / static_cast<double>(fanIn + fanOut));
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::normal_distribution<double> dis(0.0, stddev);
+    void* resPtr = jit_alloc_typed_array(sz, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < sz; ++i) {
+        jit_set_array_float(res, i, dis(gen));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_he_init(int64_t fanIn, int64_t fanOut) {
+    JITExecutionGuard guard;
+    if (fanIn <= 0 || fanOut <= 0) return jit_alloc_typed_array(0, 1);
+    int64_t sz = fanIn * fanOut;
+    double stddev = std::sqrt(2.0 / static_cast<double>(fanIn));
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::normal_distribution<double> dis(0.0, stddev);
+    void* resPtr = jit_alloc_typed_array(sz, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < sz; ++i) {
+        jit_set_array_float(res, i, dis(gen));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_sgd_update(void* wPtr, void* gPtr, uint64_t lrBits) {
+    JITExecutionGuard guard;
+    if (!wPtr || !gPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* w = (JITArray*)((char*)wPtr - offsetof(JITArray, data));
+    JITArray* g = (JITArray*)((char*)gPtr - offsetof(JITArray, data));
+    int64_t n = std::min(w->size, g->size);
+    double lr = 0.001;
+    if (lrBits != 0) std::memcpy(&lr, &lrBits, sizeof(double));
+    void* resPtr = jit_alloc_typed_array(n, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < n; ++i) {
+        jit_set_array_float(res, i, jit_get_array_num(w, i) - lr * jit_get_array_num(g, i));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_adam_update(void* wPtr, void* gPtr, void* mPtr, void* vPtr,
+                                    uint64_t lrBits, uint64_t b1Bits, uint64_t b2Bits,
+                                    int64_t t, uint64_t epsBits) {
+    JITExecutionGuard guard;
+    if (!wPtr || !gPtr || !mPtr || !vPtr) return jit_alloc_typed_array(0, 5);
+    JITArray* w = (JITArray*)((char*)wPtr - offsetof(JITArray, data));
+    JITArray* g = (JITArray*)((char*)gPtr - offsetof(JITArray, data));
+    JITArray* m = (JITArray*)((char*)mPtr - offsetof(JITArray, data));
+    JITArray* v = (JITArray*)((char*)vPtr - offsetof(JITArray, data));
+    int64_t n = std::min({w->size, g->size, m->size, v->size});
+    double lr = 0.001, beta1 = 0.9, beta2 = 0.999, eps = 1e-8;
+    if (lrBits != 0) std::memcpy(&lr, &lrBits, sizeof(double));
+    if (b1Bits != 0) std::memcpy(&beta1, &b1Bits, sizeof(double));
+    if (b2Bits != 0) std::memcpy(&beta2, &b2Bits, sizeof(double));
+    if (epsBits != 0) std::memcpy(&eps, &epsBits, sizeof(double));
+    if (t < 1) t = 1;
+    double beta1_t = std::pow(beta1, static_cast<double>(t));
+    double beta2_t = std::pow(beta2, static_cast<double>(t));
+
+    void* newWPtr = jit_alloc_typed_array(n, 1);
+    void* newMPtr = jit_alloc_typed_array(n, 1);
+    void* newVPtr = jit_alloc_typed_array(n, 1);
+    JITArray* newW = (JITArray*)((char*)newWPtr - offsetof(JITArray, data));
+    JITArray* newM = (JITArray*)((char*)newMPtr - offsetof(JITArray, data));
+    JITArray* newV = (JITArray*)((char*)newVPtr - offsetof(JITArray, data));
+
+    for (int64_t i = 0; i < n; ++i) {
+        double grad = jit_get_array_num(g, i);
+        double mVal = beta1 * jit_get_array_num(m, i) + (1.0 - beta1) * grad;
+        double vVal = beta2 * jit_get_array_num(v, i) + (1.0 - beta2) * grad * grad;
+        double mHat = mVal / (1.0 - beta1_t);
+        double vHat = vVal / (1.0 - beta2_t);
+        double wVal = jit_get_array_num(w, i) - lr * mHat / (std::sqrt(vHat) + eps);
+        jit_set_array_float(newM, i, mVal);
+        jit_set_array_float(newV, i, vVal);
+        jit_set_array_float(newW, i, wVal);
+    }
+    void* resPtr = jit_alloc_typed_array(3, 5);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    res->data[0] = reinterpret_cast<int64_t>(newWPtr);
+    res->data[1] = reinterpret_cast<int64_t>(newMPtr);
+    res->data[2] = reinterpret_cast<int64_t>(newVPtr);
+    return resPtr;
+}
+
+extern "C" void* jit_ai_clip_grad_norm(void* gPtr, uint64_t maxNormBits) {
+    JITExecutionGuard guard;
+    if (!gPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* g = (JITArray*)((char*)gPtr - offsetof(JITArray, data));
+    double maxNorm = 1.0;
+    if (maxNormBits != 0) std::memcpy(&maxNorm, &maxNormBits, sizeof(double));
+    double sum = 0.0;
+    for (int64_t i = 0; i < g->size; ++i) {
+        double v = jit_get_array_num(g, i);
+        sum += v * v;
+    }
+    double norm = std::sqrt(sum);
+    double scale = (norm > maxNorm && norm > 0.0) ? (maxNorm / norm) : 1.0;
+    void* resPtr = jit_alloc_typed_array(g->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < g->size; ++i) {
+        jit_set_array_float(res, i, jit_get_array_num(g, i) * scale);
+    }
+    return resPtr;
 }
 
 // --- HTTP Module Bridges ---
@@ -6170,6 +6671,126 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 while (slots.size() < 1) padSlotZero(slots);
                                 return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_get_model_info), slots, 5);
                             }
+                            if (memberName == "LeakyReLU" || memberName == "leakyrelu" || memberName == "leakyReLU") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_leaky_relu), slots, 5);
+                            }
+                            if (memberName == "GELU" || memberName == "gelu") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_gelu), slots, 5);
+                            }
+                            if (memberName == "SiLU" || memberName == "silu") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_silu), slots, 5);
+                            }
+                            if (memberName == "Layer" || memberName == "layer") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 4) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_layer), slots, 5);
+                            }
+                            if (memberName == "Linear" || memberName == "linear") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_linear), slots, 5);
+                            }
+                            if (memberName == "Dropout" || memberName == "dropout") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_dropout), slots, 5);
+                            }
+                            if (memberName == "LayerNorm" || memberName == "layerNorm" || memberName == "layernorm") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 4) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_layer_norm), slots, 5);
+                            }
+                            if (memberName == "MSELoss" || memberName == "mseLoss" || memberName == "mseloss" || memberName == "mse") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_mse_loss), slots, 1);
+                            }
+                            if (memberName == "L1Loss" || memberName == "l1Loss" || memberName == "l1loss" || memberName == "l1") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_l1_loss), slots, 1);
+                            }
+                            if (memberName == "BCELoss" || memberName == "bceLoss" || memberName == "bceloss" || memberName == "bce") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_bce_loss), slots, 1);
+                            }
+                            if (memberName == "CrossEntropyLoss" || memberName == "crossEntropyLoss" || memberName == "crossentropy") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_cross_entropy_loss), slots, 1);
+                            }
+                            if (memberName == "HuberLoss" || memberName == "huberLoss" || memberName == "huberloss") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 3) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_huber_loss), slots, 1);
+                            }
+                            if (memberName == "OneHot" || memberName == "oneHot") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_one_hot), slots, 5);
+                            }
+                            if (memberName == "Shape" || memberName == "shape") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_shape), slots, 0);
+                            }
+                            if (memberName == "Flatten" || memberName == "flatten") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_flatten), slots, 5);
+                            }
+                            if (memberName == "SampleToken" || memberName == "sampleToken") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_sample_token), slots, 0);
+                            }
+                            if (memberName == "Embedding" || memberName == "embedding") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 3) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_embedding), slots, 5);
+                            }
+                            if (memberName == "TopK" || memberName == "topK") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_top_k), slots, 5);
+                            }
+                            if (memberName == "XavierInit" || memberName == "xavierInit") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_xavier_init), slots, 5);
+                            }
+                            if (memberName == "HeInit" || memberName == "heInit") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_he_init), slots, 5);
+                            }
+                            if (memberName == "SGDUpdate" || memberName == "sgdUpdate") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 3) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_sgd_update), slots, 5);
+                            }
+                            if (memberName == "AdamUpdate" || memberName == "adamUpdate") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 9) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_adam_update), slots, 5);
+                            }
+                            if (memberName == "ClipGradNorm" || memberName == "clipGradNorm") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_clip_grad_norm), slots, 5);
+                            }
+                            if (memberName == "numLayers" || memberName == "NumLayers") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_model_num_layers), slots, 0);
+                            }
                         }
 
                         if (moduleName == "http") {
@@ -6348,41 +6969,363 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     return result;
                 }
                 
-                // AI module functions
-                if (memberName == "loadModel" || memberName == "getModelInfo" || 
-                    memberName == "predict" || memberName == "Argmax" || memberName == "Max") {
-                    // Allocate array on stack for return
-                    buf.emit8(0x48);
-                    buf.emit8(0x83);
-                    buf.emit8(0xEC);
-                    buf.emit8(0x20); // 32 bytes for model info array
-                    
-                    // Store placeholder values
-                    for (int i = 0; i < 4; ++i) {
-                        buf.emit8(0x48);
-                        buf.emit8(0xC7);
-                        buf.emit8(0x44);
-                        buf.emit8(0x24);
-                        buf.emit8(i * 8);
-                        buf.emit32(i == 0 ? 1 : 0); // First element = 1 (model ID or value)
-                    }
-                    
-                    // Return RSP as array pointer
+                // Model object method: model.predict(input)
+                if (memberName == "predict" || memberName == "Predict") {
+                    int32_t objSlot = allocateStackSlot();
+                    bool objSaveHigh = static_cast<uint8_t>(objVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (objSaveHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(objVal.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(objSlot));
+
+                    JITValue argVal = compileExpr(ast, node.children.empty() ? INVALID_NODE : node.children[0]);
+                    int32_t argSlot = allocateStackSlot();
+                    bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (argHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(argSlot));
+
+                    int32_t retSlot = allocateStackSlot();
+
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                    // RDI = [rbp + objSlot] (modelId)
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+                    buf.emit32(static_cast<uint32_t>(objSlot));
+
+                    // RSI = [rbp + argSlot] (inputPtr)
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+                    buf.emit32(static_cast<uint32_t>(argSlot));
+
+                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_ai_predict));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                    freeReg(objVal.valueReg); freeReg(objVal.typeReg);
+                    freeReg(argVal.valueReg); freeReg(argVal.typeReg);
+
                     X64Reg dst = allocateReg();
-                    buf.emit8(0x48);
-                    buf.emit8(0x89);
-                    buf.emit8(0xE0 | (static_cast<uint8_t>(dst) & 0x7));
-                    
-                    freeReg(objVal.valueReg);
-                    freeReg(objVal.typeReg);
-                    
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+
                     JITValue result;
                     result.valueReg = dst;
                     result.typeReg = allocateReg();
-                    bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                    buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
-                    buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-                    buf.emit64(0); // Pointer as Int
+                    emitMovImm64(buf, result.typeReg, 5); // Array
+                    return result;
+                }
+
+                // Model object method: model.train(xData, yData, config)
+                if (memberName == "train" || memberName == "Train") {
+                    int32_t objSlot = allocateStackSlot();
+                    bool objSaveHigh = static_cast<uint8_t>(objVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (objSaveHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(objVal.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(objSlot));
+
+                    JITValue xVal = compileExpr(ast, node.children.size() >= 1 ? node.children[0] : INVALID_NODE);
+                    int32_t xSlot = allocateStackSlot();
+                    bool xHigh = static_cast<uint8_t>(xVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (xHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(xVal.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(xSlot));
+                    freeReg(xVal.valueReg); freeReg(xVal.typeReg);
+
+                    JITValue yVal = compileExpr(ast, node.children.size() >= 2 ? node.children[1] : INVALID_NODE);
+                    int32_t ySlot = allocateStackSlot();
+                    bool yHigh = static_cast<uint8_t>(yVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (yHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(yVal.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(ySlot));
+                    freeReg(yVal.valueReg); freeReg(yVal.typeReg);
+
+                    int32_t cfgSlot = allocateStackSlot();
+                    if (node.children.size() >= 3) {
+                        JITValue cVal = compileExpr(ast, node.children[2]);
+                        bool cHigh = static_cast<uint8_t>(cVal.valueReg) >= 8;
+                        buf.emit8(0x48 | (cHigh ? 0x04 : 0));
+                        buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(cVal.valueReg) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(cfgSlot));
+                        freeReg(cVal.valueReg); freeReg(cVal.typeReg);
+                    } else {
+                        buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                        buf.emit32(static_cast<uint32_t>(cfgSlot));
+                        buf.emit32(0);
+                    }
+
+                    int32_t retSlot = allocateStackSlot();
+
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                    // RDI = [rbp + objSlot]
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD); buf.emit32(static_cast<uint32_t>(objSlot));
+                    // RSI = [rbp + xSlot]
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5); buf.emit32(static_cast<uint32_t>(xSlot));
+                    // RDX = [rbp + ySlot]
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x95); buf.emit32(static_cast<uint32_t>(ySlot));
+                    // RCX = [rbp + cfgSlot]
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x8D); buf.emit32(static_cast<uint32_t>(cfgSlot));
+
+                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_ai_train));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85); buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                    freeReg(objVal.valueReg); freeReg(objVal.typeReg);
+
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    emitMovImm64(buf, result.typeReg, 1); // Float
+                    return result;
+                }
+
+                // Model object method: model.save(path) / model.saveModel(path)
+                if (memberName == "save" || memberName == "Save" || memberName == "saveModel" || memberName == "SaveModel") {
+                    int32_t objSlot = allocateStackSlot();
+                    bool objSaveHigh = static_cast<uint8_t>(objVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (objSaveHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(objVal.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(objSlot));
+
+                    JITValue argVal = compileExpr(ast, node.children.empty() ? INVALID_NODE : node.children[0]);
+                    int32_t argSlot = allocateStackSlot();
+                    bool argHigh = static_cast<uint8_t>(argVal.valueReg) >= 8;
+                    buf.emit8(0x48 | (argHigh ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(argVal.valueReg) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(argSlot));
+
+                    int32_t retSlot = allocateStackSlot();
+
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                    // RDI = [rbp + objSlot]
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD); buf.emit32(static_cast<uint32_t>(objSlot));
+                    // RSI = [rbp + argSlot]
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5); buf.emit32(static_cast<uint32_t>(argSlot));
+
+                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_ai_save_model));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85); buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                    freeReg(objVal.valueReg); freeReg(objVal.typeReg);
+                    freeReg(argVal.valueReg); freeReg(argVal.typeReg);
+
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    emitMovImm64(buf, result.typeReg, 2); // Bool
+                    return result;
+                }
+
+                // Model object method: model.info() / model.getModelInfo()
+                if (memberName == "info" || memberName == "Info" || memberName == "getModelInfo" || memberName == "GetModelInfo") {
+                    int32_t retSlot = allocateStackSlot();
+
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                    // RDI = objReg
+                    bool objHi = static_cast<uint8_t>(objReg) >= 8;
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+
+                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_ai_get_model_info));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85); buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                    freeReg(objVal.valueReg); freeReg(objVal.typeReg);
+
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    emitMovImm64(buf, result.typeReg, 5); // Array
+                    return result;
+                }
+
+                // Model object method: model.numLayers()
+                if (memberName == "numLayers" || memberName == "NumLayers") {
+                    int32_t retSlot = allocateStackSlot();
+
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                    // RDI = objReg
+                    bool objHi = static_cast<uint8_t>(objReg) >= 8;
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+
+                    emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_ai_model_num_layers));
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85); buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                    freeReg(objVal.valueReg); freeReg(objVal.typeReg);
+
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    emitMovImm64(buf, result.typeReg, 0); // Int
+                    return result;
+                }
+
+                // Array reduction methods: arr.argmax(), arr.argmin(), arr.max(), arr.min(), arr.mean(), arr.shape()
+                if (memberName == "argmax" || memberName == "Argmax" || memberName == "argmin" || memberName == "Argmin" ||
+                    memberName == "max" || memberName == "Max" || memberName == "min" || memberName == "Min" ||
+                    memberName == "mean" || memberName == "Mean" || memberName == "shape" || memberName == "Shape") {
+                    int32_t retSlot = allocateStackSlot();
+
+                    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                    buf.emit8(0x53); // push rbx
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                    // RDI = objReg
+                    bool objHi = static_cast<uint8_t>(objReg) >= 8;
+                    buf.emit8(0x48 | (objHi ? 0x04 : 0));
+                    buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(objReg) & 0x7) << 3));
+
+                    uint64_t targetFn = 0;
+                    int64_t resType = 0; // INT
+                    if (memberName == "argmax" || memberName == "Argmax") {
+                        targetFn = reinterpret_cast<uint64_t>(jit_ai_argmax);
+                        resType = 0;
+                    } else if (memberName == "argmin" || memberName == "Argmin") {
+                        targetFn = reinterpret_cast<uint64_t>(jit_ai_argmin);
+                        resType = 0;
+                    } else if (memberName == "shape" || memberName == "Shape") {
+                        targetFn = reinterpret_cast<uint64_t>(jit_ai_shape);
+                        resType = 0;
+                    } else if (memberName == "max" || memberName == "Max") {
+                        targetFn = reinterpret_cast<uint64_t>(jit_ai_max);
+                        resType = 1;
+                    } else if (memberName == "min" || memberName == "Min") {
+                        targetFn = reinterpret_cast<uint64_t>(jit_ai_min);
+                        resType = 1;
+                    } else if (memberName == "mean" || memberName == "Mean") {
+                        targetFn = reinterpret_cast<uint64_t>(jit_ai_mean);
+                        resType = 1;
+                    }
+
+                    emitMovImm64(buf, X64Reg::RAX, targetFn);
+                    buf.emit8(0xFF); buf.emit8(0xD0);
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                    buf.emit8(0x5B); // pop rbx
+
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85); buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
+                    buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
+                    buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
+
+                    freeReg(objVal.valueReg); freeReg(objVal.typeReg);
+
+                    X64Reg dst = allocateReg();
+                    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+                    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+                    buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+                    buf.emit32(static_cast<uint32_t>(retSlot));
+
+                    JITValue result;
+                    result.valueReg = dst;
+                    result.typeReg = allocateReg();
+                    emitMovImm64(buf, result.typeReg, resType);
                     return result;
                 }
                 
@@ -7063,13 +8006,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit8(0x5F); buf.emit8(0x5E);                  // pop rdi, rsi
             buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58); // pop rdx, rcx, rax
             
-            // Now, load the allocated baseReg
-            X64Reg baseReg = allocateReg();
-            bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
-            buf.emit8(0x48 | (baseHigh ? 0x04 : 0));
-            buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3));
-            buf.emit32(static_cast<uint32_t>(tempOffset));
-            
             // Store each element
             for (size_t i = 0; i < elemCount; ++i) {
                 JITValue elemVal = compileExpr(ast, node.children[i]);
@@ -7099,9 +8035,14 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
                 buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
                 
-                // RDI = baseReg
-                buf.emit8(0x48 | (baseHigh ? 0x04 : 0));
-                buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3) | 7);
+                // Align stack
+                buf.emit8(0x53); // push rbx
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                // RDI = [rbp + tempOffset] (reloaded array base ptr)
+                buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+                buf.emit32(static_cast<uint32_t>(tempOffset));
                 
                 // RSI = i
                 buf.emit8(0x48); buf.emit8(0xBE); // mov rsi, imm64
@@ -7116,25 +8057,33 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit32(static_cast<uint32_t>(elemTypeSlot));
                 
                 // Call jit_array_set_typed
-                buf.emit8(0x48); buf.emit8(0xB8);
-                buf.emit64(reinterpret_cast<uint64_t>(jit_array_set_typed));
+                emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_array_set_typed));
                 buf.emit8(0xFF); buf.emit8(0xD0);
                 
+                // Restore stack
+                buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                buf.emit8(0x5B); // pop rbx
+
                 // Restore Scratch
                 buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
                 buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
                 buf.emit8(0x5F); buf.emit8(0x5E); buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
             }
             
-            // Return baseReg as array pointer
+            // Reload baseReg as array pointer
+            X64Reg baseReg = allocateReg();
+            bool baseHigh = static_cast<uint8_t>(baseReg) >= 8;
+            buf.emit8(0x48 | (baseHigh ? 0x04 : 0));
+            buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(baseReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(tempOffset));
+
             JITValue result;
             result.valueReg = baseReg;
             result.typeReg = allocateReg();
             bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
             buf.emit8(0x48 | (typeHigh ? 0x01 : 0));
             buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
-            buf.emit64(5); // ARRAY type tag is 5
-            
+            buf.emit64(5); // ARRAY type tag
             return result;
         }
         

@@ -1,0 +1,115 @@
+// aiModelTest.nva - Comprehensive AI Model & Tensor JIT Verification
+import stdlib ai as ai
+
+print("=== Nevaarize AI JIT System Verification ===")
+
+// 1. Loss Functions Verification
+let pred = [0.8, 0.1, 0.1]
+let target = [1.0, 0.0, 0.0]
+
+let mse = ai.MSELoss(pred, target)
+print("MSE Loss:", mse)
+
+let l1 = ai.L1Loss(pred, target)
+print("L1 Loss:", l1)
+
+let bce = ai.BCELoss(pred, target)
+print("BCE Loss:", bce)
+
+let ce = ai.CrossEntropyLoss(pred, 0)
+print("CrossEntropy Loss (class 0):", ce)
+
+let huber = ai.HuberLoss(pred, target, 1.0)
+print("Huber Loss:", huber)
+
+// 2. Activation Functions Verification
+let rawVals = [-2.0, -0.5, 0.0, 1.0, 3.0]
+let reluOut = ai.ReLU(rawVals)
+print("ReLU Output:", reluOut)
+
+let leakyOut = ai.LeakyReLU(rawVals, 0.1)
+print("LeakyReLU Output:", leakyOut)
+
+let geluOut = ai.GELU(rawVals)
+print("GELU Output:", geluOut)
+
+let siluOut = ai.SiLU(rawVals)
+print("SiLU Output:", siluOut)
+
+let softOut = ai.Softmax(rawVals)
+print("Softmax Output:", softOut)
+
+// 3. Array Reduction Methods on Tensor Outputs
+let maxVal = softOut.max()
+let minVal = softOut.min()
+let argMaxIdx = softOut.argmax()
+let argMinIdx = softOut.argmin()
+let tensorShape = softOut.shape()
+
+print("Softmax Max:", maxVal)
+print("Softmax Min:", minVal)
+print("Softmax Argmax:", argMaxIdx)
+print("Softmax Argmin:", argMinIdx)
+print("Softmax Shape:", tensorShape)
+
+// 4. Token & Embedding Operations
+let oneHotVec = ai.OneHot(2, 5)
+print("OneHot (idx 2, size 5):", oneHotVec)
+
+let topIndices = ai.TopK(softOut, 3)
+print("TopK indices:", topIndices)
+
+let sampledTok = ai.SampleToken(softOut, 1.0)
+print("Sampled Token:", sampledTok)
+
+// 5. Neural Network Architecture & Sequential Model Creation
+let l1Def = ai.Linear(2, 4)
+let l2Def = ai.Layer("relu")
+let l3Def = ai.Linear(4, 2)
+let l4Def = ai.Layer("softmax")
+
+let model = ai.Sequential([l1Def, l2Def, l3Def, l4Def])
+print("Model Instantiated! Model ID:", model)
+
+let numL = model.numLayers()
+print("Model Layer Count:", numL)
+
+let initialInfo = model.info()
+print("Model Initial Info:", initialInfo)
+
+// 6. Direct Model Method Forward Prediction
+let sampleIn = [1.0, 0.0]
+let predDirect = model.predict(sampleIn)
+print("Direct model.predict Output:", predDirect)
+
+let predModule = ai.predict(model, sampleIn)
+print("Module ai.predict Output:", predModule)
+
+// 7. Training the Model on Binary Classification
+let trainX = [
+    [0.0, 0.0],
+    [0.0, 1.0],
+    [1.0, 0.0],
+    [1.0, 1.0]
+]
+let trainY = [0, 1, 1, 0]
+let trainCfg = [100, 0.05, "adam", "crossentropy"]
+
+let trainLoss = model.train(trainX, trainY, trainCfg)
+print("Training Completed! Final Loss:", trainLoss)
+
+// 8. Post-Training Inference
+let testAfterTrain = model.predict([0.0, 1.0])
+print("Post-Training Prediction for [0, 1]:", testAfterTrain)
+
+// 9. Model Serialization & Deserialization (.nmod)
+let savedOk = model.save("testModel.nmod")
+print("Model Saved Successfully:", savedOk)
+
+let loadedModel = ai.loadModel("testModel.nmod")
+print("Model Loaded! Loaded ID:", loadedModel)
+
+let loadedPred = ai.predict(loadedModel, [0.0, 1.0])
+print("Loaded Model Prediction:", loadedPred)
+
+print("=== AI Model JIT Verification PASSED ===")
