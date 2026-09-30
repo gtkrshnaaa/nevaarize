@@ -1,0 +1,95 @@
+import stdlib time as t
+
+// Segment Tree for Range Minimum Query (RMQ) with Point Updates
+// Efficient O(log N) range operations over array intervals
+
+print("=== Nevaarize Segment Tree RMQ Demo ===")
+startTime = t.millis()
+
+arrSize = 8
+// Initial input elements
+arr = [18, 17, 13, 19, 15, 11, 20, 14]
+
+// Tree storage: flat representation of size 2 * arrSize
+tree = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+// 1. Build tree bottom-up
+i = 0
+while (i < arrSize) {
+    tree[arrSize + i] = arr[i]
+    i = i + 1
+}
+
+idx = arrSize - 1
+while (idx > 0) {
+    leftVal = tree[2 * idx]
+    rightVal = tree[2 * idx + 1]
+    if (leftVal < rightVal) {
+        tree[idx] = leftVal
+    } else {
+        tree[idx] = rightVal
+    }
+    idx = idx - 1
+}
+
+print("Segment tree built successfully.")
+
+// Function: point update at array index (0-based)
+func updatePoint(pos, newVal, treeBuf, n) {
+    p = n + pos
+    treeBuf[p] = newVal
+    while (p > 1) {
+        p = p / 2
+        lChild = treeBuf[2 * p]
+        rChild = treeBuf[2 * p + 1]
+        if (lChild < rChild) {
+            treeBuf[p] = lChild
+        } else {
+            treeBuf[p] = rChild
+        }
+    }
+}
+
+// Function: range minimum query in interval [left, right] inclusive
+func queryRange(left, right, treeBuf, n) {
+    l = n + left
+    r = n + right
+    minAns = 999999999
+
+    while (l <= r) {
+        if (l % 2 == 1) {
+            if (treeBuf[l] < minAns) {
+                minAns = treeBuf[l]
+            }
+            l = l + 1
+        }
+        if (r % 2 == 0) {
+            if (treeBuf[r] < minAns) {
+                minAns = treeBuf[r]
+            }
+            r = r - 1
+        }
+        l = l / 2
+        r = r / 2
+    }
+    return minAns
+}
+
+// Query interval [1, 5] (elements: 17, 13, 19, 15, 11 -> min should be 11)
+ans1 = queryRange(1, 5, tree, arrSize)
+print("RMQ [1, 5] before update:", ans1)
+
+// Update index 5 from 11 to 99
+print("Updating index 5 to 99...")
+updatePoint(5, 99, tree, arrSize)
+
+// Query interval [1, 5] again (elements: 17, 13, 19, 15, 99 -> min should be 13)
+ans2 = queryRange(1, 5, tree, arrSize)
+print("RMQ [1, 5] after update:", ans2)
+
+// Query full range [0, 7]
+ansFull = queryRange(0, 7, tree, arrSize)
+print("RMQ full interval [0, 7]:", ansFull)
+
+elapsed = t.millis() - startTime
+print("Segment Tree benchmark completed in", elapsed, "ms")
