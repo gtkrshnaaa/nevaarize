@@ -1,0 +1,78 @@
+import stdlib time as t
+
+// Fenwick Tree (Binary Indexed Tree) Demo
+// Demonstrates logarithmic prefix sum updates and interval queries using bitwise lowbit
+
+print("=== Nevaarize Fenwick Tree (BIT) Demo ===")
+startTime = t.millis()
+
+treeSize = 8
+// 1-based indexing: size treeSize + 1 = 9
+bitTree = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+// Lowbit function: isolates lowest set bit
+func lowbit(x) {
+    return x & (0 - x)
+}
+
+// Point update: add delta to element at 1-based index idx
+func bitAdd(idx, delta, tree, n) {
+    curr = idx
+    while (curr <= n) {
+        tree[curr] = tree[curr] + delta
+        curr = curr + lowbit(curr)
+    }
+}
+
+// Prefix sum query: sum of elements from 1 to idx
+func bitQuery(idx, tree) {
+    sumVal = 0
+    curr = idx
+    while (curr > 0) {
+        sumVal = sumVal + tree[curr]
+        curr = curr - lowbit(curr)
+    }
+    return sumVal
+}
+
+// Initial values: [3, 2, -1, 6, 5, 4, -3, 3] at indices 1..8
+initialData = [3, 2, -1, 6, 5, 4, -3, 3]
+
+i = 0
+while (i < treeSize) {
+    idx1 = i + 1
+    val = initialData[i]
+    bitAdd(idx1, val, bitTree, treeSize)
+    i = i + 1
+}
+
+print("Fenwick Tree initialized with 8 elements.")
+
+// Query prefix sum up to index 4 (3 + 2 - 1 + 6 = 10)
+sum4 = bitQuery(4, bitTree)
+print("Prefix sum [1..4]:", sum4)
+
+// Query range [3..6]: query(6) - query(2)
+// query(6) = 3 + 2 - 1 + 6 + 5 + 4 = 19
+// query(2) = 3 + 2 = 5
+// range [3..6] = 19 - 5 = 14
+sum6 = bitQuery(6, bitTree)
+sum2 = bitQuery(2, bitTree)
+rangeSum3to6 = sum6 - sum2
+print("Range sum [3..6]:", rangeSum3to6)
+
+// Update index 3: add delta +5 (was -1, now +4)
+print("Updating index 3 by delta +5...")
+bitAdd(3, 5, bitTree, treeSize)
+
+newRangeSum = bitQuery(6, bitTree) - bitQuery(2, bitTree)
+print("Range sum [3..6] after update (expected 19):", newRangeSum)
+
+if (sum4 == 10 and rangeSum3to6 == 14 and newRangeSum == 19) {
+    print("Fenwick Tree Verification: PASSED")
+} else {
+    print("Fenwick Tree Verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Fenwick Tree benchmark completed in", elapsed, "ms")
