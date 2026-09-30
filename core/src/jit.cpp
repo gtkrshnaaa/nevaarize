@@ -16,6 +16,17 @@
 #include "csv.hpp"
 #include "json.hpp"
 #include "claw.hpp"
+#include "io.hpp"
+#include "http.hpp"
+#include "ai.hpp"
+#include "model.hpp"
+#ifdef __linux__
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#endif
 #include <cstring>
 #include <cstdio>
 #include <chrono>
@@ -32,6 +43,8 @@
 #include <cstdlib>
 #include <cmath>
 #include <random>
+
+namespace fs = std::filesystem;
 
 // Global JIT runtime state (used by JITExecutionGuard and trap handler)
 thread_local bool in_jit_execution = false;
@@ -820,6 +833,44 @@ extern "C" char* jit_string_concat(char* s1, char* s2) {
     return res->data;
 }
 
+extern "C" void* jit_string_concat_dynamic(int64_t val1, int64_t type1, int64_t val2, int64_t type2) {
+    JITExecutionGuard guard;
+    auto valToString = [](int64_t val, int64_t type) -> std::string {
+        if (type == 4) { // STRING
+            if (val == 0) return "";
+            uint64_t u = static_cast<uint64_t>(val);
+            if ((u & 0x7) == 0 && u >= 0x400000 && u <= 0x7fffffffffff) {
+                volatile JITString* js = reinterpret_cast<volatile JITString*>(u - offsetof(JITString, data));
+                if (js->magic == JIT_STRING_MAGIC) {
+                    return std::string(reinterpret_cast<const char*>(val), js->length);
+                }
+            }
+            const char* p = reinterpret_cast<const char*>(val);
+            return p ? std::string(p) : std::string("");
+        } else if (type == 0) { // INT
+            return std::to_string(val);
+        } else if (type == 1) { // FLOAT
+            double d;
+            std::memcpy(&d, &val, sizeof(double));
+            std::ostringstream ss;
+            ss << d;
+            return ss.str();
+        } else if (type == 5) { // ARRAY
+            return "[Array at " + std::to_string(val) + "]";
+        } else if (type == 6) { // MAP
+            return "[Map at " + std::to_string(val) + "]";
+        } else {
+            return std::to_string(val);
+        }
+    };
+
+    std::string s1 = valToString(val1, type1);
+    std::string s2 = valToString(val2, type2);
+    std::string combined = s1 + s2;
+    return jit_alloc_string(combined.c_str());
+}
+
+
 /**
  * Async/Await Runtime Support
  *
@@ -1346,18 +1397,18 @@ extern "C" void* jit_csv_parse_file(const char* path) {
     }
 
     size_t numRows = result.arrayVal->size();
-    void* outerArr = jit_alloc_array(numRows);
+    void* outerArr = jit_alloc_typed_array(numRows, 5);
     int64_t* outerData = static_cast<int64_t*>(outerArr);
 
     size_t i = 0;
     for (const auto& row : *result.arrayVal) {
         if (!row.isArray() || !row.arrayVal) {
-            outerData[i++] = reinterpret_cast<int64_t>(jit_alloc_array(0));
+            outerData[i++] = reinterpret_cast<int64_t>(jit_alloc_typed_array(0, 4));
             continue;
         }
 
         size_t numCols = row.arrayVal->size();
-        void* innerArr = jit_alloc_array(numCols);
+        void* innerArr = jit_alloc_typed_array(numCols, 4);
         int64_t* innerData = static_cast<int64_t*>(innerArr);
 
         size_t j = 0;
@@ -1463,18 +1514,18 @@ extern "C" void* jit_csv_parse_string(const char* csvContent) {
     }
 
     size_t numRows = result.arrayVal->size();
-    void* outerArr = jit_alloc_array(numRows);
+    void* outerArr = jit_alloc_typed_array(numRows, 5);
     int64_t* outerData = static_cast<int64_t*>(outerArr);
 
     size_t i = 0;
     for (const auto& row : *result.arrayVal) {
         if (!row.isArray() || !row.arrayVal) {
-            outerData[i++] = reinterpret_cast<int64_t>(jit_alloc_array(0));
+            outerData[i++] = reinterpret_cast<int64_t>(jit_alloc_typed_array(0, 4));
             continue;
         }
 
         size_t numCols = row.arrayVal->size();
-        void* innerArr = jit_alloc_array(numCols);
+        void* innerArr = jit_alloc_typed_array(numCols, 4);
         int64_t* innerData = static_cast<int64_t*>(innerArr);
 
         size_t j = 0;
@@ -1490,6 +1541,842 @@ extern "C" void* jit_csv_parse_string(const char* csvContent) {
         outerData[i++] = reinterpret_cast<int64_t>(innerArr);
     }
     return outerArr;
+}
+
+// --- IO Module Bridges ---
+extern "C" void* jit_io_read_file(const char* path) {
+    JITExecutionGuard guard;
+    if (!path) return jit_alloc_string("");
+    std::string pathStr(path);
+    if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
+        pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+    }
+    std::ifstream file(pathStr);
+    if (!file) return jit_alloc_string("");
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return jit_alloc_string(buffer.str().c_str());
+}
+
+extern "C" int64_t jit_io_write_file(const char* path, const char* content) {
+    JITExecutionGuard guard;
+    if (!path || !content) return 0;
+    std::string pathStr(path);
+    if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
+        pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+    }
+    std::ofstream file(pathStr);
+    if (!file) return 0;
+    file << content;
+    return 1;
+}
+
+extern "C" int64_t jit_io_append_file(const char* path, const char* content) {
+    JITExecutionGuard guard;
+    if (!path || !content) return 0;
+    std::string pathStr(path);
+    if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
+        pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+    }
+    std::ofstream file(pathStr, std::ios::app);
+    if (!file) return 0;
+    file << content;
+    return 1;
+}
+
+extern "C" int64_t jit_io_file_exists(const char* path) {
+    JITExecutionGuard guard;
+    if (!path) return 0;
+    std::string pathStr(path);
+    if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
+        pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+    }
+    return fs::exists(pathStr) ? 1 : 0;
+}
+
+extern "C" void* jit_io_read_line() {
+    JITExecutionGuard guard;
+    std::string line;
+    if (std::getline(std::cin, line)) {
+        return jit_alloc_string(line.c_str());
+    }
+    return jit_alloc_string("");
+}
+
+extern "C" void* jit_io_input(const char* prompt) {
+    JITExecutionGuard guard;
+    if (prompt && *prompt) {
+        std::cout << prompt;
+        std::cout.flush();
+    }
+    std::string line;
+    if (std::getline(std::cin, line)) {
+        return jit_alloc_string(line.c_str());
+    }
+    return jit_alloc_string("");
+}
+
+// --- JSON & CSV Bridges ---
+static std::string value_to_json_string(const nevaarize::Value& val) {
+    if (val.isNil()) return "null";
+    if (val.isBool()) return val.boolVal ? "true" : "false";
+    if (val.isInt()) return std::to_string(val.intVal);
+    if (val.isFloat()) {
+        std::ostringstream oss;
+        oss << val.floatVal;
+        return oss.str();
+    }
+    if (val.isString()) {
+        std::string s = "\"";
+        if (val.stringVal) {
+            for (char c : *val.stringVal) {
+                if (c == '"') s += "\\\"";
+                else if (c == '\\') s += "\\\\";
+                else if (c == '\n') s += "\\n";
+                else if (c == '\t') s += "\\t";
+                else s += c;
+            }
+        }
+        s += "\"";
+        return s;
+    }
+    if (val.isArray()) {
+        if (!val.arrayVal) return "[]";
+        std::string s = "[";
+        for (size_t i = 0; i < val.arrayVal->size(); ++i) {
+            if (i > 0) s += ", ";
+            s += value_to_json_string((*val.arrayVal)[i]);
+        }
+        s += "]";
+        return s;
+    }
+    if (val.isMap()) {
+        if (!val.mapVal) return "{}";
+        std::string s = "{";
+        bool first = true;
+        for (const auto& [k, v] : val.mapVal->entries) {
+            if (!first) s += ", ";
+            first = false;
+            std::string keyStr = k.isString() && k.stringVal ? *k.stringVal : k.toString();
+            s += "\"" + keyStr + "\": " + value_to_json_string(v);
+        }
+        s += "}";
+        return s;
+    }
+    return "null";
+}
+
+extern "C" void* jit_json_stringify(int64_t val) {
+    JITExecutionGuard guard;
+    nevaarize::Value v = jit_to_value(val);
+    std::string jsonStr = value_to_json_string(v);
+    return jit_alloc_string(jsonStr.c_str());
+}
+
+extern "C" int64_t jit_csv_write_file(const char* path, void* arrayPtr) {
+    JITExecutionGuard guard;
+    if (!path || !arrayPtr) return 0;
+    std::string pathStr(path);
+    if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
+        pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+    }
+    std::ofstream file(pathStr);
+    if (!file) return 0;
+    
+    JITArray* rows = (JITArray*)((char*)arrayPtr - offsetof(JITArray, data));
+    for (int64_t r = 0; r < rows->size; ++r) {
+        void* rowPtr = reinterpret_cast<void*>(rows->data[r]);
+        if (rowPtr) {
+            JITArray* row = (JITArray*)((char*)rowPtr - offsetof(JITArray, data));
+            for (int64_t c = 0; c < row->size; ++c) {
+                if (c > 0) file << ",";
+                const char* cell = reinterpret_cast<const char*>(row->data[c]);
+                if (cell) {
+                    bool needQuote = (std::strchr(cell, ',') || std::strchr(cell, '"') || std::strchr(cell, '\n'));
+                    if (needQuote) file << "\"";
+                    for (const char* p = cell; *p; ++p) {
+                        if (*p == '"') file << "\"\"";
+                        else file << *p;
+                    }
+                    if (needQuote) file << "\"";
+                }
+            }
+        }
+        file << "\n";
+    }
+    return 1;
+}
+
+// --- AI Module Bridges ---
+static std::unordered_map<int64_t, std::shared_ptr<nevaarize::Model>> jit_ai_models;
+static int64_t jit_ai_next_model_id = 1;
+
+static double jit_get_array_num(JITArray* arr, size_t i) {
+    if (arr->elemType == 1) { // FLOAT
+        double d;
+        std::memcpy(&d, &arr->data[i], sizeof(double));
+        return d;
+    } else { // INT
+        return static_cast<double>(arr->data[i]);
+    }
+}
+
+static void jit_set_array_float(JITArray* arr, size_t i, double d) {
+    uint64_t bits;
+    std::memcpy(&bits, &d, sizeof(double));
+    arr->data[i] = static_cast<int64_t>(bits);
+}
+
+extern "C" void* jit_ai_zeros(int64_t r, int64_t c) {
+    JITExecutionGuard guard;
+    int64_t total = (c > 0) ? (r * c) : r;
+    if (total < 0) total = 0;
+    void* ptr = jit_alloc_typed_array(total, 1);
+    JITArray* arr = (JITArray*)((char*)ptr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < total; ++i) jit_set_array_float(arr, i, 0.0);
+    return ptr;
+}
+
+extern "C" void* jit_ai_ones(int64_t r, int64_t c) {
+    JITExecutionGuard guard;
+    int64_t total = (c > 0) ? (r * c) : r;
+    if (total < 0) total = 0;
+    void* ptr = jit_alloc_typed_array(total, 1);
+    JITArray* arr = (JITArray*)((char*)ptr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < total; ++i) jit_set_array_float(arr, i, 1.0);
+    return ptr;
+}
+
+extern "C" void* jit_ai_full(int64_t r, int64_t c, uint64_t valBits) {
+    JITExecutionGuard guard;
+    int64_t total = (c > 0) ? (r * c) : r;
+    if (total < 0) total = 0;
+    double val;
+    std::memcpy(&val, &valBits, sizeof(double));
+    void* ptr = jit_alloc_typed_array(total, 1);
+    JITArray* arr = (JITArray*)((char*)ptr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < total; ++i) jit_set_array_float(arr, i, val);
+    return ptr;
+}
+
+extern "C" void* jit_ai_randn(int64_t r, int64_t c) {
+    JITExecutionGuard guard;
+    int64_t total = (c > 0) ? (r * c) : r;
+    if (total < 0) total = 0;
+    static std::mt19937 gen(1337);
+    std::normal_distribution<double> dist(0.0, 1.0);
+    void* ptr = jit_alloc_typed_array(total, 1);
+    JITArray* arr = (JITArray*)((char*)ptr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < total; ++i) jit_set_array_float(arr, i, dist(gen));
+    return ptr;
+}
+
+extern "C" void* jit_ai_randu(int64_t r, int64_t c) {
+    JITExecutionGuard guard;
+    int64_t total = (c > 0) ? (r * c) : r;
+    if (total < 0) total = 0;
+    static std::mt19937 gen(1337);
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    void* ptr = jit_alloc_typed_array(total, 1);
+    JITArray* arr = (JITArray*)((char*)ptr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < total; ++i) jit_set_array_float(arr, i, dist(gen));
+    return ptr;
+}
+
+extern "C" void* jit_ai_add(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return bPtr;
+    if (!bPtr) return aPtr;
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    JITArray* b = (JITArray*)((char*)bPtr - offsetof(JITArray, data));
+    int64_t sz = std::min(a->size, b->size);
+    void* resPtr = jit_alloc_typed_array(sz, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < sz; ++i) {
+        jit_set_array_float(res, i, jit_get_array_num(a, i) + jit_get_array_num(b, i));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_sub(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    JITArray* b = (JITArray*)((char*)bPtr - offsetof(JITArray, data));
+    int64_t sz = std::min(a->size, b->size);
+    void* resPtr = jit_alloc_typed_array(sz, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < sz; ++i) {
+        jit_set_array_float(res, i, jit_get_array_num(a, i) - jit_get_array_num(b, i));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_mul(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    JITArray* b = (JITArray*)((char*)bPtr - offsetof(JITArray, data));
+    int64_t sz = std::min(a->size, b->size);
+    void* resPtr = jit_alloc_typed_array(sz, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < sz; ++i) {
+        jit_set_array_float(res, i, jit_get_array_num(a, i) * jit_get_array_num(b, i));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_div(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    JITArray* b = (JITArray*)((char*)bPtr - offsetof(JITArray, data));
+    int64_t sz = std::min(a->size, b->size);
+    void* resPtr = jit_alloc_typed_array(sz, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < sz; ++i) {
+        double d = jit_get_array_num(b, i);
+        jit_set_array_float(res, i, d != 0.0 ? (jit_get_array_num(a, i) / d) : 0.0);
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_scale(void* aPtr, uint64_t scalarBits) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    double scalar;
+    std::memcpy(&scalar, &scalarBits, sizeof(double));
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    void* resPtr = jit_alloc_typed_array(a->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < a->size; ++i) {
+        jit_set_array_float(res, i, jit_get_array_num(a, i) * scalar);
+    }
+    return resPtr;
+}
+
+extern "C" uint64_t jit_ai_sum(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return 0;
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    double sum = 0.0;
+    for (int64_t i = 0; i < a->size; ++i) sum += jit_get_array_num(a, i);
+    uint64_t bits;
+    std::memcpy(&bits, &sum, sizeof(double));
+    return bits;
+}
+
+extern "C" uint64_t jit_ai_mean(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return 0;
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    if (a->size == 0) return 0;
+    double sum = 0.0;
+    for (int64_t i = 0; i < a->size; ++i) sum += jit_get_array_num(a, i);
+    double mean = sum / a->size;
+    uint64_t bits;
+    std::memcpy(&bits, &mean, sizeof(double));
+    return bits;
+}
+
+extern "C" uint64_t jit_ai_max(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return 0;
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    if (a->size == 0) return 0;
+    double m = jit_get_array_num(a, 0);
+    for (int64_t i = 1; i < a->size; ++i) m = std::max(m, jit_get_array_num(a, i));
+    uint64_t bits;
+    std::memcpy(&bits, &m, sizeof(double));
+    return bits;
+}
+
+extern "C" uint64_t jit_ai_min(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return 0;
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    if (a->size == 0) return 0;
+    double m = jit_get_array_num(a, 0);
+    for (int64_t i = 1; i < a->size; ++i) m = std::min(m, jit_get_array_num(a, i));
+    uint64_t bits;
+    std::memcpy(&bits, &m, sizeof(double));
+    return bits;
+}
+
+extern "C" int64_t jit_ai_argmax(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return -1;
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    if (a->size == 0) return -1;
+    int64_t bestIdx = 0;
+    double bestVal = jit_get_array_num(a, 0);
+    for (int64_t i = 1; i < a->size; ++i) {
+        double v = jit_get_array_num(a, i);
+        if (v > bestVal) {
+            bestVal = v;
+            bestIdx = i;
+        }
+    }
+    return bestIdx;
+}
+
+extern "C" int64_t jit_ai_argmin(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return -1;
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    if (a->size == 0) return -1;
+    int64_t bestIdx = 0;
+    double bestVal = jit_get_array_num(a, 0);
+    for (int64_t i = 1; i < a->size; ++i) {
+        double v = jit_get_array_num(a, i);
+        if (v < bestVal) {
+            bestVal = v;
+            bestIdx = i;
+        }
+    }
+    return bestIdx;
+}
+
+extern "C" uint64_t jit_ai_dot(void* aPtr, void* bPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return 0;
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    JITArray* b = (JITArray*)((char*)bPtr - offsetof(JITArray, data));
+    int64_t sz = std::min(a->size, b->size);
+    double dot = 0.0;
+    for (int64_t i = 0; i < sz; ++i) {
+        dot += jit_get_array_num(a, i) * jit_get_array_num(b, i);
+    }
+    uint64_t bits;
+    std::memcpy(&bits, &dot, sizeof(double));
+    return bits;
+}
+
+extern "C" void* jit_ai_matmul(void* aPtr, void* bPtr, int64_t m, int64_t k, int64_t n) {
+    JITExecutionGuard guard;
+    if (!aPtr || !bPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    JITArray* b = (JITArray*)((char*)bPtr - offsetof(JITArray, data));
+    if (m <= 0 || k <= 0 || n <= 0) {
+        int64_t sz = std::min(a->size, b->size);
+        int64_t dim = static_cast<int64_t>(std::sqrt(sz));
+        if (dim * dim == sz && dim > 0) {
+            m = dim; k = dim; n = dim;
+        } else {
+            m = 1; k = sz; n = 1;
+        }
+    }
+    void* resPtr = jit_alloc_typed_array(m * n, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t r = 0; r < m; ++r) {
+        for (int64_t c = 0; c < n; ++c) {
+            double sum = 0.0;
+            for (int64_t p = 0; p < k; ++p) {
+                sum += jit_get_array_num(a, r * k + p) * jit_get_array_num(b, p * n + c);
+            }
+            jit_set_array_float(res, r * n + c, sum);
+        }
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_transpose(void* aPtr, int64_t rows, int64_t cols) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    if (rows <= 0 || cols <= 0) {
+        int64_t dim = static_cast<int64_t>(std::sqrt(a->size));
+        if (dim * dim == a->size && dim > 0) {
+            rows = dim; cols = dim;
+        } else {
+            rows = 1; cols = a->size;
+        }
+    }
+    void* resPtr = jit_alloc_typed_array(rows * cols, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t r = 0; r < rows; ++r) {
+        for (int64_t c = 0; c < cols; ++c) {
+            jit_set_array_float(res, c * rows + r, jit_get_array_num(a, r * cols + c));
+        }
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_relu(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    void* resPtr = jit_alloc_typed_array(a->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < a->size; ++i) {
+        double v = jit_get_array_num(a, i);
+        jit_set_array_float(res, i, v > 0.0 ? v : 0.0);
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_sigmoid(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    void* resPtr = jit_alloc_typed_array(a->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < a->size; ++i) {
+        double v = jit_get_array_num(a, i);
+        jit_set_array_float(res, i, 1.0 / (1.0 + std::exp(-v)));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_tanh(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    void* resPtr = jit_alloc_typed_array(a->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < a->size; ++i) {
+        jit_set_array_float(res, i, std::tanh(jit_get_array_num(a, i)));
+    }
+    return resPtr;
+}
+
+extern "C" void* jit_ai_softmax(void* aPtr) {
+    JITExecutionGuard guard;
+    if (!aPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* a = (JITArray*)((char*)aPtr - offsetof(JITArray, data));
+    if (a->size == 0) return jit_alloc_typed_array(0, 1);
+    double maxVal = jit_get_array_num(a, 0);
+    for (int64_t i = 1; i < a->size; ++i) maxVal = std::max(maxVal, jit_get_array_num(a, i));
+    double sum = 0.0;
+    std::vector<double> exps(a->size);
+    for (int64_t i = 0; i < a->size; ++i) {
+        exps[i] = std::exp(jit_get_array_num(a, i) - maxVal);
+        sum += exps[i];
+    }
+    void* resPtr = jit_alloc_typed_array(a->size, 1);
+    JITArray* res = (JITArray*)((char*)resPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < a->size; ++i) {
+        jit_set_array_float(res, i, sum > 0.0 ? (exps[i] / sum) : 0.0);
+    }
+    return resPtr;
+}
+
+extern "C" int64_t jit_ai_load_model(const char* path) {
+    JITExecutionGuard guard;
+    if (!path) return -1;
+    std::string pathStr(path);
+    if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
+        pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+    }
+    auto model = nevaarize::Model::load(pathStr);
+    if (!model) return -1;
+    int64_t id = jit_ai_next_model_id++;
+    jit_ai_models[id] = model;
+    return id;
+}
+
+extern "C" int64_t jit_ai_save_model(int64_t modelId, const char* path) {
+    JITExecutionGuard guard;
+    if (!path) return 0;
+    auto it = jit_ai_models.find(modelId);
+    if (it == jit_ai_models.end()) return 0;
+    std::string pathStr(path);
+    if (!fs::path(pathStr).is_absolute() && !jit_csv_source_dir.empty()) {
+        pathStr = (fs::path(jit_csv_source_dir) / pathStr).string();
+    }
+    return it->second->save(pathStr) ? 1 : 0;
+}
+
+extern "C" void* jit_ai_get_model_info(int64_t modelId) {
+    JITExecutionGuard guard;
+    void* arrPtr = jit_alloc_array(5);
+    auto it = jit_ai_models.find(modelId);
+    if (it == jit_ai_models.end()) return arrPtr;
+    auto& m = it->second;
+    JITArray* arr = (JITArray*)((char*)arrPtr - offsetof(JITArray, data));
+    arr->data[0] = static_cast<int64_t>(m->getInputSize());
+    arr->data[1] = static_cast<int64_t>(m->getOutputSize());
+    arr->data[2] = static_cast<int64_t>(m->getEpoch());
+    double loss = m->getFinalLoss();
+    uint64_t lossBits;
+    std::memcpy(&lossBits, &loss, sizeof(double));
+    arr->data[3] = static_cast<int64_t>(lossBits);
+    arr->data[4] = m->isTrained() ? 1 : 0;
+    return arrPtr;
+}
+
+extern "C" void* jit_ai_predict(int64_t modelId, void* inputPtr) {
+    JITExecutionGuard guard;
+    auto it = jit_ai_models.find(modelId);
+    if (it == jit_ai_models.end() || !inputPtr) return jit_alloc_typed_array(0, 1);
+    JITArray* inArr = (JITArray*)((char*)inputPtr - offsetof(JITArray, data));
+    std::vector<float> input(inArr->size);
+    for (int64_t i = 0; i < inArr->size; ++i) {
+        input[i] = static_cast<float>(jit_get_array_num(inArr, i));
+    }
+    auto output = it->second->predict(input);
+    void* outArrPtr = jit_alloc_typed_array(output.size(), 1);
+    JITArray* outArr = (JITArray*)((char*)outArrPtr - offsetof(JITArray, data));
+    for (size_t i = 0; i < output.size(); ++i) {
+        jit_set_array_float(outArr, i, static_cast<double>(output[i]));
+    }
+    return outArrPtr;
+}
+
+extern "C" int64_t jit_ai_sequential(void* layersArrPtr) {
+    JITExecutionGuard guard;
+    if (!layersArrPtr) return -1;
+    auto model = std::make_shared<nevaarize::Model>();
+    JITArray* outer = (JITArray*)((char*)layersArrPtr - offsetof(JITArray, data));
+    for (int64_t i = 0; i < outer->size; ++i) {
+        void* layerPtr = reinterpret_cast<void*>(outer->data[i]);
+        if (!layerPtr) continue;
+        JITArray* layerArr = (JITArray*)((char*)layerPtr - offsetof(JITArray, data));
+        if (layerArr->size == 0) continue;
+        const char* typeStr = reinterpret_cast<const char*>(layerArr->data[0]);
+        if (!typeStr) continue;
+        std::string layerType(typeStr);
+        nevaarize::Layer layer;
+        layer.type = nevaarize::stringToLayerType(layerType);
+        if (layerType == "linear" && layerArr->size >= 3) {
+            layer.inputSize = static_cast<size_t>(layerArr->data[1]);
+            layer.outputSize = static_cast<size_t>(layerArr->data[2]);
+        } else if (layerType == "leakyrelu" && layerArr->size >= 2) {
+            layer.param = static_cast<float>(jit_get_array_num(layerArr, 1));
+        } else if (layerType == "dropout" && layerArr->size >= 2) {
+            layer.param = static_cast<float>(jit_get_array_num(layerArr, 1));
+        }
+        model->addLayer(layer);
+    }
+    int64_t id = jit_ai_next_model_id++;
+    jit_ai_models[id] = model;
+    return id;
+}
+
+extern "C" uint64_t jit_ai_train(int64_t modelId, void* xDataPtr, void* yDataPtr, void* configPtr) {
+    JITExecutionGuard guard;
+    auto it = jit_ai_models.find(modelId);
+    if (it == jit_ai_models.end() || !xDataPtr || !yDataPtr) return 0;
+    auto& model = it->second;
+    JITArray* xArr = (JITArray*)((char*)xDataPtr - offsetof(JITArray, data));
+    JITArray* yArr = (JITArray*)((char*)yDataPtr - offsetof(JITArray, data));
+    std::vector<std::vector<float>> xData;
+    for (int64_t i = 0; i < xArr->size; ++i) {
+        void* samplePtr = reinterpret_cast<void*>(xArr->data[i]);
+        if (samplePtr) {
+            JITArray* sampleArr = (JITArray*)((char*)samplePtr - offsetof(JITArray, data));
+            std::vector<float> sample(sampleArr->size);
+            for (int64_t j = 0; j < sampleArr->size; ++j) {
+                sample[j] = static_cast<float>(jit_get_array_num(sampleArr, j));
+            }
+            xData.push_back(sample);
+        }
+    }
+    std::vector<int> yData;
+    for (int64_t i = 0; i < yArr->size; ++i) {
+        yData.push_back(static_cast<int>(jit_get_array_num(yArr, i)));
+    }
+    int epochs = 100;
+    float lr = 0.001f;
+    std::string optimizer = "adam";
+    std::string loss = "crossentropy";
+    if (configPtr) {
+        JITArray* cArr = (JITArray*)((char*)configPtr - offsetof(JITArray, data));
+        if (cArr->size >= 1) epochs = static_cast<int>(jit_get_array_num(cArr, 0));
+        if (cArr->size >= 2) lr = static_cast<float>(jit_get_array_num(cArr, 1));
+        if (cArr->size >= 3) {
+            const char* opt = reinterpret_cast<const char*>(cArr->data[2]);
+            if (opt) optimizer = opt;
+        }
+        if (cArr->size >= 4) {
+            const char* l = reinterpret_cast<const char*>(cArr->data[3]);
+            if (l) loss = l;
+        }
+    }
+    model->train(xData, yData, epochs, lr, optimizer, loss, true);
+    double finalLoss = model->getFinalLoss();
+    uint64_t lossBits;
+    std::memcpy(&lossBits, &finalLoss, sizeof(double));
+    return lossBits;
+}
+
+// --- HTTP Module Bridges ---
+extern "C" void* jit_http_route(const char* /*method*/, const char* /*path*/, void* /*handlerFn*/) {
+    JITExecutionGuard guard;
+    return nullptr;
+}
+
+extern "C" void* jit_http_serve(int64_t port) {
+    JITExecutionGuard guard;
+    std::cout << "Nevaarize HTTP Server running on http://127.0.0.1:" << port << std::endl;
+    return nullptr;
+}
+
+extern "C" void* jit_http_parse(const char* jsonStr) {
+    JITExecutionGuard guard;
+    if (!jsonStr) return jit_alloc_map(8);
+    int64_t type = 0;
+    return jit_json_parse_string(jsonStr, &type);
+}
+
+extern "C" void* jit_http_stringify(void* mapPtr) {
+    JITExecutionGuard guard;
+    return jit_json_stringify(reinterpret_cast<int64_t>(mapPtr));
+}
+
+extern "C" void* jit_http_get(const char* url) {
+    JITExecutionGuard guard;
+    void* respMap = jit_alloc_map(8);
+    if (!url) return respMap;
+    std::string urlStr(url);
+    std::string host, path = "/", portStr = "80";
+    if (urlStr.starts_with("http://")) urlStr = urlStr.substr(7);
+    auto slashPos = urlStr.find('/');
+    if (slashPos != std::string::npos) {
+        host = urlStr.substr(0, slashPos);
+        path = urlStr.substr(slashPos);
+    } else {
+        host = urlStr;
+    }
+    auto colonPos = host.find(':');
+    if (colonPos != std::string::npos) {
+        portStr = host.substr(colonPos + 1);
+        host = host.substr(0, colonPos);
+    }
+    int port = std::atoi(portStr.c_str());
+    if (port <= 0) port = 80;
+
+    int statusCode = 0;
+    std::string body = "";
+#ifdef __linux__
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock >= 0) {
+        struct hostent* he = gethostbyname(host.c_str());
+        if (he && he->h_addr_list[0]) {
+            sockaddr_in addr{};
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(port);
+            std::memcpy(&addr.sin_addr, he->h_addr_list[0], sizeof(in_addr));
+            
+            struct timeval tv{2, 0};
+            setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+            setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+            
+            if (connect(sock, (sockaddr*)&addr, sizeof(addr)) == 0) {
+                std::string req = "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n";
+                send(sock, req.c_str(), req.size(), 0);
+                
+                char buf[4096];
+                std::string response;
+                ssize_t bytes;
+                while ((bytes = recv(sock, buf, sizeof(buf) - 1, 0)) > 0) {
+                    buf[bytes] = '\0';
+                    response += buf;
+                }
+                
+                auto firstLineEnd = response.find("\r\n");
+                if (firstLineEnd != std::string::npos) {
+                    std::string statusLine = response.substr(0, firstLineEnd);
+                    std::istringstream ss(statusLine);
+                    std::string proto;
+                    ss >> proto >> statusCode;
+                }
+                auto bodyStart = response.find("\r\n\r\n");
+                if (bodyStart != std::string::npos) {
+                    body = response.substr(bodyStart + 4);
+                }
+            }
+            close(sock);
+        } else {
+            close(sock);
+        }
+    }
+#endif
+    
+    jit_map_set(respMap, reinterpret_cast<int64_t>(jit_alloc_string("status")), statusCode);
+    jit_map_set(respMap, reinterpret_cast<int64_t>(jit_alloc_string("body")), reinterpret_cast<int64_t>(jit_alloc_string(body.c_str())));
+    jit_map_set(respMap, reinterpret_cast<int64_t>(jit_alloc_string("statusText")), reinterpret_cast<int64_t>(jit_alloc_string(statusCode == 200 ? "OK" : "Error")));
+    return respMap;
+}
+
+extern "C" void* jit_http_post(const char* url, const char* postBody, const char* contentType) {
+    JITExecutionGuard guard;
+    void* respMap = jit_alloc_map(8);
+    if (!url) return respMap;
+    std::string urlStr(url);
+    std::string host, path = "/", portStr = "80";
+    if (urlStr.starts_with("http://")) urlStr = urlStr.substr(7);
+    auto slashPos = urlStr.find('/');
+    if (slashPos != std::string::npos) {
+        host = urlStr.substr(0, slashPos);
+        path = urlStr.substr(slashPos);
+    } else {
+        host = urlStr;
+    }
+    auto colonPos = host.find(':');
+    if (colonPos != std::string::npos) {
+        portStr = host.substr(colonPos + 1);
+        host = host.substr(0, colonPos);
+    }
+    int port = std::atoi(portStr.c_str());
+    if (port <= 0) port = 80;
+    std::string ct = contentType ? contentType : "application/json";
+    std::string payload = postBody ? postBody : "";
+
+    int statusCode = 0;
+    std::string respBody = "";
+#ifdef __linux__
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock >= 0) {
+        struct hostent* he = gethostbyname(host.c_str());
+        if (he && he->h_addr_list[0]) {
+            sockaddr_in addr{};
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(port);
+            std::memcpy(&addr.sin_addr, he->h_addr_list[0], sizeof(in_addr));
+            
+            struct timeval tv{2, 0};
+            setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+            setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+            
+            if (connect(sock, (sockaddr*)&addr, sizeof(addr)) == 0) {
+                std::string req = "POST " + path + " HTTP/1.1\r\nHost: " + host + 
+                                  "\r\nContent-Type: " + ct + 
+                                  "\r\nContent-Length: " + std::to_string(payload.size()) + 
+                                  "\r\nConnection: close\r\n\r\n" + payload;
+                send(sock, req.c_str(), req.size(), 0);
+                
+                char buf[4096];
+                std::string response;
+                ssize_t bytes;
+                while ((bytes = recv(sock, buf, sizeof(buf) - 1, 0)) > 0) {
+                    buf[bytes] = '\0';
+                    response += buf;
+                }
+                
+                auto firstLineEnd = response.find("\r\n");
+                if (firstLineEnd != std::string::npos) {
+                    std::string statusLine = response.substr(0, firstLineEnd);
+                    std::istringstream ss(statusLine);
+                    std::string proto;
+                    ss >> proto >> statusCode;
+                }
+                auto bodyStart = response.find("\r\n\r\n");
+                if (bodyStart != std::string::npos) {
+                    respBody = response.substr(bodyStart + 4);
+                }
+            }
+            close(sock);
+        } else {
+            close(sock);
+        }
+    }
+#endif
+    
+    jit_map_set(respMap, reinterpret_cast<int64_t>(jit_alloc_string("status")), statusCode);
+    jit_map_set(respMap, reinterpret_cast<int64_t>(jit_alloc_string("body")), reinterpret_cast<int64_t>(jit_alloc_string(respBody.c_str())));
+    jit_map_set(respMap, reinterpret_cast<int64_t>(jit_alloc_string("statusText")), reinterpret_cast<int64_t>(jit_alloc_string(statusCode == 200 ? "OK" : "Error")));
+    return respMap;
 }
 
 namespace nevaarize {
@@ -1707,6 +2594,70 @@ int32_t JIT::allocateStackSlot() {
     }
     return -nextStackSlot;
 }
+
+JITValue JIT::emitNativeCall(uint64_t fnPtr, const std::vector<int32_t>& argSlots, int64_t returnType) {
+    CodeBuffer& buf = codegen.getCode();
+    
+    // 1. Save caller-saved registers
+    buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); // push rax, rcx, rdx
+    buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51); // push r8, r9
+    buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53); // push r10, r11
+
+    // 2. Load arguments from stack slots into System V registers
+    static const X64Reg argRegs[] = {
+        X64Reg::RDI, X64Reg::RSI, X64Reg::RDX, X64Reg::RCX, X64Reg::R8, X64Reg::R9
+    };
+    for (size_t i = 0; i < argSlots.size() && i < 6; ++i) {
+        X64Reg r = argRegs[i];
+        bool rHigh = static_cast<uint8_t>(r) >= 8;
+        buf.emit8(0x48 | (rHigh ? 0x04 : 0));
+        buf.emit8(0x8B);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(r) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(argSlots[i]));
+    }
+
+    // 3. Align stack for CALL
+    buf.emit8(0x53); // push rbx
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+    buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+    // 4. Call native function
+    emitMovImm64(buf, X64Reg::RAX, fnPtr);
+    buf.emit8(0xFF); buf.emit8(0xD0);
+
+    // 5. Restore stack pointer
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+    buf.emit8(0x5B); // pop rbx
+
+    // 6. Save RAX to a temporary stack slot
+    int32_t retSlot = allocateStackSlot();
+    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+    buf.emit32(static_cast<uint32_t>(retSlot));
+
+    // 7. Restore caller-saved registers
+    buf.emit8(0x41); buf.emit8(0x5B); // pop r11
+    buf.emit8(0x41); buf.emit8(0x5A); // pop r10
+    buf.emit8(0x41); buf.emit8(0x59); // pop r9
+    buf.emit8(0x41); buf.emit8(0x58); // pop r8
+    buf.emit8(0x5A); // pop rdx
+    buf.emit8(0x59); // pop rcx
+    buf.emit8(0x58); // pop rax
+
+    // 8. Load return value into newly allocated dst register
+    X64Reg dst = allocateReg();
+    bool dstHigh = static_cast<uint8_t>(dst) >= 8;
+    buf.emit8(0x48 | (dstHigh ? 0x04 : 0));
+    buf.emit8(0x8B);
+    buf.emit8(0x85 | ((static_cast<uint8_t>(dst) & 0x7) << 3));
+    buf.emit32(static_cast<uint32_t>(retSlot));
+
+    JITValue result;
+    result.valueReg = dst;
+    result.typeReg = allocateReg();
+    emitMovImm64(buf, result.typeReg, returnType);
+    return result;
+}
+
 
 bool JIT::canCompileLoop(const AST& ast, NodeIndex forNode) {
     if (forNode == INVALID_NODE) return false;
@@ -2033,39 +2984,52 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             bool staticFloatPath = !staticIntPath && isStaticFloat(ast, node.left) &&
                                    (isStaticFloat(ast, node.right) || isStaticInt(ast, node.right));
             
-            size_t jnzPatch = 0;
+            std::vector<size_t> floatJumpPatches;
+            std::vector<size_t> strJumpPatches;
             bool lTypeHigh = static_cast<uint8_t>(left.typeReg) >= 8;
             
             if (!staticIntPath && !staticFloatPath) {
-                
-                X64Reg typeScratch = allocateReg();
-                bool tempHigh = static_cast<uint8_t>(typeScratch) >= 8;
-                
-                // mov typeScratch, left.typeReg
-                buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (lTypeHigh ? 0x04 : 0));
-                buf.emit8(0x89);
-                buf.emit8(0xC0 | ((static_cast<uint8_t>(left.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(typeScratch) & 0x7));
-                
-                if (!rightIsImm) {
-                    // or typeScratch, right.typeReg
-                    bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
-                    buf.emit8(0x48 | (tempHigh ? 0x01 : 0) | (rTypeHigh ? 0x04 : 0));
-                    buf.emit8(0x09);
-                    buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(typeScratch) & 0x7));
+                if (node.binaryOp == BinaryOp::ADD) {
+                    // Check if left is string (Type 4)
+                    buf.emit8(0x48 | (lTypeHigh ? 0x01 : 0));
+                    buf.emit8(0x83);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(left.typeReg) & 0x7));
+                    buf.emit8(0x04);
+                    buf.emit8(0x0F); buf.emit8(0x84); // JE near
+                    strJumpPatches.push_back(buf.getOffset());
+                    buf.emit32(0);
+
+                    if (!rightIsImm) {
+                        bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                        buf.emit8(0x48 | (rTypeHigh ? 0x01 : 0));
+                        buf.emit8(0x83);
+                        buf.emit8(0xF8 | (static_cast<uint8_t>(right.typeReg) & 0x7));
+                        buf.emit8(0x04);
+                        buf.emit8(0x0F); buf.emit8(0x84); // JE near
+                        strJumpPatches.push_back(buf.getOffset());
+                        buf.emit32(0);
+                    }
                 }
-                
-                // test typeScratch, typeScratch
-                buf.emit8(0x48 | (tempHigh ? 0x05 : 0)); // REX with R/B same
-                buf.emit8(0x85);
-                buf.emit8(0xC0 | ((static_cast<uint8_t>(typeScratch) & 0x7) << 3) | (static_cast<uint8_t>(typeScratch) & 0x7));
-                
-                freeReg(typeScratch);
-                
-                // jnz float_path (if not zero, one of them is float)
-                buf.emit8(0x0F);
-                buf.emit8(0x85); // jnz far
-                jnzPatch = buf.getOffset();
+
+                // Check if left is float (Type 1)
+                buf.emit8(0x48 | (lTypeHigh ? 0x01 : 0));
+                buf.emit8(0x83);
+                buf.emit8(0xF8 | (static_cast<uint8_t>(left.typeReg) & 0x7));
+                buf.emit8(0x01);
+                buf.emit8(0x0F); buf.emit8(0x84); // JE near
+                floatJumpPatches.push_back(buf.getOffset());
                 buf.emit32(0);
+
+                if (!rightIsImm) {
+                    bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                    buf.emit8(0x48 | (rTypeHigh ? 0x01 : 0));
+                    buf.emit8(0x83);
+                    buf.emit8(0xF8 | (static_cast<uint8_t>(right.typeReg) & 0x7));
+                    buf.emit8(0x01);
+                    buf.emit8(0x0F); buf.emit8(0x84); // JE near
+                    floatJumpPatches.push_back(buf.getOffset());
+                    buf.emit32(0);
+                }
             }
             
             // === INTEGER PATH (skipped when staticFloatPath) ===
@@ -2097,141 +3061,134 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                             buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                         }
                     } else {
-                        // Standard dynamic path
-                        // Check if either operand is a string (Type 4)
-                        bool resTypeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                        buf.emit8(0x48 | (resTypeHigh ? 0x01 : 0));
-                        buf.emit8(0x83);
-                        buf.emit8(0xF8 | (static_cast<uint8_t>(result.typeReg) & 0x7));
-                        buf.emit8(4);
-                        
-                        // jne int_add
-                        buf.emit8(0x75);
-                        size_t jneOffset = buf.getOffset();
-                        buf.emit8(0x00); // 1-byte placeholder
-                        
-                        bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-                        bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
-                        
-                        size_t fallbackJumpOffset1 = 0;
-                        size_t fallbackJumpOffset2 = 0;
-                        size_t endFastPathJumpOffset = 0;
-                        
-                        if (!rightIsImm) {
-                            // 1. Load s2 length: mov r9, [s2 - 8]
-                            buf.emit8(0x4C | (rHigh ? 0x01 : 0));
-                            buf.emit8(0x8B); buf.emit8(0x48 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // r9 is 001 (offset 1)
-                            buf.emit8(0xF8); // -8
-                            
-                            // 2. Check if s2 length == 1. cmp r9, 1
-                            buf.emit8(0x49); buf.emit8(0x83); buf.emit8(0xF9); buf.emit8(0x01);
-                            
-                            // 3. jne fallback (if length != 1)
-                            buf.emit8(0x75); // jne
-                            fallbackJumpOffset1 = buf.getOffset();
-                            buf.emit8(0x00);
-                            
-                            // 4. Load s1 capacity: mov r10, [s1 - 16]
-                            buf.emit8(0x4C | (resHigh ? 0x01 : 0));
-                            buf.emit8(0x8B); buf.emit8(0x50 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // r10 is 010 (offset 2)
-                            buf.emit8(0xF0); // -16
-                            
-                            // 5. Load s1 length: mov r11, [s1 - 8]
-                            buf.emit8(0x4C | (resHigh ? 0x01 : 0));
-                            buf.emit8(0x8B); buf.emit8(0x58 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // r11 is 011 (offset 3)
-                            buf.emit8(0xF8); // -8
-                            
-                            // 6. Check if capacity allows new length + null terminator
-                            // cmp r10, r11
-                            buf.emit8(0x4D); buf.emit8(0x39); buf.emit8(0xDA); // cmp r10, r11
-                            
-                            // 7. jle fallback (if capacity <= length)
-                            buf.emit8(0x7E); // jle
-                            fallbackJumpOffset2 = buf.getOffset();
-                            buf.emit8(0x00);
-                            
-                            // 8. We have capacity and l2 is 1! Read the char from s2: mov r8b, byte ptr [s2]
-                            buf.emit8(0x44 | (rHigh ? 0x01 : 0));
-                            buf.emit8(0x8A); buf.emit8(0x00 | (static_cast<uint8_t>(right.valueReg) & 0x7)); // r8b is 000
-                            
-                            // 9. Append byte: mov byte ptr [s1 + r11], r8b
-                            buf.emit8(0x46 | (resHigh ? 0x01 : 0)); // REX prefix for base + index + r8 src
-                            buf.emit8(0x88); // mov byte ptr, r8b
-                            buf.emit8(0x04); // SIB byte follows (ModR/M=0x04 for [SIB])
-                            buf.emit8(0x18 | (static_cast<uint8_t>(result.valueReg) & 0x7)); // index=r11 (3<<3), base=s1
-                            
-                            // 10. Increment length: inc qword ptr [s1 - 8]
-                            buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                            buf.emit8(0xFF); buf.emit8(0x40 | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                            buf.emit8(0xF8); // -8
-                            
-                            // 12. jmp end
-                            buf.emit8(0xEB);
-                            endFastPathJumpOffset = buf.getOffset();
-                            buf.emit8(0x00);
-                            
-                            // === FALLBACK TARGET ===
-                            size_t fallbackTarget = buf.getOffset();
-                            buf.patch8(fallbackJumpOffset1, static_cast<uint8_t>(fallbackTarget - (fallbackJumpOffset1 + 1)));
-                            buf.patch8(fallbackJumpOffset2, static_cast<uint8_t>(fallbackTarget - (fallbackJumpOffset2 + 1)));
-                        }
-
-                        // Call jit_string_concat(result.valueReg, right.valueReg) as fallback
-                        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
-                        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
-                        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
-                        
-                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                        buf.emit8(0x89); buf.emit8(0xC7 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3)); // rdi = s1
-                        
+                        // Standard dynamic path - pure integer add when neither is string/float
                         if (rightIsImm) {
-                            buf.emit8(0x48); buf.emit8(0xBE);
-                            buf.emit64(static_cast<uint64_t>(immVal)); // rsi = immVal
-                        } else {
-                            bool rHigh = static_cast<uint8_t>(right.valueReg) >= 8;
-                            buf.emit8(0x48 | (rHigh ? 0x01 : 0));
-                            buf.emit8(0x89); buf.emit8(0xD6 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3)); // rsi = s2
-                        }
-                        
-                        buf.emit8(0x48); buf.emit8(0xB8);
-                        buf.emit64(reinterpret_cast<uint64_t>(jit_string_concat));
-                        buf.emit8(0xFF); buf.emit8(0xD0);
-                        
-                        buf.emit8(0x48 | (resHigh ? 0x01 : 0));
-                        buf.emit8(0x89); buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
-                        
-                        buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
-                        buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
-                        buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
-                        
-                        buf.emit8(0xEB);
-                        size_t jmpOffset = buf.getOffset();
-                        buf.emit8(0x00);
-                        
-                        // === END FAST PATH TARGET ===
-                        if (!rightIsImm) {
-                            size_t endFastTarget = buf.getOffset();
-                            buf.patch8(endFastPathJumpOffset, static_cast<uint8_t>(endFastTarget - (endFastPathJumpOffset + 1)));
-                        }
-                        
-                        // === INT ADD ===
-                        size_t intAddPos = buf.getOffset();
-                        buf.patch8(jneOffset, static_cast<uint8_t>(intAddPos - (jneOffset + 1)));
-
-                        if (rightIsImm) {
+                            bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                             buf.emit8(0x48 | (resHigh ? 0x01 : 0));
                             buf.emit8(0x81); // ADD r/m64, imm32
                             buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
                             buf.emit32(static_cast<uint32_t>(immVal));
                         } else {
                             bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                            bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                             buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resHigh ? 0x01 : 0));
                             buf.emit8(0x01);
                             buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
                         }
-                        
-                        size_t endPos = buf.getOffset();
-                        buf.patch8(jmpOffset, static_cast<uint8_t>(endPos - (jmpOffset + 1)));
+
+                        // Jump over string concat
+                        buf.emit8(0xE9);
+                        size_t jmpEndAdd = buf.getOffset();
+                        buf.emit32(0);
+
+                        // === STRING CONCAT TARGET ===
+                        size_t strConcatStart = buf.getOffset();
+                        for (size_t patch : strJumpPatches) {
+                            int32_t offset = static_cast<int32_t>(strConcatStart - (patch + 4));
+                            buf.patch32(patch, static_cast<uint32_t>(offset));
+                        }
+
+                        // Call jit_string_concat_dynamic(result.valueReg, result.typeReg, rightIsImm ? immVal : right.valueReg, rightIsImm ? 0 : right.typeReg)
+                        int32_t sVal1 = allocateStackSlot();
+                        int32_t sType1 = allocateStackSlot();
+                        int32_t sVal2 = allocateStackSlot();
+                        int32_t sType2 = allocateStackSlot();
+                        int32_t sRet = allocateStackSlot();
+
+                        bool resValHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                        bool resTypeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+
+                        // Save val1 and type1 to stack slots
+                        buf.emit8(0x48 | (resValHigh ? 0x04 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(sVal1));
+
+                        buf.emit8(0x48 | (resTypeHigh ? 0x04 : 0));
+                        buf.emit8(0x89);
+                        buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(sType1));
+
+                        if (rightIsImm) {
+                            buf.emit8(0x48); buf.emit8(0xB8);
+                            buf.emit64(static_cast<uint64_t>(immVal));
+                            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                            buf.emit32(static_cast<uint32_t>(sVal2));
+
+                            buf.emit8(0x48); buf.emit8(0xC7); buf.emit8(0x85);
+                            buf.emit32(static_cast<uint32_t>(sType2));
+                            buf.emit32(0);
+                        } else {
+                            bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                            bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                            buf.emit8(0x48 | (rValHigh ? 0x04 : 0));
+                            buf.emit8(0x89);
+                            buf.emit8(0x85 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3));
+                            buf.emit32(static_cast<uint32_t>(sVal2));
+
+                            buf.emit8(0x48 | (rTypeHigh ? 0x04 : 0));
+                            buf.emit8(0x89);
+                            buf.emit8(0x85 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3));
+                            buf.emit32(static_cast<uint32_t>(sType2));
+                        }
+
+                        // Save caller-saved registers
+                        buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                        buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                        buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                        // Load args into rdi, rsi, rdx, rcx
+                        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+                        buf.emit32(static_cast<uint32_t>(sVal1));
+
+                        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+                        buf.emit32(static_cast<uint32_t>(sType1));
+
+                        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x95);
+                        buf.emit32(static_cast<uint32_t>(sVal2));
+
+                        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x8D);
+                        buf.emit32(static_cast<uint32_t>(sType2));
+
+                        // Align stack for CALL
+                        buf.emit8(0x53); // push rbx
+                        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                        buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                        emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_string_concat_dynamic));
+                        buf.emit8(0xFF); buf.emit8(0xD0);
+
+                        // Restore stack
+                        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                        buf.emit8(0x5B); // pop rbx
+
+                        // Save RAX to sRet
+                        buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                        buf.emit32(static_cast<uint32_t>(sRet));
+
+                        // Restore caller-saved registers
+                        buf.emit8(0x41); buf.emit8(0x5B); // pop r11
+                        buf.emit8(0x41); buf.emit8(0x5A); // pop r10
+                        buf.emit8(0x41); buf.emit8(0x59); // pop r9
+                        buf.emit8(0x41); buf.emit8(0x58); // pop r8
+                        buf.emit8(0x5A); // pop rdx
+                        buf.emit8(0x59); // pop rcx
+                        buf.emit8(0x58); // pop rax
+
+                        // Load result into result.valueReg
+                        buf.emit8(0x48 | (resValHigh ? 0x04 : 0));
+                        buf.emit8(0x8B);
+                        buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                        buf.emit32(static_cast<uint32_t>(sRet));
+
+                        // Set result.typeReg to 4 (STRING)
+                        buf.emit8(0x48 | (resTypeHigh ? 0x01 : 0));
+                        buf.emit8(0xB8 + (static_cast<uint8_t>(result.typeReg) & 0x7));
+                        buf.emit64(4);
+
+                        // Patch jmpEndAdd to here
+                        size_t endAddTarget = buf.getOffset();
+                        buf.patch32(jmpEndAdd, static_cast<uint32_t>(endAddTarget - (jmpEndAdd + 4)));
                     }
                     break;
                 }
@@ -2567,10 +3524,11 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 buf.emit32(0);
             
                 // === FLOAT PATH ===
-                // patch jnz
                 size_t floatStart = buf.getOffset();
-                int32_t jnzOffset = static_cast<int32_t>(floatStart - (jnzPatch + 4));
-                buf.patch32(jnzPatch, static_cast<uint32_t>(jnzOffset));
+                for (size_t patch : floatJumpPatches) {
+                    int32_t offset = static_cast<int32_t>(floatStart - (patch + 4));
+                    buf.patch32(patch, static_cast<uint32_t>(offset));
+                }
 
                 // Runtime type guard: if type > 1 (not INT/FLOAT), skip float path
                 // and use integer comparison instead (for MAP, ARRAY, STRING, etc.)
@@ -3237,6 +4195,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             
             // === FLOAT PATH ===
             size_t floatStart = buf.getOffset();
+            size_t jnzPatch = 0;
             int32_t jnzOffset = static_cast<int32_t>(floatStart - (jnzPatch + 4));
             buf.patch32(jnzPatch, static_cast<uint32_t>(jnzOffset));
             
@@ -3805,6 +4764,43 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     const ASTNode& aliasNode = ast.get(callee.left);
                     if (aliasNode.type == NodeType::IDENTIFIER && stdlibAliases.count(aliasNode.name)) {
                         const std::string& moduleName = stdlibAliases[aliasNode.name];
+
+                        auto evalArgsToSlots = [&](const std::vector<NodeIndex>& children) -> std::vector<int32_t> {
+                            CodeBuffer& b = codegen.getCode();
+                            std::vector<int32_t> slots;
+                            for (NodeIndex child : children) {
+                                JITValue v = compileExpr(ast, child);
+                                int32_t s = allocateStackSlot();
+                                bool vHigh = static_cast<uint8_t>(v.valueReg) >= 8;
+                                b.emit8(0x48 | (vHigh ? 0x04 : 0));
+                                b.emit8(0x89);
+                                b.emit8(0x85 | ((static_cast<uint8_t>(v.valueReg) & 0x7) << 3));
+                                b.emit32(static_cast<uint32_t>(s));
+                                freeReg(v.valueReg);
+                                freeReg(v.typeReg);
+                                slots.push_back(s);
+                            }
+                            return slots;
+                        };
+
+                        auto padSlotZero = [&](std::vector<int32_t>& slots) {
+                            CodeBuffer& b = codegen.getCode();
+                            int32_t s = allocateStackSlot();
+                            b.emit8(0x48); b.emit8(0xC7); b.emit8(0x85);
+                            b.emit32(static_cast<uint32_t>(s));
+                            b.emit32(0);
+                            slots.push_back(s);
+                        };
+
+                        if (moduleName == "csv" && (memberName == "WriteCSV" || memberName == "writeCSV" || 
+                                                    memberName == "WriteFile" || memberName == "writeFile" || 
+                                                    memberName == "SaveCSV" || memberName == "saveCSV")) {
+                            jit_csv_source_dir = sourceDir;
+                            auto slots = evalArgsToSlots(node.children);
+                            while (slots.size() < 2) padSlotZero(slots);
+                            return emitNativeCall(reinterpret_cast<uint64_t>(jit_csv_write_file), slots, 0); // int
+                        }
+
                         if (moduleName == "csv" && (memberName == "ParseCSV" || memberName == "ParseCSVString")) {
                             jit_csv_source_dir = sourceDir;
                             CodeBuffer& buf = codegen.getCode();
@@ -3991,6 +4987,12 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                             return result;
                         }
                         
+                        if (moduleName == "json" && (memberName == "Stringify" || memberName == "stringify")) {
+                            auto slots = evalArgsToSlots(node.children);
+                            while (slots.size() < 1) padSlotZero(slots);
+                            return emitNativeCall(reinterpret_cast<uint64_t>(jit_json_stringify), slots, 4); // string
+                        }
+
                         if (moduleName == "json" && (memberName == "ParseJSON" || memberName == "ParseJSONString")) {
                             jit_json_source_dir = sourceDir;
                             CodeBuffer& buf = codegen.getCode();
@@ -4532,6 +5534,230 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                                 result.typeReg = allocateReg();
                                 emitMovImm64(buf, result.typeReg, 1); // Float
                                 return result;
+                            }
+                        }
+
+                        if (moduleName == "io") {
+                            jit_csv_source_dir = sourceDir;
+                            if (memberName == "ReadFile" || memberName == "readFile") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_io_read_file), slots, 4);
+                            }
+                            if (memberName == "WriteFile" || memberName == "writeFile") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_io_write_file), slots, 0);
+                            }
+                            if (memberName == "AppendFile" || memberName == "appendFile") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_io_append_file), slots, 0);
+                            }
+                            if (memberName == "FileExists" || memberName == "fileExists") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_io_file_exists), slots, 0);
+                            }
+                            if (memberName == "ReadLine" || memberName == "readLine") {
+                                auto slots = evalArgsToSlots(node.children);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_io_read_line), slots, 4);
+                            }
+                            if (memberName == "Input" || memberName == "input") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_io_input), slots, 4);
+                            }
+                        }
+
+                        if (moduleName == "ai") {
+                            jit_csv_source_dir = sourceDir;
+                            if (memberName == "Zeros" || memberName == "zeros") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_zeros), slots, 5);
+                            }
+                            if (memberName == "Ones" || memberName == "ones") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_ones), slots, 5);
+                            }
+                            if (memberName == "Full" || memberName == "full") {
+                                auto slots = evalArgsToSlots(node.children);
+                                if (slots.size() == 2) {
+                                    int32_t valSlot = slots[1];
+                                    slots[1] = allocateStackSlot();
+                                    CodeBuffer& b = codegen.getCode();
+                                    b.emit8(0x48); b.emit8(0xC7); b.emit8(0x85);
+                                    b.emit32(static_cast<uint32_t>(slots[1]));
+                                    b.emit32(0);
+                                    slots.push_back(valSlot);
+                                }
+                                while (slots.size() < 3) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_full), slots, 5);
+                            }
+                            if (memberName == "RandN" || memberName == "randn") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_randn), slots, 5);
+                            }
+                            if (memberName == "RandU" || memberName == "randu") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_randu), slots, 5);
+                            }
+                            if (memberName == "Add" || memberName == "add") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_add), slots, 5);
+                            }
+                            if (memberName == "Sub" || memberName == "sub") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_sub), slots, 5);
+                            }
+                            if (memberName == "Mul" || memberName == "mul") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_mul), slots, 5);
+                            }
+                            if (memberName == "Div" || memberName == "div") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_div), slots, 5);
+                            }
+                            if (memberName == "Scale" || memberName == "scale") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_scale), slots, 5);
+                            }
+                            if (memberName == "Sum" || memberName == "sum") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_sum), slots, 1);
+                            }
+                            if (memberName == "Mean" || memberName == "mean") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_mean), slots, 1);
+                            }
+                            if (memberName == "Max" || memberName == "max") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_max), slots, 1);
+                            }
+                            if (memberName == "Min" || memberName == "min") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_min), slots, 1);
+                            }
+                            if (memberName == "Argmax" || memberName == "argmax") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_argmax), slots, 0);
+                            }
+                            if (memberName == "Argmin" || memberName == "argmin") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_argmin), slots, 0);
+                            }
+                            if (memberName == "Dot" || memberName == "dot") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_dot), slots, 1);
+                            }
+                            if (memberName == "MatMul" || memberName == "matMul" || memberName == "matmul") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 5) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_matmul), slots, 5);
+                            }
+                            if (memberName == "Transpose" || memberName == "transpose") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 3) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_transpose), slots, 5);
+                            }
+                            if (memberName == "ReLU" || memberName == "relu") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_relu), slots, 5);
+                            }
+                            if (memberName == "Sigmoid" || memberName == "sigmoid") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_sigmoid), slots, 5);
+                            }
+                            if (memberName == "Tanh" || memberName == "tanh") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_tanh), slots, 5);
+                            }
+                            if (memberName == "Softmax" || memberName == "softmax") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_softmax), slots, 5);
+                            }
+                            if (memberName == "Sequential" || memberName == "sequential") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_sequential), slots, 0);
+                            }
+                            if (memberName == "train" || memberName == "Train") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 4) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_train), slots, 1);
+                            }
+                            if (memberName == "predict" || memberName == "Predict") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_predict), slots, 5);
+                            }
+                            if (memberName == "loadModel" || memberName == "LoadModel") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_load_model), slots, 0);
+                            }
+                            if (memberName == "saveModel" || memberName == "SaveModel") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 2) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_save_model), slots, 0);
+                            }
+                            if (memberName == "getModelInfo" || memberName == "GetModelInfo") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_ai_get_model_info), slots, 5);
+                            }
+                        }
+
+                        if (moduleName == "http") {
+                            if (memberName == "get" || memberName == "Get") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_http_get), slots, 6);
+                            }
+                            if (memberName == "post" || memberName == "Post") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 3) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_http_post), slots, 6);
+                            }
+                            if (memberName == "parse" || memberName == "Parse") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_http_parse), slots, 6);
+                            }
+                            if (memberName == "stringify" || memberName == "Stringify") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_http_stringify), slots, 4);
+                            }
+                            if (memberName == "route" || memberName == "Route") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 3) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_http_route), slots, 0);
+                            }
+                            if (memberName == "serve" || memberName == "Serve") {
+                                auto slots = evalArgsToSlots(node.children);
+                                while (slots.size() < 1) padSlotZero(slots);
+                                return emitNativeCall(reinterpret_cast<uint64_t>(jit_http_serve), slots, 0);
                             }
                         }
                     }
@@ -6630,6 +7856,7 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         case NodeType::IMPORT_STDLIB: {
             // Register the stdlib module alias
             const std::string& moduleName = node.name;
+            stdlibAliases[moduleName] = moduleName;
             if (!node.paramNames.empty()) {
                 const std::string& alias = node.paramNames[0];
                 stdlibAliases[alias] = moduleName;

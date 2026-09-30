@@ -170,6 +170,7 @@ private:
     void compileCall(const AST& ast, NodeIndex idx);
     void compileFuncDecl(const AST& ast, NodeIndex idx, bool isAsync = false);
     JITValue compileUserCall(const AST& ast, NodeIndex idx, const std::string& funcName);
+    JITValue emitNativeCall(uint64_t fnPtr, const std::vector<int32_t>& argSlots, int64_t returnType);
     
     // Native function call emission
     void emitPrintInt(X64Reg valueReg);

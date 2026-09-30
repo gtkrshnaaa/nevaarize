@@ -725,7 +725,26 @@ NodeIndex Parser::primary() {
         if (str.size() >= 2) {
             str = str.substr(1, str.size() - 2);
         }
-        node.literal = LiteralValue(std::string(str));
+        std::string unescaped;
+        unescaped.reserve(str.size());
+        for (size_t i = 0; i < str.size(); ++i) {
+            if (str[i] == '\\' && i + 1 < str.size()) {
+                char next = str[++i];
+                switch (next) {
+                    case 'n': unescaped += '\n'; break;
+                    case 't': unescaped += '\t'; break;
+                    case 'r': unescaped += '\r'; break;
+                    case '\\': unescaped += '\\'; break;
+                    case '"': unescaped += '"'; break;
+                    case '\'': unescaped += '\''; break;
+                    case '0': unescaped += '\0'; break;
+                    default: unescaped += '\\'; unescaped += next; break;
+                }
+            } else {
+                unescaped += str[i];
+            }
+        }
+        node.literal = LiteralValue(std::move(unescaped));
         return ast.addNode(std::move(node));
     }
 
