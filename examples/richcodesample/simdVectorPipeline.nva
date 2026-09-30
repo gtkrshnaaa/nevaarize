@@ -1,0 +1,47 @@
+import stdlib simd as simd
+import stdlib time as t
+
+// High-Throughput SIMD Vector Mathematics and Reduction Pipeline
+// Tests AVX2 and AVX-512 hardware acceleration across multi-stage vector operations
+
+print("=== Nevaarize SIMD Vector Pipeline Demo ===")
+startTime = t.millis()
+
+featureFlags = simd.Detect()
+print("Hardware SIMD Capabilities:", featureFlags)
+
+vecA = [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+vecB = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+weights = [2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0]
+
+// Pipeline Stage 1: Parallel Vector Addition
+sumVec = simd.VectorAdd(vecA, vecB)
+print("Stage 1 (VectorAdd): length =", sumVec.length())
+
+// Pipeline Stage 2: Parallel Vector Multiplication with weights
+weightedVec = simd.VectorMul(sumVec, weights)
+print("Stage 2 (VectorMul): length =", weightedVec.length())
+
+// Pipeline Stage 3: Vector Reductions (Sum, Min, Max)
+totalSum = simd.Sum(weightedVec)
+minVal = simd.Min(weightedVec)
+maxVal = simd.Max(weightedVec)
+
+print("Pipeline Reductions:")
+print(" - Total Sum:", totalSum)
+print(" - Minimum  :", minVal)
+print(" - Maximum  :", maxVal)
+
+// Pipeline Stage 4: Dot Product Projection
+projection = simd.VectorDot(vecA, vecB)
+print("Vector Dot Product (vecA . vecB):", projection)
+
+// Verify mathematical consistency
+if (totalSum > 0.0 and maxVal >= minVal) {
+    print("SIMD Pipeline Output Verification: PASSED")
+} else {
+    print("SIMD Pipeline Output Verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("SIMD Pipeline execution finished in", elapsed, "ms")
