@@ -1,0 +1,136 @@
+import stdlib time as t
+
+// Dijkstra's Shunting-Yard Infix to Postfix Algorithm and RPN Evaluator
+// Parses infix token stream using precedence stack and evaluates mathematical expression
+
+print("=== Nevaarize Shunting-Yard Expression Evaluator ===")
+startTime = t.millis()
+
+// Tokens encoding:
+// Numbers: positive values (e.g. 3, 5, 2, 8, 4)
+// Operators: -1 for '+', -2 for '-', -3 for '*', -4 for '/', -5 for '(', -6 for ')'
+tokPlus = -1
+tokMinus = -2
+tokMul = -3
+tokDiv = -4
+tokLparen = -5
+tokRparen = -6
+
+// Expression: (3 + 5) * 2 - 8 / 4
+tokens = [tokLparen, 3, tokPlus, 5, tokRparen, tokMul, 2, tokMinus, 8, tokDiv, 4]
+numTokens = tokens.length()
+
+// Precedence helper
+func getPrecedence(opTok) {
+    if (opTok == -3 or opTok == -4) {
+        return 2 // * and /
+    }
+    if (opTok == -1 or opTok == -2) {
+        return 1 // + and -
+    }
+    return 0
+}
+
+// Stacks for Shunting-Yard
+opStack = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+opTop = 0
+
+rpnQueue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+rpnCount = 0
+
+tIdx = 0
+while (tIdx < numTokens) {
+    tok = tokens[tIdx]
+
+    if (tok >= 0) {
+        // Operand -> push to output queue
+        rpnQueue[rpnCount] = tok
+        rpnCount = rpnCount + 1
+    } else {
+        if (tok == tokLparen) {
+            opStack[opTop] = tok
+            opTop = opTop + 1
+        } else {
+            if (tok == tokRparen) {
+                while (opTop > 0 and opStack[opTop - 1] != tokLparen) {
+                    opTop = opTop - 1
+                    rpnQueue[rpnCount] = opStack[opTop]
+                    rpnCount = rpnCount + 1
+                }
+                if (opTop > 0 and opStack[opTop - 1] == tokLparen) {
+                    opTop = opTop - 1 // pop '('
+                }
+            } else {
+                // Operator: pop operators with greater or equal precedence
+                prec = getPrecedence(tok)
+                while (opTop > 0 and opStack[opTop - 1] != tokLparen and getPrecedence(opStack[opTop - 1]) >= prec) {
+                    opTop = opTop - 1
+                    rpnQueue[rpnCount] = opStack[opTop]
+                    rpnCount = rpnCount + 1
+                }
+                opStack[opTop] = tok
+                opTop = opTop + 1
+            }
+        }
+    }
+    tIdx = tIdx + 1
+}
+
+// Pop remaining operators
+while (opTop > 0) {
+    opTop = opTop - 1
+    rpnQueue[rpnCount] = opStack[opTop]
+    rpnCount = rpnCount + 1
+}
+
+print("Converted to RPN with", rpnCount, "tokens.")
+
+// Evaluate RPN
+evalStack = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+evalTop = 0
+
+qIdx = 0
+while (qIdx < rpnCount) {
+    item = rpnQueue[qIdx]
+    if (item >= 0) {
+        evalStack[evalTop] = item
+        evalTop = evalTop + 1
+    } else {
+        val2 = evalStack[evalTop - 1]
+        val1 = evalStack[evalTop - 2]
+        evalTop = evalTop - 2
+
+        res = 0
+        if (item == tokPlus) {
+            res = val1 + val2
+        } else {
+            if (item == tokMinus) {
+                res = val1 - val2
+            } else {
+                if (item == tokMul) {
+                    res = val1 * val2
+                } else {
+                    if (item == tokDiv) {
+                        res = val1 / val2
+                    }
+                }
+            }
+        }
+        evalStack[evalTop] = res
+        evalTop = evalTop + 1
+    }
+    qIdx = qIdx + 1
+}
+
+finalEval = evalStack[evalTop - 1]
+print("Evaluation Result:", finalEval)
+
+// Expected: (3 + 5) * 2 - 8 / 4 = 8 * 2 - 2 = 14
+if (finalEval == 14) {
+    print("Shunting-Yard Evaluation: PASSED (14 == 14)")
+} else {
+    print("Shunting-Yard Evaluation: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Shunting-Yard benchmark completed in", elapsed, "ms")
