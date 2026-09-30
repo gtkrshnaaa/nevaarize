@@ -1,0 +1,91 @@
+import stdlib time as t
+
+// Stack-Based Bytecode Virtual Machine Emulator
+// Implements an instruction decoder, evaluation stack, and arithmetic bytecode interpreter
+
+print("=== Nevaarize Stack Virtual Machine Demo ===")
+startTime = t.millis()
+
+// Opcode Definitions
+opPush = 1
+opAdd = 2
+opSub = 3
+opMul = 4
+opDup = 5
+opHalt = 99
+
+// Bytecode program: ((10 + 20) * 3) - 15 = 75
+// Program format: [opPush, 10, opPush, 20, opAdd, opPush, 3, opMul, opPush, 15, opSub, opHalt]
+code = [
+    1, 10,
+    1, 20,
+    2,
+    1, 3,
+    4,
+    1, 15,
+    3,
+    99
+]
+
+codeLen = code.length()
+
+// Stack allocation (depth 16)
+vmStack = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+sp = 0
+pc = 0
+running = 1
+
+while (running == 1 and pc < codeLen) {
+    op = code[pc]
+    pc = pc + 1
+
+    if (op == opPush) {
+        val = code[pc]
+        pc = pc + 1
+        vmStack[sp] = val
+        sp = sp + 1
+    } else {
+        if (op == opAdd) {
+            b = vmStack[sp - 1]
+            a = vmStack[sp - 2]
+            sp = sp - 1
+            vmStack[sp - 1] = a + b
+        } else {
+            if (op == opSub) {
+                b = vmStack[sp - 1]
+                a = vmStack[sp - 2]
+                sp = sp - 1
+                vmStack[sp - 1] = a - b
+            } else {
+                if (op == opMul) {
+                    b = vmStack[sp - 1]
+                    a = vmStack[sp - 2]
+                    sp = sp - 1
+                    vmStack[sp - 1] = a * b
+                } else {
+                    if (op == opDup) {
+                        topVal = vmStack[sp - 1]
+                        vmStack[sp] = topVal
+                        sp = sp + 1
+                    } else {
+                        if (op == opHalt) {
+                            running = 0
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+finalResult = vmStack[sp - 1]
+print("VM Execution Finished. Top of Stack Result:", finalResult)
+
+if (finalResult == 75) {
+    print("Stack VM Result Verification: PASSED (75 == 75)")
+} else {
+    print("Stack VM Result Verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Bytecode VM simulation finished in", elapsed, "ms")
