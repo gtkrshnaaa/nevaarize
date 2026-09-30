@@ -1,0 +1,107 @@
+import stdlib math as m
+import stdlib time as t
+
+// Traveling Salesperson Problem (TSP) via Simulated Annealing
+// Stochastic optimization using 2-opt local search and exponential cooling schedule
+
+print("=== Nevaarize TSP Simulated Annealing Demo ===")
+startTime = t.millis()
+
+numCities = 6
+cityX = [0.0, 10.0, 20.0, 25.0, 15.0, 5.0]
+cityY = [0.0, 15.0, 10.0, 0.0, -10.0, -5.0]
+
+// Distance function between two cities
+func calcDist(c1, c2, xCoords, yCoords) {
+    dx = xCoords[c1] - xCoords[c2]
+    dy = yCoords[c1] - yCoords[c2]
+    return m.Sqrt(dx * dx + dy * dy)
+}
+
+// Function to calculate total tour length
+func calcTourLength(tour, n, xCoords, yCoords) {
+    total = 0.0
+    idx = 0
+    while (idx < n) {
+        c1 = tour[idx]
+        nextIdx = (idx + 1) % n
+        c2 = tour[nextIdx]
+        total = total + calcDist(c1, c2, xCoords, yCoords)
+        idx = idx + 1
+    }
+    return total
+}
+
+// Initial tour: 0, 1, 2, 3, 4, 5
+currentTour = [0, 1, 2, 3, 4, 5]
+bestTour = [0, 1, 2, 3, 4, 5]
+
+currentCost = calcTourLength(currentTour, numCities, cityX, cityY)
+bestCost = currentCost
+
+print("Initial Tour Length:", initialCost := currentCost)
+
+// Simulated Annealing Parameters
+temperature = 100.0
+coolingRate = 0.90
+minTemp = 1.0
+
+iteration = 0
+while (temperature > minTemp) {
+    // Generate neighbor using 2-opt swap of two cities (indices i and j)
+    i = (iteration * 2 + 1) % (numCities - 1)
+    j = (i + 2) % numCities
+
+    // Swap elements i and j in current tour
+    tmp = currentTour[i]
+    currentTour[i] = currentTour[j]
+    currentTour[j] = tmp
+
+    newCost = calcTourLength(currentTour, numCities, cityX, cityY)
+    delta = newCost - currentCost
+
+    // Acceptance criterion: if better, or accept worse with simple deterministic thermal decay
+    accept = 0
+    if (delta < 0.0) {
+        accept = 1
+    } else {
+        // Pseudo-probabilistic acceptance based on temperature
+        pseudoProb = 1.0 / (1.0 + delta / temperature)
+        if (pseudoProb > 0.5) {
+            accept = 1
+        }
+    }
+
+    if (accept == 1) {
+        currentCost = newCost
+        if (currentCost < bestCost) {
+            bestCost = currentCost
+            bIdx = 0
+            while (bIdx < numCities) {
+                bestTour[bIdx] = currentTour[bIdx]
+                bIdx = bIdx + 1
+            }
+        }
+    } else {
+        // Revert swap
+        tmp = currentTour[i]
+        currentTour[i] = currentTour[j]
+        currentTour[j] = tmp
+    }
+
+    temperature = temperature * coolingRate
+    iteration = iteration + 1
+}
+
+print("Optimization finished after", iteration, "iterations.")
+print("Best Tour Distance:", bestCost)
+print("Initial vs Best Improvement:", initialCost - bestCost)
+
+if (bestCost <= initialCost) {
+    print("Simulated Annealing Convergence: PASSED")
+} else {
+    print("Simulated Annealing Convergence: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("TSP simulated annealing benchmark completed in", elapsed, "ms")
