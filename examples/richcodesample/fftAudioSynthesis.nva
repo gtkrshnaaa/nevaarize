@@ -1,0 +1,107 @@
+import stdlib math as m
+import stdlib time as t
+
+// Fast Fourier Transform (Cooley-Tukey Radix-2) and Audio Synthesis
+// Synthesizes a composite waveform and computes its spectral magnitude
+
+print("=== Nevaarize FFT & Audio Signal Analysis ===")
+startTime = t.millis()
+
+numSamples = 16
+twoPi = 2.0 * m.PI
+
+// 1. Synthesize signal: sum of 2 sine waves (frequency 1 and frequency 3)
+realData = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+imagData = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+sampleIdx = 0
+while (sampleIdx < numSamples) {
+    tVal = (1.0 * sampleIdx) / numSamples
+    val1 = m.Sin(twoPi * 1.0 * tVal)
+    val2 = 0.5 * m.Sin(twoPi * 3.0 * tVal)
+    realData[sampleIdx] = val1 + val2
+    imagData[sampleIdx] = 0.0
+    sampleIdx = sampleIdx + 1
+}
+
+// 2. Bit-reversal permutation
+j = 0
+i = 0
+while (i < numSamples) {
+    if (i < j) {
+        tempR = realData[i]
+        realData[i] = realData[j]
+        realData[j] = tempR
+
+        tempI = imagData[i]
+        imagData[i] = imagData[j]
+        imagData[j] = tempI
+    }
+    k = numSamples / 2
+    while (k <= j and k > 0) {
+        j = j - k
+        k = k / 2
+    }
+    j = j + k
+    i = i + 1
+}
+
+// 3. Cooley-Tukey Radix-2 FFT computation
+lenVal = 2
+while (lenVal <= numSamples) {
+    ang = (twoPi * -1.0) / lenVal
+    wStepR = m.Cos(ang)
+    wStepI = m.Sin(ang)
+
+    halfLen = lenVal / 2
+    subIdx = 0
+    while (subIdx < numSamples) {
+        curWR = 1.0
+        curWI = 0.0
+        stepIdx = 0
+        while (stepIdx < halfLen) {
+            evenIdx = subIdx + stepIdx
+            oddIdx = evenIdx + halfLen
+
+            uR = realData[evenIdx]
+            uI = imagData[evenIdx]
+
+            vR = realData[oddIdx] * curWR - imagData[oddIdx] * curWI
+            vI = realData[oddIdx] * curWI + imagData[oddIdx] * curWR
+
+            realData[evenIdx] = uR + vR
+            imagData[evenIdx] = uI + vI
+            realData[oddIdx] = uR - vR
+            imagData[oddIdx] = uI - vI
+
+            nextWR = curWR * wStepR - curWI * wStepI
+            nextWI = curWR * wStepI + curWI * wStepR
+            curWR = nextWR
+            curWI = nextWI
+
+            stepIdx = stepIdx + 1
+        }
+        subIdx = subIdx + lenVal
+    }
+    lenVal = lenVal * 2
+}
+
+// 4. Compute spectral magnitude
+peakIdx = 0
+peakMag = 0.0
+magIdx = 0
+while (magIdx < numSamples / 2) {
+    rVal = realData[magIdx]
+    iVal = imagData[magIdx]
+    mag = m.Sqrt(rVal * rVal + iVal * iVal)
+    print("Bin", magIdx, "Magnitude:", mag)
+    if (mag > peakMag) {
+        peakMag = mag
+        peakIdx = magIdx
+    }
+    magIdx = magIdx + 1
+}
+
+elapsed = t.millis() - startTime
+print("FFT synthesis and spectral analysis complete in", elapsed, "ms")
+print("Dominant frequency bin:", peakIdx, "with magnitude:", peakMag)
