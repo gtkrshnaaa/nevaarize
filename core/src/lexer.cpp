@@ -24,8 +24,9 @@ struct KeywordEntry {
     TokenType type;
 };
 
-constexpr std::array<KeywordEntry, 22> keywords = {{
+constexpr std::array<KeywordEntry, 23> keywords = {{
     {"function", TokenType::FUNC},
+    {"func", TokenType::FUNC},
     {"async", TokenType::ASYNC},
     {"await", TokenType::AWAIT},
     {"return", TokenType::RETURN},

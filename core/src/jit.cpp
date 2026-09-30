@@ -3952,24 +3952,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
                     buf.emit32(static_cast<uint32_t>(offset + 8));
                 }
-            } else if (isReplMode && replVariables.count(node.name)) {
-                auto replIt = replVariables.find(node.name);
-                uint64_t valAddr = reinterpret_cast<uint64_t>(&replIt->second->value);
-                uint64_t typeAddr = reinterpret_cast<uint64_t>(&replIt->second->type);
-                
-                // Load Value
-                emitMovImm64(buf, X64Reg::RAX, valAddr);
-                bool valHigh = static_cast<uint8_t>(result.valueReg) >= 8;
-                buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-                buf.emit8(0x8B);
-                buf.emit8(0x00 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
-                
-                // Load Type
-                emitMovImm64(buf, X64Reg::RAX, typeAddr);
-                bool typeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
-                buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
-                buf.emit8(0x8B);
-                buf.emit8(0x00 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
             }
             return result;
         }
@@ -9136,26 +9118,8 @@ void JIT::compileAssignment(const AST& ast, NodeIndex idx) {
     }
     
     if (isReplMode && !inFunctionCall) {
-        auto replIt = replVariables.find(node.name);
-        if (replIt == replVariables.end()) {
+        if (!replVariables.count(node.name)) {
             replVariables[node.name] = std::make_shared<REPLVariable>();
-            replIt = replVariables.find(node.name);
-        }
-        uint64_t valAddr = reinterpret_cast<uint64_t>(&replIt->second->value);
-        uint64_t typeAddr = reinterpret_cast<uint64_t>(&replIt->second->type);
-
-        emitMovImm64(buf, X64Reg::RAX, valAddr);
-        bool valHigh = static_cast<uint8_t>(val.valueReg) >= 8;
-        buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-        buf.emit8(0x89);
-        buf.emit8(0x00 | ((static_cast<uint8_t>(val.valueReg) & 0x7) << 3));
-
-        if (val.typeReg != X64Reg::RSP) {
-            emitMovImm64(buf, X64Reg::RAX, typeAddr);
-            bool typeHigh = static_cast<uint8_t>(val.typeReg) >= 8;
-            buf.emit8(0x48 | (typeHigh ? 0x04 : 0));
-            buf.emit8(0x89);
-            buf.emit8(0x00 | ((static_cast<uint8_t>(val.typeReg) & 0x7) << 3));
         }
     }
 
@@ -9371,6 +9335,29 @@ CompiledFunc JIT::compile(const AST& ast) {
     regInUse[static_cast<int>(X64Reg::RBP)] = true;
     
     emitPrologue();
+    CodeBuffer& buf = codegen.getCode();
+
+    // In REPL mode, pre-populate stack frame with existing REPL variables
+    if (isReplMode) {
+        for (const auto& [varName, replVar] : replVariables) {
+            VarLocation loc;
+            loc.stackOffset = allocateStackSlot();
+            loc.isRegister = false;
+            variables[varName] = loc;
+
+            // mov rax, replVar->value
+            // mov [rbp + offset], rax
+            emitMovImm64(buf, X64Reg::RAX, replVar->value);
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+            buf.emit32(static_cast<uint32_t>(loc.stackOffset));
+
+            // mov rax, replVar->type
+            // mov [rbp + offset + 8], rax
+            emitMovImm64(buf, X64Reg::RAX, replVar->type);
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+            buf.emit32(static_cast<uint32_t>(loc.stackOffset + 8));
+        }
+    }
     
     // Compile the program (root node should be PROGRAM or BLOCK)
     NodeIndex root = ast.root();
@@ -9384,9 +9371,55 @@ CompiledFunc JIT::compile(const AST& ast) {
             compileStatement(ast, root);
         }
     }
+
+    // In REPL mode, sync stack frame variables back to persistent storage
+    if (isReplMode) {
+        for (const auto& [varName, replVar] : replVariables) {
+            auto it = variables.find(varName);
+            if (it != variables.end()) {
+                int32_t offset = it->second.stackOffset;
+                uint64_t valAddr = reinterpret_cast<uint64_t>(&replVar->value);
+                uint64_t typeAddr = reinterpret_cast<uint64_t>(&replVar->type);
+
+                if (it->second.isXMMRegister) {
+                    X64Reg xmm = it->second.reg;
+                    uint8_t xIdx = static_cast<uint8_t>(xmm) - static_cast<uint8_t>(X64Reg::XMM0);
+                    buf.emit8(0x66); buf.emit8(0x48); buf.emit8(0x0F); buf.emit8(0x7E);
+                    buf.emit8(0xC0 | (xIdx << 3)); // movq rax, xmm
+                    emitMovImm64(buf, X64Reg::RDX, valAddr);
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x02);
+
+                    emitMovImm64(buf, X64Reg::RDX, typeAddr);
+                    emitMovImm64(buf, X64Reg::RAX, 1); // Float
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x02);
+                } else if (it->second.isRegister) {
+                    X64Reg reg = it->second.reg;
+                    bool regHigh = static_cast<uint8_t>(reg) >= 8;
+                    emitMovImm64(buf, X64Reg::RDX, valAddr);
+                    buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+                    buf.emit8(0x89);
+                    buf.emit8(0x02 | ((static_cast<uint8_t>(reg) & 0x7) << 3));
+
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(offset + 8));
+                    emitMovImm64(buf, X64Reg::RDX, typeAddr);
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x02);
+                } else {
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(offset));
+                    emitMovImm64(buf, X64Reg::RDX, valAddr);
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x02);
+
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(offset + 8));
+                    emitMovImm64(buf, X64Reg::RDX, typeAddr);
+                    buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x02);
+                }
+            }
+        }
+    }
     
     // Default return 0
-    CodeBuffer& buf = codegen.getCode();
     buf.emit8(0x48); // xor rax, rax
     buf.emit8(0x31);
     buf.emit8(0xC0);

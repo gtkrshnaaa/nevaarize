@@ -13,6 +13,7 @@
 #include "jit.hpp"
 #include "model.hpp"
 #include "grammar.hpp"
+#include "repl.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -147,13 +148,14 @@ int runGrammar(int argc, char* argv[], int startIdx) {
 void printUsage(const char* program) {
     std::cout << "Nevaarize - Native JIT Compiler" << std::endl;
     std::cout << std::endl;
-    std::cout << "Usage: " << program << " <script.nva>" << std::endl;
+    std::cout << "Usage: " << program << " [options] [script.nva]" << std::endl;
     std::cout << "       " << program << " -grammar <file.nva> [file2.nva ...]" << std::endl;
     std::cout << std::endl;
     std::cout << "Options:" << std::endl;
-    std::cout << "  -h, --help     Show this help message" << std::endl;
-    std::cout << "  -v, --version  Show version information" << std::endl;
-    std::cout << "  -grammar       Run static analysis (syntax, naming, performance)" << std::endl;
+    std::cout << "  -h, --help        Show this help message" << std::endl;
+    std::cout << "  -v, --version     Show version information" << std::endl;
+    std::cout << "  -i, --interactive Start interactive REPL session" << std::endl;
+    std::cout << "  -grammar          Run static analysis (syntax, naming, performance)" << std::endl;
 }
 
 /**
@@ -174,8 +176,8 @@ int main(int argc, char* argv[]) {
     setup_hardware_traps();
 
     if (argc < 2) {
-        printUsage(argv[0]);
-        return 1;
+        Repl repl;
+        return repl.run();
     }
 
     std::string arg1 = argv[1];
@@ -189,6 +191,11 @@ int main(int argc, char* argv[]) {
     if (arg1 == "-v" || arg1 == "--version") {
         printVersion();
         return 0;
+    }
+
+    if (arg1 == "-i" || arg1 == "--interactive" || arg1 == "-repl") {
+        Repl repl;
+        return repl.run();
     }
 
     if (arg1 == "-grammar") {

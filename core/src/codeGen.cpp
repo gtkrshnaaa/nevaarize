@@ -274,6 +274,12 @@ ExecutableMemory::~ExecutableMemory() {
 
 bool ExecutableMemory::write(const uint8_t* data, size_t dataSize) {
     if (!memory) return false;
+#ifdef __linux__
+    mprotect(memory, size, PROT_READ | PROT_WRITE);
+#elif defined(_WIN32)
+    DWORD oldProtect;
+    VirtualProtect(memory, size, PAGE_READWRITE, &oldProtect);
+#endif
     if (dataSize > size) {
 #ifdef __linux__
         munmap(memory, size);
