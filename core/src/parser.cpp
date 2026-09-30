@@ -70,7 +70,7 @@ Token Parser::consume(TokenType type, const std::string& message) {
 
 std::string Parser::formatError(const Token& tok, const std::string& message) const {
     std::ostringstream oss;
-    oss << "Error at [Line " << tok.line << ", Col " << tok.column << "]: " << message << "\n";
+    oss << "\033[1;31merror\033[0m [Line " << tok.line << ", Col " << tok.column << "]: " << message << "\n";
 
     if (source.empty() || tok.type == TokenType::ENDOFFILE) {
         return oss.str();
@@ -97,9 +97,9 @@ std::string Parser::formatError(const Token& tok, const std::string& message) co
     std::string_view errorLineView = source.substr(lineStart, lineEnd - lineStart);
     
     // Format visual pointer
-    oss << "  |\n";
-    oss << tok.line << " | " << errorLineView << "\n";
-    oss << "  | ";
+    oss << "  \033[34m|\033[0m\n";
+    oss << "  \033[34m|\033[0m " << errorLineView << "\n";
+    oss << "  \033[34m|\033[0m ";
     
     // Calculate pointer position taking into account leading spaces
     for (size_t i = 0; i < (size_t)(tok.column - 1); i++) {
@@ -113,10 +113,11 @@ std::string Parser::formatError(const Token& tok, const std::string& message) co
     // Use token length for pointer if possible, otherwise just one ^
     size_t pointerLen = tok.lexeme.length();
     if (pointerLen == 0) pointerLen = 1;
+    oss << "\033[1;31m";
     for (size_t i = 0; i < pointerLen; i++) {
         oss << "^";
     }
-    oss << "\n";
+    oss << "\033[0m\n";
     
     return oss.str();
 }
@@ -128,7 +129,7 @@ void Parser::error(const Token& tok, const std::string& message) {
 void Parser::synchronize() {
     advance();
     while (!isAtEnd()) {
-        if (previous().type == TokenType::NEWLINE) return;
+        if (previous().type == TokenType::NEWLINE || previous().type == TokenType::SEMICOLON) return;
         switch (peek().type) {
             case TokenType::FUNC:
             case TokenType::ASYNC:
@@ -147,7 +148,7 @@ void Parser::synchronize() {
 }
 
 void Parser::skipNewlines() {
-    while (match(TokenType::NEWLINE)) {}
+    while (match(TokenType::NEWLINE) || match(TokenType::SEMICOLON)) {}
 }
 
 NodeIndex Parser::parse() {

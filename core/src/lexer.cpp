@@ -127,7 +127,7 @@ Token Lexer::makeToken(TokenType type) const {
 
 std::string Lexer::formatError(const std::string& message, int32_t errLine, int32_t errCol, size_t offset) const {
     std::ostringstream oss;
-    oss << "Error at [Line " << errLine << ", Col " << errCol << "]: " << message << "\n";
+    oss << "\033[1;31merror\033[0m [Line " << errLine << ", Col " << errCol << "]: " << message << "\n";
     
     // Find the start of the line
     size_t lineStart = offset;
@@ -144,9 +144,9 @@ std::string Lexer::formatError(const std::string& message, int32_t errLine, int3
     std::string_view errorLineView = source.substr(lineStart, lineEnd - lineStart);
     
     // Format visual pointer
-    oss << "  |\n";
-    oss << errLine << " | " << errorLineView << "\n";
-    oss << "  | ";
+    oss << "  \033[34m|\033[0m\n";
+    oss << "  \033[34m|\033[0m " << errorLineView << "\n";
+    oss << "  \033[34m|\033[0m ";
     
     // Calculate pointer position taking into account leading spaces
     for (size_t i = 0; i < (size_t)(errCol - 1); i++) {
@@ -156,7 +156,7 @@ std::string Lexer::formatError(const std::string& message, int32_t errLine, int3
             oss << ' ';
         }
     }
-    oss << "^\n";
+    oss << "\033[1;31m^\033[0m\n";
     
     return oss.str();
 }
