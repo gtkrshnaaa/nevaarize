@@ -176,6 +176,26 @@ static Value stringLength([[maybe_unused]] Evaluator& eval, const std::vector<Va
     return Value::fromInt(text.length());
 }
 
+static Value stringCharAt([[maybe_unused]] Evaluator& eval, const std::vector<Value>& args) {
+    if (args.size() < 2 || !args[0].isString() || !args[0].stringVal || !args[1].isInt()) {
+        return Value::fromString("");
+    }
+    std::string text = *args[0].stringVal;
+    int64_t index = args[1].intVal;
+    if (index < 0 || index >= (int64_t)text.length()) return Value::fromString("");
+    return Value::fromString(text.substr(index, 1));
+}
+
+static Value stringCharCodeAt([[maybe_unused]] Evaluator& eval, const std::vector<Value>& args) {
+    if (args.size() < 2 || !args[0].isString() || !args[0].stringVal || !args[1].isInt()) {
+        return Value::fromInt(-1);
+    }
+    std::string text = *args[0].stringVal;
+    int64_t index = args[1].intVal;
+    if (index < 0 || index >= (int64_t)text.length()) return Value::fromInt(-1);
+    return Value::fromInt(static_cast<int64_t>(static_cast<unsigned char>(text[index])));
+}
+
 std::unordered_map<std::string, NativeFunction> getStringLibrary() {
     std::unordered_map<std::string, NativeFunction> lib;
     
@@ -185,11 +205,17 @@ std::unordered_map<std::string, NativeFunction> getStringLibrary() {
     lib["split"] = stringSplit;
     lib["replace"] = stringReplace;
     lib["substring"] = stringSubstring;
+    lib["Substring"] = stringSubstring;
     lib["contains"] = stringContains;
     lib["indexOf"] = stringIndexOf;
     lib["startsWith"] = stringStartsWith;
     lib["endsWith"] = stringEndsWith;
     lib["length"] = stringLength;
+    lib["Length"] = stringLength;
+    lib["charAt"] = stringCharAt;
+    lib["CharAt"] = stringCharAt;
+    lib["charCodeAt"] = stringCharCodeAt;
+    lib["CharCodeAt"] = stringCharCodeAt;
     
     return lib;
 }

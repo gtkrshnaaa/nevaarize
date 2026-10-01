@@ -1428,6 +1428,37 @@ extern "C" void* jit_string_substring(void* strPtr, int64_t start, int64_t lengt
     return newStrPtr;
 }
 
+extern "C" void* jit_string_char_at(void* strPtr, int64_t index) {
+    JITExecutionGuard guard;
+    if (!strPtr) return nullptr;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    if (index < 0 || index >= str->length) return jit_alloc_string_len(0);
+    void* newStrPtr = jit_alloc_string_len(1);
+    if (newStrPtr) {
+        static_cast<char*>(newStrPtr)[0] = str->data[index];
+        static_cast<char*>(newStrPtr)[1] = '\0';
+    }
+    return newStrPtr;
+}
+
+extern "C" int64_t jit_string_char_code_at(void* strPtr, int64_t index) {
+    JITExecutionGuard guard;
+    if (!strPtr) return -1;
+    JITString* str = reinterpret_cast<JITString*>(static_cast<char*>(strPtr) - offsetof(JITString, data));
+    if (index < 0 || index >= str->length) return -1;
+    return static_cast<int64_t>(static_cast<unsigned char>(str->data[index]));
+}
+
+extern "C" int64_t jit_string_eq(void* strPtr1, void* strPtr2) {
+    JITExecutionGuard guard;
+    if (strPtr1 == strPtr2) return 1;
+    if (!strPtr1 || !strPtr2) return 0;
+    JITString* s1 = reinterpret_cast<JITString*>(static_cast<char*>(strPtr1) - offsetof(JITString, data));
+    JITString* s2 = reinterpret_cast<JITString*>(static_cast<char*>(strPtr2) - offsetof(JITString, data));
+    if (s1->length != s2->length) return 0;
+    return (memcmp(s1->data, s2->data, s1->length) == 0) ? 1 : 0;
+}
+
 extern "C" int64_t jit_string_contains(void* strPtr, void* subPtr) {
     JITExecutionGuard guard;
     if (!strPtr || !subPtr) return 0;
@@ -4420,9 +4451,7 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                 case BinaryOp::LT:
                 case BinaryOp::GT:
                 case BinaryOp::LTE:
-                case BinaryOp::GTE:
-                case BinaryOp::EQ:
-                case BinaryOp::NEQ: {
+                case BinaryOp::GTE: {
                      // Comparison code (cmp + setcc + movzx)
                      bool resHigh = static_cast<uint8_t>(result.valueReg) >= 8;
                      if (rightIsImm) {
@@ -4440,12 +4469,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                      // setcc al
                      uint8_t setcc = 0;
                      switch (node.binaryOp) {
-                         case BinaryOp::LT: setcc = 0x9C; break; // setl (signed) - Note: JIT uses signed for ints
+                         case BinaryOp::LT: setcc = 0x9C; break; // setl (signed)
                          case BinaryOp::GT: setcc = 0x9F; break; // setg
                          case BinaryOp::LTE: setcc = 0x9E; break; // setle
                          case BinaryOp::GTE: setcc = 0x9D; break; // setge
-                         case BinaryOp::EQ: setcc = 0x94; break; // sete
-                         case BinaryOp::NEQ: setcc = 0x95; break; // setne
                          default: break;
                      }
                      buf.emit8(0x40 | (resHigh ? 0x01 : 0));
@@ -4458,6 +4485,197 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                      buf.emit8(0x0F);
                      buf.emit8(0xB6);
                      buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+
+                     emitXorReg(buf, result.typeReg);
+                     break;
+                }
+                case BinaryOp::EQ:
+                case BinaryOp::NEQ: {
+                     bool isEq = (node.binaryOp == BinaryOp::EQ);
+                     bool resValHigh = static_cast<uint8_t>(result.valueReg) >= 8;
+                     bool resTypeHigh = static_cast<uint8_t>(result.typeReg) >= 8;
+
+                     if (staticIntPath) {
+                         // Fast path for static integers
+                         if (rightIsImm) {
+                             buf.emit8(0x48 | (resValHigh ? 0x01 : 0));
+                             buf.emit8(0x81); // CMP r/m64, imm32
+                             buf.emit8(0xF8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                             buf.emit32(static_cast<uint32_t>(immVal));
+                         } else {
+                             bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                             buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resValHigh ? 0x01 : 0));
+                             buf.emit8(0x39); // CMP r/m64, r64
+                             buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                         }
+                         buf.emit8(0x40 | (resValHigh ? 0x01 : 0));
+                         buf.emit8(0x0F);
+                         buf.emit8(isEq ? 0x94 : 0x95); // sete / setne
+                         buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                         
+                         buf.emit8(0x48 | (resValHigh ? 0x04 : 0) | (resValHigh ? 0x01 : 0));
+                         buf.emit8(0x0F);
+                         buf.emit8(0xB6);
+                         buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                     } else {
+                         // Dynamic path: check if either operand is String (Type 4)
+                         buf.emit8(0x48 | (resTypeHigh ? 0x01 : 0));
+                         buf.emit8(0x83);
+                         buf.emit8(0xF8 | (static_cast<uint8_t>(result.typeReg) & 0x7));
+                         buf.emit8(0x04);
+                         buf.emit8(0x74); // je isString
+                         size_t jeLeftStr = buf.getOffset();
+                         buf.emit8(0x00);
+
+                         size_t jeRightStr = 0;
+                         if (!rightIsImm) {
+                             bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                             buf.emit8(0x48 | (rTypeHigh ? 0x01 : 0));
+                             buf.emit8(0x83);
+                             buf.emit8(0xF8 | (static_cast<uint8_t>(right.typeReg) & 0x7));
+                             buf.emit8(0x04);
+                             buf.emit8(0x74); // je isString
+                             jeRightStr = buf.getOffset();
+                             buf.emit8(0x00);
+                         }
+
+                         // Standard integer/pointer comparison
+                         if (rightIsImm) {
+                             buf.emit8(0x48 | (resValHigh ? 0x01 : 0));
+                             buf.emit8(0x81); // CMP r/m64, imm32
+                             buf.emit8(0xF8 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                             buf.emit32(static_cast<uint32_t>(immVal));
+                         } else {
+                             bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                             buf.emit8(0x48 | (rValHigh ? 0x04 : 0) | (resValHigh ? 0x01 : 0));
+                             buf.emit8(0x39); // CMP r/m64, r64
+                             buf.emit8(0xC0 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                         }
+                         buf.emit8(0x40 | (resValHigh ? 0x01 : 0));
+                         buf.emit8(0x0F);
+                         buf.emit8(isEq ? 0x94 : 0x95); // sete / setne
+                         buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                         
+                         buf.emit8(0x48 | (resValHigh ? 0x04 : 0) | (resValHigh ? 0x01 : 0));
+                         buf.emit8(0x0F);
+                         buf.emit8(0xB6);
+                         buf.emit8(0xC0 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3) | (static_cast<uint8_t>(result.valueReg) & 0x7));
+
+                         buf.emit8(0xE9); // jmp doneEq
+                         size_t jmpDoneEq = buf.getOffset();
+                         buf.emit32(0);
+
+                         // === STRING EQUALITY PATH ===
+                         size_t isStringPos = buf.getOffset();
+                         buf.patch8(jeLeftStr, static_cast<uint8_t>(isStringPos - (jeLeftStr + 1)));
+                         if (!rightIsImm) {
+                             buf.patch8(jeRightStr, static_cast<uint8_t>(isStringPos - (jeRightStr + 1)));
+                         }
+
+                         if (rightIsImm) {
+                             // String compared with int literal: always false (or true if NEQ)
+                             buf.emit8(0x48 | (resValHigh ? 0x01 : 0));
+                             buf.emit8(0xC7);
+                             buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                             buf.emit32(isEq ? 0 : 1);
+                         } else {
+                             // Check if both are strings: cmp left.typeReg, right.typeReg
+                             bool rTypeHigh = static_cast<uint8_t>(right.typeReg) >= 8;
+                             buf.emit8(0x48 | (rTypeHigh ? 0x04 : 0) | (resTypeHigh ? 0x01 : 0));
+                             buf.emit8(0x39);
+                             buf.emit8(0xC0 | ((static_cast<uint8_t>(right.typeReg) & 0x7) << 3) | (static_cast<uint8_t>(result.typeReg) & 0x7));
+                             
+                             buf.emit8(0x74); // je typesMatch
+                             size_t jeTypesMatch = buf.getOffset();
+                             buf.emit8(0x00);
+
+                             // Types mismatch: EQ -> 0, NEQ -> 1
+                             buf.emit8(0x48 | (resValHigh ? 0x01 : 0));
+                             buf.emit8(0xC7);
+                             buf.emit8(0xC0 | (static_cast<uint8_t>(result.valueReg) & 0x7));
+                             buf.emit32(isEq ? 0 : 1);
+
+                             buf.emit8(0xEB); // jmp afterStrCall
+                             size_t jmpAfterStrCall = buf.getOffset();
+                             buf.emit8(0x00);
+
+                             // typesMatch:
+                             size_t typesMatchPos = buf.getOffset();
+                             buf.patch8(jeTypesMatch, static_cast<uint8_t>(typesMatchPos - (jeTypesMatch + 1)));
+
+                             // Call jit_string_eq(result.valueReg, right.valueReg)
+                             int32_t sRet = allocateStackSlot();
+                             int32_t sVal1 = allocateStackSlot();
+                             int32_t sVal2 = allocateStackSlot();
+
+                             // Save val1 and val2
+                             buf.emit8(0x48 | (resValHigh ? 0x04 : 0));
+                             buf.emit8(0x89);
+                             buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                             buf.emit32(static_cast<uint32_t>(sVal1));
+
+                             bool rValHigh = static_cast<uint8_t>(right.valueReg) >= 8;
+                             buf.emit8(0x48 | (rValHigh ? 0x04 : 0));
+                             buf.emit8(0x89);
+                             buf.emit8(0x85 | ((static_cast<uint8_t>(right.valueReg) & 0x7) << 3));
+                             buf.emit32(static_cast<uint32_t>(sVal2));
+
+                             // Save caller-saved registers
+                             buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52);
+                             buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
+                             buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
+
+                             // Load rdi = sVal1, rsi = sVal2
+                             buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+                             buf.emit32(static_cast<uint32_t>(sVal1));
+                             buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+                             buf.emit32(static_cast<uint32_t>(sVal2));
+
+                             // Align stack for CALL
+                             buf.emit8(0x53); // push rbx
+                             buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+                             buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+                             emitMovImm64(buf, X64Reg::RAX, reinterpret_cast<uint64_t>(jit_string_eq));
+                             buf.emit8(0xFF); buf.emit8(0xD0);
+
+                             // Restore stack
+                             buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+                             buf.emit8(0x5B); // pop rbx
+
+                             if (!isEq) {
+                                 // xor eax, 1
+                                 buf.emit8(0x83); buf.emit8(0xF0); buf.emit8(0x01);
+                             }
+
+                             // Save RAX to sRet
+                             buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+                             buf.emit32(static_cast<uint32_t>(sRet));
+
+                             // Restore caller-saved registers
+                             buf.emit8(0x41); buf.emit8(0x5B); // pop r11
+                             buf.emit8(0x41); buf.emit8(0x5A); // pop r10
+                             buf.emit8(0x41); buf.emit8(0x59); // pop r9
+                             buf.emit8(0x41); buf.emit8(0x58); // pop r8
+                             buf.emit8(0x5A); // pop rdx
+                             buf.emit8(0x59); // pop rcx
+                             buf.emit8(0x58); // pop rax
+
+                             // Load result into result.valueReg
+                             buf.emit8(0x48 | (resValHigh ? 0x04 : 0));
+                             buf.emit8(0x8B);
+                             buf.emit8(0x85 | ((static_cast<uint8_t>(result.valueReg) & 0x7) << 3));
+                             buf.emit32(static_cast<uint32_t>(sRet));
+
+                             size_t afterStrCallPos = buf.getOffset();
+                             buf.patch8(jmpAfterStrCall, static_cast<uint8_t>(afterStrCallPos - (jmpAfterStrCall + 1)));
+                         }
+
+                         size_t doneEqPos = buf.getOffset();
+                         buf.patch32(jmpDoneEq, static_cast<uint32_t>(doneEqPos - (jmpDoneEq + 4)));
+                     }
+
+                     emitXorReg(buf, result.typeReg);
                      break;
                 }
                 case BinaryOp::DIV: {
@@ -6267,8 +6485,10 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                             // Check method arity and prepare operands
                             int requiredArgs = 1;
                             if (memberName == "split" || memberName == "contains" || memberName == "indexOf" || 
-                                memberName == "startsWith" || memberName == "endsWith") requiredArgs = 2;
-                            else if (memberName == "replace" || memberName == "substring") requiredArgs = 3;
+                                memberName == "startsWith" || memberName == "endsWith" ||
+                                memberName == "charAt" || memberName == "CharAt" ||
+                                memberName == "charCodeAt" || memberName == "CharCodeAt") requiredArgs = 2;
+                            else if (memberName == "replace" || memberName == "substring" || memberName == "Substring") requiredArgs = 3;
                             
                             if (node.children.size() < (size_t)requiredArgs) {
                                 std::cerr << "Runtime Error: Invalid arguments for std.string." << memberName << std::endl;
@@ -6312,19 +6532,21 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                             
                             // Setup Call Pointer
                             uint64_t fnPtr = 0;
-                            int64_t retType = 2; // Default to String return
+                            int64_t retType = 4; // Default to String return (Type 4)
                             
                             if (memberName == "toUpperCase") fnPtr = reinterpret_cast<uint64_t>(jit_string_to_upper);
                             else if (memberName == "toLowerCase") fnPtr = reinterpret_cast<uint64_t>(jit_string_to_lower);
                             else if (memberName == "trim") fnPtr = reinterpret_cast<uint64_t>(jit_string_trim);
                             else if (memberName == "split") { fnPtr = reinterpret_cast<uint64_t>(jit_string_split); retType = 5; }
                             else if (memberName == "replace") fnPtr = reinterpret_cast<uint64_t>(jit_string_replace);
-                            else if (memberName == "substring") fnPtr = reinterpret_cast<uint64_t>(jit_string_substring);
+                            else if (memberName == "substring" || memberName == "Substring") fnPtr = reinterpret_cast<uint64_t>(jit_string_substring);
+                            else if (memberName == "charAt" || memberName == "CharAt") fnPtr = reinterpret_cast<uint64_t>(jit_string_char_at);
+                            else if (memberName == "charCodeAt" || memberName == "CharCodeAt") { fnPtr = reinterpret_cast<uint64_t>(jit_string_char_code_at); retType = 0; }
                             else if (memberName == "contains") { fnPtr = reinterpret_cast<uint64_t>(jit_string_contains); retType = 0; }
                             else if (memberName == "indexOf") { fnPtr = reinterpret_cast<uint64_t>(jit_string_index_of); retType = 0; }
                             else if (memberName == "startsWith") { fnPtr = reinterpret_cast<uint64_t>(jit_string_starts_with); retType = 0; }
                             else if (memberName == "endsWith") { fnPtr = reinterpret_cast<uint64_t>(jit_string_ends_with); retType = 0; }
-                            else if (memberName == "length") { fnPtr = reinterpret_cast<uint64_t>(jit_string_length); retType = 0; }
+                            else if (memberName == "length" || memberName == "Length") { fnPtr = reinterpret_cast<uint64_t>(jit_string_length); retType = 0; }
                             else {
                                 std::cerr << "Runtime Error: Unknown string method " << memberName << std::endl;
                                 exit(1);

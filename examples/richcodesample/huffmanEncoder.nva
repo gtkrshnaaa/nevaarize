@@ -1,0 +1,226 @@
+import stdlib string as str
+import stdlib time as t
+
+// Huffman Coding & Variable-Length Prefix Compression Benchmark
+// Constructs a min-heap Huffman tree, derives prefix codes, encodes and decodes text
+
+print("=== Nevaarize Huffman Encoder & Decoder Demo ===")
+startTime = t.millis()
+
+// Input text to compress
+text = "ABRACADABRA_ABRACADABRA_APP_ALL_BALLS_AT_BASE"
+textLen = str.length(text)
+
+print("Original text:", text)
+print("Original length (bytes):", textLen)
+
+// Frequency table for ASCII 0..127
+freqTable = []
+i = 0
+while (i < 128) {
+    freqTable.push(0)
+    i = i + 1
+}
+
+i = 0
+while (i < textLen) {
+    code = str.charCodeAt(text, i)
+    freqTable[code] = freqTable[code] + 1
+    i = i + 1
+}
+
+// Tree node structures (up to 256 nodes)
+nodeChar = []
+nodeFreq = []
+nodeLeft = []
+nodeRight = []
+nodeCount = 0
+
+// Populate initial leaf nodes
+i = 0
+while (i < 128) {
+    if (freqTable[i] > 0) {
+        nodeChar.push(i)
+        nodeFreq.push(freqTable[i])
+        nodeLeft.push(-1)
+        nodeRight.push(-1)
+        nodeCount = nodeCount + 1
+    }
+    i = i + 1
+}
+
+numLeaves = nodeCount
+print("Distinct characters identified:", numLeaves)
+
+// Active node indices in priority queue
+activeNodes = []
+i = 0
+while (i < numLeaves) {
+    activeNodes.push(i)
+    i = i + 1
+}
+
+// Build Huffman tree by repeatedly combining 2 lowest frequency nodes
+activeCount = numLeaves
+while (activeCount > 1) {
+    // Find min 1
+    min1Idx = 0
+    min1Freq = nodeFreq[activeNodes[0]]
+    j = 1
+    while (j < activeCount) {
+        cNode = activeNodes[j]
+        if (nodeFreq[cNode] < min1Freq) {
+            min1Freq = nodeFreq[cNode]
+            min1Idx = j
+        }
+        j = j + 1
+    }
+    n1 = activeNodes[min1Idx]
+
+    // Remove min1 from activeNodes
+    activeNodes[min1Idx] = activeNodes[activeCount - 1]
+    activeCount = activeCount - 1
+
+    // Find min 2
+    min2Idx = 0
+    min2Freq = nodeFreq[activeNodes[0]]
+    j = 1
+    while (j < activeCount) {
+        cNode = activeNodes[j]
+        if (nodeFreq[cNode] < min2Freq) {
+            min2Freq = nodeFreq[cNode]
+            min2Idx = j
+        }
+        j = j + 1
+    }
+    n2 = activeNodes[min2Idx]
+
+    // Create internal node
+    parentIdx = nodeCount
+    nodeCount = nodeCount + 1
+    combFreq = nodeFreq[n1] + nodeFreq[n2]
+
+    nodeChar.push(-1)
+    nodeFreq.push(combFreq)
+    nodeLeft.push(n1)
+    nodeRight.push(n2)
+
+    // Replace min2 with parentIdx
+    activeNodes[min2Idx] = parentIdx
+}
+
+rootNode = activeNodes[0]
+print("Huffman tree constructed. Root index:", rootNode, "Total nodes:", nodeCount)
+
+// Recursive prefix code generation using stack traversal
+// Prefix code string table for 128 ASCII chars
+codeTable = []
+i = 0
+while (i < 128) {
+    codeTable.push("")
+    i = i + 1
+}
+
+// Stack-based DFS traversal to build binary prefix codes
+stackNode = [rootNode]
+stackPrefix = [""]
+
+while (len(stackNode) > 0) {
+    curr = stackNode.pop()
+    prefix = stackPrefix.pop()
+
+    lChild = nodeLeft[curr]
+    rChild = nodeRight[curr]
+
+    if (lChild == -1 and rChild == -1) {
+        // Leaf node
+        charVal = nodeChar[curr]
+        codeTable[charVal] = prefix
+    } else {
+        if (rChild != -1) {
+            stackNode.push(rChild)
+            stackPrefix.push(prefix + "1")
+        }
+        if (lChild != -1) {
+            stackNode.push(lChild)
+            stackPrefix.push(prefix + "0")
+        }
+    }
+}
+
+// Display generated prefix codes
+print("Symbol prefix code mappings:")
+i = 0
+while (i < 128) {
+    if (str.length(codeTable[i]) > 0) {
+        chStr = str.charAt(" ", 0)
+        cLook = 0
+        while (cLook < textLen) {
+            if (str.charCodeAt(text, cLook) == i) {
+                chStr = str.charAt(text, cLook)
+                cLook = textLen
+            }
+            cLook = cLook + 1
+        }
+        print("  Char '", chStr, "' (code", i, ") -> Prefix Code:", codeTable[i])
+    }
+    i = i + 1
+}
+
+// Encode text
+encodedStream = ""
+i = 0
+while (i < textLen) {
+    code = str.charCodeAt(text, i)
+    encodedStream = encodedStream + codeTable[code]
+    i = i + 1
+}
+
+totalBits = str.length(encodedStream)
+uncompressedBits = textLen * 8
+compressionRatio = (totalBits * 100) / uncompressedBits
+
+print("Encoded bitstream length:", totalBits, "bits (Original:", uncompressedBits, "bits)")
+print("Compression ratio:", compressionRatio, "% of uncompressed size")
+
+// Decode bitstream
+decodedText = ""
+currWalk = rootNode
+bitIdx = 0
+while (bitIdx < totalBits) {
+    bitCh = str.charAt(encodedStream, bitIdx)
+    if (bitCh == "0") {
+        currWalk = nodeLeft[currWalk]
+    } else {
+        currWalk = nodeRight[currWalk]
+    }
+
+    if (nodeLeft[currWalk] == -1 and nodeRight[currWalk] == -1) {
+        // Reached leaf
+        leafChar = nodeChar[currWalk]
+        // Find matching character from original text
+        foundChar = ""
+        cLook = 0
+        while (cLook < textLen) {
+            if (str.charCodeAt(text, cLook) == leafChar) {
+                foundChar = str.charAt(text, cLook)
+                cLook = textLen // break
+            }
+            cLook = cLook + 1
+        }
+        decodedText = decodedText + foundChar
+        currWalk = rootNode
+    }
+
+    bitIdx = bitIdx + 1
+}
+
+print("Decoded text:", decodedText)
+if (decodedText == text) {
+    print("Huffman Roundtrip Verification: PASSED")
+} else {
+    print("Huffman Roundtrip Verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Huffman benchmark completed in", elapsed, "ms")
