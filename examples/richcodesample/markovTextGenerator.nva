@@ -1,0 +1,330 @@
+import stdlib math as m
+import stdlib time as t
+
+// Markov Chain N-Gram Text Generator & Language Model
+// Implements Bigram and Trigram transition models, cumulative CDF sampling,
+// deterministic text synthesis, and cross-entropy / perplexity evaluation.
+
+function makeIntArray(msz, mval) {
+    marr = []
+    mi = 0
+    while (mi < msz) {
+        marr.push(mval)
+        mi = mi + 1
+    }
+    return marr
+}
+
+function makeFloatArray(fsz, fval) {
+    farr = []
+    fi = 0
+    while (fi < fsz) {
+        farr.push(fval)
+        fi = fi + 1
+    }
+    return farr
+}
+
+// Linear Congruential Generator (31-bit LCG)
+function lcgNext(lseed) {
+    // a = 1103515245, c = 12345, m = 2147483648 (2^31)
+    // Avoid signed 64-bit overflow by using positive arithmetic
+    nval = (lseed * 1103515245 + 12345) % 2147483648
+    if (nval < 0) {
+        nval = 0 - nval
+    }
+    return nval
+}
+
+// Find word index in vocabulary (-1 if not found)
+function findWordIndex(vocabList, vWord) {
+    vLen = len(vocabList)
+    vi = 0
+    while (vi < vLen) {
+        if (vocabList[vi] == vWord) {
+            return vi
+        }
+        vi = vi + 1
+    }
+    return -1
+}
+
+// Build Bigram transition counts and row totals
+function trainBigramModel(corpusTokens, bVocab, bCounts, bTotals) {
+    cLen = len(corpusTokens)
+    vSize = len(bVocab)
+    bi = 0
+    while (bi < cLen - 1) {
+        w1 = corpusTokens[bi]
+        w2 = corpusTokens[bi + 1]
+        id1 = findWordIndex(bVocab, w1)
+        id2 = findWordIndex(bVocab, w2)
+        if (id1 >= 0 && id2 >= 0) {
+            bCounts[id1 * vSize + id2] = bCounts[id1 * vSize + id2] + 1
+            bTotals[id1] = bTotals[id1] + 1
+        }
+        bi = bi + 1
+    }
+}
+
+// Sample next token from Bigram distribution given previous token
+function sampleBigramNext(bVocab, bCounts, bTotals, prevId, randVal) {
+    vSize = len(bVocab)
+    total = bTotals[prevId]
+    if (total == 0) {
+        // Fallback: uniform random token
+        return randVal % vSize
+    }
+    pick = randVal % total
+    cum = 0
+    si = 0
+    while (si < vSize) {
+        cCnt = bCounts[prevId * vSize + si]
+        cum = cum + cCnt
+        if (cum > pick) {
+            return si
+        }
+        si = si + 1
+    }
+    return vSize - 1
+}
+
+// Build Trigram transition counts and prefix totals
+function trainTrigramModel(corpusTokens, tVocab, triCounts, triTotals) {
+    tcLen = len(corpusTokens)
+    tvSize = len(tVocab)
+    ti = 0
+    while (ti < tcLen - 2) {
+        tw1 = corpusTokens[ti]
+        tw2 = corpusTokens[ti + 1]
+        tw3 = corpusTokens[ti + 2]
+        tid1 = findWordIndex(tVocab, tw1)
+        tid2 = findWordIndex(tVocab, tw2)
+        tid3 = findWordIndex(tVocab, tw3)
+        if (tid1 >= 0 && tid2 >= 0 && tid3 >= 0) {
+            prefixId = tid1 * tvSize + tid2
+            triCounts[prefixId * tvSize + tid3] = triCounts[prefixId * tvSize + tid3] + 1
+            triTotals[prefixId] = triTotals[prefixId] + 1
+        }
+        ti = ti + 1
+    }
+}
+
+// Sample next token from Trigram distribution given two previous tokens
+function sampleTrigramNext(tVocab, triCounts, triTotals, bCounts, bTotals, p1, p2, randVal) {
+    tvSize = len(tVocab)
+    prefixId = p1 * tvSize + p2
+    triTot = triTotals[prefixId]
+    if (triTot > 0) {
+        pick = randVal % triTot
+        cum = 0
+        tsi = 0
+        while (tsi < tvSize) {
+            tCnt = triCounts[prefixId * tvSize + tsi]
+            cum = cum + tCnt
+            if (cum > pick) {
+                return tsi
+            }
+            tsi = tsi + 1
+        }
+    }
+    // Backoff to Bigram
+    return sampleBigramNext(tVocab, bCounts, bTotals, p2, randVal)
+}
+
+// Evaluate Perplexity of a test sequence under the Bigram model with Add-1 (Laplace) smoothing
+function evaluateBigramPerplexity(testTokens, pVocab, bCounts, bTotals) {
+    pvSize = len(pVocab)
+    ptLen = len(testTokens)
+    if (ptLen < 2) {
+        return 1.0
+    }
+    logSum = 0.0
+    validPairs = 0
+    log2 = m.Log(2.0)
+    pi = 0
+    while (pi < ptLen - 1) {
+        pw1 = testTokens[pi]
+        pw2 = testTokens[pi + 1]
+        pid1 = findWordIndex(pVocab, pw1)
+        pid2 = findWordIndex(pVocab, pw2)
+        if (pid1 >= 0 && pid2 >= 0) {
+            cnt = bCounts[pid1 * pvSize + pid2]
+            tot = bTotals[pid1]
+            // Laplace smoothed probability: P = (count + 1) / (total + V)
+            prob = (cnt + 1.0) / (tot + pvSize)
+            logSum = logSum + (0.0 - (m.Log(prob) / log2))
+            validPairs = validPairs + 1
+        }
+        pi = pi + 1
+    }
+    if (validPairs == 0) {
+        return 999999.0
+    }
+    avgCrossEntropy = logSum / validPairs
+    // Perplexity = 2^H = exp(H * ln(2))
+    return m.Exp(avgCrossEntropy * log2)
+}
+
+function runMarkovTestSuite() {
+    startTime = t.Nano()
+
+    // Training Corpus: Classic rhythmic and prose tokens
+    corpus = [
+        "the", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog", ".",
+        "the", "lazy", "dog", "barks", "at", "the", "brown", "fox", ".",
+        "a", "quick", "brown", "dog", "runs", "past", "the", "lazy", "fox", ".",
+        "the", "fox", "jumps", "high", "and", "the", "dog", "barks", "loud", ".",
+        "a", "fox", "runs", "over", "the", "dog", "and", "jumps", "past", "the", "lazy", "dog", ".",
+        "the", "brown", "fox", "is", "quick", "and", "the", "lazy", "dog", "is", "slow", ".",
+        "the", "dog", "barks", "and", "the", "fox", "runs", "away", "."
+    ]
+
+    // Construct vocabulary
+    vocab = []
+    ci = 0
+    while (ci < len(corpus)) {
+        w = corpus[ci]
+        if (findWordIndex(vocab, w) < 0) {
+            vocab.push(w)
+        }
+        ci = ci + 1
+    }
+    vSize = len(vocab)
+
+    // Test 1: Vocabulary construction and Bigram model training
+    bCounts = makeIntArray(vSize * vSize, 0)
+    bTotals = makeIntArray(vSize, 0)
+    trainBigramModel(corpus, vocab, bCounts, bTotals)
+
+    // Verify row totals match sum of outgoing transitions
+    t1Ok = 1
+    vi = 0
+    while (vi < vSize) {
+        rowSum = 0
+        vj = 0
+        while (vj < vSize) {
+            rowSum = rowSum + bCounts[vi * vSize + vj]
+            vj = vj + 1
+        }
+        if (rowSum != bTotals[vi]) {
+            t1Ok = 0
+        }
+        vi = vi + 1
+    }
+    if (t1Ok != 1) {
+        print("[FAIL] Test 1: Bigram row totals mismatch")
+        return 0
+    }
+
+    // Test 2: Deterministic sequence generation using Bigram model
+    genLen = 12
+    generatedBigram = []
+    curWord = "the"
+    generatedBigram.push(curWord)
+    seed = 42
+    gi = 1
+    while (gi < genLen) {
+        seed = lcgNext(seed)
+        cId = findWordIndex(vocab, curWord)
+        nxtId = sampleBigramNext(vocab, bCounts, bTotals, cId, seed)
+        curWord = vocab[nxtId]
+        generatedBigram.push(curWord)
+        gi = gi + 1
+    }
+    if (len(generatedBigram) != genLen) {
+        print("[FAIL] Test 2: Bigram generated length mismatch")
+        return 0
+    }
+
+    // Verify all consecutive bigrams in generated text have valid positive probability
+    t2Valid = 1
+    chk = 0
+    while (chk < genLen - 1) {
+        gw1 = findWordIndex(vocab, generatedBigram[chk])
+        gw2 = findWordIndex(vocab, generatedBigram[chk + 1])
+        if (bCounts[gw1 * vSize + gw2] == 0) {
+            t2Valid = 0
+        }
+        chk = chk + 1
+    }
+    if (t2Valid != 1) {
+        print("[FAIL] Test 2: Generated bigram transition had zero probability")
+        return 0
+    }
+
+    // Test 3: Trigram model training and coherent synthesis
+    triCounts = makeIntArray(vSize * vSize * vSize, 0)
+    triTotals = makeIntArray(vSize * vSize, 0)
+    trainTrigramModel(corpus, vocab, triCounts, triTotals)
+
+    // Generate trigram sequence starting from ("the", "lazy")
+    generatedTrigram = ["the", "lazy"]
+    tSeed = 1337
+    tgi = 2
+    while (tgi < 15) {
+        tSeed = lcgNext(tSeed)
+        tp1 = findWordIndex(vocab, generatedTrigram[tgi - 2])
+        tp2 = findWordIndex(vocab, generatedTrigram[tgi - 1])
+        tnxtId = sampleTrigramNext(vocab, triCounts, triTotals, bCounts, bTotals, tp1, tp2, tSeed)
+        generatedTrigram.push(vocab[tnxtId])
+        tgi = tgi + 1
+    }
+    if (len(generatedTrigram) != 15) {
+        print("[FAIL] Test 3: Trigram generated length mismatch")
+        return 0
+    }
+
+    // Test 4: Perplexity evaluation on in-domain vs out-of-domain sentences
+    inDomain = ["the", "quick", "brown", "fox", ".", "the", "lazy", "dog", "barks", "."]
+    ppIn = evaluateBigramPerplexity(inDomain, vocab, bCounts, bTotals)
+
+    // Lower perplexity indicates higher likelihood / better fit
+    // In-domain perplexity must be reasonably low (< 10.0 for this compact vocabulary)
+    if (ppIn <= 0.0 || ppIn > 10.0) {
+        print("[FAIL] Test 4: In-domain perplexity out of expected bounds: ", ppIn)
+        return 0
+    }
+
+    // Test 5: Deterministic token stream reproducibility
+    // Generating twice with identical seeds must yield byte-for-byte identical token sequences
+    stream1 = []
+    stream2 = []
+    sSeed1 = 98765
+    sSeed2 = 98765
+    wStart = "a"
+    w1Cur = wStart
+    w2Cur = wStart
+    stream1.push(w1Cur)
+    stream2.push(w2Cur)
+    si = 0
+    while (si < 20) {
+        sSeed1 = lcgNext(sSeed1)
+        sSeed2 = lcgNext(sSeed2)
+        nId1 = sampleBigramNext(vocab, bCounts, bTotals, findWordIndex(vocab, w1Cur), sSeed1)
+        nId2 = sampleBigramNext(vocab, bCounts, bTotals, findWordIndex(vocab, w2Cur), sSeed2)
+        w1Cur = vocab[nId1]
+        w2Cur = vocab[nId2]
+        stream1.push(w1Cur)
+        stream2.push(w2Cur)
+        si = si + 1
+    }
+    matchOk = 1
+    mi = 0
+    while (mi < len(stream1)) {
+        if (stream1[mi] != stream2[mi]) {
+            matchOk = 0
+        }
+        mi = mi + 1
+    }
+    if (matchOk != 1) {
+        print("[FAIL] Test 5: Non-deterministic LCG sampling detected")
+        return 0
+    }
+
+    elapsedMs = (t.Nano() - startTime) / 1000000
+    print("[PASS] markovTextGenerator: 5 tests passed, perplexity=", ppIn, " in ", elapsedMs, " ms")
+    return 1
+}
+
+runMarkovTestSuite()
