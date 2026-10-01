@@ -1,0 +1,322 @@
+import stdlib math as m
+import stdlib time as t
+
+// High-Performance Cholesky Decomposition & Linear Solver
+// Implements A = L * L^T for symmetric positive-definite matrices,
+// forward substitution, back-substitution, and residual norm verification.
+
+function makeFloatArray(csz, cval) {
+    carr = []
+    cmi = 0
+    while (cmi < csz) {
+        carr.push(cval)
+        cmi = cmi + 1
+    }
+    return carr
+}
+
+function choleskyDecompose(caMat, clMat, cn) {
+    ci = 0
+    while (ci < cn) {
+        cj = 0
+        while (cj <= ci) {
+            cSum = 0.0
+            ck = 0
+            while (ck < cj) {
+                cterm = clMat[ci * cn + ck] * clMat[cj * cn + ck]
+                cSum = cSum + cterm
+                ck = ck + 1
+            }
+            if (ci == cj) {
+                cdiff = caMat[ci * cn + ci] - cSum
+                if (cdiff <= 0.0) {
+                    return 0
+                }
+                clMat[ci * cn + cj] = m.Sqrt(cdiff)
+            } else {
+                cdiag = clMat[cj * cn + cj]
+                clMat[ci * cn + cj] = (caMat[ci * cn + cj] - cSum) / cdiag
+            }
+            cj = cj + 1
+        }
+        ci = ci + 1
+    }
+    return 1
+}
+
+function solveForward(clMat, cbVec, cyVec, cn) {
+    fi = 0
+    while (fi < cn) {
+        fSum = 0.0
+        fk = 0
+        while (fk < fi) {
+            fterm = clMat[fi * cn + fk] * cyVec[fk]
+            fSum = fSum + fterm
+            fk = fk + 1
+        }
+        fdiag = clMat[fi * cn + fi]
+        cyVec[fi] = (cbVec[fi] - fSum) / fdiag
+        fi = fi + 1
+    }
+}
+
+function solveBackward(clMat, cyVec, cxVec, cn) {
+    bi = cn - 1
+    while (bi >= 0) {
+        bSum = 0.0
+        bk = bi + 1
+        while (bk < cn) {
+            bterm = clMat[bk * cn + bi] * cxVec[bk]
+            bSum = bSum + bterm
+            bk = bk + 1
+        }
+        bdiag = clMat[bi * cn + bi]
+        cxVec[bi] = (cyVec[bi] - bSum) / bdiag
+        bi = bi - 1
+    }
+}
+
+function choleskySolve(caMat, cbVec, cxVec, cn) {
+    clMat = makeFloatArray(cn * cn, 0.0)
+    cDecompOk = choleskyDecompose(caMat, clMat, cn)
+    if (cDecompOk == 0) {
+        return 0
+    }
+    cyVec = makeFloatArray(cn, 0.0)
+    solveForward(clMat, cbVec, cyVec, cn)
+    solveBackward(clMat, cyVec, cxVec, cn)
+    return 1
+}
+
+function computeResidualNorm(caMat, cbVec, cxVec, cn) {
+    ri = 0
+    rSumSq = 0.0
+    while (ri < cn) {
+        rax = 0.0
+        rj = 0
+        while (rj < cn) {
+            rterm = caMat[ri * cn + rj] * cxVec[rj]
+            rax = rax + rterm
+            rj = rj + 1
+        }
+        rdiff = rax - cbVec[ri]
+        rSumSq = rSumSq + (rdiff * rdiff)
+        ri = ri + 1
+    }
+    return m.Sqrt(rSumSq)
+}
+
+function invertSPDMatrix(caMat, cinvMat, cn) {
+    clMat = makeFloatArray(cn * cn, 0.0)
+    iDecompOk = choleskyDecompose(caMat, clMat, cn)
+    if (iDecompOk == 0) {
+        return 0
+    }
+    
+    // Invert lower triangular matrix L into lInv
+    clInv = makeFloatArray(cn * cn, 0.0)
+    ii = 0
+    while (ii < cn) {
+        clInv[ii * cn + ii] = 1.0 / clMat[ii * cn + ii]
+        ij = ii + 1
+        while (ij < cn) {
+            iSum = 0.0
+            ik = ii
+            while (ik < ij) {
+                iterm = clMat[ij * cn + ik] * clInv[ik * cn + ii]
+                iSum = iSum + iterm
+                ik = ik + 1
+            }
+            clInv[ij * cn + ii] = (0.0 - iSum) / clMat[ij * cn + ij]
+            ij = ij + 1
+        }
+        ii = ii + 1
+    }
+
+    // A^-1 = (L^-1)^T * L^-1
+    mi = 0
+    while (mi < cn) {
+        mj = 0
+        while (mj < cn) {
+            mSum = 0.0
+            mk = 0
+            while (mk < cn) {
+                mterm = clInv[mk * cn + mi] * clInv[mk * cn + mj]
+                mSum = mSum + mterm
+                mk = mk + 1
+            }
+            cinvMat[mi * cn + mj] = mSum
+            mj = mj + 1
+        }
+        mi = mi + 1
+    }
+    return 1
+}
+
+function computeIdentityError(caMat, cinvMat, cn) {
+    ei = 0
+    eSumSq = 0.0
+    while (ei < cn) {
+        ej = 0
+        while (ej < cn) {
+            prod = 0.0
+            ek = 0
+            while (ek < cn) {
+                prod = prod + (caMat[ei * cn + ek] * cinvMat[ek * cn + ej])
+                ek = ek + 1
+            }
+            expected = 0.0
+            if (ei == ej) {
+                expected = 1.0
+            }
+            ediff = prod - expected
+            eSumSq = eSumSq + (ediff * ediff)
+            ej = ej + 1
+        }
+        ei = ei + 1
+    }
+    return m.Sqrt(eSumSq)
+}
+
+function runCholeskyTestSuite() {
+    startTime = t.Nano()
+    eps = 0.0000000001
+
+    // Test 1: 4x4 Well-Conditioned Symmetric Positive-Definite Matrix
+    n1 = 4
+    a1 = [
+        4.0,  12.0, -16.0,   0.0,
+       12.0,  37.0, -43.0,  -3.0,
+      -16.0, -43.0,  98.0, -17.0,
+        0.0,  -3.0, -17.0,  82.0
+    ]
+    b1 = [ 2.0, 15.0, 8.0, 12.0 ]
+    x1 = makeFloatArray(n1, 0.0)
+
+    ok1 = choleskySolve(a1, b1, x1, n1)
+    if (ok1 != 1) {
+        print("[FAIL] Test 1: Cholesky solve failed")
+        return 0
+    }
+    res1 = computeResidualNorm(a1, b1, x1, n1)
+    if (res1 > eps) {
+        print("[FAIL] Test 1: Residual too high: ", res1)
+        return 0
+    }
+
+    // Invert matrix 1 and verify A * A^-1 = I
+    inv1 = makeFloatArray(n1 * n1, 0.0)
+    invOk1 = invertSPDMatrix(a1, inv1, n1)
+    if (invOk1 != 1) {
+        print("[FAIL] Test 1: Inversion failed")
+        return 0
+    }
+    identErr1 = computeIdentityError(a1, inv1, n1)
+    if (identErr1 > eps) {
+        print("[FAIL] Test 1: Inversion identity error too high: ", identErr1)
+        return 0
+    }
+
+    // Test 2: 5x5 Tridiagonal 1D Poisson / Laplacian Operator
+    // Matrix with 2.0 on diagonal, -1.0 on sub/super-diagonals
+    n2 = 5
+    a2 = makeFloatArray(n2 * n2, 0.0)
+    p2i = 0
+    while (p2i < n2) {
+        a2[p2i * n2 + p2i] = 2.0
+        if (p2i > 0) {
+            a2[p2i * n2 + (p2i - 1)] = -1.0
+            a2[(p2i - 1) * n2 + p2i] = -1.0
+        }
+        p2i = p2i + 1
+    }
+    b2 = [ 1.0, 0.0, -1.0, 2.0, 3.0 ]
+    x2 = makeFloatArray(n2, 0.0)
+
+    ok2 = choleskySolve(a2, b2, x2, n2)
+    if (ok2 != 1) {
+        print("[FAIL] Test 2: Poisson solve failed")
+        return 0
+    }
+    res2 = computeResidualNorm(a2, b2, x2, n2)
+    if (res2 > eps) {
+        print("[FAIL] Test 2: Residual too high: ", res2)
+        return 0
+    }
+
+    // Test 3: 6x6 Gram Matrix M^T * M + alpha * I (guaranteed SPD)
+    n3 = 6
+    m3 = [
+        1.0, 2.0, 0.5, 0.0, 1.5, 0.2,
+        0.5, 3.0, 1.0, 0.5, 0.0, 1.0,
+        2.0, 0.0, 1.5, 2.0, 0.5, 0.5,
+        0.0, 1.0, 0.5, 3.0, 1.0, 0.0,
+        1.0, 0.5, 2.0, 0.0, 2.5, 1.5,
+        0.5, 1.5, 0.0, 1.0, 0.5, 3.0
+    ]
+    a3 = makeFloatArray(n3 * n3, 0.0)
+    g3i = 0
+    while (g3i < n3) {
+        g3j = 0
+        while (g3j < n3) {
+            gProd = 0.0
+            g3k = 0
+            while (g3k < n3) {
+                gterm = m3[g3k * n3 + g3i] * m3[g3k * n3 + g3j]
+                gProd = gProd + gterm
+                g3k = g3k + 1
+            }
+            if (g3i == g3j) {
+                gProd = gProd + 1.0
+            }
+            a3[g3i * n3 + g3j] = gProd
+            g3j = g3j + 1
+        }
+        g3i = g3i + 1
+    }
+    b3 = [ 4.5, -2.1, 7.8, 1.2, -3.4, 5.0 ]
+    x3 = makeFloatArray(n3, 0.0)
+
+    ok3 = choleskySolve(a3, b3, x3, n3)
+    if (ok3 != 1) {
+        print("[FAIL] Test 3: Gram matrix solve failed")
+        return 0
+    }
+    res3 = computeResidualNorm(a3, b3, x3, n3)
+    if (res3 > eps) {
+        print("[FAIL] Test 3: Residual too high: ", res3)
+        return 0
+    }
+
+    inv3 = makeFloatArray(n3 * n3, 0.0)
+    invOk3 = invertSPDMatrix(a3, inv3, n3)
+    if (invOk3 != 1) {
+        print("[FAIL] Test 3: Inversion failed")
+        return 0
+    }
+    identErr3 = computeIdentityError(a3, inv3, n3)
+    if (identErr3 > eps) {
+        print("[FAIL] Test 3: Inversion identity error too high: ", identErr3)
+        return 0
+    }
+
+    // Test 4: Positive Definiteness Failure Detection (non-SPD matrix)
+    n4 = 3
+    a4 = [
+        1.0, 2.0, 3.0,
+        2.0, 1.0, 4.0,
+        3.0, 4.0, 1.0
+    ]
+    x4 = makeFloatArray(n4, 0.0)
+    ok4 = choleskySolve(a4, [1.0, 1.0, 1.0], x4, n4)
+    if (ok4 != 0) {
+        print("[FAIL] Test 4: Expected non-SPD failure but succeeded")
+        return 0
+    }
+
+    elapsedMs = (t.Nano() - startTime) / 1000000
+    print("[PASS] choleskyLinearSolver: 4 tests passed, max residual < 1e-10 in ", elapsedMs, " ms")
+    return 1
+}
+
+runCholeskyTestSuite()
