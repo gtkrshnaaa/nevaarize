@@ -1,0 +1,264 @@
+import stdlib string as str
+import stdlib time as tm
+
+print("=== Nevaarize Probabilistic Bloom Filter Benchmark ===")
+
+function makeIntArray(sz, fillVal) {
+    arr = []
+    mi = 0
+    while (mi < sz) {
+        arr.push(fillVal)
+        mi = mi + 1
+    }
+    return arr
+}
+
+function hashFNV1a(strVal, mBits) {
+    h = 2166136261
+    n = str.length(strVal)
+    fnvI = 0
+    while (fnvI < n) {
+        c = str.charCodeAt(strVal, fnvI)
+        h = (h ^ c) * 16777619
+        h = h & 2147483647
+        fnvI = fnvI + 1
+    }
+    return h % mBits
+}
+
+function hashDJB2(strVal, mBits) {
+    h = 5381
+    n = str.length(strVal)
+    djbI = 0
+    while (djbI < n) {
+        c = str.charCodeAt(strVal, djbI)
+        h = (((h << 5) + h) + c) & 2147483647
+        djbI = djbI + 1
+    }
+    return h % mBits
+}
+
+function hashSDBM(strVal, mBits) {
+    h = 0
+    n = str.length(strVal)
+    sdbmI = 0
+    while (sdbmI < n) {
+        c = str.charCodeAt(strVal, sdbmI)
+        h = (c + (h << 6) + (h << 16) - h) & 2147483647
+        sdbmI = sdbmI + 1
+    }
+    return h % mBits
+}
+
+function hashMurmur(strVal, mBits) {
+    h = 3323198485
+    n = str.length(strVal)
+    mmI = 0
+    while (mmI < n) {
+        c = str.charCodeAt(strVal, mmI)
+        k = (c * 3432918353) & 2147483647
+        k = ((k << 15) | (k >> 16)) & 2147483647
+        k = (k * 461845907) & 2147483647
+        h = h ^ k
+        h = ((h << 13) | (h >> 18)) & 2147483647
+        h = (h * 5 + 3864292196) & 2147483647
+        mmI = mmI + 1
+    }
+    h = h ^ n
+    h = (h ^ (h >> 16)) * 2246822507
+    h = h & 2147483647
+    return h % mBits
+}
+
+function setBit(bitBlocks, bitIdx) {
+    wordIdx = bitIdx >> 5
+    offset = bitIdx & 31
+    bitBlocks[wordIdx] = bitBlocks[wordIdx] | (1 << offset)
+}
+
+function testBit(bitBlocks, bitIdx) {
+    wordIdx = bitIdx >> 5
+    offset = bitIdx & 31
+    return (bitBlocks[wordIdx] >> offset) & 1
+}
+
+function bloomAdd(bitBlocks, key, mBits) {
+    h1 = hashFNV1a(key, mBits)
+    h2 = hashDJB2(key, mBits)
+    h3 = hashSDBM(key, mBits)
+    h4 = hashMurmur(key, mBits)
+    setBit(bitBlocks, h1)
+    setBit(bitBlocks, h2)
+    setBit(bitBlocks, h3)
+    setBit(bitBlocks, h4)
+}
+
+function bloomContains(bitBlocks, key, mBits) {
+    h1 = hashFNV1a(key, mBits)
+    if (testBit(bitBlocks, h1) == 0) { return 0 }
+    h2 = hashDJB2(key, mBits)
+    if (testBit(bitBlocks, h2) == 0) { return 0 }
+    h3 = hashSDBM(key, mBits)
+    if (testBit(bitBlocks, h3) == 0) { return 0 }
+    h4 = hashMurmur(key, mBits)
+    if (testBit(bitBlocks, h4) == 0) { return 0 }
+    return 1
+}
+
+// Counting Bloom Filter (CBF) with Deletion Support
+function cbfAdd(counts, key, mBits) {
+    h1 = hashFNV1a(key, mBits)
+    h2 = hashDJB2(key, mBits)
+    h3 = hashSDBM(key, mBits)
+    h4 = hashMurmur(key, mBits)
+    counts[h1] = counts[h1] + 1
+    counts[h2] = counts[h2] + 1
+    counts[h3] = counts[h3] + 1
+    counts[h4] = counts[h4] + 1
+}
+
+function cbfRemove(counts, key, mBits) {
+    h1 = hashFNV1a(key, mBits)
+    h2 = hashDJB2(key, mBits)
+    h3 = hashSDBM(key, mBits)
+    h4 = hashMurmur(key, mBits)
+    if (counts[h1] > 0) { counts[h1] = counts[h1] - 1 }
+    if (counts[h2] > 0) { counts[h2] = counts[h2] - 1 }
+    if (counts[h3] > 0) { counts[h3] = counts[h3] - 1 }
+    if (counts[h4] > 0) { counts[h4] = counts[h4] - 1 }
+}
+
+function cbfContains(counts, key, mBits) {
+    h1 = hashFNV1a(key, mBits)
+    if (counts[h1] == 0) { return 0 }
+    h2 = hashDJB2(key, mBits)
+    if (counts[h2] == 0) { return 0 }
+    h3 = hashSDBM(key, mBits)
+    if (counts[h3] == 0) { return 0 }
+    h4 = hashMurmur(key, mBits)
+    if (counts[h4] == 0) { return 0 }
+    return 1
+}
+
+function intToStr(val) {
+    if (val == 0) { return "0" }
+    res = ""
+    neg = 0
+    num = val
+    if (num < 0) {
+        neg = 1
+        num = 0 - num
+    }
+    while (num > 0) {
+        digit = num % 10
+        ch = str.charAt("0123456789", digit)
+        res = ch + res
+        num = num / 10
+    }
+    if (neg == 1) {
+        res = "-" + res
+    }
+    return res
+}
+
+t0 = tm.millis()
+
+// Part 1: Standard Bitset Bloom Filter (8192 bits = 256 x 32-bit words)
+mBits = 8192
+numWords = mBits >> 5
+bitBlocks = makeIntArray(numWords, 0)
+
+numInsert = 500
+insI = 0
+while (insI < numInsert) {
+    k = "user_entity_" + intToStr(insI)
+    bloomAdd(bitBlocks, k, mBits)
+    insI = insI + 1
+}
+tInsert = tm.millis()
+print("Standard Bloom Filter: Inserted", numInsert, "keys in", tInsert - t0, "ms")
+
+// Verify 0% false negative rate
+falseNegatives = 0
+fnI = 0
+while (fnI < numInsert) {
+    k = "user_entity_" + intToStr(fnI)
+    if (bloomContains(bitBlocks, k, mBits) == 0) {
+        falseNegatives = falseNegatives + 1
+    }
+    fnI = fnI + 1
+}
+print("False negative verification: Found", falseNegatives, "false negatives out of", numInsert, "(Must be 0)")
+
+// Test false positive rate with 1000 absent probe keys
+numAbsent = 1000
+falsePositives = 0
+fpI = 0
+while (fpI < numAbsent) {
+    k = "absent_probe_" + intToStr(fpI + 50000)
+    if (bloomContains(bitBlocks, k, mBits) == 1) {
+        falsePositives = falsePositives + 1
+    }
+    fpI = fpI + 1
+}
+tQuery = tm.millis()
+print("False positive check:", falsePositives, "/", numAbsent, "false positives across absent keys in", tQuery - tInsert, "ms")
+
+// Part 2: Counting Bloom Filter with Deletion Support (2048 buckets)
+cbfBits = 2048
+counts = makeIntArray(cbfBits, 0)
+
+cbfInsertCount = 200
+cbfI = 0
+while (cbfI < cbfInsertCount) {
+    ck = "session_token_" + intToStr(cbfI)
+    cbfAdd(counts, ck, cbfBits)
+    cbfI = cbfI + 1
+}
+
+// Verify all 200 exist
+cbfAllPresent = 1
+chkI = 0
+while (chkI < cbfInsertCount) {
+    ck = "session_token_" + intToStr(chkI)
+    if (cbfContains(counts, ck, cbfBits) == 0) {
+        cbfAllPresent = 0
+    }
+    chkI = chkI + 1
+}
+print("Counting Bloom Filter: All 200 tokens present before deletion:", cbfAllPresent)
+
+// Delete first 100 items
+delI = 0
+while (delI < 100) {
+    ck = "session_token_" + intToStr(delI)
+    cbfRemove(counts, ck, cbfBits)
+    delI = delI + 1
+}
+
+// Verify deleted tokens are now absent
+deletedStillPresent = 0
+chkDelI = 0
+while (chkDelI < 100) {
+    ck = "session_token_" + intToStr(chkDelI)
+    if (cbfContains(counts, ck, cbfBits) == 1) {
+        deletedStillPresent = deletedStillPresent + 1
+    }
+    chkDelI = chkDelI + 1
+}
+print("Counting Bloom Filter: Deleted tokens still present:", deletedStillPresent, "/ 100 (Expected: 0)")
+
+// Verify remaining 100 items are still present
+remainingPresent = 0
+remI = 100
+while (remI < 200) {
+    ck = "session_token_" + intToStr(remI)
+    if (cbfContains(counts, ck, cbfBits) == 1) {
+        remainingPresent = remainingPresent + 1
+    }
+    remI = remI + 1
+}
+print("Counting Bloom Filter: Retained tokens present:", remainingPresent, "/ 100 (Expected: 100)")
+
+tTotal = tm.millis() - t0
+print("Probabilistic Bloom Filter benchmark completed in", tTotal, "ms")
