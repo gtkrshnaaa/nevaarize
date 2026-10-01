@@ -1,0 +1,170 @@
+import stdlib string as str
+import stdlib time as tm
+
+print("=== Nevaarize Complex Fractal Dynamics (Julia & Burning Ship) ===")
+
+function makeIntArray(sz, fillVal) {
+    arr = []
+    mi = 0
+    while (mi < sz) {
+        arr.push(fillVal)
+        mi = mi + 1
+    }
+    return arr
+}
+
+function absFloat(v) {
+    if (v < 0.0) { return 0.0 - v }
+    return v
+}
+
+function juliaEscape(zx, zy, cx, cy, maxIter) {
+    currX = zx
+    currY = zy
+    it = 0
+    while (it < maxIter) {
+        sqX = currX * currX
+        sqY = currY * currY
+        if (sqX + sqY > 4.0) {
+            return it
+        }
+        currY = (2.0 * currX * currY) + cy
+        currX = (sqX - sqY) + cx
+        it = it + 1
+    }
+    return maxIter
+}
+
+function burningShipEscape(cx, cy, maxIter) {
+    currX = 0.0
+    currY = 0.0
+    it = 0
+    while (it < maxIter) {
+        sqX = currX * currX
+        sqY = currY * currY
+        if (sqX + sqY > 4.0) {
+            return it
+        }
+        ax = absFloat(currX)
+        ay = absFloat(currY)
+        currY = (2.0 * ax * ay) - cy
+        currX = (sqX - sqY) + cx
+        it = it + 1
+    }
+    return maxIter
+}
+
+gridW = 60
+gridH = 24
+maxIter = 64
+ramp = " .:-=+*#%@"
+
+t0 = tm.millis()
+
+// 1. Dendrite Julia Set (c = -0.7 + 0.27015i)
+print("Rendering Dendrite Julia Set (c = -0.7 + 0.27015i)...")
+cx1 = -0.7
+cy1 = 0.27015
+sum1 = 0
+hist1 = makeIntArray(5, 0) // <8, 8..16, 17..32, 33..63, 64 (interior)
+
+jy1 = 0
+while (jy1 < gridH) {
+    line1 = ""
+    zy1 = -1.2 + (jy1 * 2.4 / gridH)
+    jx1 = 0
+    while (jx1 < gridW) {
+        zx1 = -1.5 + (jx1 * 3.0 / gridW)
+        esc1 = juliaEscape(zx1, zy1, cx1, cy1, maxIter)
+        sum1 = sum1 + esc1
+        
+        // Update histogram
+        if (esc1 < 8) { hist1[0] = hist1[0] + 1 }
+        elif (esc1 <= 16) { hist1[1] = hist1[1] + 1 }
+        elif (esc1 <= 32) { hist1[2] = hist1[2] + 1 }
+        elif (esc1 < maxIter) { hist1[3] = hist1[3] + 1 }
+        else { hist1[4] = hist1[4] + 1 }
+        
+        rIdx1 = (esc1 * 9) / maxIter
+        if (rIdx1 > 9) { rIdx1 = 9 }
+        line1 = line1 + str.charAt(ramp, rIdx1)
+        jx1 = jx1 + 1
+    }
+    print(line1)
+    jy1 = jy1 + 1
+}
+t1 = tm.millis()
+print("Julia 1 Sum:", sum1, "Hist:", hist1[0], hist1[1], hist1[2], hist1[3], hist1[4], "Time:", t1 - t0, "ms")
+
+// 2. Douady Rabbit Julia Set (c = -0.4 + 0.6i)
+print("Rendering Douady Rabbit Julia Set (c = -0.4 + 0.6i)...")
+cx2 = -0.4
+cy2 = 0.6
+sum2 = 0
+hist2 = makeIntArray(5, 0)
+
+jy2 = 0
+while (jy2 < gridH) {
+    line2 = ""
+    zy2 = -1.3 + (jy2 * 2.6 / gridH)
+    jx2 = 0
+    while (jx2 < gridW) {
+        zx2 = -1.4 + (jx2 * 2.8 / gridW)
+        esc2 = juliaEscape(zx2, zy2, cx2, cy2, maxIter)
+        sum2 = sum2 + esc2
+        
+        if (esc2 < 8) { hist2[0] = hist2[0] + 1 }
+        elif (esc2 <= 16) { hist2[1] = hist2[1] + 1 }
+        elif (esc2 <= 32) { hist2[2] = hist2[2] + 1 }
+        elif (esc2 < maxIter) { hist2[3] = hist2[3] + 1 }
+        else { hist2[4] = hist2[4] + 1 }
+        
+        rIdx2 = (esc2 * 9) / maxIter
+        if (rIdx2 > 9) { rIdx2 = 9 }
+        line2 = line2 + str.charAt(ramp, rIdx2)
+        jx2 = jx2 + 1
+    }
+    jy2 = jy2 + 1
+}
+t2 = tm.millis()
+print("Julia 2 Sum:", sum2, "Hist:", hist2[0], hist2[1], hist2[2], hist2[3], hist2[4], "Time:", t2 - t1, "ms")
+
+// 3. Burning Ship Fractal
+print("Rendering Burning Ship Fractal...")
+sum3 = 0
+hist3 = makeIntArray(5, 0)
+
+by = 0
+while (by < gridH) {
+    line3 = ""
+    bcy = -1.0 + (by * 1.8 / gridH)
+    bx = 0
+    while (bx < gridW) {
+        bcx = -1.8 + (bx * 2.4 / gridW)
+        esc3 = burningShipEscape(bcx, bcy, maxIter)
+        sum3 = sum3 + esc3
+        
+        if (esc3 < 8) { hist3[0] = hist3[0] + 1 }
+        elif (esc3 <= 16) { hist3[1] = hist3[1] + 1 }
+        elif (esc3 <= 32) { hist3[2] = hist3[2] + 1 }
+        elif (esc3 < maxIter) { hist3[3] = hist3[3] + 1 }
+        else { hist3[4] = hist3[4] + 1 }
+        
+        rIdx3 = (esc3 * 9) / maxIter
+        if (rIdx3 > 9) { rIdx3 = 9 }
+        line3 = line3 + str.charAt(ramp, rIdx3)
+        bx = bx + 1
+    }
+    by = by + 1
+}
+t3 = tm.millis()
+print("Burning Ship Sum:", sum3, "Hist:", hist3[0], hist3[1], hist3[2], hist3[3], hist3[4], "Time:", t3 - t2, "ms")
+
+// Deterministic Checksum Verification
+validChecksums = 1
+if (sum1 != 25685) { validChecksums = 0 }
+if (sum2 != 20441) { validChecksums = 0 }
+if (sum3 != 35870) { validChecksums = 0 }
+
+tTotal = t3 - t0
+print("Fractal calculations verified (Checksums Valid:", validChecksums, ") in", tTotal, "ms")
