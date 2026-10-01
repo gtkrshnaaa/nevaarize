@@ -1,0 +1,279 @@
+import stdlib time as tm
+
+print("=== Nevaarize 3D K-D Tree Spatial Indexing Benchmark ===")
+
+function makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+function nextRand(state) {
+    s = (state[0] * 1103515245 + 12345) & 2147483647
+    state[0] = s
+    return s % 10000
+}
+
+function distSq(x1, y1, z1, x2, y2, z2) {
+    dx = x1 - x2
+    dy = y1 - y2
+    dz = z1 - z2
+    return (dx * dx) + (dy * dy) + (dz * dz)
+}
+
+function getCoord(ptIdx, axis, px, py, pz) {
+    if (axis == 0) { return px[ptIdx] }
+    if (axis == 1) { return py[ptIdx] }
+    return pz[ptIdx]
+}
+
+function partition(indices, pStart, pEnd, pivotIdx, pAxis, px, py, pz) {
+    pivotVal = getCoord(indices[pivotIdx], pAxis, px, py, pz)
+    
+    tmp = indices[pivotIdx]
+    indices[pivotIdx] = indices[pEnd - 1]
+    indices[pEnd - 1] = tmp
+    
+    storeIdx = pStart
+    pI = pStart
+    while (pI < pEnd - 1) {
+        if (getCoord(indices[pI], pAxis, px, py, pz) < pivotVal) {
+            t = indices[storeIdx]
+            indices[storeIdx] = indices[pI]
+            indices[pI] = t
+            storeIdx = storeIdx + 1
+        }
+        pI = pI + 1
+    }
+    t = indices[storeIdx]
+    indices[storeIdx] = indices[pEnd - 1]
+    indices[pEnd - 1] = t
+    return storeIdx
+}
+
+function quickselect(indices, qsStart, qsEnd, k, qsAxis, px, py, pz) {
+    l = qsStart
+    r = qsEnd
+    while (l < r) {
+        qsMid = l + ((r - l) / 2)
+        p = partition(indices, l, r, qsMid, qsAxis, px, py, pz)
+        if (p == k) {
+            return indices[p]
+        } elif (p < k) {
+            l = p + 1
+        } else {
+            r = p
+        }
+    }
+    return indices[k]
+}
+
+function buildTree(indices, bStart, bEnd, depth, nodeLeft, nodeRight, nodePoint, nodeAxis, nodeSize, px, py, pz) {
+    if (bStart >= bEnd) {
+        return -1
+    }
+    bAxis = depth % 3
+    bMid = bStart + ((bEnd - bStart) / 2)
+    quickselect(indices, bStart, bEnd, bMid, bAxis, px, py, pz)
+    
+    nodeId = nodeSize[0]
+    nodeSize[0] = nodeSize[0] + 1
+    
+    nodePoint[nodeId] = indices[bMid]
+    nodeAxis[nodeId] = bAxis
+    
+    leftNode = buildTree(indices, bStart, bMid, depth + 1, nodeLeft, nodeRight, nodePoint, nodeAxis, nodeSize, px, py, pz)
+    rightNode = buildTree(indices, bMid + 1, bEnd, depth + 1, nodeLeft, nodeRight, nodePoint, nodeAxis, nodeSize, px, py, pz)
+    
+    nodeLeft[nodeId] = leftNode
+    nodeRight[nodeId] = rightNode
+    return nodeId
+}
+
+function searchNN(nodeId, qx, qy, qz, bestResult, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz) {
+    if (nodeId == -1) {
+        return 0
+    }
+    
+    pt = nodePoint[nodeId]
+    d = distSq(qx, qy, qz, px[pt], py[pt], pz[pt])
+    if (d < bestResult[1]) {
+        bestResult[0] = pt
+        bestResult[1] = d
+    }
+    
+    sAxis = nodeAxis[nodeId]
+    qVal = qx
+    pVal = px[pt]
+    if (sAxis == 1) {
+        qVal = qy
+        pVal = py[pt]
+    } elif (sAxis == 2) {
+        qVal = qz
+        pVal = pz[pt]
+    }
+    
+    diff = qVal - pVal
+    axisDiffSq = diff * diff
+    
+    nearChild = nodeLeft[nodeId]
+    farChild = nodeRight[nodeId]
+    if (diff > 0) {
+        nearChild = nodeRight[nodeId]
+        farChild = nodeLeft[nodeId]
+    }
+    
+    searchNN(nearChild, qx, qy, qz, bestResult, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz)
+    
+    if (axisDiffSq < bestResult[1]) {
+        searchNN(farChild, qx, qy, qz, bestResult, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz)
+    }
+    return 0
+}
+
+function bruteForceNN(qx, qy, qz, numPoints, px, py, pz) {
+    bestD = distSq(qx, qy, qz, px[0], py[0], pz[0])
+    bfI = 1
+    while (bfI < numPoints) {
+        d = distSq(qx, qy, qz, px[bfI], py[bfI], pz[bfI])
+        if (d < bestD) {
+            bestD = d
+        }
+        bfI = bfI + 1
+    }
+    return bestD
+}
+
+function rangeCount(nodeId, qx, qy, qz, rSq, counter, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz) {
+    if (nodeId == -1) {
+        return 0
+    }
+    pt = nodePoint[nodeId]
+    d = distSq(qx, qy, qz, px[pt], py[pt], pz[pt])
+    if (d <= rSq) {
+        counter[0] = counter[0] + 1
+    }
+    
+    rcAxis = nodeAxis[nodeId]
+    qVal = qx
+    pVal = px[pt]
+    if (rcAxis == 1) {
+        qVal = qy
+        pVal = py[pt]
+    } elif (rcAxis == 2) {
+        qVal = qz
+        pVal = pz[pt]
+    }
+    
+    diff = qVal - pVal
+    axisDiffSq = diff * diff
+    
+    if (diff <= 0) {
+        rangeCount(nodeLeft[nodeId], qx, qy, qz, rSq, counter, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz)
+        if (axisDiffSq <= rSq) {
+            rangeCount(nodeRight[nodeId], qx, qy, qz, rSq, counter, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz)
+        }
+    } else {
+        rangeCount(nodeRight[nodeId], qx, qy, qz, rSq, counter, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz)
+        if (axisDiffSq <= rSq) {
+            rangeCount(nodeLeft[nodeId], qx, qy, qz, rSq, counter, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz)
+        }
+    }
+    return 0
+}
+
+function bruteForceRangeCount(qx, qy, qz, rSq, numPoints, px, py, pz) {
+    bfrCount = 0
+    bfrI = 0
+    while (bfrI < numPoints) {
+        d = distSq(qx, qy, qz, px[bfrI], py[bfrI], pz[bfrI])
+        if (d <= rSq) {
+            bfrCount = bfrCount + 1
+        }
+        bfrI = bfrI + 1
+    }
+    return bfrCount
+}
+
+numPoints = 500
+px = makeIntArray(numPoints, 0)
+py = makeIntArray(numPoints, 0)
+pz = makeIntArray(numPoints, 0)
+indices = makeIntArray(numPoints, 0)
+
+rng = [42]
+gI = 0
+while (gI < numPoints) {
+    px[gI] = nextRand(rng)
+    py[gI] = nextRand(rng)
+    pz[gI] = nextRand(rng)
+    indices[gI] = gI
+    gI = gI + 1
+}
+
+nodeLeft = makeIntArray(numPoints, -1)
+nodeRight = makeIntArray(numPoints, -1)
+nodePoint = makeIntArray(numPoints, -1)
+nodeAxis = makeIntArray(numPoints, 0)
+nodeSize = [0]
+
+t0 = tm.millis()
+root = buildTree(indices, 0, numPoints, 0, nodeLeft, nodeRight, nodePoint, nodeAxis, nodeSize, px, py, pz)
+tTree = tm.millis()
+print("Built 3D K-D Tree with", nodeSize[0], "nodes in", tTree - t0, "ms")
+
+// Verify 100 Nearest Neighbor Queries against brute force
+nnQueries = 100
+nnCorrect = 0
+q = 0
+while (q < nnQueries) {
+    qx = nextRand(rng)
+    qy = nextRand(rng)
+    qz = nextRand(rng)
+    
+    bestResult = [-1, 2000000000]
+    searchNN(root, qx, qy, qz, bestResult, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz)
+    
+    bruteD = bruteForceNN(qx, qy, qz, numPoints, px, py, pz)
+    if (bestResult[1] == bruteD) {
+        nnCorrect = nnCorrect + 1
+    } else {
+        print("NN Mismatch at query", q, ": kdTree=", bestResult[1], "brute=", bruteD)
+    }
+    q = q + 1
+}
+tNN = tm.millis()
+print("Nearest Neighbor search: Verified", nnCorrect, "/", nnQueries, "correct in", tNN - tTree, "ms")
+
+// Verify 50 Range Queries against brute force
+rangeQueries = 50
+rangeCorrect = 0
+radius = 2000
+radiusSq = radius * radius
+
+rq = 0
+while (rq < rangeQueries) {
+    qx = nextRand(rng)
+    qy = nextRand(rng)
+    qz = nextRand(rng)
+    
+    rangeRes = [0]
+    rangeCount(root, qx, qy, qz, radiusSq, rangeRes, nodeLeft, nodeRight, nodePoint, nodeAxis, px, py, pz)
+    
+    bruteCnt = bruteForceRangeCount(qx, qy, qz, radiusSq, numPoints, px, py, pz)
+    if (rangeRes[0] == bruteCnt) {
+        rangeCorrect = rangeCorrect + 1
+    } else {
+        print("Range Mismatch at query", rq, ": kdTree=", rangeRes[0], "brute=", bruteCnt)
+    }
+    rq = rq + 1
+}
+tRange = tm.millis()
+print("Range queries (radius 2000): Verified", rangeCorrect, "/", rangeQueries, "correct in", tRange - tNN, "ms")
+
+tTotal = tRange - t0
+print("3D K-D Tree complete verification passed in", tTotal, "ms")
