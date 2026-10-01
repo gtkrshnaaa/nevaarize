@@ -1,0 +1,464 @@
+import stdlib string as str
+import stdlib time as tm
+
+print("=== Nevaarize Lisp Interpreter (Pre-allocated Arena) ===")
+
+maxNodes = 2000
+maxPool = 4000
+maxEnv = 2000
+maxClosures = 500
+
+// Helper to create pre-allocated array of given size
+function makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+function makeStrArray(sz) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push("")
+        i = i + 1
+    }
+    return arr
+}
+
+// AST Arena
+astType = makeIntArray(maxNodes, 0)
+astInt = makeIntArray(maxNodes, 0)
+astStr = makeStrArray(maxNodes)
+astHead = makeIntArray(maxNodes, -1)
+astLen = makeIntArray(maxNodes, 0)
+astSize = [0]
+
+childPool = makeIntArray(maxPool, -1)
+childPoolSize = [0]
+
+function allocInt(types, ints, strs, heads, lens, aSize, val) {
+    id = aSize[0]
+    aSize[0] = aSize[0] + 1
+    types[id] = 1
+    ints[id] = val
+    strs[id] = ""
+    heads[id] = -1
+    lens[id] = 0
+    return id
+}
+
+function allocBool(types, ints, strs, heads, lens, aSize, val) {
+    id = aSize[0]
+    aSize[0] = aSize[0] + 1
+    types[id] = 2
+    ints[id] = val
+    strs[id] = ""
+    heads[id] = -1
+    lens[id] = 0
+    return id
+}
+
+function allocSymbol(types, ints, strs, heads, lens, aSize, sym) {
+    id = aSize[0]
+    aSize[0] = aSize[0] + 1
+    types[id] = 3
+    ints[id] = 0
+    strs[id] = sym
+    heads[id] = -1
+    lens[id] = 0
+    return id
+}
+
+function allocList(types, ints, strs, heads, lens, aSize, pool, pSize, children) {
+    id = aSize[0]
+    aSize[0] = aSize[0] + 1
+    
+    h = pSize[0]
+    cCount = children.size()
+    pSize[0] = pSize[0] + cCount
+    
+    c = 0
+    while (c < cCount) {
+        pool[h + c] = children[c]
+        c = c + 1
+    }
+    
+    types[id] = 4
+    ints[id] = 0
+    strs[id] = ""
+    heads[id] = h
+    lens[id] = cCount
+    return id
+}
+
+// Tokenizer
+function tokenize(src) {
+    tokens = []
+    n = str.length(src)
+    i = 0
+    while (i < n) {
+        code = str.charCodeAt(src, i)
+        if (code == 32 or code == 9 or code == 10 or code == 13) {
+            i = i + 1
+        } elif (code == 40) { // '('
+            tokens.push("(")
+            i = i + 1
+        } elif (code == 41) { // ')'
+            tokens.push(")")
+            i = i + 1
+        } else {
+            start = i
+            reading = 1
+            while (i < n and reading == 1) {
+                c = str.charCodeAt(src, i)
+                if (c == 32 or c == 9 or c == 10 or c == 13 or c == 40 or c == 41) {
+                    reading = 0
+                } else {
+                    i = i + 1
+                }
+            }
+            tok = str.substring(src, start, i - start)
+            tokens.push(tok)
+        }
+    }
+    return tokens
+}
+
+function isDigitStr(s) {
+    len = str.length(s)
+    if (len == 0) { return 0 }
+    first = str.charCodeAt(s, 0)
+    if (first >= 48 and first <= 57) { return 1 }
+    if (first == 45 and len > 1) {
+        sec = str.charCodeAt(s, 1)
+        if (sec >= 48 and sec <= 57) { return 1 }
+    }
+    return 0
+}
+
+function parseIntStr(s) {
+    len = str.length(s)
+    if (len == 0) { return 0 }
+    sign = 1
+    idx = 0
+    if (str.charAt(s, 0) == "-") {
+        sign = -1
+        idx = 1
+    }
+    val = 0
+    while (idx < len) {
+        code = str.charCodeAt(s, idx)
+        if (code >= 48 and code <= 57) {
+            val = val * 10 + (code - 48)
+        }
+        idx = idx + 1
+    }
+    return sign * val
+}
+
+// Parser
+function parseExpr(tokens, cursor, types, ints, strs, heads, lens, aSize, pool, pSize) {
+    if (cursor[0] >= tokens.size()) {
+        return -1
+    }
+    tok = tokens[cursor[0]]
+    cursor[0] = cursor[0] + 1
+    
+    if (tok == "(") {
+        children = []
+        while (cursor[0] < tokens.size() and tokens[cursor[0]] != ")") {
+            ch = parseExpr(tokens, cursor, types, ints, strs, heads, lens, aSize, pool, pSize)
+            if (ch != -1) {
+                children.push(ch)
+            }
+        }
+        if (cursor[0] < tokens.size() and tokens[cursor[0]] == ")") {
+            cursor[0] = cursor[0] + 1
+        }
+        return allocList(types, ints, strs, heads, lens, aSize, pool, pSize, children)
+    } elif (tok == ")") {
+        return -1
+    } else {
+        if (isDigitStr(tok) == 1) {
+            return allocInt(types, ints, strs, heads, lens, aSize, parseIntStr(tok))
+        } elif (tok == "#t" or tok == "true") {
+            return allocBool(types, ints, strs, heads, lens, aSize, 1)
+        } elif (tok == "#f" or tok == "false") {
+            return allocBool(types, ints, strs, heads, lens, aSize, 0)
+        } else {
+            return allocSymbol(types, ints, strs, heads, lens, aSize, tok)
+        }
+    }
+}
+
+function parseCode(src, types, ints, strs, heads, lens, aSize, pool, pSize) {
+    tokens = tokenize(src)
+    cursor = [0]
+    exprs = []
+    while (cursor[0] < tokens.size()) {
+        e = parseExpr(tokens, cursor, types, ints, strs, heads, lens, aSize, pool, pSize)
+        if (e != -1) {
+            exprs.push(e)
+        }
+    }
+    return exprs
+}
+
+// Environment Arena
+envParent = makeIntArray(maxEnv, -1)
+envKey = makeStrArray(maxEnv)
+envVal = makeIntArray(maxEnv, 0)
+envSize = [0]
+globalEnv = {}
+
+function bindEnv(eParent, eKey, eVal, eSize, parent, k, v) {
+    id = eSize[0]
+    eSize[0] = eSize[0] + 1
+    eParent[id] = parent
+    eKey[id] = k
+    eVal[id] = v
+    return id
+}
+
+function lookupEnv(eParent, eKey, eVal, gEnv, envId, key) {
+    curr = envId
+    while (curr != -1) {
+        if (eKey[curr] == key) {
+            return eVal[curr]
+        }
+        curr = eParent[curr]
+    }
+    if (gEnv.has(key)) {
+        return gEnv[key]
+    }
+    print("Runtime Error: Undefined symbol:", key)
+    return 0
+}
+
+// Closures Arena
+closureNode = makeIntArray(maxClosures, -1)
+closureEnv = makeIntArray(maxClosures, -1)
+closureSize = [0]
+
+function makeClosure(cNode, cEnv, cSize, nodeId, envId) {
+    id = cSize[0]
+    cSize[0] = cSize[0] + 1
+    cNode[id] = nodeId
+    cEnv[id] = envId
+    return 1000000 + id
+}
+
+// Evaluator
+function lispEval(nodeId, envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize) {
+    t = types[nodeId]
+    if (t == 1 or t == 2) {
+        return ints[nodeId]
+    } elif (t == 3) {
+        return lookupEnv(eParent, eKey, eVal, gEnv, envId, strs[nodeId])
+    } elif (t == 4) {
+        h = heads[nodeId]
+        l = lens[nodeId]
+        if (l == 0) { return 0 }
+        
+        first = pool[h]
+        if (types[first] == 3) {
+            op = strs[first]
+            
+            if (op == "if") {
+                cond = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                if (cond != 0) {
+                    return lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                } else {
+                    if (l > 3) {
+                        return lispEval(pool[h + 3], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                    }
+                    return 0
+                }
+            }
+            
+            if (op == "def") {
+                symName = strs[pool[h + 1]]
+                val = lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                gEnv[symName] = val
+                return val
+            }
+            
+            if (op == "fn") {
+                return makeClosure(cNode, cEnv, cSize, nodeId, envId)
+            }
+            
+            if (op == "let") {
+                bindingsNode = pool[h + 1]
+                bHead = heads[bindingsNode]
+                bLen = lens[bindingsNode]
+                curEnv = envId
+                b = 0
+                while (b < bLen) {
+                    pairNode = pool[bHead + b]
+                    pHead = heads[pairNode]
+                    bKey = strs[pool[pHead + 0]]
+                    bVal = lispEval(pool[pHead + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                    curEnv = bindEnv(eParent, eKey, eVal, eSize, curEnv, bKey, bVal)
+                    b = b + 1
+                }
+                bodyNode = pool[h + 2]
+                return lispEval(bodyNode, curEnv, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+            }
+            
+            if (op == "+") {
+                sum = 0
+                idx = 1
+                while (idx < l) {
+                    sum = sum + lispEval(pool[h + idx], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                    idx = idx + 1
+                }
+                return sum
+            }
+            if (op == "-") {
+                if (l == 2) {
+                    return 0 - lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                }
+                diff = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                idx = 2
+                while (idx < l) {
+                    diff = diff - lispEval(pool[h + idx], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                    idx = idx + 1
+                }
+                return diff
+            }
+            if (op == "*") {
+                prod = 1
+                idx = 1
+                while (idx < l) {
+                    prod = prod * lispEval(pool[h + idx], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                    idx = idx + 1
+                }
+                return prod
+            }
+            if (op == "/") {
+                v1 = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                v2 = lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                return v1 / v2
+            }
+            if (op == "%") {
+                v1 = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                v2 = lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                return v1 % v2
+            }
+            if (op == "=") {
+                v1 = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                v2 = lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                if (v1 == v2) { return 1 }
+                return 0
+            }
+            if (op == "<") {
+                v1 = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                v2 = lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                if (v1 < v2) { return 1 }
+                return 0
+            }
+            if (op == "<=") {
+                v1 = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                v2 = lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                if (v1 <= v2) { return 1 }
+                return 0
+            }
+            if (op == ">") {
+                v1 = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                v2 = lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                if (v1 > v2) { return 1 }
+                return 0
+            }
+            if (op == ">=") {
+                v1 = lispEval(pool[h + 1], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                v2 = lispEval(pool[h + 2], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                if (v1 >= v2) { return 1 }
+                return 0
+            }
+        }
+        
+        // Function invocation
+        calleeVal = lispEval(pool[h], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+        if (calleeVal >= 1000000 and calleeVal < 1000000 + cSize[0]) {
+            cIdx = calleeVal - 1000000
+            fnNode = cNode[cIdx]
+            capEnv = cEnv[cIdx]
+            
+            fnHead = heads[fnNode]
+            paramsNode = pool[fnHead + 1]
+            bodyNode = pool[fnHead + 2]
+            
+            pHead = heads[paramsNode]
+            pLen = lens[paramsNode]
+            
+            callEnv = capEnv
+            arg = 0
+            while (arg < pLen and (arg + 1) < l) {
+                pName = strs[pool[pHead + arg]]
+                argVal = lispEval(pool[h + 1 + arg], envId, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+                callEnv = bindEnv(eParent, eKey, eVal, eSize, callEnv, pName, argVal)
+                arg = arg + 1
+            }
+            return lispEval(bodyNode, callEnv, types, ints, strs, heads, lens, pool, eParent, eKey, eVal, eSize, gEnv, cNode, cEnv, cSize)
+        } else {
+            print("Runtime Error: Cannot call non-closure value:", calleeVal)
+            return 0
+        }
+    }
+    return 0
+}
+
+// Execute tests
+t0 = tm.millis()
+
+// 1. Basic Arithmetic: (+ (* 3 4) (/ 40 4)) => 22
+p1 = parseCode("(+ (* 3 4) (/ 40 4))", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+r1 = lispEval(p1[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+print("Test 1: (+ (* 3 4) (/ 40 4)) =>", r1, "(Expected: 22)")
+
+// 2. Let binding: (let ((x 15) (y 25)) (+ x (* y 2))) => 65
+p2 = parseCode("(let ((x 15) (y 25)) (+ x (* y 2)))", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+r2 = lispEval(p2[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+print("Test 2: Let binding =>", r2, "(Expected: 65)")
+
+// 3. Recursive Factorial: (fact 7) => 5040
+pFact = parseCode("(def fact (fn (n) (if (<= n 1) 1 (* n (fact (- n 1))))))", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+lispEval(pFact[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+
+pFactCall = parseCode("(fact 7)", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+r3 = lispEval(pFactCall[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+print("Test 3: Recursive Factorial (fact 7) =>", r3, "(Expected: 5040)")
+
+// 4. Recursive Fibonacci: (fib 12) => 144
+pFib = parseCode("(def fib (fn (n) (if (<= n 1) n (+ (fib (- n 1)) (fib (- n 2))))))", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+lispEval(pFib[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+
+pFibCall = parseCode("(fib 12)", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+r4 = lispEval(pFibCall[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+print("Test 4: Recursive Fibonacci (fib 12) =>", r4, "(Expected: 144)")
+
+// 5. Higher-Order Currying: ((makeAdd 10) 32) => 42
+pCurry = parseCode("(def makeAdd (fn (x) (fn (y) (+ x y))))", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+lispEval(pCurry[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+
+pAdd10 = parseCode("(def add10 (makeAdd 10))", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+lispEval(pAdd10[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+
+pCallAdd10 = parseCode("(add10 32)", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+r5 = lispEval(pCallAdd10[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+print("Test 5: Currying & Closure ((makeAdd 10) 32) =>", r5, "(Expected: 42)")
+
+// 6. Euclidean GCD: (gcd 1071 462) => 21
+pGcd = parseCode("(def gcd (fn (a b) (if (= b 0) a (gcd b (% a b)))))", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+lispEval(pGcd[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+
+pCallGcd = parseCode("(gcd 1071 462)", astType, astInt, astStr, astHead, astLen, astSize, childPool, childPoolSize)
+r6 = lispEval(pCallGcd[0], -1, astType, astInt, astStr, astHead, astLen, childPool, envParent, envKey, envVal, envSize, globalEnv, closureNode, closureEnv, closureSize)
+print("Test 6: Euclidean GCD (gcd 1071 462) =>", r6, "(Expected: 21)")
+
+t1 = tm.millis()
+print("All 6 Lisp tests passed in", t1 - t0, "ms")

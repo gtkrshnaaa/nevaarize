@@ -10440,61 +10440,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
-    // Simple Loop Variable Pinning (e.g. while (i < limit))
-    std::string pinnedCounter, pinnedLimit;
-    VarLocation oldCounterLoc, oldLimitLoc;
-    bool counterPinned = false, limitPinned = false;
-
-    // Detect i < limit or i < literal pattern
-    const ASTNode& cond = ast.get(node.left);
-    if (cond.type == NodeType::BINARY_OP && (cond.binaryOp == BinaryOp::LT || cond.binaryOp == BinaryOp::GT)) {
-        const ASTNode& leftNode = ast.get(cond.left);
-        const ASTNode& rightNode = ast.get(cond.right);
-        
-        if (leftNode.type == NodeType::IDENTIFIER && variables.count(leftNode.name)) {
-            pinnedCounter = leftNode.name;
-            if (!variables[pinnedCounter].isRegister && !regInUse[static_cast<int>(X64Reg::R12)]) { // Only pin if not already pinned and R12 is free
-                oldCounterLoc = variables[pinnedCounter];
-                VarLocation pinnedLoc = oldCounterLoc;
-                pinnedLoc.isRegister = true;
-                pinnedLoc.reg = X64Reg::R12;
-                variables[pinnedCounter] = pinnedLoc;
-                counterPinned = true;
-                
-                // R12 preserved in emitPrologue
-                
-                // mov r12, [rbp + offset]
-                buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xA5);
-                buf.emit32(static_cast<uint32_t>(oldCounterLoc.stackOffset));
-                
-                regInUse[static_cast<int>(X64Reg::R12)] = true;
-                // printf("JIT Compile: Pinned counter '%s' to R12\n", pinnedCounter.c_str());
-            }
-        }
-        
-        if (rightNode.type == NodeType::IDENTIFIER && variables.count(rightNode.name)) {
-            pinnedLimit = rightNode.name;
-            if (!variables[pinnedLimit].isRegister && !regInUse[static_cast<int>(X64Reg::R13)]) {
-                oldLimitLoc = variables[pinnedLimit];
-                VarLocation pinnedLoc = oldLimitLoc;
-                pinnedLoc.isRegister = true;
-                pinnedLoc.reg = X64Reg::R13;
-                variables[pinnedLimit] = pinnedLoc;
-                limitPinned = true;
-                
-                // R13 preserved in emitPrologue
-                
-                // mov r13, [rbp + offset]
-                buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xAD);
-                buf.emit32(static_cast<uint32_t>(oldLimitLoc.stackOffset));
-                
-                regInUse[static_cast<int>(X64Reg::R13)] = true;
-                // printf("JIT Compile: Pinned limit '%s' to R13\n", pinnedLimit.c_str());
-            }
-        }
-    }
-
-    // Dynamic Frequency-Based Register Allocation
+    // Scan AST to detect function calls and variable frequency
     std::unordered_map<std::string, int> varFreq;
     bool loopHasCalls = false;
     std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
@@ -10515,6 +10461,61 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     };
     scanAST(node.right);
     scanAST(node.left);
+
+    // Simple Loop Variable Pinning (e.g. while (i < limit)) - only if loop has no function calls
+    const ASTNode& cond = ast.get(node.left);
+    std::string pinnedCounter, pinnedLimit;
+    VarLocation oldCounterLoc, oldLimitLoc;
+    bool counterPinned = false, limitPinned = false;
+
+    if (!loopHasCalls) {
+        // Detect i < limit or i < literal pattern
+        if (cond.type == NodeType::BINARY_OP && (cond.binaryOp == BinaryOp::LT || cond.binaryOp == BinaryOp::GT)) {
+            const ASTNode& leftNode = ast.get(cond.left);
+            const ASTNode& rightNode = ast.get(cond.right);
+            
+            if (leftNode.type == NodeType::IDENTIFIER && variables.count(leftNode.name)) {
+                pinnedCounter = leftNode.name;
+                if (!variables[pinnedCounter].isRegister && !regInUse[static_cast<int>(X64Reg::R12)]) { // Only pin if not already pinned and R12 is free
+                    oldCounterLoc = variables[pinnedCounter];
+                    VarLocation pinnedLoc = oldCounterLoc;
+                    pinnedLoc.isRegister = true;
+                    pinnedLoc.reg = X64Reg::R12;
+                    variables[pinnedCounter] = pinnedLoc;
+                    counterPinned = true;
+                    
+                    // R12 preserved in emitPrologue
+                    
+                    // mov r12, [rbp + offset]
+                    buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xA5);
+                    buf.emit32(static_cast<uint32_t>(oldCounterLoc.stackOffset));
+                    
+                    regInUse[static_cast<int>(X64Reg::R12)] = true;
+                }
+            }
+            
+            if (rightNode.type == NodeType::IDENTIFIER && variables.count(rightNode.name)) {
+                pinnedLimit = rightNode.name;
+                if (!variables[pinnedLimit].isRegister && !regInUse[static_cast<int>(X64Reg::R13)]) {
+                    oldLimitLoc = variables[pinnedLimit];
+                    VarLocation pinnedLoc = oldLimitLoc;
+                    pinnedLoc.isRegister = true;
+                    pinnedLoc.reg = X64Reg::R13;
+                    variables[pinnedLimit] = pinnedLoc;
+                    limitPinned = true;
+                    
+                    // R13 preserved in emitPrologue
+                    
+                    // mov r13, [rbp + offset]
+                    buf.emit8(0x4C); buf.emit8(0x8B); buf.emit8(0xAD);
+                    buf.emit32(static_cast<uint32_t>(oldLimitLoc.stackOffset));
+                    
+                    regInUse[static_cast<int>(X64Reg::R13)] = true;
+                }
+            }
+        }
+    }
+
     varFreq.erase(pinnedCounter);
     varFreq.erase(pinnedLimit);
     
@@ -10527,33 +10528,33 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     struct PinnedVar { std::string name; VarLocation oldLoc; X64Reg reg; };
     std::vector<PinnedVar> dynamicPins;
     
-    size_t regIdx = 0;
-    for (const auto& pair : sortedVars) {
-        if (regIdx >= 3) break;
-        const std::string& varName = pair.first;
-        if (variables.count(varName) && !variables[varName].isRegister && !regInUse[static_cast<int>(pinRegs[regIdx])] && knownFloatVars.count(varName) == 0) {
-            X64Reg targetReg = pinRegs[regIdx];
-            PinnedVar pv = {varName, variables[varName], targetReg};
-            dynamicPins.push_back(pv);
-            
-            VarLocation newLoc = pv.oldLoc;
-            newLoc.isRegister = true;
-            newLoc.reg = targetReg;
-            variables[varName] = newLoc;
-            regInUse[static_cast<int>(targetReg)] = true;
-            
-            // R14/R15/RBX preserved in emitPrologue
-            bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
-            
-            // mov reg, [rbp + offset]
-            buf.emit8(0x48 | (regHigh ? 0x04 : 0));
-            buf.emit8(0x8B);
-            buf.emit8(0x85 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
-            buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
-            
-            // printf("JIT Compile: Pinned dynamic var '%s' to Register %u\n", varName.c_str(), static_cast<uint32_t>(targetReg));
-            
-            regIdx++;
+    if (!loopHasCalls) {
+        size_t regIdx = 0;
+        for (const auto& pair : sortedVars) {
+            if (regIdx >= 3) break;
+            const std::string& varName = pair.first;
+            if (variables.count(varName) && !variables[varName].isRegister && !regInUse[static_cast<int>(pinRegs[regIdx])] && knownFloatVars.count(varName) == 0) {
+                X64Reg targetReg = pinRegs[regIdx];
+                PinnedVar pv = {varName, variables[varName], targetReg};
+                dynamicPins.push_back(pv);
+                
+                VarLocation newLoc = pv.oldLoc;
+                newLoc.isRegister = true;
+                newLoc.reg = targetReg;
+                variables[varName] = newLoc;
+                regInUse[static_cast<int>(targetReg)] = true;
+                
+                // R14/R15/RBX preserved in emitPrologue
+                bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
+                
+                // mov reg, [rbp + offset]
+                buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x85 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
+                
+                regIdx++;
+            }
         }
     }
 
@@ -11126,14 +11127,32 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     buf.emit32(static_cast<uint32_t>(iterLoc.stackOffset + 8));
     buf.emit32(0);
 
-    // --- Phase 2: Pin Iterator to R12, Limit to R13 ---
+    // --- Call Detection and Variable Frequency Analysis ---
+    std::unordered_map<std::string, int> varFreq;
+    bool loopHasCalls = false;
+    std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
+        if (currIdx == INVALID_NODE) return;
+        const ASTNode& currNode = ast.get(currIdx);
+        if (currNode.type == NodeType::CALL) {
+            loopHasCalls = true;
+        }
+        if (currNode.type == NodeType::IDENTIFIER || currNode.type == NodeType::VAR_ASSIGN) {
+            varFreq[currNode.name]++;
+        }
+        scanAST(currNode.left);
+        scanAST(currNode.right);
+        scanAST(currNode.extra);
+        for (NodeIndex child : currNode.children) { scanAST(child); }
+    };
+    scanAST(node.right);
+    varFreq.erase(iterName);
 
+    // --- Phase 2: Pin Iterator to R12, Limit to R13 (only if no function calls) ---
     bool iterPinned  = false;
     bool limitPinned = false;
     VarLocation oldIterLoc = iterLoc;
 
-    // Pin iterator to R12
-    if (!regInUse[static_cast<int>(X64Reg::R12)]) {
+    if (!loopHasCalls && !regInUse[static_cast<int>(X64Reg::R12)]) {
         // mov R12, startReg
         bool srcHigh = static_cast<uint8_t>(startVal.valueReg) >= 8;
         buf.emit8(0x49 | (srcHigh ? 0x04 : 0));
@@ -11156,8 +11175,8 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     freeReg(startVal.valueReg);
     freeReg(startVal.typeReg);
 
-    // Pin limit to R13
-    if (!regInUse[static_cast<int>(X64Reg::R13)]) {
+    int32_t limitSlot = 0;
+    if (!loopHasCalls && !regInUse[static_cast<int>(X64Reg::R13)]) {
         bool srcHigh = static_cast<uint8_t>(endVal.valueReg) >= 8;
         buf.emit8(0x49 | (srcHigh ? 0x04 : 0));
         buf.emit8(0x89);
@@ -11165,31 +11184,18 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
 
         regInUse[static_cast<int>(X64Reg::R13)] = true;
         limitPinned = true;
+    } else {
+        limitSlot = allocateStackSlot();
+        bool regHigh = static_cast<uint8_t>(endVal.valueReg) >= 8;
+        buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+        buf.emit8(0x89);
+        buf.emit8(0x85 | ((static_cast<uint8_t>(endVal.valueReg) & 0x7) << 3));
+        buf.emit32(static_cast<uint32_t>(limitSlot));
     }
     freeReg(endVal.valueReg);
     freeReg(endVal.typeReg);
 
     // --- Phase 3: Dynamic Frequency-Based Variable Pinning ---
-
-    std::unordered_map<std::string, int> varFreq;
-    bool loopHasCalls = false;
-    std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
-        if (currIdx == INVALID_NODE) return;
-        const ASTNode& currNode = ast.get(currIdx);
-        if (currNode.type == NodeType::CALL) {
-            loopHasCalls = true;
-        }
-        if (currNode.type == NodeType::IDENTIFIER || currNode.type == NodeType::VAR_ASSIGN) {
-            varFreq[currNode.name]++;
-        }
-        scanAST(currNode.left);
-        scanAST(currNode.right);
-        scanAST(currNode.extra);
-        for (NodeIndex child : currNode.children) { scanAST(child); }
-    };
-    scanAST(node.right);
-    varFreq.erase(iterName);
-
     std::vector<std::pair<std::string, int>> sortedVars(varFreq.begin(), varFreq.end());
     std::sort(sortedVars.begin(), sortedVars.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
@@ -11199,31 +11205,33 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     struct PinnedVar { std::string name; VarLocation oldLoc; X64Reg reg; };
     std::vector<PinnedVar> dynamicPins;
 
-    size_t regIdx = 0;
-    for (const auto& pair : sortedVars) {
-        if (regIdx >= 3) break;
-        const std::string& varName = pair.first;
-        if (variables.count(varName) && !variables[varName].isRegister &&
-            !regInUse[static_cast<int>(pinRegs[regIdx])] &&
-            knownFloatVars.count(varName) == 0) {
+    if (!loopHasCalls) {
+        size_t regIdx = 0;
+        for (const auto& pair : sortedVars) {
+            if (regIdx >= 3) break;
+            const std::string& varName = pair.first;
+            if (variables.count(varName) && !variables[varName].isRegister &&
+                !regInUse[static_cast<int>(pinRegs[regIdx])] &&
+                knownFloatVars.count(varName) == 0) {
 
-            X64Reg targetReg = pinRegs[regIdx];
-            PinnedVar pv = {varName, variables[varName], targetReg};
-            dynamicPins.push_back(pv);
+                X64Reg targetReg = pinRegs[regIdx];
+                PinnedVar pv = {varName, variables[varName], targetReg};
+                dynamicPins.push_back(pv);
 
-            VarLocation newLoc = pv.oldLoc;
-            newLoc.isRegister = true;
-            newLoc.reg = targetReg;
-            variables[varName] = newLoc;
-            regInUse[static_cast<int>(targetReg)] = true;
+                VarLocation newLoc = pv.oldLoc;
+                newLoc.isRegister = true;
+                newLoc.reg = targetReg;
+                variables[varName] = newLoc;
+                regInUse[static_cast<int>(targetReg)] = true;
 
-            bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
-            buf.emit8(0x48 | (regHigh ? 0x04 : 0));
-            buf.emit8(0x8B);
-            buf.emit8(0x85 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
-            buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
+                bool regHigh = static_cast<uint8_t>(targetReg) >= 8;
+                buf.emit8(0x48 | (regHigh ? 0x04 : 0));
+                buf.emit8(0x8B);
+                buf.emit8(0x85 | ((static_cast<uint8_t>(targetReg) & 0x7) << 3));
+                buf.emit32(static_cast<uint32_t>(pv.oldLoc.stackOffset));
 
-            regIdx++;
+                regIdx++;
+            }
         }
     }
 
@@ -11317,16 +11325,24 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
         buf.emit8(0x0F); buf.emit8(0x8D);
         jgePatch = buf.getOffset();
         buf.emit32(0);
+    } else if (!iterPinned && limitPinned) {
+        buf.emit8(0x4C); buf.emit8(0x39); buf.emit8(0xAD); // cmp [rbp+off], r13
+        buf.emit32(static_cast<uint32_t>(oldIterLoc.stackOffset));
+        buf.emit8(0x0F); buf.emit8(0x8D);
+        jgePatch = buf.getOffset();
+        buf.emit32(0);
+    } else if (iterPinned && !limitPinned) {
+        buf.emit8(0x4C); buf.emit8(0x3B); buf.emit8(0xA5); // cmp r12, [rbp+limitSlot]
+        buf.emit32(static_cast<uint32_t>(limitSlot));
+        buf.emit8(0x0F); buf.emit8(0x8D);
+        jgePatch = buf.getOffset();
+        buf.emit32(0);
     } else {
-        // Fallback: memory-based comparison
-        if (limitPinned) {
-            buf.emit8(0x4C); buf.emit8(0x39); buf.emit8(0xAD); // cmp [rbp+off], r13
-            buf.emit32(static_cast<uint32_t>(oldIterLoc.stackOffset));
-        } else {
-            // Generic path (should not normally happen for Range loops)
-            buf.emit8(0x48); buf.emit8(0x39); buf.emit8(0x8D);
-            buf.emit32(static_cast<uint32_t>(oldIterLoc.stackOffset));
-        }
+        // Both in memory
+        buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x85); // mov rax, [rbp+oldIterLoc.stackOffset]
+        buf.emit32(static_cast<uint32_t>(oldIterLoc.stackOffset));
+        buf.emit8(0x48); buf.emit8(0x3B); buf.emit8(0x85); // cmp rax, [rbp+limitSlot]
+        buf.emit32(static_cast<uint32_t>(limitSlot));
         buf.emit8(0x0F); buf.emit8(0x8D);
         jgePatch = buf.getOffset();
         buf.emit32(0);
@@ -12133,9 +12149,9 @@ JITValue JIT::compileUserCall(const AST& ast, NodeIndex idx, const std::string& 
     if (currentlyCompiling.count(funcName)) {
         CodeBuffer& buf = codegen.getCode();
         
-        // Emulate a new stack frame by shifting RBP and RSP down in lockstep
-        int32_t currentFrameSize = nextStackSlot;
-        int32_t frameShift = (currentFrameSize + 31) & ~15;
+        // Emulate a new stack frame by shifting RBP and RSP down in lockstep.
+        // Allocate a safe frame margin so recursive calls do not clobber caller slots allocated later.
+        int32_t frameShift = std::max<int32_t>(2048, (nextStackSlot + 1023) & ~15);
         
         // Evaluate arguments and store directly into callee frame slots
         for (size_t i = 0; i < node.children.size() && i < it->second.paramNames.size(); ++i) {
