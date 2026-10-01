@@ -4125,7 +4125,13 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
                     checkStack.pop_back();
                     if (cur == INVALID_NODE) continue;
                     const ASTNode& n = ast.get(cur);
-                    if (n.type == NodeType::CALL) {
+                    if (n.type == NodeType::CALL ||
+                        n.type == NodeType::INDEX_ACCESS ||
+                        n.type == NodeType::INDEX_ASSIGN ||
+                        n.type == NodeType::MEMBER_ACCESS ||
+                        n.type == NodeType::ARRAY_LITERAL ||
+                        n.type == NodeType::MAP_LITERAL ||
+                        n.type == NodeType::AWAIT_EXPR) {
                         rightHasCalls = true;
                         break;
                     }
@@ -10440,14 +10446,24 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     const ASTNode& node = ast.get(idx);
     CodeBuffer& buf = codegen.getCode();
     
-    // Scan AST to detect function calls and variable frequency
+    // Scan AST to detect function calls, C++ ABI calls, nested loops, and variable frequency
     std::unordered_map<std::string, int> varFreq;
     bool loopHasCalls = false;
+    bool loopHasNestedLoops = false;
     std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
         if (currIdx == INVALID_NODE) return;
         const ASTNode& currNode = ast.get(currIdx);
-        if (currNode.type == NodeType::CALL) {
+        if (currNode.type == NodeType::CALL ||
+            currNode.type == NodeType::INDEX_ACCESS ||
+            currNode.type == NodeType::INDEX_ASSIGN ||
+            currNode.type == NodeType::MEMBER_ACCESS ||
+            currNode.type == NodeType::ARRAY_LITERAL ||
+            currNode.type == NodeType::MAP_LITERAL ||
+            currNode.type == NodeType::AWAIT_EXPR) {
             loopHasCalls = true;
+        }
+        if (currNode.type == NodeType::WHILE_STMT || currNode.type == NodeType::FOR_STMT) {
+            loopHasNestedLoops = true;
         }
         if (currNode.type == NodeType::IDENTIFIER || currNode.type == NodeType::VAR_ASSIGN) {
             varFreq[currNode.name]++;
@@ -10593,6 +10609,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
 
     // Float Constant Hoisting — scan loop body for accumulator patterns
     // Detects `var = var + <float_literal>` and hoists the constant to an XMM register
+    auto prevHoistedConstants = hoistedFloatConstants;
     hoistedFloatConstants.clear();
     if (!loopHasCalls && node.right != INVALID_NODE) {
         std::function<void(NodeIndex)> scanConstants = [&](NodeIndex scanIdx) {
@@ -10727,7 +10744,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     std::vector<ShadowAccum> shadowAccums;
     std::vector<size_t> unrollExitPatches; // Local vector for unrolled early-exit patch points
     
-    if (inlineCondition && counterPinned && limitPinned) {
+    if (inlineCondition && counterPinned && limitPinned && !loopHasNestedLoops) {
         // Allocate shadow accumulators for XMM-pinned float variables
         for (const auto& xpv : xmmPins) {
             X64Reg shadowXMM = allocateXMMReg();
@@ -10879,7 +10896,7 @@ void JIT::compileWhile(const AST& ast, NodeIndex idx) {
     for (const auto& hc : hoistedFloatConstants) {
         freeXMMReg(hc.second);
     }
-    hoistedFloatConstants.clear();
+    hoistedFloatConstants = prevHoistedConstants;
 }
 
 // Compile for loop (supports Range iteration) — fully optimized with register pinning,
@@ -11130,11 +11147,21 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     // --- Call Detection and Variable Frequency Analysis ---
     std::unordered_map<std::string, int> varFreq;
     bool loopHasCalls = false;
+    bool loopHasNestedLoops = false;
     std::function<void(NodeIndex)> scanAST = [&](NodeIndex currIdx) {
         if (currIdx == INVALID_NODE) return;
         const ASTNode& currNode = ast.get(currIdx);
-        if (currNode.type == NodeType::CALL) {
+        if (currNode.type == NodeType::CALL ||
+            currNode.type == NodeType::INDEX_ACCESS ||
+            currNode.type == NodeType::INDEX_ASSIGN ||
+            currNode.type == NodeType::MEMBER_ACCESS ||
+            currNode.type == NodeType::ARRAY_LITERAL ||
+            currNode.type == NodeType::MAP_LITERAL ||
+            currNode.type == NodeType::AWAIT_EXPR) {
             loopHasCalls = true;
+        }
+        if (currNode.type == NodeType::WHILE_STMT || currNode.type == NodeType::FOR_STMT) {
+            loopHasNestedLoops = true;
         }
         if (currNode.type == NodeType::IDENTIFIER || currNode.type == NodeType::VAR_ASSIGN) {
             varFreq[currNode.name]++;
@@ -11268,7 +11295,8 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     }
 
     // --- Phase 5: Float Constant Hoisting ---
-
+    auto prevHoistedConstants = hoistedFloatConstants;
+    hoistedFloatConstants.clear();
     if (!loopHasCalls) {
         std::function<void(NodeIndex)> scanConstants = [&](NodeIndex cIdx) {
             if (cIdx == INVALID_NODE) return;
@@ -11356,7 +11384,7 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     std::vector<ShadowAccum> shadowAccums;
     std::vector<size_t> unrollExitPatches;
 
-    if (iterPinned && limitPinned) {
+    if (iterPinned && limitPinned && !loopHasNestedLoops) {
         // Allocate shadow accumulators for XMM-pinned float variables
         for (const auto& xpv : xmmPins) {
             X64Reg shadowXMM = allocateXMMReg();
@@ -11488,7 +11516,7 @@ void JIT::compileFor(const AST& ast, NodeIndex idx) {
     for (const auto& hc : hoistedFloatConstants) {
         freeXMMReg(hc.second);
     }
-    hoistedFloatConstants.clear();
+    hoistedFloatConstants = prevHoistedConstants;
 }
 
 void JIT::compileTryCatch(const AST& ast, NodeIndex idx) {
