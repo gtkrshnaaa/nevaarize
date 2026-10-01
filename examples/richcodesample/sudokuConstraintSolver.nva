@@ -1,0 +1,282 @@
+import stdlib time as tm
+
+print("=== Nevaarize 9x9 Sudoku Constraint Solver (Bitmask + MRV) ===")
+
+function makeIntArray(sz, fillVal) {
+    arr = []
+    mi = 0
+    while (mi < sz) {
+        arr.push(fillVal)
+        mi = mi + 1
+    }
+    return arr
+}
+
+function getBoxIdx(r, c) {
+    return (r / 3) * 3 + (c / 3)
+}
+
+function countBits(val) {
+    cnt = 0
+    temp = val
+    while (temp > 0) {
+        cnt = cnt + (temp & 1)
+        temp = temp >> 1
+    }
+    return cnt
+}
+
+function printGrid(grid) {
+    pr = 0
+    while (pr < 9) {
+        if (pr % 3 == 0) {
+            print("+-------+-------+-------+")
+        }
+        lineStr = ""
+        pc = 0
+        while (pc < 9) {
+            if (pc % 3 == 0) {
+                lineStr = lineStr + "| "
+            }
+            v = grid[pr * 9 + pc]
+            if (v == 0) {
+                lineStr = lineStr + ". "
+            } else {
+                if (v == 1) { lineStr = lineStr + "1 " }
+                elif (v == 2) { lineStr = lineStr + "2 " }
+                elif (v == 3) { lineStr = lineStr + "3 " }
+                elif (v == 4) { lineStr = lineStr + "4 " }
+                elif (v == 5) { lineStr = lineStr + "5 " }
+                elif (v == 6) { lineStr = lineStr + "6 " }
+                elif (v == 7) { lineStr = lineStr + "7 " }
+                elif (v == 8) { lineStr = lineStr + "8 " }
+                elif (v == 9) { lineStr = lineStr + "9 " }
+            }
+            pc = pc + 1
+        }
+        lineStr = lineStr + "|"
+        print(lineStr)
+        pr = pr + 1
+    }
+    print("+-------+-------+-------+")
+}
+
+// Solves using Minimum Remaining Values (MRV) heuristic with bitmasks
+function solveMRV(grid, rowMask, colMask, boxMask) {
+    bestCell = -1
+    minCandidates = 10
+    bestCandidateMask = 0
+    
+    // Find unassigned cell with smallest candidate count
+    scanIdx = 0
+    while (scanIdx < 81) {
+        if (grid[scanIdx] == 0) {
+            sr = scanIdx / 9
+            sc = scanIdx % 9
+            sb = getBoxIdx(sr, sc)
+            
+            used = rowMask[sr] | colMask[sc] | boxMask[sb]
+            // Candidates: bits 1..9 that are not used
+            candMask = (~used) & 1022 // 1022 = (1<<1) | ... | (1<<9)
+            
+            candCount = countBits(candMask)
+            if (candCount == 0) {
+                return 0 // Dead end, backtrack
+            }
+            if (candCount < minCandidates) {
+                minCandidates = candCount
+                bestCell = scanIdx
+                bestCandidateMask = candMask
+                if (candCount == 1) {
+                    scanIdx = 81 // Early exit loop on naked single
+                }
+            }
+        }
+        scanIdx = scanIdx + 1
+    }
+    
+    // If no empty cell was found, puzzle is solved
+    if (bestCell == -1) {
+        return 1
+    }
+    
+    br = bestCell / 9
+    bc = bestCell % 9
+    bb = getBoxIdx(br, bc)
+    
+    cand = bestCandidateMask
+    while (cand > 0) {
+        // Extract lowest set bit: lsb = cand & (-cand)
+        lsb = cand & (0 - cand)
+        cand = cand ^ lsb
+        
+        num = countBits(lsb - 1)
+        
+        grid[bestCell] = num
+        rowMask[br] = rowMask[br] | lsb
+        colMask[bc] = colMask[bc] | lsb
+        boxMask[bb] = boxMask[bb] | lsb
+        
+        if (solveMRV(grid, rowMask, colMask, boxMask) == 1) {
+            return 1
+        }
+        
+        // Backtrack
+        grid[bestCell] = 0
+        rowMask[br] = rowMask[br] ^ lsb
+        colMask[bc] = colMask[bc] ^ lsb
+        boxMask[bb] = boxMask[bb] ^ lsb
+    }
+    
+    return 0
+}
+
+function verifyGrid(grid) {
+    // Target mask for digits 1..9: sum of (1 << d) for d=1..9 = 1022
+    targetMask = 1022
+    
+    // Check rows
+    vr = 0
+    while (vr < 9) {
+        rMask = 0
+        vc = 0
+        while (vc < 9) {
+            val = grid[vr * 9 + vc]
+            if (val < 1 or val > 9) { return 0 }
+            bit = 1 << val
+            if ((rMask & bit) != 0) { return 0 } // Duplicate
+            rMask = rMask | bit
+            vc = vc + 1
+        }
+        if (rMask != targetMask) { return 0 }
+        vr = vr + 1
+    }
+    
+    // Check columns
+    vc = 0
+    while (vc < 9) {
+        cMask = 0
+        vr = 0
+        while (vr < 9) {
+            val = grid[vr * 9 + vc]
+            bit = 1 << val
+            if ((cMask & bit) != 0) { return 0 } // Duplicate
+            cMask = cMask | bit
+            vr = vr + 1
+        }
+        if (cMask != targetMask) { return 0 }
+        vc = vc + 1
+    }
+    
+    // Check 3x3 boxes
+    bx = 0
+    while (bx < 9) {
+        bMask = 0
+        startR = (bx / 3) * 3
+        startC = (bx % 3) * 3
+        dr = 0
+        while (dr < 3) {
+            dc = 0
+            while (dc < 3) {
+                val = grid[(startR + dr) * 9 + (startC + dc)]
+                bit = 1 << val
+                if ((bMask & bit) != 0) { return 0 } // Duplicate
+                bMask = bMask | bit
+                dc = dc + 1
+            }
+            dr = dr + 1
+        }
+        if (bMask != targetMask) { return 0 }
+        bx = bx + 1
+    }
+    
+    return 1
+}
+
+function solveSudoku(puzzle) {
+    rowMask = makeIntArray(9, 0)
+    colMask = makeIntArray(9, 0)
+    boxMask = makeIntArray(9, 0)
+    
+    // Initialize bitmasks from initial clues
+    initIdx = 0
+    while (initIdx < 81) {
+        val = puzzle[initIdx]
+        if (val > 0) {
+            ir = initIdx / 9
+            ic = initIdx % 9
+            ib = getBoxIdx(ir, ic)
+            bit = 1 << val
+            rowMask[ir] = rowMask[ir] | bit
+            colMask[ic] = colMask[ic] | bit
+            boxMask[ib] = boxMask[ib] | bit
+        }
+        initIdx = initIdx + 1
+    }
+    
+    return solveMRV(puzzle, rowMask, colMask, boxMask)
+}
+
+// Puzzle 1: Standard Medium
+p1 = [
+    5, 3, 0, 0, 7, 0, 0, 0, 0,
+    6, 0, 0, 1, 9, 5, 0, 0, 0,
+    0, 9, 8, 0, 0, 0, 0, 6, 0,
+    8, 0, 0, 0, 6, 0, 0, 0, 3,
+    4, 0, 0, 8, 0, 3, 0, 0, 1,
+    7, 0, 0, 0, 2, 0, 0, 0, 6,
+    0, 6, 0, 0, 0, 0, 2, 8, 0,
+    0, 0, 0, 4, 1, 9, 0, 0, 5,
+    0, 0, 0, 0, 8, 0, 0, 7, 9
+]
+
+// Puzzle 2: Hard (17 clues minimum unique)
+p2 = [
+    0, 0, 0, 0, 0, 0, 0, 1, 2,
+    0, 0, 0, 0, 3, 5, 0, 0, 0,
+    0, 0, 0, 6, 0, 0, 0, 7, 0,
+    7, 0, 0, 0, 0, 0, 3, 0, 0,
+    0, 0, 0, 4, 0, 0, 8, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 1, 2, 0, 0, 0, 0,
+    0, 8, 0, 0, 0, 0, 0, 4, 0,
+    0, 5, 0, 0, 0, 0, 6, 0, 0
+]
+
+// Puzzle 3: Diabolical
+p3 = [
+    8, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 3, 6, 0, 0, 0, 0, 0,
+    0, 7, 0, 0, 9, 0, 2, 0, 0,
+    0, 5, 0, 0, 0, 7, 0, 0, 0,
+    0, 0, 0, 0, 4, 5, 7, 0, 0,
+    0, 0, 0, 1, 0, 0, 0, 3, 0,
+    0, 0, 1, 0, 0, 0, 0, 6, 8,
+    0, 0, 8, 5, 0, 0, 0, 1, 0,
+    0, 9, 0, 0, 0, 0, 4, 0, 0
+]
+
+print("Solving Puzzle 1 (Medium)...")
+t0 = tm.millis()
+res1 = solveSudoku(p1)
+t1 = tm.millis()
+v1 = verifyGrid(p1)
+print("Puzzle 1 Solved:", res1, "Verified:", v1, "Time:", t1 - t0, "ms")
+printGrid(p1)
+
+print("Solving Puzzle 2 (Hard 17-clue)...")
+t2 = tm.millis()
+res2 = solveSudoku(p2)
+t3 = tm.millis()
+v2 = verifyGrid(p2)
+print("Puzzle 2 Solved:", res2, "Verified:", v2, "Time:", t3 - t2, "ms")
+
+print("Solving Puzzle 3 (Diabolical)...")
+t4 = tm.millis()
+res3 = solveSudoku(p3)
+t5 = tm.millis()
+v3 = verifyGrid(p3)
+print("Puzzle 3 Solved:", res3, "Verified:", v3, "Time:", t5 - t4, "ms")
+
+allPassed = res1 & res2 & res3 & v1 & v2 & v3
+print("All 3 Sudoku puzzles solved and strictly verified:", allPassed)
