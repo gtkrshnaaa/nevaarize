@@ -94,8 +94,12 @@ private:
     NodeIndex expression();
     NodeIndex orExpr();
     NodeIndex andExpr();
+    NodeIndex bitorExpr();
+    NodeIndex bitxorExpr();
+    NodeIndex bitandExpr();
     NodeIndex equality();
     NodeIndex comparison();
+    NodeIndex shift();
     NodeIndex term();
     NodeIndex factor();
     NodeIndex unary();

@@ -75,7 +75,8 @@ enum class NodeType : uint8_t {
 enum class BinaryOp : uint8_t {
     ADD, SUB, MUL, DIV, MOD,
     EQ, NEQ, LT, LTE, GT, GTE,
-    AND, OR
+    AND, OR,
+    BIT_AND, BIT_OR, BIT_XOR, SHL, SHR
 };
 
 /**
@@ -83,7 +84,8 @@ enum class BinaryOp : uint8_t {
  */
 enum class UnaryOp : uint8_t {
     NEG,
-    NOT
+    NOT,
+    BIT_NOT
 };
 
 /**

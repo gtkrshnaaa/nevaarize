@@ -558,14 +558,65 @@ NodeIndex Parser::orExpr() {
 }
 
 NodeIndex Parser::andExpr() {
-    NodeIndex left = equality();
+    NodeIndex left = bitorExpr();
 
     while (match(TokenType::AND)) {
+        Token op = previous();
+        NodeIndex right = bitorExpr();
+
+        ASTNode node(NodeType::BINARY_OP, op.line, op.column);
+        node.binaryOp = BinaryOp::AND;
+        node.left = left;
+        node.right = right;
+        left = ast.addNode(std::move(node));
+    }
+
+    return left;
+}
+
+NodeIndex Parser::bitorExpr() {
+    NodeIndex left = bitxorExpr();
+
+    while (match(TokenType::PIPE)) {
+        Token op = previous();
+        NodeIndex right = bitxorExpr();
+
+        ASTNode node(NodeType::BINARY_OP, op.line, op.column);
+        node.binaryOp = BinaryOp::BIT_OR;
+        node.left = left;
+        node.right = right;
+        left = ast.addNode(std::move(node));
+    }
+
+    return left;
+}
+
+NodeIndex Parser::bitxorExpr() {
+    NodeIndex left = bitandExpr();
+
+    while (match(TokenType::CARET)) {
+        Token op = previous();
+        NodeIndex right = bitandExpr();
+
+        ASTNode node(NodeType::BINARY_OP, op.line, op.column);
+        node.binaryOp = BinaryOp::BIT_XOR;
+        node.left = left;
+        node.right = right;
+        left = ast.addNode(std::move(node));
+    }
+
+    return left;
+}
+
+NodeIndex Parser::bitandExpr() {
+    NodeIndex left = equality();
+
+    while (match(TokenType::AMPERSAND)) {
         Token op = previous();
         NodeIndex right = equality();
 
         ASTNode node(NodeType::BINARY_OP, op.line, op.column);
-        node.binaryOp = BinaryOp::AND;
+        node.binaryOp = BinaryOp::BIT_AND;
         node.left = left;
         node.right = right;
         left = ast.addNode(std::move(node));
@@ -592,12 +643,12 @@ NodeIndex Parser::equality() {
 }
 
 NodeIndex Parser::comparison() {
-    NodeIndex left = term();
+    NodeIndex left = shift();
 
     while (matchAny({TokenType::LESS, TokenType::LESSEQUAL,
                      TokenType::GREATER, TokenType::GREATEREQUAL})) {
         Token op = previous();
-        NodeIndex right = term();
+        NodeIndex right = shift();
 
         ASTNode node(NodeType::BINARY_OP, op.line, op.column);
         switch (op.type) {
@@ -607,6 +658,23 @@ NodeIndex Parser::comparison() {
             case TokenType::GREATEREQUAL: node.binaryOp = BinaryOp::GTE; break;
             default: break;
         }
+        node.left = left;
+        node.right = right;
+        left = ast.addNode(std::move(node));
+    }
+
+    return left;
+}
+
+NodeIndex Parser::shift() {
+    NodeIndex left = term();
+
+    while (matchAny({TokenType::LSHIFT, TokenType::RSHIFT})) {
+        Token op = previous();
+        NodeIndex right = term();
+
+        ASTNode node(NodeType::BINARY_OP, op.line, op.column);
+        node.binaryOp = (op.type == TokenType::LSHIFT) ? BinaryOp::SHL : BinaryOp::SHR;
         node.left = left;
         node.right = right;
         left = ast.addNode(std::move(node));
@@ -655,12 +723,18 @@ NodeIndex Parser::factor() {
 }
 
 NodeIndex Parser::unary() {
-    if (matchAny({TokenType::MINUS, TokenType::BANG, TokenType::NOT})) {
+    if (matchAny({TokenType::MINUS, TokenType::BANG, TokenType::NOT, TokenType::TILDE})) {
         Token op = previous();
         NodeIndex right = unary();
 
         ASTNode node(NodeType::UNARY_OP, op.line, op.column);
-        node.unaryOp = (op.type == TokenType::MINUS) ? UnaryOp::NEG : UnaryOp::NOT;
+        if (op.type == TokenType::MINUS) {
+            node.unaryOp = UnaryOp::NEG;
+        } else if (op.type == TokenType::TILDE) {
+            node.unaryOp = UnaryOp::BIT_NOT;
+        } else {
+            node.unaryOp = UnaryOp::NOT;
+        }
         node.left = right;
         return ast.addNode(std::move(node));
     }

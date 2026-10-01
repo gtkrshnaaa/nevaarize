@@ -317,9 +317,19 @@ Token Lexer::nextToken() {
         case '!':
             return makeToken(match('=') ? TokenType::BANGEQUAL : TokenType::BANG);
         case '<':
+            if (match('<')) return makeToken(TokenType::LSHIFT);
             return makeToken(match('=') ? TokenType::LESSEQUAL : TokenType::LESS);
         case '>':
+            if (match('>')) return makeToken(TokenType::RSHIFT);
             return makeToken(match('=') ? TokenType::GREATEREQUAL : TokenType::GREATER);
+        case '&':
+            if (match('&')) return makeToken(TokenType::AND);
+            return makeToken(TokenType::AMPERSAND);
+        case '|':
+            if (match('|')) return makeToken(TokenType::OR);
+            return makeToken(TokenType::PIPE);
+        case '^': return makeToken(TokenType::CARET);
+        case '~': return makeToken(TokenType::TILDE);
 
         case '_':
             return errorToken("Underscore '_' is not allowed as identifier start (No-Underscore Policy)");

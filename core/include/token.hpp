@@ -67,6 +67,12 @@ enum class TokenType : uint8_t {
     AND,
     OR,
     NOT,
+    AMPERSAND,
+    PIPE,
+    CARET,
+    TILDE,
+    LSHIFT,
+    RSHIFT,
 
     // Delimiters
     LPAREN,
@@ -177,6 +183,12 @@ inline constexpr const char* tokenTypeToString(TokenType type) {
         case TokenType::AND: return "AND";
         case TokenType::OR: return "OR";
         case TokenType::NOT: return "NOT";
+        case TokenType::AMPERSAND: return "AMPERSAND";
+        case TokenType::PIPE: return "PIPE";
+        case TokenType::CARET: return "CARET";
+        case TokenType::TILDE: return "TILDE";
+        case TokenType::LSHIFT: return "LSHIFT";
+        case TokenType::RSHIFT: return "RSHIFT";
         case TokenType::LPAREN: return "LPAREN";
         case TokenType::RPAREN: return "RPAREN";
         case TokenType::LBRACE: return "LBRACE";
