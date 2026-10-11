@@ -165,3 +165,74 @@ func cooleyTukeyFft(real, imag, invert) {
         }
     }
 }
+
+func convolvePolynomials(polyA, polyB) {
+    szA = polyA.size()
+    szB = polyB.size()
+    if (szA == 0 or szB == 0) {
+        return []
+    }
+    targetSz = szA + szB - 1
+    fftSz = nextPowerOfTwo(targetSz)
+
+    realA = makeFloatArray(fftSz, 0.0)
+    imagA = makeFloatArray(fftSz, 0.0)
+    realB = makeFloatArray(fftSz, 0.0)
+    imagB = makeFloatArray(fftSz, 0.0)
+
+    i = 0
+    while (i < szA) {
+        realA[i] = 1.0 * polyA[i]
+        i = i + 1
+    }
+
+    j = 0
+    while (j < szB) {
+        realB[j] = 1.0 * polyB[j]
+        j = j + 1
+    }
+
+    cooleyTukeyFft(realA, imagA, false)
+    cooleyTukeyFft(realB, imagB, false)
+
+    realC = makeFloatArray(fftSz, 0.0)
+    imagC = makeFloatArray(fftSz, 0.0)
+    k = 0
+    while (k < fftSz) {
+        realC[k] = realA[k] * realB[k] - imagA[k] * imagB[k]
+        imagC[k] = realA[k] * imagB[k] + imagA[k] * realB[k]
+        k = k + 1
+    }
+
+    cooleyTukeyFft(realC, imagC, true)
+
+    result = []
+    r = 0
+    while (r < targetSz) {
+        val = realC[r]
+        rounded = m.Round(val)
+        result.push(rounded)
+        r = r + 1
+    }
+    return result
+}
+
+func naivePolynomialMultiply(polyA, polyB) {
+    szA = polyA.size()
+    szB = polyB.size()
+    if (szA == 0 or szB == 0) {
+        return []
+    }
+    targetSz = szA + szB - 1
+    result = makeFloatArray(targetSz, 0.0)
+    i = 0
+    while (i < szA) {
+        j = 0
+        while (j < szB) {
+            result[i + j] = result[i + j] + (1.0 * polyA[i] * polyB[j])
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return result
+}
