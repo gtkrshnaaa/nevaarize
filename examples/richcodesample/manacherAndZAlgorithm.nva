@@ -143,3 +143,120 @@ func isSubstrPalindrome(radii, startIdx, endIdx) {
     centerIdx = startIdx + endIdx + 1
     return radii[centerIdx] >= subLen
 }
+
+
+func computeZArray(bytes) {
+    n = bytes.size()
+    z = makeIntArray(n, 0)
+    if (n == 0) {
+        return z
+    }
+    leftBox = 0
+    rightBox = 0
+
+    i = 1
+    while (i < n) {
+        if (i < rightBox) {
+            k = i - leftBox
+            if (z[k] < rightBox - i) {
+                z[i] = z[k]
+            } else {
+                leftBox = i
+                while (rightBox < n && bytes[rightBox - leftBox] == bytes[rightBox]) {
+                    rightBox = rightBox + 1
+                }
+                z[i] = rightBox - leftBox
+            }
+        } else {
+            leftBox = i
+            rightBox = i
+            while (rightBox < n && bytes[rightBox - leftBox] == bytes[rightBox]) {
+                rightBox = rightBox + 1
+            }
+            z[i] = rightBox - leftBox
+        }
+        i = i + 1
+    }
+    return z
+}
+
+func searchZAlgorithm(text, pattern) {
+    patLen = s.length(pattern)
+    textLen = s.length(text)
+    if (patLen == 0 || textLen == 0 || patLen > textLen) {
+        return ZSearchResult(patLen, 0, [])
+    }
+
+    patBytes = stringToBytes(pattern)
+    textBytes = stringToBytes(text)
+
+    // Construct concatenated byte vector: pattern + delimiter (byte 1) + text
+    combined = []
+    pi = 0
+    while (pi < patLen) {
+        combined.push(patBytes[pi])
+        pi = pi + 1
+    }
+    // Sentinel delimiter (byte 1, non-printable ASCII)
+    combined.push(1)
+    ti = 0
+    while (ti < textLen) {
+        combined.push(textBytes[ti])
+        ti = ti + 1
+    }
+
+    zArr = computeZArray(combined)
+    matches = []
+    combLen = combined.size()
+    // Indices after the delimiter: from patLen + 1 up to combLen - 1
+    ci = patLen + 1
+    while (ci < combLen) {
+        if (zArr[ci] == patLen) {
+            matchedIdx = ci - (patLen + 1)
+            matches.push(matchedIdx)
+        }
+        ci = ci + 1
+    }
+
+    return ZSearchResult(patLen, matches.size(), matches)
+}
+
+func findSmallestPeriod(text) {
+    n = s.length(text)
+    if (n <= 1) {
+        return n
+    }
+    bytes = stringToBytes(text)
+    zArr = computeZArray(bytes)
+
+    i = 1
+    while (i < n) {
+        if (i + zArr[i] == n && n % i == 0) {
+            return i
+        }
+        i = i + 1
+    }
+    return n
+}
+
+func longestBorderLength(text) {
+    n = s.length(text)
+    if (n <= 1) {
+        return 0
+    }
+    bytes = stringToBytes(text)
+    zArr = computeZArray(bytes)
+
+    maxBorder = 0
+    i = 1
+    while (i < n) {
+        if (i + zArr[i] == n) {
+            borderLen = zArr[i]
+            if (borderLen > maxBorder) {
+                maxBorder = borderLen
+            }
+        }
+        i = i + 1
+    }
+    return maxBorder
+}
