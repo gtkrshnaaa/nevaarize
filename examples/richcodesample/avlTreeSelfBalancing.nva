@@ -1,0 +1,441 @@
+import stdlib time as t
+
+// Self-Balancing AVL (Adelson-Velsky and Landis) Tree Implementation
+// Implements complete height-balanced binary search tree with 4 rotation cases:
+// 1. Left-Left (LL) Single Right Rotation
+// 2. Right-Right (RR) Single Left Rotation
+// 3. Left-Right (LR) Double Rotation (Left rotate child, Right rotate node)
+// 4. Right-Left (RL) Double Rotation (Right rotate child, Left rotate node)
+// Features node insertion, node deletion with successor splicing, search,
+// in-order sorted traversal, and strict balance factor verification.
+// Enforces strict camelCase naming convention (No-Underscore Policy).
+
+print("=== Nevaarize Self-Balancing AVL Tree ===")
+startTime = t.millis()
+
+// Parallel arena arrays for node storage
+nodeKey = []
+nodeVal = []
+nodeHeight = []
+nodeLeft = []
+nodeRight = []
+nodeParent = []
+
+func allocNode(key, val) {
+    idx = len(nodeKey)
+    nodeKey.push(key)
+    nodeVal.push(val)
+    nodeHeight.push(1)
+    nodeLeft.push(-1)
+    nodeRight.push(-1)
+    nodeParent.push(-1)
+    return idx
+}
+
+func getHeight(node, nHeight) {
+    if (node == -1) {
+        return 0
+    }
+    return nHeight[node]
+}
+
+func updateHeight(node, nLeft, nRight, nHeight) {
+    lh = getHeight(nLeft[node], nHeight)
+    rh = getHeight(nRight[node], nHeight)
+    maxH = lh
+    if (rh > lh) {
+        maxH = rh
+    }
+    nHeight[node] = maxH + 1
+}
+
+func getBalance(node, nLeft, nRight, nHeight) {
+    if (node == -1) {
+        return 0
+    }
+    return getHeight(nLeft[node], nHeight) - getHeight(nRight[node], nHeight)
+}
+
+func rightRotate(y, nLeft, nRight, nParent, nHeight) {
+    x = nLeft[y]
+    t2 = nRight[x]
+    nRight[x] = y
+    nLeft[y] = t2
+
+    if (t2 != -1) {
+        nParent[t2] = y
+    }
+    py = nParent[y]
+    nParent[x] = py
+    if (py != -1) {
+        if (y == nLeft[py]) {
+            nLeft[py] = x
+        } else {
+            nRight[py] = x
+        }
+    }
+    nParent[y] = x
+
+    updateHeight(y, nLeft, nRight, nHeight)
+    updateHeight(x, nLeft, nRight, nHeight)
+    return x
+}
+
+func leftRotate(x, nLeft, nRight, nParent, nHeight) {
+    y = nRight[x]
+    t2 = nLeft[y]
+    nLeft[y] = x
+    nRight[x] = t2
+
+    if (t2 != -1) {
+        nParent[t2] = x
+    }
+    px = nParent[x]
+    nParent[y] = px
+    if (px != -1) {
+        if (x == nLeft[px]) {
+            nLeft[px] = y
+        } else {
+            nRight[px] = y
+        }
+    }
+    nParent[x] = y
+
+    updateHeight(x, nLeft, nRight, nHeight)
+    updateHeight(y, nLeft, nRight, nHeight)
+    return y
+}
+
+func insertAVL(root, key, val) {
+    z = allocNode(key, val)
+    y = -1
+    x = root
+
+    while (x != -1) {
+        y = x
+        if (key < nodeKey[x]) {
+            x = nodeLeft[x]
+        } elif (key > nodeKey[x]) {
+            x = nodeRight[x]
+        } else {
+            nodeVal[x] = val
+            return root
+        }
+    }
+
+    nodeParent[z] = y
+    if (y == -1) {
+        return z
+    } elif (key < nodeKey[y]) {
+        nodeLeft[y] = z
+    } else {
+        nodeRight[y] = z
+    }
+
+    // Walk up the tree and rebalance along the insertion path
+    curr = y
+    while (curr != -1) {
+        oldH = nodeHeight[curr]
+        updateHeight(curr, nodeLeft, nodeRight, nodeHeight)
+        bf = getBalance(curr, nodeLeft, nodeRight, nodeHeight)
+
+        if (bf > 1) {
+            lChild = nodeLeft[curr]
+            lBf = getBalance(lChild, nodeLeft, nodeRight, nodeHeight)
+            if (lBf < 0) {
+                // Left-Right (LR) Case
+                leftRotate(lChild, nodeLeft, nodeRight, nodeParent, nodeHeight)
+            }
+            // Left-Left (LL) Case
+            newSubRoot = rightRotate(curr, nodeLeft, nodeRight, nodeParent, nodeHeight)
+            if (nodeParent[newSubRoot] == -1) {
+                root = newSubRoot
+            }
+            curr = nodeParent[newSubRoot]
+        } elif (bf < -1) {
+            rChild = nodeRight[curr]
+            rBf = getBalance(rChild, nodeLeft, nodeRight, nodeHeight)
+            if (rBf > 0) {
+                // Right-Left (RL) Case
+                rightRotate(rChild, nodeLeft, nodeRight, nodeParent, nodeHeight)
+            }
+            // Right-Right (RR) Case
+            newSubRoot = leftRotate(curr, nodeLeft, nodeRight, nodeParent, nodeHeight)
+            if (nodeParent[newSubRoot] == -1) {
+                root = newSubRoot
+            }
+            curr = nodeParent[newSubRoot]
+        } else {
+            if (nodeHeight[curr] == oldH) {
+                curr = -1
+            } else {
+                curr = nodeParent[curr]
+            }
+        }
+    }
+
+    while (nodeParent[root] != -1) {
+        root = nodeParent[root]
+    }
+    return root
+}
+
+func deleteAVL(root, key) {
+    z = root
+    target = -1
+    searching = 1
+    while (searching == 1) {
+        if (z == -1) {
+            searching = 0
+        } elif (key == nodeKey[z]) {
+            target = z
+            searching = 0
+        } elif (key < nodeKey[z]) {
+            z = nodeLeft[z]
+        } else {
+            z = nodeRight[z]
+        }
+    }
+
+    if (target == -1) {
+        return root
+    }
+    z = target
+    startRebalance = -1
+
+    if (nodeLeft[z] != -1 and nodeRight[z] != -1) {
+        // Two children: replace with in-order successor (min of right subtree)
+        s = nodeRight[z]
+        while (nodeLeft[s] != -1) {
+            s = nodeLeft[s]
+        }
+        nodeKey[z] = nodeKey[s]
+        nodeVal[z] = nodeVal[s]
+
+        sChild = nodeRight[s]
+        sp = nodeParent[s]
+        if (sChild != -1) {
+            nodeParent[sChild] = sp
+        }
+        if (s == nodeLeft[sp]) {
+            nodeLeft[sp] = sChild
+        } else {
+            nodeRight[sp] = sChild
+        }
+        startRebalance = sp
+    } else {
+        // At most one child
+        child = nodeLeft[z]
+        if (child == -1) {
+            child = nodeRight[z]
+        }
+        pz = nodeParent[z]
+        if (child != -1) {
+            nodeParent[child] = pz
+        }
+        if (pz == -1) {
+            root = child
+        } elif (z == nodeLeft[pz]) {
+            nodeLeft[pz] = child
+        } else {
+            nodeRight[pz] = child
+        }
+        startRebalance = pz
+    }
+
+    // Rebalance upward from modification point
+    curr = startRebalance
+    while (curr != -1) {
+        updateHeight(curr, nodeLeft, nodeRight, nodeHeight)
+        bf = getBalance(curr, nodeLeft, nodeRight, nodeHeight)
+
+        if (bf > 1) {
+            lChild = nodeLeft[curr]
+            lBf = getBalance(lChild, nodeLeft, nodeRight, nodeHeight)
+            if (lBf < 0) {
+                leftRotate(lChild, nodeLeft, nodeRight, nodeParent, nodeHeight)
+            }
+            newSubRoot = rightRotate(curr, nodeLeft, nodeRight, nodeParent, nodeHeight)
+            if (nodeParent[newSubRoot] == -1) {
+                root = newSubRoot
+            }
+            curr = nodeParent[newSubRoot]
+        } elif (bf < -1) {
+            rChild = nodeRight[curr]
+            rBf = getBalance(rChild, nodeLeft, nodeRight, nodeHeight)
+            if (rBf > 0) {
+                rightRotate(rChild, nodeLeft, nodeRight, nodeParent, nodeHeight)
+            }
+            newSubRoot = leftRotate(curr, nodeLeft, nodeRight, nodeParent, nodeHeight)
+            if (nodeParent[newSubRoot] == -1) {
+                root = newSubRoot
+            }
+            curr = nodeParent[newSubRoot]
+        } else {
+            curr = nodeParent[curr]
+        }
+    }
+
+    if (root != -1) {
+        while (nodeParent[root] != -1) {
+            root = nodeParent[root]
+        }
+    }
+    return root
+}
+
+func searchAVL(root, targetKey, nKey, nVal, nLeft, nRight) {
+    curr = root
+    while (curr != -1) {
+        if (targetKey == nKey[curr]) {
+            return nVal[curr]
+        } elif (targetKey < nKey[curr]) {
+            curr = nLeft[curr]
+        } else {
+            curr = nRight[curr]
+        }
+    }
+    return -1
+}
+
+func inorderCollect(root, nLeft, nRight, nKey, outList) {
+    stack = []
+    curr = root
+    hasItems = 1
+    while (hasItems == 1) {
+        while (curr != -1) {
+            stack.push(curr)
+            curr = nLeft[curr]
+        }
+        if (len(stack) == 0) {
+            hasItems = 0
+        } else {
+            curr = stack.pop()
+            outList.push(nKey[curr])
+            curr = nRight[curr]
+        }
+    }
+    return outList
+}
+
+func verifyAVLInvariants(root, nLeft, nRight, nHeight) {
+    if (root == -1) {
+        return 1
+    }
+    stack = [root]
+    allBalanced = 1
+    while (len(stack) > 0 and allBalanced == 1) {
+        node = stack.pop()
+        bf = getBalance(node, nLeft, nRight, nHeight)
+        if (bf < -1 or bf > 1) {
+            allBalanced = 0
+        }
+        if (nLeft[node] != -1) {
+            stack.push(nLeft[node])
+        }
+        if (nRight[node] != -1) {
+            stack.push(nRight[node])
+        }
+    }
+    return allBalanced
+}
+
+// Case 1: Sequential insertions to stress-test rotation logic
+print("--- Sequential Insertion and Balance Verification ---")
+testKeys = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+treeRoot = -1
+i = 0
+while (i < len(testKeys)) {
+    k = testKeys[i]
+    treeRoot = insertAVL(treeRoot, k, k * 50)
+    i = i + 1
+}
+
+print("Total nodes inserted:", len(testKeys))
+print("Root key:", nodeKey[treeRoot], "Root height:", nodeHeight[treeRoot])
+print("Balance factor at root:", getBalance(treeRoot, nodeLeft, nodeRight, nodeHeight))
+
+// Case 2: Invariant Check
+isBalanced = verifyAVLInvariants(treeRoot, nodeLeft, nodeRight, nodeHeight)
+if (isBalanced == 1 and nodeHeight[treeRoot] <= 4) {
+    print("AVL Height Balance Invariant (|bf| <= 1): PASSED (Tree Height =", nodeHeight[treeRoot], ")")
+} else {
+    print("AVL Height Balance Invariant: FAILED")
+}
+
+// Case 3: In-order Sorted Traversal
+print("\n--- In-Order Traversal (Sorted Output) ---")
+sortedKeys = []
+sortedKeys = inorderCollect(treeRoot, nodeLeft, nodeRight, nodeKey, sortedKeys)
+isMonotonic = 1
+j = 1
+while (j < len(sortedKeys)) {
+    if (sortedKeys[j] <= sortedKeys[j - 1]) {
+        isMonotonic = 0
+    }
+    j = j + 1
+}
+print("Collected keys count:", len(sortedKeys))
+print("Keys:", sortedKeys[0], sortedKeys[1], sortedKeys[2], sortedKeys[3], sortedKeys[4], sortedKeys[5], sortedKeys[6], sortedKeys[7], sortedKeys[8], sortedKeys[9])
+if (isMonotonic == 1 and len(sortedKeys) == len(testKeys)) {
+    print("In-order Monotonicity Check: PASSED")
+} else {
+    print("In-order Monotonicity Check: FAILED")
+}
+
+// Case 4: Search Operation
+print("\n--- Search Operations ---")
+queries = [30, 70, 100, 999]
+q = 0
+while (q < len(queries)) {
+    target = queries[q]
+    ans = searchAVL(treeRoot, target, nodeKey, nodeVal, nodeLeft, nodeRight)
+    if (ans != -1) {
+        print("Search key", target, "-> Found value:", ans)
+    } else {
+        print("Search key", target, "-> Key not present in tree")
+    }
+    q = q + 1
+}
+
+// Case 5: Deletions and Rebalancing
+print("\n--- Deletion Tests ---")
+deleteTargets = [40, 70, 10]
+d = 0
+while (d < len(deleteTargets)) {
+    delKey = deleteTargets[d]
+    treeRoot = deleteAVL(treeRoot, delKey)
+    print("Deleted key", delKey, "-> New root:", nodeKey[treeRoot], "height:", nodeHeight[treeRoot])
+    d = d + 1
+}
+
+postDeleteBalanced = verifyAVLInvariants(treeRoot, nodeLeft, nodeRight, nodeHeight)
+remainingKeys = []
+remainingKeys = inorderCollect(treeRoot, nodeLeft, nodeRight, nodeKey, remainingKeys)
+print("Remaining node count:", len(remainingKeys))
+if (postDeleteBalanced == 1 and len(remainingKeys) == 7) {
+    print("Post-Deletion AVL Invariant: PASSED")
+} else {
+    print("Post-Deletion AVL Invariant: FAILED")
+}
+
+// Case 6: Bulk Insertion Scalability
+print("\n--- Bulk Insertion Scalability Test ---")
+bulkCount = 50
+currBulk = 200
+while (currBulk < 200 + bulkCount) {
+    treeRoot = insertAVL(treeRoot, currBulk, currBulk * 10)
+    currBulk = currBulk + 1
+}
+
+finalBalanced = verifyAVLInvariants(treeRoot, nodeLeft, nodeRight, nodeHeight)
+print("Total tree size after bulk insertions:", len(remainingKeys) + bulkCount)
+print("Final Tree Height:", nodeHeight[treeRoot], "(Theoretical max: 7)")
+if (finalBalanced == 1 and nodeHeight[treeRoot] <= 7) {
+    print("Bulk AVL Self-Balancing: VERIFIED SUCCESS")
+} else {
+    print("Bulk AVL Self-Balancing: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("\nAVL Tree benchmark completed in", elapsed, "ms")
