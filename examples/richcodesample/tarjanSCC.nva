@@ -1,0 +1,150 @@
+import stdlib time as t
+
+// Tarjan's Strongly Connected Components (SCC) Algorithm
+// Computes maximal strongly connected subgraphs in directed graphs in O(V + E) time.
+// Implemented iteratively with explicit stack frames to guarantee JIT safety.
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Tarjan Strongly Connected Components ===")
+startTime = t.millis()
+
+func runTarjanSCC(numNodes, adj) {
+    print("\n--- Running Tarjan SCC (Vertices:", numNodes, ") ---")
+    disc = []
+    lowLink = []
+    onStack = []
+    
+    i = 0
+    while (i < numNodes) {
+        disc.push(-1)
+        lowLink.push(-1)
+        onStack.push(0)
+        i = i + 1
+    }
+
+    tarjanStack = []
+    timer = 0
+    sccCount = 0
+
+    rootCandidate = 0
+    while (rootCandidate < numNodes) {
+        if (disc[rootCandidate] == -1) {
+            callStackU = [rootCandidate]
+            callStackEdge = [0]
+            timer = timer + 1
+            disc[rootCandidate] = timer
+            lowLink[rootCandidate] = timer
+            tarjanStack.push(rootCandidate)
+            onStack[rootCandidate] = 1
+
+            while (len(callStackU) > 0) {
+                topIdx = len(callStackU) - 1
+                curr = callStackU[topIdx]
+                edgeIdx = callStackEdge[topIdx]
+
+                found = 0
+                while (edgeIdx < numNodes and found == 0) {
+                    if (adj[curr * numNodes + edgeIdx] == 1) {
+                        found = 1
+                    } else {
+                        edgeIdx = edgeIdx + 1
+                    }
+                }
+
+                if (found == 1) {
+                    callStackEdge[topIdx] = edgeIdx + 1
+                    v = edgeIdx
+                    if (disc[v] == -1) {
+                        timer = timer + 1
+                        disc[v] = timer
+                        lowLink[v] = timer
+                        tarjanStack.push(v)
+                        onStack[v] = 1
+                        callStackU.push(v)
+                        callStackEdge.push(0)
+                    } elif (onStack[v] == 1) {
+                        if (disc[v] < lowLink[curr]) {
+                            lowLink[curr] = disc[v]
+                        }
+                    }
+                } else {
+                    callStackU.pop()
+                    callStackEdge.pop()
+
+                    if (len(callStackU) > 0) {
+                        pNode = callStackU[len(callStackU) - 1]
+                        if (lowLink[curr] < lowLink[pNode]) {
+                            lowLink[pNode] = lowLink[curr]
+                        }
+                    }
+
+                    if (lowLink[curr] == disc[curr]) {
+                        sccCount = sccCount + 1
+                        sccMembers = []
+                        extracting = 1
+                        while (extracting == 1) {
+                            node = tarjanStack.pop()
+                            onStack[node] = 0
+                            sccMembers.push(node)
+                            if (node == curr) {
+                                extracting = 0
+                            }
+                        }
+                        print("SCC #", sccCount, ": count =", len(sccMembers), "root =", curr)
+                    }
+                }
+            }
+        }
+        rootCandidate = rootCandidate + 1
+    }
+
+    print("Total Strongly Connected Components:", sccCount)
+    return sccCount
+}
+
+func makeMatrix(sz) {
+    mat = []
+    i = 0
+    while (i < sz * sz) {
+        mat.push(0)
+        i = i + 1
+    }
+    return mat
+}
+
+// Benchmark Graph 1: 8 vertices with 3 SCCs ({0,1,2}, {3,4,5}, {6,7})
+numNodes1 = 8
+adj1 = makeMatrix(numNodes1)
+adj1[0 * 8 + 1] = 1
+adj1[1 * 8 + 2] = 1
+adj1[2 * 8 + 0] = 1
+adj1[2 * 8 + 3] = 1
+adj1[3 * 8 + 4] = 1
+adj1[4 * 8 + 5] = 1
+adj1[5 * 8 + 3] = 1
+adj1[5 * 8 + 6] = 1
+adj1[6 * 8 + 7] = 1
+adj1[7 * 8 + 6] = 1
+sccTotal1 = runTarjanSCC(numNodes1, adj1)
+
+// Benchmark Graph 2: DAG with 4 vertices (4 trivial SCCs)
+numNodes2 = 4
+adj2 = makeMatrix(numNodes2)
+adj2[0 * 4 + 1] = 1
+adj2[1 * 4 + 2] = 1
+adj2[2 * 4 + 3] = 1
+adj2[0 * 4 + 2] = 1
+sccTotal2 = runTarjanSCC(numNodes2, adj2)
+
+// Benchmark Graph 3: 5-vertex directed cycle (1 global SCC)
+numNodes3 = 5
+adj3 = makeMatrix(numNodes3)
+adj3[0 * 5 + 1] = 1
+adj3[1 * 5 + 2] = 1
+adj3[2 * 5 + 3] = 1
+adj3[3 * 5 + 4] = 1
+adj3[4 * 5 + 0] = 1
+sccTotal3 = runTarjanSCC(numNodes3, adj3)
+
+elapsed = t.millis() - startTime
+print("\nTarjan SCC execution benchmark finished in:", elapsed, "ms")
