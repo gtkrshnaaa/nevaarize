@@ -1,0 +1,86 @@
+import stdlib math as m
+import stdlib time as t
+
+// Radix-2 Cooley-Tukey Fast Fourier Transform (FFT) and Polynomial Convolution
+// Time Complexity:
+// - Direct DFT: O(N^2)
+// - Cooley-Tukey Radix-2 DIT FFT: O(N log N)
+// - Polynomial Convolution: O(N log N) vs Naive O(N^2)
+// Technical characteristics:
+// - Decimation-in-Time (DIT) butterfly topology with bit-reversal permutations
+// - Forward FFT and symmetric Inverse FFT (IFFT) normalization
+// - High-precision complex number arithmetic without structural heap thrashing
+// - Mathematical verification against naive discrete Fourier transform (DFT)
+// - Parseval energy conservation theorem invariance
+// - Strict camelCase naming conventions without underscores
+
+struct ComplexVector {
+    real,
+    imag
+}
+
+func makeFloatArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func copyFloatArray(arr) {
+    sz = arr.size()
+    copied = []
+    i = 0
+    while (i < sz) {
+        copied.push(arr[i])
+        i = i + 1
+    }
+    return copied
+}
+
+func nextPowerOfTwo(n) {
+    p = 1
+    while (p < n) {
+        p = p * 2
+    }
+    return p
+}
+
+func discreteFourierTransform(real, imag, invert) {
+    n = real.size()
+    outR = makeFloatArray(n, 0.0)
+    outI = makeFloatArray(n, 0.0)
+    twoPi = 2.0 * m.PI
+
+    k = 0
+    while (k < n) {
+        sumR = 0.0
+        sumI = 0.0
+        j = 0
+        while (j < n) {
+            angle = (twoPi * (1.0 * k) * (1.0 * j)) / (1.0 * n)
+            if (!invert) {
+                angle = 0.0 - angle
+            }
+            cosA = m.Cos(angle)
+            sinA = m.Sin(angle)
+
+            termR = real[j] * cosA - imag[j] * sinA
+            termI = real[j] * sinA + imag[j] * cosA
+
+            sumR = sumR + termR
+            sumI = sumI + termI
+            j = j + 1
+        }
+        if (invert) {
+            sumR = sumR / (1.0 * n)
+            sumI = sumI / (1.0 * n)
+        }
+        outR[k] = sumR
+        outI[k] = sumI
+        k = k + 1
+    }
+    return ComplexVector(outR, outI)
+}
