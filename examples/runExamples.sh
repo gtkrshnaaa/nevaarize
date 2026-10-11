@@ -48,19 +48,25 @@ for f in $FILES; do
     COUNT=$((COUNT + 1))
     echo -n "[$COUNT/$TOTAL] Running $f..."
     
-    # Run with 10s timeout, use /usr/bin/time to capture metrics
+    # Run with 10s timeout, use /usr/bin/time to capture metrics if available
     TIME_LOG="/tmp/nv_time_${COUNT}.log"
-    temp_out=$(/usr/bin/time -v -o "$TIME_LOG" timeout 10s "$BIN" "$f" 2>&1)
-    exit_code=$?
+    if [ -x "/usr/bin/time" ]; then
+        temp_out=$(/usr/bin/time -v -o "$TIME_LOG" timeout 10s "$BIN" "$f" 2>&1)
+        exit_code=$?
+        RAM_KB=$(grep "Maximum resident set size" "$TIME_LOG" 2>/dev/null | awk '{print $6}')
+        CPU_PCT=$(grep "Percent of CPU this job got" "$TIME_LOG" 2>/dev/null | awk '{print $7}' | tr -d '%')
+    else
+        temp_out=$(timeout 10s "$BIN" "$f" 2>&1)
+        exit_code=$?
+        RAM_KB="N/A"
+        CPU_PCT="N/A"
+    fi
     
-    RAM_KB=$(grep "Maximum resident set size" "$TIME_LOG" | awk '{print $6}')
-    CPU_PCT=$(grep "Percent of CPU this job got" "$TIME_LOG" | awk '{print $7}' | tr -d '%')
-    
-    if [ ! -z "$RAM_KB" ] && [ "$RAM_KB" -gt "$PEAK_RAM" ]; then
+    if [ -n "$RAM_KB" ] && [ "$RAM_KB" != "N/A" ] && [ "$RAM_KB" -gt "$PEAK_RAM" ] 2>/dev/null; then
         PEAK_RAM=$RAM_KB
         PEAK_RAM_TEST=$f
     fi
-    if [ ! -z "$CPU_PCT" ] && [ "$CPU_PCT" -gt "$PEAK_CPU" ]; then
+    if [ -n "$CPU_PCT" ] && [ "$CPU_PCT" != "N/A" ] && [ "$CPU_PCT" -gt "$PEAK_CPU" ] 2>/dev/null; then
         PEAK_CPU=$CPU_PCT
         PEAK_CPU_TEST=$f
     fi

@@ -164,6 +164,14 @@ case "$MODE" in
         '
         ;;
 
+    examples)
+        echo "[*] Ensuring release binary is compiled..."
+        run_sandbox bash -c "test -f bin/nevaarize || make release"
+        echo "[*] Executing comprehensive example suite and regenerating verification report..."
+        run_sandbox bash examples/runExamples.sh
+        echo "[OK] Example suite verification completed."
+        ;;
+
     shell)
         echo "[*] Launching interactive shell inside resource-constrained container..."
         run_sandbox bash
@@ -181,7 +189,8 @@ case "$MODE" in
         echo "  all                  Clean build and run smoke tests (default)"
         echo "  build                Compile release binary inside container"
         echo "  build-asan           Compile binary with AddressSanitizer/LeakSanitizer"
-        echo "  quarantine           Run quarantine test suite across 78 rich code samples"
+        echo "  quarantine           Run quarantine test suite across rich code samples"
+        echo "  examples             Run comprehensive test runner (examples/runExamples.sh) in sandbox"
         echo "  run <script.nva>     Execute script inside container"
         echo "  asan <script.nva>    Execute script under AddressSanitizer & LeakSanitizer"
         echo "  valgrind <script>    Run Valgrind memcheck on script"
@@ -192,8 +201,13 @@ case "$MODE" in
 
     *)
         if [ -f "$MODE" ]; then
-            echo "[*] Executing script: $MODE"
-            run_sandbox ./bin/nevaarize "$MODE"
+            if [[ "$MODE" == *.sh ]]; then
+                echo "[*] Executing shell script in sandbox: $MODE"
+                run_sandbox bash "$MODE" "${@:2}"
+            else
+                echo "[*] Executing script: $MODE"
+                run_sandbox ./bin/nevaarize "$MODE"
+            fi
         else
             echo "[x] Unknown command or file: $MODE"
             echo "Run './test.sh help' for usage."

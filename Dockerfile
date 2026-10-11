@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     valgrind \
     gdb \
     procps \
+    time \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
