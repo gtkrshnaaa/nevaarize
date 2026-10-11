@@ -1,0 +1,366 @@
+import stdlib math as m
+import stdlib time as t
+
+// High-Performance LU Matrix Decomposition with Partial Pivoting (LUP)
+// Implements P * A = L * U factorization:
+// - Row pivoting for numerical stability and zero-pivot elimination
+// - Lower unit triangular matrix (L) and upper triangular matrix (U)
+// - Forward substitution (L * y = P * b) and backward substitution (U * x = y)
+// - Matrix determinant via product of diagonal elements and permutation parity
+// - Full matrix inversion via column-wise basis vector solving (A * A^-1 = I)
+// - Frobenius reconstruction and Euclidean residual norm verification
+// Enforces strict camelCase naming convention (No-Underscore Policy).
+
+print("=== Nevaarize LU Matrix Decomposition & Linear Solver ===")
+startTime = t.millis()
+
+func makeFloatArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func absVal(v) {
+    if (v < 0.0) {
+        return 0.0 - v
+    }
+    return v
+}
+
+func lupDecompose(aMat, lMat, uMat, perm, n) {
+    i = 0
+    while (i < n * n) {
+        uMat[i] = aMat[i]
+        lMat[i] = 0.0
+        i = i + 1
+    }
+    i = 0
+    while (i < n) {
+        perm[i] = i
+        lMat[i * n + i] = 1.0
+        i = i + 1
+    }
+
+    numSwaps = 0
+    k = 0
+    while (k < n) {
+        maxVal = 0.0
+        pivotRow = k
+        row = k
+        while (row < n) {
+            currVal = absVal(uMat[row * n + k])
+            if (currVal > maxVal) {
+                maxVal = currVal
+                pivotRow = row
+            }
+            row = row + 1
+        }
+
+        if (maxVal < 0.000000000001) {
+            return -1 // Singular matrix
+        }
+
+        if (pivotRow != k) {
+            // Swap row k and pivotRow in U
+            col = 0
+            while (col < n) {
+                tmp = uMat[k * n + col]
+                uMat[k * n + col] = uMat[pivotRow * n + col]
+                uMat[pivotRow * n + col] = tmp
+                col = col + 1
+            }
+            // Swap row k and pivotRow in L for columns strictly before k
+            col = 0
+            while (col < k) {
+                tmp = lMat[k * n + col]
+                lMat[k * n + col] = lMat[pivotRow * n + col]
+                lMat[pivotRow * n + col] = tmp
+                col = col + 1
+            }
+            // Swap permutation indices
+            tmpP = perm[k]
+            perm[k] = perm[pivotRow]
+            perm[pivotRow] = tmpP
+            numSwaps = numSwaps + 1
+        }
+
+        pivot = uMat[k * n + k]
+        i = k + 1
+        while (i < n) {
+            multiplier = uMat[i * n + k] / pivot
+            lMat[i * n + k] = multiplier
+            uMat[i * n + k] = 0.0
+            j = k + 1
+            while (j < n) {
+                uMat[i * n + j] = uMat[i * n + j] - (multiplier * uMat[k * n + j])
+                j = j + 1
+            }
+            i = i + 1
+        }
+        k = k + 1
+    }
+    return numSwaps
+}
+
+func lupSolve(lMat, uMat, perm, bVec, xVec, n) {
+    yVec = makeFloatArray(n, 0.0)
+
+    // Forward substitution: L * y = P * b
+    i = 0
+    while (i < n) {
+        sumL = 0.0
+        j = 0
+        while (j < i) {
+            sumL = sumL + (lMat[i * n + j] * yVec[j])
+            j = j + 1
+        }
+        yVec[i] = bVec[perm[i]] - sumL
+        i = i + 1
+    }
+
+    // Backward substitution: U * x = y
+    i = n - 1
+    while (i >= 0) {
+        sumU = 0.0
+        j = i + 1
+        while (j < n) {
+            sumU = sumU + (uMat[i * n + j] * xVec[j])
+            j = j + 1
+        }
+        xVec[i] = (yVec[i] - sumU) / uMat[i * n + i]
+        i = i - 1
+    }
+}
+
+func computeDeterminant(uMat, numSwaps, n) {
+    det = 1.0
+    i = 0
+    while (i < n) {
+        det = det * uMat[i * n + i]
+        i = i + 1
+    }
+    if ((numSwaps % 2) != 0) {
+        det = 0.0 - det
+    }
+    return det
+}
+
+func computeResidualNorm(aMat, bVec, xVec, n) {
+    sumSq = 0.0
+    i = 0
+    while (i < n) {
+        axVal = 0.0
+        j = 0
+        while (j < n) {
+            axVal = axVal + (aMat[i * n + j] * xVec[j])
+            j = j + 1
+        }
+        diff = axVal - bVec[i]
+        sumSq = sumSq + (diff * diff)
+        i = i + 1
+    }
+    return m.Sqrt(sumSq)
+}
+
+func computeReconstructionError(aMat, lMat, uMat, perm, n) {
+    sumSq = 0.0
+    i = 0
+    while (i < n) {
+        j = 0
+        while (j < n) {
+            luVal = 0.0
+            k = 0
+            while (k < n) {
+                luVal = luVal + (lMat[i * n + k] * uMat[k * n + j])
+                k = k + 1
+            }
+            paVal = aMat[perm[i] * n + j]
+            diff = paVal - luVal
+            sumSq = sumSq + (diff * diff)
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return m.Sqrt(sumSq)
+}
+
+func invertMatrix(aMat, lMat, uMat, perm, invMat, n) {
+    col = 0
+    while (col < n) {
+        unitCol = makeFloatArray(n, 0.0)
+        unitCol[col] = 1.0
+        xCol = makeFloatArray(n, 0.0)
+        lupSolve(lMat, uMat, perm, unitCol, xCol, n)
+        row = 0
+        while (row < n) {
+            invMat[row * n + col] = xCol[row]
+            row = row + 1
+        }
+        col = col + 1
+    }
+}
+
+func multiplyMatrices(aMat, bMat, resMat, n) {
+    i = 0
+    while (i < n) {
+        j = 0
+        while (j < n) {
+            acc = 0.0
+            k = 0
+            while (k < n) {
+                acc = acc + (aMat[i * n + k] * bMat[k * n + j])
+                k = k + 1
+            }
+            resMat[i * n + j] = acc
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+// Case 1: 3x3 Linear System Solving
+print("--- Case 1: 3x3 Linear System Solving (P*A = L*U) ---")
+n3 = 3
+aMat3 = [
+    2.0, 1.0, 1.0,
+    4.0, -6.0, 0.0,
+    -2.0, 7.0, 2.0
+]
+bVec3 = [5.0, -2.0, 9.0]
+lMat3 = makeFloatArray(n3 * n3, 0.0)
+uMat3 = makeFloatArray(n3 * n3, 0.0)
+perm3 = makeFloatArray(n3, 0)
+xVec3 = makeFloatArray(n3, 0.0)
+
+swaps3 = lupDecompose(aMat3, lMat3, uMat3, perm3, n3)
+lupSolve(lMat3, uMat3, perm3, bVec3, xVec3, n3)
+
+print("Permutation swaps:", swaps3)
+print("Computed Solution x: [", xVec3[0], ",", xVec3[1], ",", xVec3[2], "]")
+print("Expected Solution  : [ 1.0 , 1.0 , 2.0 ]")
+
+resNorm3 = computeResidualNorm(aMat3, bVec3, xVec3, n3)
+print("Linear System Residual Norm ||Ax - b||:", resNorm3)
+if (resNorm3 < 0.00000001) {
+    print("Linear System Solver: PASSED")
+} else {
+    print("Linear System Solver: FAILED")
+}
+
+// Case 2: Determinant Calculation
+print("\n--- Case 2: Determinant Calculation ---")
+det3 = computeDeterminant(uMat3, swaps3, n3)
+print("Computed Determinant det(A):", det3)
+print("Expected Determinant       : -16.0")
+if (absVal(det3 - (-16.0)) < 0.00000001) {
+    print("Matrix Determinant: PASSED")
+} else {
+    print("Matrix Determinant: FAILED")
+}
+
+// Case 3: Factorization Reconstruction Error ||P*A - L*U||_F
+print("\n--- Case 3: Factorization Accuracy ---")
+reconErr3 = computeReconstructionError(aMat3, lMat3, uMat3, perm3, n3)
+print("Reconstruction Frobenius Error ||PA - LU||:", reconErr3)
+if (reconErr3 < 0.00000001) {
+    print("LUP Decomposition Accuracy: PASSED")
+} else {
+    print("LUP Decomposition Accuracy: FAILED")
+}
+
+// Case 4: Matrix Inversion & Identity Verification (A * A^-1 = I)
+print("\n--- Case 4: Matrix Inversion ---")
+invMat3 = makeFloatArray(n3 * n3, 0.0)
+invertMatrix(aMat3, lMat3, uMat3, perm3, invMat3, n3)
+
+prodMat3 = makeFloatArray(n3 * n3, 0.0)
+multiplyMatrices(aMat3, invMat3, prodMat3, n3)
+
+identDiff = 0.0
+r = 0
+while (r < n3) {
+    c = 0
+    while (c < n3) {
+        expectedI = 0.0
+        if (r == c) {
+            expectedI = 1.0
+        }
+        diff = prodMat3[r * n3 + c] - expectedI
+        identDiff = identDiff + (diff * diff)
+        c = c + 1
+    }
+    r = r + 1
+}
+identErr = m.Sqrt(identDiff)
+print("Matrix Inversion Identity Residual ||A * A^-1 - I||:", identErr)
+if (identErr < 0.00000001) {
+    print("Matrix Inversion Verification: PASSED")
+} else {
+    print("Matrix Inversion Verification: FAILED")
+}
+
+// Case 5: 4x4 Linear System Solving
+print("\n--- Case 5: 4x4 Non-Trivial System ---")
+n4 = 4
+aMat4 = [
+    4.0, 1.0, -2.0, 2.0,
+    1.0, 5.0, 1.0, -1.0,
+    -2.0, 1.0, 6.0, 1.0,
+    2.0, -1.0, 1.0, 7.0
+]
+bVec4 = [8.0, 10.0, 22.0, 31.0]
+lMat4 = makeFloatArray(n4 * n4, 0.0)
+uMat4 = makeFloatArray(n4 * n4, 0.0)
+perm4 = makeFloatArray(n4, 0)
+xVec4 = makeFloatArray(n4, 0.0)
+
+swaps4 = lupDecompose(aMat4, lMat4, uMat4, perm4, n4)
+lupSolve(lMat4, uMat4, perm4, bVec4, xVec4, n4)
+det4 = computeDeterminant(uMat4, swaps4, n4)
+resNorm4 = computeResidualNorm(aMat4, bVec4, xVec4, n4)
+
+print("Computed 4x4 Solution: [", xVec4[0], ",", xVec4[1], ",", xVec4[2], ",", xVec4[3], "]")
+print("Expected Solution    : [ 1.0 , 2.0 , 3.0 , 4.0 ]")
+print("Computed det(A4)     :", det4, "(expected: 359.0)")
+print("Residual Norm        :", resNorm4)
+
+if (resNorm4 < 0.00000001 and absVal(det4 - 359.0) < 0.00000001) {
+    print("4x4 LUP System: PASSED")
+} else {
+    print("4x4 LUP System: FAILED")
+}
+
+// Case 6: 5x5 System Solving & Scalability
+print("\n--- Case 6: 5x5 System Solving ---")
+n5 = 5
+aMat5 = [
+    5.0, 1.0, 1.0, 0.0, 0.0,
+    1.0, 6.0, 2.0, 1.0, 0.0,
+    1.0, 2.0, 7.0, 2.0, 1.0,
+    0.0, 1.0, 2.0, 8.0, 3.0,
+    0.0, 0.0, 1.0, 3.0, 9.0
+]
+bVec5 = [7.0, 10.0, 13.0, 14.0, 13.0]
+lMat5 = makeFloatArray(n5 * n5, 0.0)
+uMat5 = makeFloatArray(n5 * n5, 0.0)
+perm5 = makeFloatArray(n5, 0)
+xVec5 = makeFloatArray(n5, 0.0)
+
+swaps5 = lupDecompose(aMat5, lMat5, uMat5, perm5, n5)
+lupSolve(lMat5, uMat5, perm5, bVec5, xVec5, n5)
+resNorm5 = computeResidualNorm(aMat5, bVec5, xVec5, n5)
+
+print("Computed 5x5 Solution: [", xVec5[0], ",", xVec5[1], ",", xVec5[2], ",", xVec5[3], ",", xVec5[4], "]")
+print("Residual Norm ||Ax - b||:", resNorm5)
+if (resNorm5 < 0.00000001) {
+    print("5x5 LUP System: PASSED")
+} else {
+    print("5x5 LUP System: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("\nLU Matrix Decomposition benchmark completed in", elapsed, "ms")
