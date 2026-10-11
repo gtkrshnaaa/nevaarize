@@ -1,0 +1,229 @@
+import stdlib string as str
+import stdlib time as t
+
+// Aho-Corasick Multi-Pattern String Matching Automaton
+// Efficiently locates all occurrences of multiple dictionary patterns in a text:
+// - Trie construction with ASCII alphabet branching
+// - BFS computation of failure transitions and dictionary suffix links
+// - Linear search complexity O(|Text| + Occurrences) independent of pattern count
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Aho-Corasick Multi-Pattern Automaton ===")
+startTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+// Global automaton storage
+maxAutomatonNodes = 500
+trieTransitions = makeIntArray(maxAutomatonNodes * 128, -1)
+failTransitions = makeIntArray(maxAutomatonNodes, 0)
+stateCount = 1
+
+outStateNode = []
+outPatternIndex = []
+
+func resetAutomaton() {
+    i = 0
+    while (i < maxAutomatonNodes * 128) {
+        trieTransitions[i] = -1
+        i = i + 1
+    }
+    i = 0
+    while (i < maxAutomatonNodes) {
+        failTransitions[i] = 0
+        i = i + 1
+    }
+    stateCount = 1
+    outStateNode = []
+    outPatternIndex = []
+}
+
+func addOutputEntry(nodeId, patternIdx) {
+    outStateNode.push(nodeId)
+    outPatternIndex.push(patternIdx)
+}
+
+func insertAutomatonPattern(pattern, patternIdx) {
+    curr = 0
+    patLen = str.length(pattern)
+    i = 0
+    while (i < patLen) {
+        chCode = str.charCodeAt(pattern, i)
+        nxt = trieTransitions[curr * 128 + chCode]
+        if (nxt == -1) {
+            nxt = stateCount
+            stateCount = stateCount + 1
+            trieTransitions[curr * 128 + chCode] = nxt
+        }
+        curr = nxt
+        i = i + 1
+    }
+    addOutputEntry(curr, patternIdx)
+}
+
+func buildAutomatonTransitions() {
+    queue = []
+    head = 0
+
+    // Root's immediate transitions have failure link to 0
+    c = 0
+    while (c < 128) {
+        child = trieTransitions[0 * 128 + c]
+        if (child != -1) {
+            failTransitions[child] = 0
+            queue.push(child)
+        }
+        c = c + 1
+    }
+
+    // BFS queue for failure link construction
+    while (head < len(queue)) {
+        u = queue[head]
+        head = head + 1
+
+        c = 0
+        while (c < 128) {
+            v = trieTransitions[u * 128 + c]
+            if (v != -1) {
+                f = failTransitions[u]
+                while (f != 0 and trieTransitions[f * 128 + c] == -1) {
+                    f = failTransitions[f]
+                }
+                if (trieTransitions[f * 128 + c] != -1 and f != u) {
+                    failTransitions[v] = trieTransitions[f * 128 + c]
+                } else {
+                    failTransitions[v] = 0
+                }
+
+                // Inherit dictionary outputs from failure state
+                targetFail = failTransitions[v]
+                k = 0
+                while (k < len(outStateNode)) {
+                    if (outStateNode[k] == targetFail) {
+                        addOutputEntry(v, outPatternIndex[k])
+                    }
+                    k = k + 1
+                }
+
+                queue.push(v)
+            }
+            c = c + 1
+        }
+    }
+}
+
+func searchAutomaton(text, patterns) {
+    currState = 0
+    textLen = str.length(text)
+    totalMatches = 0
+    i = 0
+
+    while (i < textLen) {
+        chCode = str.charCodeAt(text, i)
+        while (currState != 0 and trieTransitions[currState * 128 + chCode] == -1) {
+            currState = failTransitions[currState]
+        }
+
+        nextState = trieTransitions[currState * 128 + chCode]
+        if (nextState != -1) {
+            currState = nextState
+        } else {
+            currState = 0
+        }
+
+        // Check for pattern matches ending at current index
+        k = 0
+        while (k < len(outStateNode)) {
+            if (outStateNode[k] == currState) {
+                pIdx = outPatternIndex[k]
+                matchedWord = patterns[pIdx]
+                matchStart = i - str.length(matchedWord) + 1
+                print("  Match: '" + matchedWord + "' at text index " + matchStart)
+                totalMatches = totalMatches + 1
+            }
+            k = k + 1
+        }
+        i = i + 1
+    }
+    return totalMatches
+}
+
+func runAutomatonTestCase(caseNum, label, patterns, text, expectedMatches) {
+    print("--- Case " + caseNum + ": " + label + " ---")
+    print("Patterns count: " + len(patterns))
+    print("Search text   : '" + text + "'")
+
+    resetAutomaton()
+    p = 0
+    while (p < len(patterns)) {
+        insertAutomatonPattern(patterns[p], p)
+        p = p + 1
+    }
+    buildAutomatonTransitions()
+
+    matchCount = searchAutomaton(text, patterns)
+    print("Total matches : " + matchCount + " (Expected: " + expectedMatches + ")")
+
+    if (matchCount == expectedMatches) {
+        print("Status        : PASSED\n")
+        return 1
+    }
+    print("Status        : FAILED\n")
+    return 0
+}
+
+allTestsPassed = 1
+
+// Case 1: Standard overlapping substring dictionary
+p1 = ["he", "she", "his", "hers"]
+t1 = "ushers"
+res1 = runAutomatonTestCase("1", "Textbook Multi-Pattern", p1, t1, 3)
+if (res1 == 0) { allTestsPassed = 0 }
+
+// Case 2: DNA biological motif searching
+p2 = ["ACC", "CCA", "CAC", "CCAC"]
+t2 = "ACCACCA"
+res2 = runAutomatonTestCase("2", "DNA Sequence Motif Matching", p2, t2, 6)
+if (res2 == 0) { allTestsPassed = 0 }
+
+// Case 3: Natural language keyword scanning
+p3 = ["compiler", "JIT", "native", "code"]
+t3 = "The native JIT compiler produces fast machine code"
+res3 = runAutomatonTestCase("3", "Keyword Scanning", p3, t3, 4)
+if (res3 == 0) { allTestsPassed = 0 }
+
+// Case 4: Repeated sub-pattern and suffix matches
+p4 = ["a", "aa", "aaa", "aaaa"]
+t4 = "aaaa"
+res4 = runAutomatonTestCase("4", "Dense Overlapping Substrings", p4, t4, 10)
+if (res4 == 0) { allTestsPassed = 0 }
+
+// Case 5: Non-matching search stream
+p5 = ["xyz", "omega", "alpha"]
+t5 = "Nevaarize Programming Language"
+res5 = runAutomatonTestCase("5", "Disjoint Pattern Stream", p5, t5, 0)
+if (res5 == 0) { allTestsPassed = 0 }
+
+// Case 6: Continuous streaming repetition
+p6 = ["abc", "bcd", "cde", "def"]
+t6 = "abcdefabcdefabcdefabcdef"
+res6 = runAutomatonTestCase("6", "Streaming Repetitive Buffer", p6, t6, 16)
+if (res6 == 0) { allTestsPassed = 0 }
+
+print("--- Aho-Corasick Automaton Summary ---")
+if (allTestsPassed == 1) {
+    print("All Aho-Corasick multi-pattern automaton test cases: SUCCESS")
+} else {
+    print("Aho-Corasick test cases: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Aho-Corasick automaton benchmark completed in", elapsed, "ms")
