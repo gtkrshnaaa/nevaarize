@@ -1,0 +1,356 @@
+import stdlib string as s
+import stdlib time as t
+
+// ChaCha20 Stream Cipher Cryptographic Simulation Suite (RFC 8439 / RFC 7539)
+// High-performance 32-bit stream cipher implementation utilizing native JIT instructions:
+// - Bitwise AND (&), OR (|), XOR (^), bit shifts (<<, >>) and 32-bit left rotations (ROTL32)
+// - RFC 8439 Quarter Round (QR) primitive operation on 4-word vectors
+// - 20-round core matrix permutation engine (10 column rounds + 10 diagonal rounds)
+// - 512-bit keystream block generation with little-endian byte serialization
+// - Arbitrary-length multi-block stream encryption and symmetric decryption
+// - Strict verification against official IETF RFC 8439 test vectors
+// - Avalanche diffusion analysis measuring bit-flip propagation
+// Enforces strict camelCase naming convention (No-Underscore Policy).
+
+print("=== Nevaarize ChaCha20 Cryptographic Stream Cipher Suite ===")
+globalStartTime = t.millis()
+
+func rotl32(v, c) {
+    v = v & 4294967295
+    leftPart = (v << c) & 4294967295
+    rightPart = (v >> (32 - c)) & 4294967295
+    return (leftPart | rightPart) & 4294967295
+}
+
+func quarterRound(st, a, b, c, d) {
+    st[a] = (st[a] + st[b]) & 4294967295
+    st[d] = rotl32(st[d] ^ st[a], 16)
+
+    st[c] = (st[c] + st[d]) & 4294967295
+    st[b] = rotl32(st[b] ^ st[c], 12)
+
+    st[a] = (st[a] + st[b]) & 4294967295
+    st[d] = rotl32(st[d] ^ st[a], 8)
+
+    st[c] = (st[c] + st[d]) & 4294967295
+    st[b] = rotl32(st[b] ^ st[c], 7)
+}
+
+func chacha20Block(keyWords, counterVal, nonceWords) {
+    // 128-bit constants: "expand 32-byte k" in little-endian ASCII
+    // c0 = 0x61707865 ("expa"), c1 = 0x3320646e ("nd 3")
+    // c2 = 0x79622d32 ("2-by"), c3 = 0x6b206574 ("te k")
+    initState = [
+        1634760805, 857760878, 2036477234, 1797285236,
+        keyWords[0], keyWords[1], keyWords[2], keyWords[3],
+        keyWords[4], keyWords[5], keyWords[6], keyWords[7],
+        counterVal & 4294967295, nonceWords[0], nonceWords[1], nonceWords[2]
+    ]
+
+    working = []
+    wi = 0
+    while (wi < 16) {
+        working.push(initState[wi])
+        wi = wi + 1
+    }
+
+    // 10 double-rounds = 20 total rounds
+    roundIdx = 0
+    while (roundIdx < 10) {
+        // Column round
+        quarterRound(working, 0, 4, 8, 12)
+        quarterRound(working, 1, 5, 9, 13)
+        quarterRound(working, 2, 6, 10, 14)
+        quarterRound(working, 3, 7, 11, 15)
+
+        // Diagonal round
+        quarterRound(working, 0, 5, 10, 15)
+        quarterRound(working, 1, 6, 11, 12)
+        quarterRound(working, 2, 7, 8, 13)
+        quarterRound(working, 3, 4, 9, 14)
+
+        roundIdx = roundIdx + 1
+    }
+
+    // Add initial state to working state modulo 2^32
+    outputWords = []
+    oi = 0
+    while (oi < 16) {
+        outputWords.push((working[oi] + initState[oi]) & 4294967295)
+        oi = oi + 1
+    }
+    return outputWords
+}
+
+func blockWordsToBytes(words) {
+    bytes = []
+    i = 0
+    while (i < 16) {
+        w = words[i]
+        bytes.push(w & 255)
+        bytes.push((w >> 8) & 255)
+        bytes.push((w >> 16) & 255)
+        bytes.push((w >> 24) & 255)
+        i = i + 1
+    }
+    return bytes
+}
+
+hexDigits = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"]
+
+func byteToHex(b) {
+    highNibble = (b >> 4) & 15
+    lowNibble = b & 15
+    return hexDigits[highNibble] + hexDigits[lowNibble]
+}
+
+func wordToHex(w) {
+    res = ""
+    shiftVal = 28
+    while (shiftVal >= 0) {
+        nibble = (w >> shiftVal) & 15
+        res = res + hexDigits[nibble]
+        shiftVal = shiftVal - 4
+    }
+    return res
+}
+
+func bytesToHexString(byteArr) {
+    hexOut = ""
+    bi = 0
+    blen = len(byteArr)
+    while (bi < blen) {
+        hexOut = hexOut + byteToHex(byteArr[bi])
+        bi = bi + 1
+    }
+    return hexOut
+}
+
+func encryptChaCha20(plainBytes, keyWords, initialCounter, nonceWords) {
+    cipherBytes = []
+    plainLen = len(plainBytes)
+    blockCounter = initialCounter
+    byteOffset = 0
+
+    while (byteOffset < plainLen) {
+        keyBlockWords = chacha20Block(keyWords, blockCounter, nonceWords)
+        keyStreamBytes = blockWordsToBytes(keyBlockWords)
+
+        inBlockIdx = 0
+        while (inBlockIdx < 64 and (byteOffset + inBlockIdx) < plainLen) {
+            pByte = plainBytes[byteOffset + inBlockIdx]
+            kByte = keyStreamBytes[inBlockIdx]
+            cipherBytes.push(pByte ^ kByte)
+            inBlockIdx = inBlockIdx + 1
+        }
+
+        byteOffset = byteOffset + 64
+        blockCounter = blockCounter + 1
+    }
+    return cipherBytes
+}
+
+func countSetBits32(v) {
+    c = 0
+    temp = v & 4294967295
+    while (temp > 0) {
+        if ((temp & 1) == 1) {
+            c = c + 1
+        }
+        temp = temp >> 1
+    }
+    return c
+}
+
+// ---------------------------------------------------------------------------
+// Suite 1: RFC 8439 Section 2.1.1 Quarter Round Test Vector
+// Input:  a = 0x11111111, b = 0x01020304, c = 0x9b8d6f43, d = 0x01234567
+// Output: a = 0xea2a92f4, b = 0xcb1cf8ce, c = 0x4581472e, d = 0x5881c4bb
+// ---------------------------------------------------------------------------
+print("[Test 1] RFC 8439 Section 2.1.1 Quarter Round Verification")
+testStateQR = [286331153, 16909060, 2609737539, 19088743]
+quarterRound(testStateQR, 0, 1, 2, 3)
+
+expectedQR = [3928658676, 3407673550, 1166100270, 1484899515]
+print("  Computed QR output: [0x" + wordToHex(testStateQR[0]) + ", 0x" + wordToHex(testStateQR[1]) + ", 0x" + wordToHex(testStateQR[2]) + ", 0x" + wordToHex(testStateQR[3]) + "]")
+print("  Expected QR output: [0xea2a92f4, 0xcb1cf8ce, 0x4581472e, 0x5881c4bb]")
+
+qrPass = 1
+qi = 0
+while (qi < 4) {
+    if (testStateQR[qi] != expectedQR[qi]) {
+        qrPass = 0
+    }
+    qi = qi + 1
+}
+if (qrPass == 1) {
+    print("  Quarter Round test vector: PASSED")
+} else {
+    print("  Quarter Round test vector: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 2: RFC 8439 Section 2.3.2 ChaCha20 Block Function Output Words
+// Key: 00:01:02:03:04:05:06:07:...:1c:1d:1e:1f
+// Nonce: 00:00:00:09:00:00:00:4a:00:00:00:00
+// Counter: 1
+// Expected words:
+//   e4e7f110 15593bd1 1fdd0f50 c47120a3
+//   c7f4d1c7 0368c033 9aaa2204 4e6cd4c3
+//   466482d2 09aa9f07 05d7c214 a2028bd9
+//   d19c12b5 b94e16de e883d0cb 4e3c50a2
+// ---------------------------------------------------------------------------
+print("[Test 2] RFC 8439 Section 2.3.2 ChaCha20 Block Function Verification")
+rfcKeyWords = [
+    50462976,   117835012,  185207048,  252579084,
+    319951120,  387323156,  454695192,  522067228
+]
+rfcNonceWords = [150994944, 1241513984, 0]
+rfcCounter = 1
+
+computedBlock = chacha20Block(rfcKeyWords, rfcCounter, rfcNonceWords)
+expectedBlockWords = [
+    3840405776, 358169553,  534581072,  3295748259,
+    3354710471, 57196595,   2594841092, 1315755203,
+    1180992210, 162176775,  98026004,   2718075865,
+    3516666549, 3108902622, 3900952779, 1312575650
+]
+
+blockMatch = 1
+bi = 0
+while (bi < 16) {
+    if (computedBlock[bi] != expectedBlockWords[bi]) {
+        blockMatch = 0
+    }
+    bi = bi + 1
+}
+
+print("  First word computed: 0x" + wordToHex(computedBlock[0]) + " (expected: 0xe4e7f110)")
+print("  Last word computed:  0x" + wordToHex(computedBlock[15]) + " (expected: 0x4e3c50a2)")
+if (blockMatch == 1) {
+    print("  ChaCha20 block function test vector: PASSED")
+} else {
+    print("  ChaCha20 block function test vector: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 3: RFC 8439 Section 2.4.2 Sunscreen Multi-Block Stream Cipher Test
+// Key: 00:01:02:03:04:05:06:07:...:1c:1d:1e:1f
+// Nonce: 00:00:00:00:00:00:00:4a:00:00:00:00
+// Initial Counter: 1
+// Plaintext: "Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it."
+// ---------------------------------------------------------------------------
+print("[Test 3] RFC 8439 Section 2.4.2 Multi-Block Stream Cipher Verification")
+sunscreenKey = [
+    50462976,   117835012,  185207048,  252579084,
+    319951120,  387323156,  454695192,  522067228
+]
+sunscreenNonce = [0, 1241513984, 0]
+sunscreenCounter = 1
+
+sunscreenText = "Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it."
+textLen = s.length(sunscreenText)
+plainBytes = []
+ti = 0
+while (ti < textLen) {
+    plainBytes.push(s.charCodeAt(sunscreenText, ti))
+    ti = ti + 1
+}
+
+cipherBytes = encryptChaCha20(plainBytes, sunscreenKey, sunscreenCounter, sunscreenNonce)
+cipherHex = bytesToHexString(cipherBytes)
+
+expectedCipherHex = "6e2e359a2568f98041ba0728dd0d6981e97e7aec1d4360c20a27afccfd9fae0bf91b65c5524733ab8f593dabcd62b3571639d624e65152ab8f530c359f0861d807ca0dbf500d6a6156a38e088a22b65e52bc514d16ccf806818ce91ab77937365af90bbf74a35be6b40b8eedf2785e42874d"
+
+print("  Plaintext length:", textLen, "bytes (requires 2 keystream blocks)")
+print("  Computed ciphertext (first 32 hex chars):", s.substring(cipherHex, 0, 32))
+print("  Expected ciphertext (first 32 hex chars):", s.substring(expectedCipherHex, 0, 32))
+
+cipherMatch = 1
+if (cipherHex != expectedCipherHex) {
+    cipherMatch = 0
+}
+
+if (cipherMatch == 1) {
+    print("  RFC 8439 Section 2.4.2 stream encryption test: PASSED")
+} else {
+    print("  RFC 8439 Section 2.4.2 stream encryption test: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 4: Bidirectional Symmetric Decryption Round-Trip
+// Decrypt ciphertext using the same key, counter, and nonce.
+// ---------------------------------------------------------------------------
+print("[Test 4] Bidirectional Symmetric Decryption Round-Trip")
+decryptedBytes = encryptChaCha20(cipherBytes, sunscreenKey, sunscreenCounter, sunscreenNonce)
+
+roundTripMatch = 1
+if (len(decryptedBytes) != len(plainBytes)) {
+    roundTripMatch = 0
+} else {
+    di = 0
+    while (di < len(plainBytes)) {
+        if (decryptedBytes[di] != plainBytes[di]) {
+            roundTripMatch = 0
+        }
+        di = di + 1
+    }
+}
+
+print("  Decrypted matches original byte-for-byte:", roundTripMatch)
+if (roundTripMatch == 1) {
+    print("  Symmetric round-trip decryption verification: PASSED")
+} else {
+    print("  Symmetric round-trip decryption verification: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 5: Avalanche Diffusion Analysis
+// Flip 1 bit in key and 1 bit in nonce, verify ~50% bit flip across 512 bits
+// ---------------------------------------------------------------------------
+print("[Test 5] Cryptographic Avalanche Effect & Nonce Diffusion Analysis")
+origBlock = chacha20Block(sunscreenKey, 1, sunscreenNonce)
+
+// Flip bit 0 of key word 0
+flippedKey = []
+fki = 0
+while (fki < 8) {
+    if (fki == 0) {
+        flippedKey.push(sunscreenKey[0] ^ 1)
+    } else {
+        flippedKey.push(sunscreenKey[fki])
+    }
+    fki = fki + 1
+}
+keyFlippedBlock = chacha20Block(flippedKey, 1, sunscreenNonce)
+
+keyDiffBits = 0
+abi = 0
+while (abi < 16) {
+    keyDiffBits = keyDiffBits + countSetBits32(origBlock[abi] ^ keyFlippedBlock[abi])
+    abi = abi + 1
+}
+keyDiffPercent = (keyDiffBits * 100.0) / 512.0
+print("  Key 1-bit flip produced:", keyDiffBits, "/ 512 flipped bits (", keyDiffPercent, "%)")
+
+// Flip bit 0 of nonce word 0
+flippedNonce = [sunscreenNonce[0] ^ 1, sunscreenNonce[1], sunscreenNonce[2]]
+nonceFlippedBlock = chacha20Block(sunscreenKey, 1, flippedNonce)
+
+nonceDiffBits = 0
+ani = 0
+while (ani < 16) {
+    nonceDiffBits = nonceDiffBits + countSetBits32(origBlock[ani] ^ nonceFlippedBlock[ani])
+    ani = ani + 1
+}
+nonceDiffPercent = (nonceDiffBits * 100.0) / 512.0
+print("  Nonce 1-bit flip produced:", nonceDiffBits, "/ 512 flipped bits (", nonceDiffPercent, "%)")
+
+if (keyDiffBits > 210 and keyDiffBits < 302 and nonceDiffBits > 210 and nonceDiffBits < 302) {
+    print("  Cryptographic avalanche diffusion: PASSED (Near-ideal 50% bit diffusion)")
+} else {
+    print("  Cryptographic avalanche diffusion: FAILED")
+}
+
+elapsedTotal = t.millis() - globalStartTime
+print("=== ChaCha20 Cryptographic Simulation Suite Complete (Time:", elapsedTotal, "ms) ===")
