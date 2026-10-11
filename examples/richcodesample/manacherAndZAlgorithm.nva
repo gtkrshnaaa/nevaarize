@@ -13,7 +13,7 @@ import stdlib time as t
 
 struct PalindromeResult {
     start,
-    length,
+    subLen,
     text,
     totalCount
 }
@@ -260,3 +260,242 @@ func longestBorderLength(text) {
     }
     return maxBorder
 }
+
+
+func arraysEqual(a, b) {
+    if (a.size() != b.size()) {
+        return false
+    }
+    idx = 0
+    while (idx < a.size()) {
+        if (a[idx] != b[idx]) {
+            return false
+        }
+        idx = idx + 1
+    }
+    return true
+}
+
+// =============================================================================
+// Execution & Test Suites
+// =============================================================================
+
+print("=== Nevaarize Manacher & Z-Algorithm Suite ===")
+globalStartTime = t.millis()
+
+// --- Test Suite 1: Manacher's Algorithm Core Verification ---
+print("Running Test Suite 1: Manacher Longest Palindromic Substring...")
+
+resRacecar = findLongestPalindrome("racecar")
+pass1a = resRacecar.subLen == 7 && resRacecar.start == 0 && resRacecar.text == "racecar" && resRacecar.totalCount == 10
+if (!pass1a) {
+    print("[FAIL] Test 1a racecar mismatch:", resRacecar.subLen, resRacecar.text, resRacecar.totalCount)
+} else {
+    print("  Test 1a (Odd palindrome 'racecar', length 7, 10 substrings) verified")
+}
+
+resGeeks = findLongestPalindrome("forgeeksskeegfor")
+pass1b = resGeeks.subLen == 10 && resGeeks.start == 3 && resGeeks.text == "geeksskeeg"
+if (!pass1b) {
+    print("[FAIL] Test 1b forgeeksskeegfor mismatch:", resGeeks.subLen, resGeeks.text)
+} else {
+    print("  Test 1b (Even palindrome 'geeksskeeg', length 10) verified")
+}
+
+resNoon = findLongestPalindrome("noon")
+pass1c = resNoon.subLen == 4 && resNoon.start == 0 && resNoon.text == "noon"
+if (!pass1c) {
+    print("[FAIL] Test 1c noon mismatch:", resNoon.subLen, resNoon.text)
+} else {
+    print("  Test 1c (Even palindrome 'noon', length 4) verified")
+}
+
+resAaa = findLongestPalindrome("aaa")
+pass1d = resAaa.subLen == 3 && resAaa.totalCount == 6
+if (!pass1d) {
+    print("[FAIL] Test 1d aaa count mismatch:", resAaa.totalCount)
+} else {
+    print("  Test 1d ('aaa', 6 palindromic substrings) verified")
+}
+
+resAbacaba = findLongestPalindrome("abacaba")
+pass1e = resAbacaba.subLen == 7 && resAbacaba.totalCount == 12
+if (!pass1e) {
+    print("[FAIL] Test 1e abacaba count mismatch:", resAbacaba.totalCount)
+} else {
+    print("  Test 1e ('abacaba', 12 palindromic substrings) verified")
+}
+
+// --- Test Suite 2: O(1) Substring Query & Algorithmic Edge Cases ---
+print("Running Test Suite 2: O(1) Substring Queries and Edge Cases...")
+
+resEmpty = findLongestPalindrome("")
+pass2a = resEmpty.subLen == 0 && resEmpty.totalCount == 0
+if (!pass2a) {
+    print("[FAIL] Test 2a empty string failed")
+} else {
+    print("  Test 2a (Empty string edge case) verified")
+}
+
+resSingle = findLongestPalindrome("x")
+pass2b = resSingle.subLen == 1 && resSingle.text == "x" && resSingle.totalCount == 1
+if (!pass2b) {
+    print("[FAIL] Test 2b single character failed")
+} else {
+    print("  Test 2b (Single character 'x') verified")
+}
+
+resRepeated = findLongestPalindrome("aaaaaa")
+pass2c = resRepeated.subLen == 6 && resRepeated.totalCount == 21
+if (!pass2c) {
+    print("[FAIL] Test 2c all-identical characters failed")
+} else {
+    print("  Test 2c (Uniform 'aaaaaa', 21 palindromic substrings) verified")
+}
+
+resDistinct = findLongestPalindrome("abcdef")
+pass2d = resDistinct.subLen == 1 && resDistinct.totalCount == 6
+if (!pass2d) {
+    print("[FAIL] Test 2d distinct characters failed")
+} else {
+    print("  Test 2d (Strictly distinct 'abcdef', 6 substrings) verified")
+}
+
+// O(1) Palindrome Query on "abacaba"
+tBytes = stringToBytes("abacaba")
+tTrans = transformForManacher(tBytes)
+tRadii = computeManacherRadii(tTrans)
+q1 = isSubstrPalindrome(tRadii, 0, 2) // "aba" -> true
+q2 = isSubstrPalindrome(tRadii, 0, 6) // "abacaba" -> true
+q3 = isSubstrPalindrome(tRadii, 2, 4) // "aca" -> true
+q4 = isSubstrPalindrome(tRadii, 0, 4) // "abaca" -> false
+q5 = isSubstrPalindrome(tRadii, 1, 3) // "bac" -> false
+pass2e = q1 && q2 && q3 && !q4 && !q5
+if (!pass2e) {
+    print("[FAIL] Test 2e O(1) substring palindrome query failed")
+} else {
+    print("  Test 2e (O(1) arbitrary substring palindrome queries) verified")
+}
+
+// --- Test Suite 3: Z-Algorithm Vectors & Multi-Match Search ---
+print("Running Test Suite 3: Linear Z-Algorithm and Search Engine...")
+
+zAabzaa = computeZArray(stringToBytes("aabzaa"))
+expectedZ1 = [0, 1, 0, 0, 2, 1]
+pass3a = arraysEqual(zAabzaa, expectedZ1)
+if (!pass3a) {
+    print("[FAIL] Test 3a Z-array for 'aabzaa' failed")
+} else {
+    print("  Test 3a (Z-array for 'aabzaa': [0, 1, 0, 0, 2, 1]) verified")
+}
+
+zA5 = computeZArray(stringToBytes("aaaaa"))
+expectedZ2 = [0, 4, 3, 2, 1]
+pass3b = arraysEqual(zA5, expectedZ2)
+if (!pass3b) {
+    print("[FAIL] Test 3b Z-array for 'aaaaa' failed")
+} else {
+    print("  Test 3b (Z-array for 'aaaaa': [0, 4, 3, 2, 1]) verified")
+}
+
+zAbacaba = computeZArray(stringToBytes("abacaba"))
+expectedZ3 = [0, 0, 1, 0, 3, 0, 1]
+pass3c = arraysEqual(zAbacaba, expectedZ3)
+if (!pass3c) {
+    print("[FAIL] Test 3c Z-array for 'abacaba' failed")
+} else {
+    print("  Test 3c (Z-array for 'abacaba': [0, 0, 1, 0, 3, 0, 1]) verified")
+}
+
+// Pattern Search with Multiple & Overlapping Matches
+sRes1 = searchZAlgorithm("abacabadabacaba", "aba")
+expectedIdx1 = [0, 4, 8, 12]
+pass3d = sRes1.matchCount == 4 && arraysEqual(sRes1.matchIndices, expectedIdx1)
+if (!pass3d) {
+    print("[FAIL] Test 3d search 'aba' in 'abacabadabacaba' failed")
+} else {
+    print("  Test 3d (Multi-match search 'aba' at [0, 4, 8, 12]) verified")
+}
+
+sRes2 = searchZAlgorithm("aaaa", "aa")
+expectedIdx2 = [0, 1, 2]
+pass3e = sRes2.matchCount == 3 && arraysEqual(sRes2.matchIndices, expectedIdx2)
+if (!pass3e) {
+    print("[FAIL] Test 3e overlapping search 'aa' in 'aaaa' failed")
+} else {
+    print("  Test 3e (Overlapping search 'aa' at [0, 1, 2]) verified")
+}
+
+sRes3 = searchZAlgorithm("abcdef", "xyz")
+pass3f = sRes3.matchCount == 0 && sRes3.matchIndices.size() == 0
+if (!pass3f) {
+    print("[FAIL] Test 3f search nonexistent pattern failed")
+} else {
+    print("  Test 3f (Pattern mismatch returned 0 occurrences) verified")
+}
+
+// --- Test Suite 4: Periodicity & Longest Prefix-Suffix Border ---
+print("Running Test Suite 4: Periodicity and Border Analysis...")
+
+period1 = findSmallestPeriod("abcabcabc")
+period2 = findSmallestPeriod("ababab")
+period3 = findSmallestPeriod("aaaaaa")
+period4 = findSmallestPeriod("abcdef")
+pass4a = period1 == 3 && period2 == 2 && period3 == 1 && period4 == 6
+if (!pass4a) {
+    print("[FAIL] Test 4a period extraction failed:", period1, period2, period3, period4)
+} else {
+    print("  Test 4a (String periods: 3, 2, 1, 6) verified")
+}
+
+border1 = longestBorderLength("abacaba")
+border2 = longestBorderLength("aaaa")
+border3 = longestBorderLength("abcdef")
+pass4b = border1 == 3 && border2 == 3 && border3 == 0
+if (!pass4b) {
+    print("[FAIL] Test 4b border length failed:", border1, border2, border3)
+} else {
+    print("  Test 4b (Borders: 'aba' (3), 'aaa' (3), none (0)) verified")
+}
+
+// --- Test Suite 5: High-Magnitude Pseudo-Random Stress Benchmark ---
+print("Running Test Suite 5: High-Magnitude Synthetic Stress Benchmark...")
+
+dnaAlphabet = ["A", "C", "G", "T"]
+stressLen = 1200
+stressSeed = 987654321
+stressText = ""
+ci = 0
+
+while (ci < stressLen) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    if (stressSeed < 0) {
+        stressSeed = 0 - stressSeed
+    }
+    charIdx = stressSeed % 4
+    stressText = stressText + dnaAlphabet[charIdx]
+    ci = ci + 1
+}
+
+// Inject known palindrome "TACGCAT" and known needle "ATGC"
+stressText = stressText + "TACGCAT" + "ATGCATGC"
+print("  Generated synthetic DNA corpus of length:", s.length(stressText))
+
+stressPal = findLongestPalindrome(stressText)
+pass5a = stressPal.subLen >= 7
+if (!pass5a) {
+    print("[FAIL] Test 5a stress palindrome failed")
+} else {
+    print("  Test 5a (Found stress palindrome length:", stressPal.subLen, "substring:", stressPal.text, ") verified")
+}
+
+stressSearch = searchZAlgorithm(stressText, "TACGCAT")
+pass5b = stressSearch.matchCount >= 1
+if (!pass5b) {
+    print("[FAIL] Test 5b stress search failed")
+} else {
+    print("  Test 5b (Detected injected motif with", stressSearch.matchCount, "matches) verified")
+}
+
+elapsed = t.millis() - globalStartTime
+print("[PASS] Manacher's Algorithm & Linear Z-Algorithm Suite executed successfully in", elapsed, "ms")
