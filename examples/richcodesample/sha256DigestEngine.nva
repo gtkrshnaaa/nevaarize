@@ -1,0 +1,230 @@
+import stdlib string as str
+import stdlib time as t
+
+// Cryptographic SHA-256 Digest State Engine (FIPS PUB 180-4)
+// High-performance 32-bit bitwise implementation utilizing native JIT instructions:
+// - Bitwise AND (&), OR (|), XOR (^), NOT (~)
+// - Bitwise Logical Shifts (<<, >>) and Circular Rotates (ROTR)
+// - Complete 64-round compression loop with NIST round constants
+// - Big-endian message padding, 512-bit chunk processing, and multi-block chaining
+// Enforces strict camelCase naming convention (No-Underscore Policy).
+
+print("=== Nevaarize SHA-256 Cryptographic Digest Engine ===")
+startTime = t.millis()
+
+func rotr32(x, n) {
+    x = x & 4294967295
+    leftPart = (x >> n) & 4294967295
+    rightPart = (x << (32 - n)) & 4294967295
+    return (leftPart | rightPart) & 4294967295
+}
+
+func shr32(x, n) {
+    return ((x & 4294967295) >> n) & 4294967295
+}
+
+func ch32(x, y, z) {
+    return ((x & y) ^ ((~x) & z)) & 4294967295
+}
+
+func maj32(x, y, z) {
+    return ((x & y) ^ (x & z) ^ (y & z)) & 4294967295
+}
+
+func sigma0(x) {
+    return (rotr32(x, 2) ^ rotr32(x, 13) ^ rotr32(x, 22)) & 4294967295
+}
+
+func sigma1(x) {
+    return (rotr32(x, 6) ^ rotr32(x, 11) ^ rotr32(x, 25)) & 4294967295
+}
+
+func gamma0(x) {
+    return (rotr32(x, 7) ^ rotr32(x, 18) ^ shr32(x, 3)) & 4294967295
+}
+
+func gamma1(x) {
+    return (rotr32(x, 17) ^ rotr32(x, 19) ^ shr32(x, 10)) & 4294967295
+}
+
+// 64 round constants (first 32 bits of fractional cube roots of first 64 primes)
+kConst = [
+    1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221,
+    3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580,
+    3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986,
+    2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895,
+    666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037,
+    2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344,
+    430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779,
+    1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298
+]
+
+hexTable = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"]
+
+func wordToHex(w) {
+    hexStr = ""
+    shiftVal = 28
+    while (shiftVal >= 0) {
+        nibble = (w >> shiftVal) & 15
+        hexStr = hexStr + hexTable[nibble]
+        shiftVal = shiftVal - 4
+    }
+    return hexStr
+}
+
+func computeSha256(message) {
+    msgLen = str.length(message)
+    bytes = []
+    i = 0
+    while (i < msgLen) {
+        bytes.push(str.charCodeAt(message, i))
+        i = i + 1
+    }
+
+    // Step 1: Append single 1-bit followed by 7 zeros (0x80 = 128)
+    bytes.push(128)
+
+    // Step 2: Pad with zeros until byte length is congruent to 56 mod 64
+    while ((len(bytes) % 64) != 56) {
+        bytes.push(0)
+    }
+
+    // Step 3: Append original length in bits as 64-bit big-endian integer
+    totalBits = msgLen * 8
+    bytes.push(0)
+    bytes.push(0)
+    bytes.push(0)
+    bytes.push(0)
+    bytes.push((totalBits >> 24) & 255)
+    bytes.push((totalBits >> 16) & 255)
+    bytes.push((totalBits >> 8) & 255)
+    bytes.push(totalBits & 255)
+
+    // Initial state vector H(0)
+    h0 = 1779033703
+    h1 = 3144134277
+    h2 = 1013904242
+    h3 = 2773480762
+    h4 = 1359893119
+    h5 = 2600822924
+    h6 = 528734635
+    h7 = 1541459225
+
+    totalBlocks = len(bytes) / 64
+    b = 0
+    while (b < totalBlocks) {
+        offset = b * 64
+        w = []
+
+        // Form initial 16 words from 64-byte block
+        t = 0
+        while (t < 16) {
+            pos = offset + (t * 4)
+            b0 = bytes[pos]
+            b1 = bytes[pos + 1]
+            b2 = bytes[pos + 2]
+            b3 = bytes[pos + 3]
+            wordVal = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+            w.push(wordVal & 4294967295)
+            t = t + 1
+        }
+
+        // Expand schedule into 64 words
+        t = 16
+        while (t < 64) {
+            s0 = gamma0(w[t - 15])
+            s1 = gamma1(w[t - 2])
+            wVal = (w[t - 16] + s0 + w[t - 7] + s1) & 4294967295
+            w.push(wVal)
+            t = t + 1
+        }
+
+        // Initialize round registers
+        ra = h0
+        rb = h1
+        rc = h2
+        rd = h3
+        re = h4
+        rf = h5
+        rg = h6
+        rh = h7
+
+        // Execute 64 compression rounds
+        r = 0
+        while (r < 64) {
+            temp1 = (rh + sigma1(re) + ch32(re, rf, rg) + kConst[r] + w[r]) & 4294967295
+            temp2 = (sigma0(ra) + maj32(ra, rb, rc)) & 4294967295
+            rh = rg
+            rg = rf
+            rf = re
+            re = (rd + temp1) & 4294967295
+            rd = rc
+            rc = rb
+            rb = ra
+            ra = (temp1 + temp2) & 4294967295
+            r = r + 1
+        }
+
+        // Accumulate state
+        h0 = (h0 + ra) & 4294967295
+        h1 = (h1 + rb) & 4294967295
+        h2 = (h2 + rc) & 4294967295
+        h3 = (h3 + rd) & 4294967295
+        h4 = (h4 + re) & 4294967295
+        h5 = (h5 + rf) & 4294967295
+        h6 = (h6 + rg) & 4294967295
+        h7 = (h7 + rh) & 4294967295
+
+        b = b + 1
+    }
+
+    digest = wordToHex(h0) + wordToHex(h1) + wordToHex(h2) + wordToHex(h3) + wordToHex(h4) + wordToHex(h5) + wordToHex(h6) + wordToHex(h7)
+    return digest
+}
+
+func verifyVector(vectorId, label, inputStr, expectedDigest) {
+    computed = computeSha256(inputStr)
+    print("Vector", vectorId, "-", label)
+    print("  Input    :", "'" + inputStr + "'")
+    print("  Computed :", computed)
+    print("  Expected :", expectedDigest)
+    if (computed == expectedDigest) {
+        print("  Status   : MATCH (PASSED)\n")
+        return 1
+    }
+    print("  Status   : MISMATCH (FAILED)\n")
+    return 0
+}
+
+allPassed = 1
+
+// Test Vector 1: Empty string (NIST FIPS 180-4)
+v1 = verifyVector(1, "Empty String", "", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+if (v1 == 0) { allPassed = 0 }
+
+// Test Vector 2: Standard 3-char "abc" (NIST FIPS 180-4)
+v2 = verifyVector(2, "ASCII 3-byte input", "abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+if (v2 == 0) { allPassed = 0 }
+
+// Test Vector 3: Language name "nevaarize"
+v3 = verifyVector(3, "Language Identifier", "nevaarize", "e56cb141b2c7db9d9591baad0100f607e175833c43386011f480379baf5089c6")
+if (v3 == 0) { allPassed = 0 }
+
+// Test Vector 4: Sentence matching single block (43 bytes < 55 bytes)
+v4 = verifyVector(4, "Pangram Sentence", "The quick brown fox jumps over the lazy dog", "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592")
+if (v4 == 0) { allPassed = 0 }
+
+// Test Vector 5: Multi-block payload spanning across 2 consecutive 512-bit chunks (> 55 bytes)
+longPayload = "The quick brown fox jumps over the lazy dog and runs across the field!"
+v5 = verifyVector(5, "Multi-Block Payload (70 bytes)", longPayload, "838138e9c918e24698aab1ce79169688a50d537270f086b2212c03309a06e4c2")
+if (v5 == 0) { allPassed = 0 }
+
+print("--- SHA-256 State Engine Summary ---")
+if (allPassed == 1) {
+    print("All NIST FIPS 180-4 cryptographic test vectors verified: SUCCESS")
+} else {
+    print("Cryptographic verification: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("SHA-256 digest engine benchmark completed in", elapsed, "ms")
