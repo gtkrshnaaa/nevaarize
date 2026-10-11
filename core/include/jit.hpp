@@ -130,6 +130,7 @@ private:
         bool isAsync;
         const AST* sourceAST;  // Which AST contains this function (nullptr = currentAST)
         std::vector<size_t> recursiveCallPatches; // Track locations of recursive calls that need patching
+        int32_t startStackSlot = 0; // Stack slot at function entry for dynamic recursive frame calculation
     };
     std::unordered_map<std::string, FuncInfo> userFunctions;
     
