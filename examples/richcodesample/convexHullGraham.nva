@@ -1,0 +1,141 @@
+import stdlib time as t
+
+// Graham Scan 2D Convex Hull Algorithm
+// Computes the convex hull of a set of 2D points in O(N log N) / O(N^2) time.
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Graham Scan Convex Hull ===")
+startTime = t.millis()
+
+// Cross product of vectors OA and OB
+// Returns > 0 for counter-clockwise turn, < 0 for clockwise turn, 0 if collinear
+func crossProduct(ox, oy, ax, ay, bx, by) {
+    return (ax - ox) * (by - oy) - (ay - oy) * (bx - ox)
+}
+
+// Squared Euclidean distance between two points
+func distSquared(ax, ay, bx, by) {
+    dx = bx - ax
+    dy = by - ay
+    return dx * dx + dy * dy
+}
+
+// Compute 2x area of polygon using Shoelace formula
+func polygonArea2x(hx, hy, hullSize) {
+    area = 0
+    i = 0
+    while (i < hullSize) {
+        nxt = (i + 1) % hullSize
+        area = area + (hx[i] * hy[nxt] - hx[nxt] * hy[i])
+        i = i + 1
+    }
+    if (area < 0) {
+        area = 0 - area
+    }
+    return area
+}
+
+// Points dataset: 12 coordinates in 2D space
+px = [0, 2, 1, 2, 3, 0, 3, 1, 4, 4, 2, 1]
+py = [3, 2, 1, 1, 0, 0, 3, 4, 2, 4, 5, 2]
+n = len(px)
+
+print("Total input points:", n)
+i = 0
+while (i < n) {
+    print("Point", i, ": (", px[i], ",", py[i], ")")
+    i = i + 1
+}
+
+// Step 1: Find bottom-most point (lowest Y, leftmost X on tie)
+bottomIdx = 0
+i = 1
+while (i < n) {
+    if (py[i] < py[bottomIdx] or (py[i] == py[bottomIdx] and px[i] < px[bottomIdx])) {
+        bottomIdx = i
+    }
+    i = i + 1
+}
+
+// Swap bottom-most point with index 0
+tempX = px[0]
+tempY = py[0]
+px[0] = px[bottomIdx]
+py[0] = py[bottomIdx]
+px[bottomIdx] = tempX
+py[bottomIdx] = tempY
+
+anchorX = px[0]
+anchorY = py[0]
+print("Anchor point (lowest Y): (", anchorX, ",", anchorY, ")")
+
+// Step 2: Sort remaining points (indices 1 to n - 1) by polar angle relative to anchor
+i = 1
+while (i < n) {
+    minIdx = i
+    j = i + 1
+    while (j < n) {
+        cp = crossProduct(anchorX, anchorY, px[minIdx], py[minIdx], px[j], py[j])
+        if (cp < 0) {
+            minIdx = j
+        } elif (cp == 0) {
+            d1 = distSquared(anchorX, anchorY, px[minIdx], py[minIdx])
+            d2 = distSquared(anchorX, anchorY, px[j], py[j])
+            if (d2 < d1) {
+                minIdx = j
+            }
+        }
+        j = j + 1
+    }
+    if (minIdx != i) {
+        tx = px[i]
+        ty = py[i]
+        px[i] = px[minIdx]
+        py[i] = py[minIdx]
+        px[minIdx] = tx
+        py[minIdx] = ty
+    }
+    i = i + 1
+}
+
+// Step 3: Graham Scan traversal using stack
+stack = [0, 1]
+stackSize = 2
+
+i = 2
+while (i < n) {
+    searching = 1
+    while (stackSize >= 2 and searching == 1) {
+        topIdx = stack[stackSize - 1]
+        secIdx = stack[stackSize - 2]
+        cp = crossProduct(px[secIdx], py[secIdx], px[topIdx], py[topIdx], px[i], py[i])
+        if (cp <= 0) {
+            stack.pop()
+            stackSize = stackSize - 1
+        } else {
+            searching = 0
+        }
+    }
+    stack.push(i)
+    stackSize = stackSize + 1
+    i = i + 1
+}
+
+print("\n--- Convex Hull Vertices (Counter-Clockwise) ---")
+hullX = []
+hullY = []
+i = 0
+while (i < stackSize) {
+    vIdx = stack[i]
+    hullX.push(px[vIdx])
+    hullY.push(py[vIdx])
+    print("Vertex", i, ": (", px[vIdx], ",", py[vIdx], ")")
+    i = i + 1
+}
+
+area2x = polygonArea2x(hullX, hullY, stackSize)
+print("\nConvex Hull Vertex Count:", stackSize)
+print("Convex Hull 2x Area (Shoelace):", area2x)
+
+elapsed = t.millis() - startTime
+print("Graham Scan Convex Hull completed in:", elapsed, "ms")
