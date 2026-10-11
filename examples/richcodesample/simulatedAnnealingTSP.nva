@@ -1,0 +1,148 @@
+import stdlib math as m
+import stdlib time as t
+
+// Traveling Salesperson Problem (TSP) via Stochastic Simulated Annealing
+// Employs 2-opt segment reversals and Metropolis acceptance criterion with exponential cooling.
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Simulated Annealing TSP Solver ===")
+startTime = t.millis()
+
+func calcDist(x1, y1, x2, y2) {
+    dx = x1 - x2
+    dy = y1 - y2
+    return m.Sqrt(dx * dx + dy * dy)
+}
+
+func calcTourDistance(tour, numCities, cx, cy) {
+    total = 0.0
+    i = 0
+    while (i < numCities) {
+        c1 = tour[i]
+        c2 = tour[(i + 1) % numCities]
+        total = total + calcDist(cx[c1], cy[c1], cx[c2], cy[c2])
+        i = i + 1
+    }
+    return total
+}
+
+func reverseSubsegment(tour, startIdx, endIdx) {
+    left = startIdx
+    right = endIdx
+    while (left < right) {
+        tmp = tour[left]
+        tour[left] = tour[right]
+        tour[right] = tmp
+        left = left + 1
+        right = right - 1
+    }
+}
+
+func nextRand(seed) {
+    s = (seed[0] * 1103515245 + 12345) & 2147483647
+    seed[0] = s
+    return s
+}
+
+// 12 benchmark cities placed around a circle with known optimal perimeter
+numCities = 12
+cityX = [50.0, 75.0, 93.3, 100.0, 93.3, 75.0, 50.0, 25.0, 6.7, 0.0, 6.7, 25.0]
+cityY = [100.0, 93.3, 75.0, 50.0, 25.0, 6.7, 0.0, 6.7, 25.0, 50.0, 75.0, 93.3]
+
+// Initial scrambled tour
+currentTour = [0, 5, 2, 9, 3, 8, 1, 11, 4, 7, 10, 6]
+bestTour = []
+for (c in currentTour) {
+    bestTour.push(c)
+}
+
+currentCost = calcTourDistance(currentTour, numCities, cityX, cityY)
+bestCost = currentCost
+initialCost = currentCost
+
+print("Problem size:", numCities, "cities")
+print("Initial scrambled tour distance:", initialCost)
+
+// Simulated Annealing hyper-parameters
+temperature = 200.0
+minTemperature = 0.5
+coolingRate = 0.985
+stepsPerTemp = 25
+rngState = [424242]
+
+iteration = 0
+acceptedMoves = 0
+improvedMoves = 0
+
+while (temperature > minTemperature) {
+    step = 0
+    while (step < stepsPerTemp) {
+        iteration = iteration + 1
+        r1 = (nextRand(rngState) % (numCities - 1)) + 1
+        r2 = (nextRand(rngState) % (numCities - 1)) + 1
+
+        if (r1 != r2) {
+            i = r1
+            j = r2
+            if (i > j) {
+                tSwap = i
+                i = j
+                j = tSwap
+            }
+
+            // Apply 2-opt move (reverse segment between i and j)
+            reverseSubsegment(currentTour, i, j)
+            newCost = calcTourDistance(currentTour, numCities, cityX, cityY)
+            deltaCost = newCost - currentCost
+
+            accept = 0
+            if (deltaCost < 0.0) {
+                accept = 1
+                improvedMoves = improvedMoves + 1
+            } else {
+                // Metropolis criterion: accept worse solution with P = exp(-delta / T)
+                prob = m.Exp((0.0 - deltaCost) / temperature)
+                randVal = (nextRand(rngState) % 10000) / 10000.0
+                if (randVal < prob) {
+                    accept = 1
+                }
+            }
+
+            if (accept == 1) {
+                currentCost = newCost
+                acceptedMoves = acceptedMoves + 1
+                if (currentCost < bestCost) {
+                    bestCost = currentCost
+                    k = 0
+                    while (k < numCities) {
+                        bestTour[k] = currentTour[k]
+                        k = k + 1
+                    }
+                }
+            } else {
+                // Revert 2-opt move
+                reverseSubsegment(currentTour, i, j)
+            }
+        }
+        step = step + 1
+    }
+    temperature = temperature * coolingRate
+}
+
+improvement = ((initialCost - bestCost) / initialCost) * 100.0
+print("\n--- Optimization Convergence ---")
+print("Total iterations executed:", iteration)
+print("Accepted transitions:", acceptedMoves)
+print("Direct cost improvements:", improvedMoves)
+print("Final optimized tour distance:", bestCost)
+print("Optimization improvement ratio:", improvement, "%")
+
+print("\nBest tour sequence:")
+bIdx = 0
+while (bIdx < numCities) {
+    print(" - Step", bIdx + 1, "-> City", bestTour[bIdx])
+    bIdx = bIdx + 1
+}
+
+elapsed = t.millis() - startTime
+print("\nSimulated Annealing TSP benchmark completed in:", elapsed, "ms")
