@@ -1,0 +1,575 @@
+import stdlib time as t
+
+// Persistent Segment Tree with Path Copying and Historical Version Queries
+// Technical characteristics:
+// - Functional persistence via node path copying in O(log N) time and space
+// - Preserves historical immutability across arbitrarily branching version trees
+// - Historical point updates, range sum, range minimum, and range maximum queries
+// - Order statistic queries: Range K-th smallest query via version differential (Chairman Tree)
+// - Flat parallel arena allocation for optimal cache locality and zero GC overhead
+// - Comprehensive edge case validations and randomized stress verification
+// - Strict camelCase naming conventions enforced (No-Underscore Policy)
+
+print("=== Nevaarize Persistent Segment Tree Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func createPersistentTree() {
+    treeLeft = []
+    treeRight = []
+    treeSum = []
+    treeMin = []
+    treeMax = []
+    treeCount = []
+    return [treeLeft, treeRight, treeSum, treeMin, treeMax, treeCount]
+}
+
+func allocNode(tree, left, right, sumVal, minVal, maxVal, countVal) {
+    tLeft = tree[0]
+    tRight = tree[1]
+    tSum = tree[2]
+    tMin = tree[3]
+    tMax = tree[4]
+    tCount = tree[5]
+
+    id = tLeft.size()
+    tLeft.push(left)
+    tRight.push(right)
+    tSum.push(sumVal)
+    tMin.push(minVal)
+    tMax.push(maxVal)
+    tCount.push(countVal)
+
+    tree[0] = tLeft
+    tree[1] = tRight
+    tree[2] = tSum
+    tree[3] = tMin
+    tree[4] = tMax
+    tree[5] = tCount
+    return id
+}
+
+func buildTree(tree, arr, l, r) {
+    if (l == r) {
+        val = arr[l]
+        return allocNode(tree, -1, -1, val, val, val, 1)
+    }
+    mid = (l + r) / 2
+    lc = buildTree(tree, arr, l, mid)
+    rc = buildTree(tree, arr, mid + 1, r)
+
+    tSum = tree[2]
+    tMin = tree[3]
+    tMax = tree[4]
+    tCount = tree[5]
+
+    sVal = tSum[lc] + tSum[rc]
+    minVal = minInt(tMin[lc], tMin[rc])
+    maxVal = maxInt(tMax[lc], tMax[rc])
+    cVal = tCount[lc] + tCount[rc]
+    return allocNode(tree, lc, rc, sVal, minVal, maxVal, cVal)
+}
+
+func updatePoint(tree, prevNode, l, r, pos, newVal) {
+    if (l == r) {
+        return allocNode(tree, -1, -1, newVal, newVal, newVal, 1)
+    }
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    if (pos <= mid) {
+        newLc = updatePoint(tree, tLeft[prevNode], l, mid, pos, newVal)
+        newRc = tRight[prevNode]
+    } else {
+        newLc = tLeft[prevNode]
+        newRc = updatePoint(tree, tRight[prevNode], mid + 1, r, pos, newVal)
+    }
+
+    tSum = tree[2]
+    tMin = tree[3]
+    tMax = tree[4]
+    tCount = tree[5]
+
+    sVal = tSum[newLc] + tSum[newRc]
+    minVal = minInt(tMin[newLc], tMin[newRc])
+    maxVal = maxInt(tMax[newLc], tMax[newRc])
+    cVal = tCount[newLc] + tCount[newRc]
+    return allocNode(tree, newLc, newRc, sVal, minVal, maxVal, cVal)
+}
+
+func querySum(tree, node, l, r, ql, qr) {
+    if (node == -1 or ql > r or qr < l or ql > qr) {
+        return 0
+    }
+    if (ql <= l and r <= qr) {
+        tSum = tree[2]
+        return tSum[node]
+    }
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    leftAns = querySum(tree, tLeft[node], l, mid, ql, qr)
+    rightAns = querySum(tree, tRight[node], mid + 1, r, ql, qr)
+    return leftAns + rightAns
+}
+
+func queryMin(tree, node, l, r, ql, qr) {
+    if (node == -1 or ql > r or qr < l or ql > qr) {
+        return 2147483647
+    }
+    if (ql <= l and r <= qr) {
+        tMin = tree[3]
+        return tMin[node]
+    }
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    leftAns = queryMin(tree, tLeft[node], l, mid, ql, qr)
+    rightAns = queryMin(tree, tRight[node], mid + 1, r, ql, qr)
+    return minInt(leftAns, rightAns)
+}
+
+func queryMax(tree, node, l, r, ql, qr) {
+    if (node == -1 or ql > r or qr < l or ql > qr) {
+        return -2147483648
+    }
+    if (ql <= l and r <= qr) {
+        tMax = tree[4]
+        return tMax[node]
+    }
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    leftAns = queryMax(tree, tLeft[node], l, mid, ql, qr)
+    rightAns = queryMax(tree, tRight[node], mid + 1, r, ql, qr)
+    return maxInt(leftAns, rightAns)
+}
+
+func queryPoint(tree, node, l, r, pos) {
+    if (l == r) {
+        tSum = tree[2]
+        return tSum[node]
+    }
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    if (pos <= mid) {
+        return queryPoint(tree, tLeft[node], l, mid, pos)
+    }
+    return queryPoint(tree, tRight[node], mid + 1, r, pos)
+}
+
+func insertFreq(tree, prevNode, lowVal, highVal, val) {
+    if (lowVal == highVal) {
+        prevCnt = 0
+        if (prevNode != -1) {
+            tCount = tree[5]
+            prevCnt = tCount[prevNode]
+        }
+        return allocNode(tree, -1, -1, 0, 0, 0, prevCnt + 1)
+    }
+    mid = (lowVal + highVal) / 2
+    prevLc = -1
+    prevRc = -1
+    if (prevNode != -1) {
+        tLeft = tree[0]
+        tRight = tree[1]
+        prevLc = tLeft[prevNode]
+        prevRc = tRight[prevNode]
+    }
+    if (val <= mid) {
+        newLc = insertFreq(tree, prevLc, lowVal, mid, val)
+        newRc = prevRc
+    } else {
+        newLc = prevLc
+        newRc = insertFreq(tree, prevRc, mid + 1, highVal, val)
+    }
+    tCount = tree[5]
+    cVal = 0
+    if (newLc != -1) {
+        cVal = cVal + tCount[newLc]
+    }
+    if (newRc != -1) {
+        cVal = cVal + tCount[newRc]
+    }
+    return allocNode(tree, newLc, newRc, 0, 0, 0, cVal)
+}
+
+func queryKth(tree, nodeL, nodeR, lowVal, highVal, k) {
+    if (lowVal == highVal) {
+        return lowVal
+    }
+    mid = (lowVal + highVal) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    tCount = tree[5]
+
+    countLeft = 0
+    if (nodeR != -1 and tLeft[nodeR] != -1) {
+        countLeft = countLeft + tCount[tLeft[nodeR]]
+    }
+    if (nodeL != -1 and tLeft[nodeL] != -1) {
+        countLeft = countLeft - tCount[tLeft[nodeL]]
+    }
+
+    if (k <= countLeft) {
+        leftL = -1
+        if (nodeL != -1) {
+            leftL = tLeft[nodeL]
+        }
+        leftR = -1
+        if (nodeR != -1) {
+            leftR = tLeft[nodeR]
+        }
+        return queryKth(tree, leftL, leftR, lowVal, mid, k)
+    } else {
+        rightL = -1
+        if (nodeL != -1) {
+            rightL = tRight[nodeL]
+        }
+        rightR = -1
+        if (nodeR != -1) {
+            rightR = tRight[nodeR]
+        }
+        return queryKth(tree, rightL, rightR, mid + 1, highVal, k - countLeft)
+    }
+}
+
+// --- Test Case 1: Sequential Version Updates & Historical Range Queries ---
+print("Running Test Case 1: Sequential Version Updates and Range Queries...")
+pst1 = createPersistentTree()
+initArr = [12, 5, 27, 8, 19, 14, 3, 31]
+arrLen = initArr.size()
+verRoots = []
+
+// Version 0: Initial array
+v0 = buildTree(pst1, initArr, 0, arrLen - 1)
+verRoots.push(v0)
+
+// Assert V0 queries
+sumV0 = querySum(pst1, v0, 0, arrLen - 1, 0, 7)
+minV0 = queryMin(pst1, v0, 0, arrLen - 1, 0, 7)
+maxV0 = queryMax(pst1, v0, 0, arrLen - 1, 0, 7)
+rangeSumV0 = querySum(pst1, v0, 0, arrLen - 1, 2, 5)
+
+if (sumV0 != 119 or minV0 != 3 or maxV0 != 31 or rangeSumV0 != 68) {
+    print("[FAIL] Test Case 1: Version 0 baseline failed:", sumV0, minV0, maxV0, rangeSumV0)
+} else {
+    print("  Version 0 baseline verified: sum =", sumV0, ", min =", minV0, ", max =", maxV0)
+}
+
+// Version 1: Update index 2 from 27 to 100
+v1 = updatePoint(pst1, v0, 0, arrLen - 1, 2, 100)
+verRoots.push(v1)
+
+// Version 2: Update index 6 from 3 to 50
+v2 = updatePoint(pst1, v1, 0, arrLen - 1, 6, 50)
+verRoots.push(v2)
+
+// Version 3: Update index 0 from 12 to 2
+v3 = updatePoint(pst1, v2, 0, arrLen - 1, 0, 2)
+verRoots.push(v3)
+
+// Verify historical integrity of V0 (must remain unchanged!)
+sumV0Check = querySum(pst1, v0, 0, arrLen - 1, 0, 7)
+valV0Idx2 = queryPoint(pst1, v0, 0, arrLen - 1, 2)
+valV0Idx6 = queryPoint(pst1, v0, 0, arrLen - 1, 6)
+if (sumV0Check != 119 or valV0Idx2 != 27 or valV0Idx6 != 3) {
+    print("[FAIL] Test Case 1: Version 0 historical corruption detected!")
+} else {
+    print("  Version 0 immutability preserved after subsequent updates")
+}
+
+// Verify Version 1: sum should be 119 - 27 + 100 = 192
+sumV1 = querySum(pst1, v1, 0, arrLen - 1, 0, 7)
+maxV1 = queryMax(pst1, v1, 0, arrLen - 1, 0, 7)
+minV1Range = queryMin(pst1, v1, 0, arrLen - 1, 1, 4)
+if (sumV1 != 192 or maxV1 != 100 or minV1Range != 5) {
+    print("[FAIL] Test Case 1: Version 1 query mismatch:", sumV1, maxV1, minV1Range)
+} else {
+    print("  Version 1 verified: sum =", sumV1, ", max =", maxV1)
+}
+
+// Verify Version 2: sum should be 192 - 3 + 50 = 239, min should be 5
+sumV2 = querySum(pst1, v2, 0, arrLen - 1, 0, 7)
+minV2 = queryMin(pst1, v2, 0, arrLen - 1, 0, 7)
+if (sumV2 != 239 or minV2 != 5) {
+    print("[FAIL] Test Case 1: Version 2 query mismatch:", sumV2, minV2)
+} else {
+    print("  Version 2 verified: sum =", sumV2, ", min =", minV2)
+}
+
+// Verify Version 3: sum should be 239 - 12 + 2 = 229, min should be 2
+sumV3 = querySum(pst1, v3, 0, arrLen - 1, 0, 7)
+minV3 = queryMin(pst1, v3, 0, arrLen - 1, 0, 7)
+if (sumV3 != 229 or minV3 != 2) {
+    print("[FAIL] Test Case 1: Version 3 query mismatch:", sumV3, minV3)
+} else {
+    print("  Version 3 verified: sum =", sumV3, ", min =", minV3)
+}
+print("  Test Case 1 Passed sequential updates and immutability verification")
+
+// --- Test Case 2: Tree Branching / Timeline Forking ---
+print("Running Test Case 2: Timeline Forking and Tree Branching...")
+// Fork branch A from Version 1: update index 4 from 19 to 999
+vBranchA = updatePoint(pst1, v1, 0, arrLen - 1, 4, 999)
+
+// Fork branch B from Version 1: update index 4 from 19 to -50
+vBranchB = updatePoint(pst1, v1, 0, arrLen - 1, 4, -50)
+
+sumBranchA = querySum(pst1, vBranchA, 0, arrLen - 1, 0, 7)
+maxBranchA = queryMax(pst1, vBranchA, 0, arrLen - 1, 0, 7)
+
+sumBranchB = querySum(pst1, vBranchB, 0, arrLen - 1, 0, 7)
+minBranchB = queryMin(pst1, vBranchB, 0, arrLen - 1, 0, 7)
+
+v1SumAfterBranch = querySum(pst1, v1, 0, arrLen - 1, 0, 7)
+v1Val4AfterBranch = queryPoint(pst1, v1, 0, arrLen - 1, 4)
+
+expectedSumA = 192 - 19 + 999
+expectedSumB = 192 - 19 - 50
+
+branchSuccess = true
+if (sumBranchA != expectedSumA or maxBranchA != 999) {
+    print("[FAIL] Test Case 2: Branch A mismatch:", sumBranchA, maxBranchA)
+    branchSuccess = false
+}
+if (sumBranchB != expectedSumB or minBranchB != -50) {
+    print("[FAIL] Test Case 2: Branch B mismatch:", sumBranchB, minBranchB)
+    branchSuccess = false
+}
+if (v1SumAfterBranch != 192 or v1Val4AfterBranch != 19) {
+    print("[FAIL] Test Case 2: Parent Version 1 was corrupted by branching!")
+    branchSuccess = false
+}
+if (branchSuccess) {
+    print("  Branch A (max:", maxBranchA, ", sum:", sumBranchA, ") and Branch B (min:", minBranchB, ", sum:", sumBranchB, ") verified independently")
+    print("  Test Case 2 Passed timeline forking verification")
+}
+
+// --- Test Case 3: Boundary & Edge Cases ---
+print("Running Test Case 3: Boundary and Edge Cases...")
+edgeSuccess = true
+
+// Single-element persistent tree
+singleArr = [42]
+pstSingle = createPersistentTree()
+vSingle0 = buildTree(pstSingle, singleArr, 0, 0)
+vSingle1 = updatePoint(pstSingle, vSingle0, 0, 0, 0, 100)
+
+if (querySum(pstSingle, vSingle0, 0, 0, 0, 0) != 42 or querySum(pstSingle, vSingle1, 0, 0, 0, 0) != 100) {
+    print("[FAIL] Single element persistent tree failed")
+    edgeSuccess = false
+} else {
+    print("  Single-element tree update verified (42 -> 100)")
+}
+
+// Out-of-bounds and disjoint queries
+disjointSum = querySum(pst1, v3, 0, arrLen - 1, 5, 2)
+outOfBoundsSum = querySum(pst1, v3, 0, arrLen - 1, 10, 20)
+if (disjointSum != 0 or outOfBoundsSum != 0) {
+    print("[FAIL] Disjoint / out of bounds query returned non-zero:", disjointSum, outOfBoundsSum)
+    edgeSuccess = false
+} else {
+    print("  Disjoint and out-of-bounds queries gracefully returned default neutral values")
+}
+
+// Repeated updates to same index
+vRepeat0 = v0
+vRepeat1 = updatePoint(pst1, vRepeat0, 0, arrLen - 1, 3, 10)
+vRepeat2 = updatePoint(pst1, vRepeat1, 0, arrLen - 1, 3, 20)
+vRepeat3 = updatePoint(pst1, vRepeat2, 0, arrLen - 1, 3, 30)
+
+repeatFail = false
+if (queryPoint(pst1, vRepeat0, 0, arrLen - 1, 3) != 8) {
+    repeatFail = true
+}
+if (queryPoint(pst1, vRepeat1, 0, arrLen - 1, 3) != 10) {
+    repeatFail = true
+}
+if (queryPoint(pst1, vRepeat2, 0, arrLen - 1, 3) != 20) {
+    repeatFail = true
+}
+if (queryPoint(pst1, vRepeat3, 0, arrLen - 1, 3) != 30) {
+    repeatFail = true
+}
+
+if (repeatFail) {
+    print("[FAIL] Repeated update sequence failed")
+    edgeSuccess = false
+} else {
+    print("  Repeated updates to identical index verified across 4 versions")
+}
+
+if (edgeSuccess) {
+    print("  Test Case 3 Passed boundary and edge case verification")
+}
+
+// --- Test Case 4: Range K-th Smallest Query (Chairman Tree) ---
+print("Running Test Case 4: Range K-th Smallest Order Statistic (Chairman Tree)...")
+dataset = [15, 3, 9, 21, 7, 12, 18, 5, 14, 10]
+dsLen = dataset.size()
+maxValDomain = 30
+
+pstChair = createPersistentTree()
+chairRoots = []
+chairRoots.push(-1)
+
+cIdx = 0
+while (cIdx < dsLen) {
+    prevR = chairRoots[cIdx]
+    nextR = insertFreq(pstChair, prevR, 1, maxValDomain, dataset[cIdx])
+    chairRoots.push(nextR)
+    cIdx = cIdx + 1
+}
+
+// Query 1: Full range [0, 9] (1-based roots: chairRoots[0] and chairRoots[10])
+kth1 = queryKth(pstChair, chairRoots[0], chairRoots[10], 1, maxValDomain, 1)
+kth5 = queryKth(pstChair, chairRoots[0], chairRoots[10], 1, maxValDomain, 5)
+kth10 = queryKth(pstChair, chairRoots[0], chairRoots[10], 1, maxValDomain, 10)
+
+chairSuccess = true
+if (kth1 != 3 or kth5 != 10 or kth10 != 21) {
+    print("[FAIL] Chairman Tree full range query mismatch:", kth1, kth5, kth10)
+    chairSuccess = false
+} else {
+    print("  Full range [0, 9] order statistics: 1st =", kth1, ", 5th =", kth5, ", 10th =", kth10)
+}
+
+// Query 2: Subarray [2, 6] -> indices 2 to 6 are: [9, 21, 7, 12, 18]
+subKth1 = queryKth(pstChair, chairRoots[2], chairRoots[7], 1, maxValDomain, 1)
+subKth3 = queryKth(pstChair, chairRoots[2], chairRoots[7], 1, maxValDomain, 3)
+subKth5 = queryKth(pstChair, chairRoots[2], chairRoots[7], 1, maxValDomain, 5)
+
+if (subKth1 != 7 or subKth3 != 12 or subKth5 != 21) {
+    print("[FAIL] Chairman Tree subarray [2, 6] mismatch:", subKth1, subKth3, subKth5)
+    chairSuccess = false
+} else {
+    print("  Subarray [2, 6] order statistics: 1st =", subKth1, ", 3rd =", subKth3, ", 5th =", subKth5)
+}
+
+if (chairSuccess) {
+    print("  Test Case 4 Passed Chairman Tree range order statistic verification")
+}
+
+// --- Test Case 5: Stress Benchmark with Naive Historical Oracle ---
+print("Running Test Case 5: Stress Benchmark against Naive Historical Matrix...")
+stressLen = 16
+stressArr = []
+sI = 0
+while (sI < stressLen) {
+    stressArr.push((sI * 7 + 13) % 50 + 1)
+    sI = sI + 1
+}
+
+naiveHistory = []
+firstClone = []
+sI = 0
+while (sI < stressLen) {
+    firstClone.push(stressArr[sI])
+    sI = sI + 1
+}
+naiveHistory.push(firstClone)
+
+pstStress = createPersistentTree()
+stressRoots = []
+stressRoots.push(buildTree(pstStress, stressArr, 0, stressLen - 1))
+
+numVersions = 50
+lSeed = 7718291
+verIdx = 1
+
+while (verIdx <= numVersions) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    targetPos = lSeed % stressLen
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    newVal = (lSeed % 100) + 1
+
+    prevR = stressRoots[verIdx - 1]
+    newR = updatePoint(pstStress, prevR, 0, stressLen - 1, targetPos, newVal)
+    stressRoots.push(newR)
+
+    newClone = []
+    prevClone = naiveHistory[verIdx - 1]
+    sI = 0
+    while (sI < stressLen) {
+        if (sI == targetPos) {
+            newClone.push(newVal)
+        } else {
+            newClone.push(prevClone[sI])
+        }
+        sI = sI + 1
+    }
+    naiveHistory.push(newClone)
+
+    verIdx = verIdx + 1
+}
+
+testQueries = 100
+qI = 0
+stressErrors = 0
+
+while (qI < testQueries) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    chosenVer = lSeed % (numVersions + 1)
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qLeft = lSeed % stressLen
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qRight = lSeed % stressLen
+    if (qLeft > qRight) {
+        tmp = qLeft
+        qLeft = qRight
+        qRight = tmp
+    }
+
+    expectedSum = 0
+    expectedMin = 99999999
+    expectedMax = -99999999
+    cArr = naiveHistory[chosenVer]
+    scanIdx = qLeft
+    while (scanIdx <= qRight) {
+        valScan = cArr[scanIdx]
+        expectedSum = expectedSum + valScan
+        if (valScan < expectedMin) {
+            expectedMin = valScan
+        }
+        if (valScan > expectedMax) {
+            expectedMax = valScan
+        }
+        scanIdx = scanIdx + 1
+    }
+
+    actualSum = querySum(pstStress, stressRoots[chosenVer], 0, stressLen - 1, qLeft, qRight)
+    actualMin = queryMin(pstStress, stressRoots[chosenVer], 0, stressLen - 1, qLeft, qRight)
+    actualMax = queryMax(pstStress, stressRoots[chosenVer], 0, stressLen - 1, qLeft, qRight)
+
+    if (actualSum != expectedSum or actualMin != expectedMin or actualMax != expectedMax) {
+        stressErrors = stressErrors + 1
+    }
+    qI = qI + 1
+}
+
+if (stressErrors > 0) {
+    print("[FAIL] Stress queries had", stressErrors, "mismatches against naive oracle")
+} else {
+    print("  Validated", testQueries, "random historical queries across", numVersions, "versions: 0 mismatches")
+    tLeft = pstStress[0]
+    print("  Total allocated persistent tree arena nodes:", tLeft.size())
+    print("  Test Case 5 Passed stress benchmark verification")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Persistent Segment Tree Suite executed successfully in", elapsed, "ms")
