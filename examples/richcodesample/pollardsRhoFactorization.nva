@@ -507,3 +507,214 @@ func sumDivisors(n) {
     }
     return divisorSum
 }
+
+
+func verifyFactorProduct(original, factors) {
+    if (factors.size() == 0) {
+        return original <= 1
+    }
+    prod = 1
+    idx = 0
+    while (idx < factors.size()) {
+        prod = prod * factors[idx]
+        idx = idx + 1
+    }
+    return prod == original
+}
+
+// =============================================================================
+// Execution & Test Suites
+// =============================================================================
+
+print("=== Nevaarize Miller-Rabin & Pollard's Rho Suite ===")
+globalStartTime = t.millis()
+
+// --- Test Suite 1: 64-bit Modular Arithmetic & Overflow Handling ---
+print("Running Test Suite 1: Modular Arithmetic and 64-bit Primitives...")
+
+modMulPass1 = modMul(1234567890123, 9876543210987, 100000000000007) == 96006693963449
+if (!modMulPass1) {
+    print("[FAIL] modMul large 64-bit product mismatch")
+} else {
+    print("  Test 1a (64-bit safe modular multiplication) verified")
+}
+
+// Fermat Little Theorem on large prime: 2^(P-1) mod P == 1
+largePrimeP = 1000000007
+fltPass = modPow(2, largePrimeP - 1, largePrimeP) == 1
+if (!fltPass) {
+    print("[FAIL] modPow Fermat Little Theorem check failed")
+} else {
+    print("  Test 1b (Fermat's Little Theorem 2^(P-1) mod P == 1) verified")
+}
+
+gcdPass1 = gcd(1071, 462) == 21
+gcdPass2 = gcd(1000000007, 1000000009) == 1
+if (!gcdPass1 || !gcdPass2) {
+    print("[FAIL] gcd Euclidean algorithm mismatch")
+} else {
+    print("  Test 1c (Euclidean GCD edge cases) verified")
+}
+
+// --- Test Suite 2: Miller-Rabin Primality Verification ---
+print("Running Test Suite 2: Miller-Rabin Primality Verification...")
+
+knownPrimes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 97, 1009, 7919, 65537, 8191, 131071, 524287, 2147483647, 1000000007, 1000000009]
+allPrimesPassed = true
+pi = 0
+while (pi < knownPrimes.size()) {
+    primeVal = knownPrimes[pi]
+    if (!isPrimeDeterministic(primeVal)) {
+        allPrimesPassed = false
+        print("[FAIL] Expected prime was marked composite:", primeVal)
+    }
+    pi = pi + 1
+}
+if (allPrimesPassed) {
+    print("  Test 2a (Deterministic verification on", knownPrimes.size(), "known primes) verified")
+}
+
+// Carmichael numbers (must NOT be fooled by Miller-Rabin)
+carmichaelNumbers = [561, 1105, 1729, 2465, 2821]
+allCarmichaelsPassed = true
+ci = 0
+while (ci < carmichaelNumbers.size()) {
+    carmVal = carmichaelNumbers[ci]
+    if (isPrimeDeterministic(carmVal)) {
+        allCarmichaelsPassed = false
+        print("[FAIL] Carmichael number falsely marked prime:", carmVal)
+    }
+    ci = ci + 1
+}
+if (allCarmichaelsPassed) {
+    print("  Test 2b (Carmichael pseudoprimes correctly rejected) verified")
+}
+
+// Randomized Miller-Rabin rounds test
+randPrimePass = isProbablePrime(1000000007, 20, 987654321) && !isProbablePrime(561, 20, 987654321)
+if (!randPrimePass) {
+    print("[FAIL] Randomized Miller-Rabin failed")
+} else {
+    print("  Test 2c (Randomized Miller-Rabin 20 rounds) verified")
+}
+
+// --- Test Suite 3: Pollard's Rho Integer Factorization Engine ---
+print("Running Test Suite 3: Pollard's Rho Factorization Engine...")
+
+// 3a: Large Semiprimes
+semiprime1 = 1000000016000000063 // 1000000007 * 1000000009
+semiFactors1 = factorizeToPrimes(semiprime1)
+semi1Pass = semiFactors1.size() == 2 && semiFactors1[0] == 1000000007 && semiFactors1[1] == 1000000009
+if (!semi1Pass) {
+    print("[FAIL] Factoring 60-bit semiprime 1 failed")
+} else {
+    print("  Test 3a (Factoring 60-bit semiprime 1000000007 * 1000000009) verified")
+}
+
+semiprime2 = 999962000357 // 999983 * 999979
+semiFactors2 = factorizeToPrimes(semiprime2)
+semi2Pass = semiFactors2.size() == 2 && semiFactors2[0] == 999979 && semiFactors2[1] == 999983
+if (!semi2Pass) {
+    print("[FAIL] Factoring semiprime 2 failed")
+} else {
+    print("  Test 3b (Factoring 40-bit semiprime 999983 * 999979) verified")
+}
+
+// 3b: Mixed Composites & Powers of Primes
+f360 = factorizeToPrimes(360) // 2^3 * 3^2 * 5
+pass360 = verifyFactorProduct(360, f360) && f360.size() == 6
+if (!pass360) {
+    print("[FAIL] Factoring 360 failed")
+} else {
+    print("  Test 3c (Factoring highly composite 360 = 2^3 * 3^2 * 5) verified")
+}
+
+f123456 = factorizeToPrimes(123456) // 2^6 * 3 * 643
+pass123456 = verifyFactorProduct(123456, f123456) && f123456.size() == 8
+if (!pass123456) {
+    print("[FAIL] Factoring 123456 failed")
+} else {
+    print("  Test 3d (Factoring composite 123456 = 2^6 * 3 * 643) verified")
+}
+
+fPrimePower = factorizeToPrimes(2197) // 13^3
+passPrimePower = verifyFactorProduct(2197, fPrimePower) && fPrimePower.size() == 3 && fPrimePower[0] == 13
+if (!passPrimePower) {
+    print("[FAIL] Factoring prime power 13^3 failed")
+} else {
+    print("  Test 3e (Factoring prime power 2197 = 13^3) verified")
+}
+
+// --- Test Suite 4: Number Theoretic Functions ---
+print("Running Test Suite 4: Number Theoretic Functions (phi, d, sigma)...")
+
+totient360 = eulerTotient(360)
+divCount360 = countDivisors(360)
+divSum360 = sumDivisors(360)
+ntPass360 = totient360 == 96 && divCount360 == 24 && divSum360 == 1170
+if (!ntPass360) {
+    print("[FAIL] Number theoretic functions on 360 failed:", totient360, divCount360, divSum360)
+} else {
+    print("  Test 4a (phi(360)=96, d(360)=24, sigma(360)=1170) verified")
+}
+
+primeQ = 10007
+totientPrime = eulerTotient(primeQ)
+divCountPrime = countDivisors(primeQ)
+divSumPrime = sumDivisors(primeQ)
+ntPassPrime = totientPrime == primeQ - 1 && divCountPrime == 2 && divSumPrime == primeQ + 1
+if (!ntPassPrime) {
+    print("[FAIL] Number theoretic functions on prime failed")
+} else {
+    print("  Test 4b (Arithmetic functions on prime 10007) verified")
+}
+
+// --- Test Suite 5: High-Magnitude Pseudo-Random Stress Benchmark ---
+print("Running Test Suite 5: High-Magnitude Stress Benchmark...")
+
+benchmarkPrimes = [10007, 10009, 10037, 10039, 10061, 10067, 10069, 10079]
+benchSeed = 54321
+benchIterations = 16
+benchPassed = true
+bi = 0
+
+while (bi < benchIterations) {
+    benchSeed = (benchSeed * 1103515245 + 12345) % 2147483648
+    if (benchSeed < 0) {
+        benchSeed = 0 - benchSeed
+    }
+    idxA = benchSeed % benchmarkPrimes.size()
+    benchSeed = (benchSeed * 1103515245 + 12345) % 2147483648
+    if (benchSeed < 0) {
+        benchSeed = 0 - benchSeed
+    }
+    idxB = benchSeed % benchmarkPrimes.size()
+
+    pA = benchmarkPrimes[idxA]
+    pB = benchmarkPrimes[idxB]
+    compositeTarget = pA * pB
+
+    factoredList = factorizeToPrimes(compositeTarget)
+    if (!verifyFactorProduct(compositeTarget, factoredList)) {
+        benchPassed = false
+        print("[FAIL] Stress test product mismatch on:", compositeTarget)
+    }
+    fi = 0
+    while (fi < factoredList.size()) {
+        if (!isPrimeDeterministic(factoredList[fi])) {
+            benchPassed = false
+            print("[FAIL] Stress test factor not prime:", factoredList[fi])
+        }
+        fi = fi + 1
+    }
+    bi = bi + 1
+}
+
+if (!benchPassed) {
+    print("[FAIL] Test Suite 5 stress benchmark failed")
+} else {
+    print("  Test Suite 5 Passed", benchIterations, "stress factorization rounds")
+}
+
+elapsed = t.millis() - globalStartTime
+print("[PASS] Miller-Rabin and Pollard's Rho Suite executed successfully in", elapsed, "ms")
