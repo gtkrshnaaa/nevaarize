@@ -1,0 +1,150 @@
+import stdlib time as t
+
+// Quadtree Spatial Partitioning Algorithm
+// Hierarchical 2D space decomposition with range query acceleration.
+// Uses flat parallel arrays for peak cache locality and zero GC overhead.
+// Strict camelCase naming enforced (No-Underscore Policy).
+print("=== Nevaarize Quadtree Spatial Partitioning ===")
+startTime = t.millis()
+nodeMinX = []
+nodeMinY = []
+nodeMaxX = []
+nodeMaxY = []
+nodeNW = []
+nodeNE = []
+nodeSW = []
+nodeSE = []
+nodeDivided = []
+nodeCount = []
+nodePts = []
+pointX = []
+pointY = []
+pointId = []
+
+func createNode(minX, minY, maxX, maxY) {
+    id = len(nodeMinX)
+    nodeMinX.push(minX)
+    nodeMinY.push(minY)
+    nodeMaxX.push(maxX)
+    nodeMaxY.push(maxY)
+    nodeNW.push(-1)
+    nodeNE.push(-1)
+    nodeSW.push(-1)
+    nodeSE.push(-1)
+    nodeDivided.push(0)
+    nodeCount.push(0)
+    for (k in Range(0, 4)) { nodePts.push(-1) }
+    return id
+}
+
+func getChildNode(curr, px, py) {
+    midX = (nodeMinX[curr] + nodeMaxX[curr]) * 0.5
+    midY = (nodeMinY[curr] + nodeMaxY[curr]) * 0.5
+    if (px <= midX and py >= midY) { return nodeNW[curr] }
+    if (px > midX and py >= midY) { return nodeNE[curr] }
+    if (px <= midX and py < midY) { return nodeSW[curr] }
+    return nodeSE[curr]
+}
+
+func insertPoint(pIdx) {
+    curr = 0
+    px = pointX[pIdx]
+    py = pointY[pIdx]
+    inserted = 0
+    while (inserted == 0) {
+        if (nodeDivided[curr] == 0) {
+            cnt = nodeCount[curr]
+            if (cnt < 4) {
+                nodePts[curr * 4 + cnt] = pIdx
+                nodeCount[curr] = cnt + 1
+                inserted = 1
+            } else {
+                minX = nodeMinX[curr]
+                minY = nodeMinY[curr]
+                maxX = nodeMaxX[curr]
+                maxY = nodeMaxY[curr]
+                midX = (minX + maxX) * 0.5
+                midY = (minY + maxY) * 0.5
+
+                nodeNW[curr] = createNode(minX, midY, midX, maxY)
+                nodeNE[curr] = createNode(midX, midY, maxX, maxY)
+                nodeSW[curr] = createNode(minX, minY, midX, midY)
+                nodeSE[curr] = createNode(midX, minY, maxX, midY)
+                nodeDivided[curr] = 1
+
+                k = 0
+                while (k < 4) {
+                    oldIdx = nodePts[curr * 4 + k]
+                    target = getChildNode(curr, pointX[oldIdx], pointY[oldIdx])
+                    tCnt = nodeCount[target]
+                    nodePts[target * 4 + tCnt] = oldIdx
+                    nodeCount[target] = tCnt + 1
+                    k = k + 1
+                }
+                nodeCount[curr] = 0
+                curr = getChildNode(curr, px, py)
+            }
+        } else {
+            curr = getChildNode(curr, px, py)
+        }
+    }
+}
+
+func queryRange(qMinX, qMinY, qMaxX, qMaxY) {
+    matches = []
+    stack = [0]
+    while (len(stack) > 0) {
+        curr = stack.pop()
+        if (nodeMaxX[curr] < qMinX or nodeMinX[curr] > qMaxX or nodeMaxY[curr] < qMinY or nodeMinY[curr] > qMaxY) {
+            // Out of bounds
+        } elif (nodeDivided[curr] == 0) {
+            k = 0
+            while (k < nodeCount[curr]) {
+                pIdx = nodePts[curr * 4 + k]
+                if (pointX[pIdx] >= qMinX and pointX[pIdx] <= qMaxX and pointY[pIdx] >= qMinY and pointY[pIdx] <= qMaxY) {
+                    matches.push(pointId[pIdx])
+                }
+                k = k + 1
+            }
+        } else {
+            stack.push(nodeNW[curr])
+            stack.push(nodeNE[curr])
+            stack.push(nodeSW[curr])
+            stack.push(nodeSE[curr])
+        }
+    }
+    return matches
+}
+
+createNode(0.0, 0.0, 100.0, 100.0)
+rawX = [12.0, 25.0, 30.0, 15.0, 55.0, 65.0, 80.0, 90.0, 10.0, 18.0, 40.0, 70.0, 85.0, 95.0, 22.0, 35.0, 48.0, 62.0, 78.0, 88.0]
+rawY = [14.0, 20.0, 35.0, 42.0, 58.0, 72.0, 85.0, 92.0, 80.0, 95.0, 15.0, 25.0, 30.0, 45.0, 60.0, 75.0, 88.0, 12.0, 18.0, 50.0]
+
+for (i in Range(0, len(rawX))) {
+    pointX.push(rawX[i])
+    pointY.push(rawY[i])
+    pointId.push(i + 1)
+    insertPoint(i)
+}
+
+print("Total points inserted:", len(pointX))
+print("Total Quadtree nodes allocated:", len(nodeMinX))
+
+res1 = queryRange(10.0, 10.0, 40.0, 45.0)
+print("\nQuery Region [10..40, 10..45] matches count:", len(res1))
+k = 0
+while (k < len(res1)) {
+    print(" - Point ID:", res1[k])
+    k = k + 1
+}
+
+res2 = queryRange(60.0, 60.0, 100.0, 100.0)
+print("\nQuery Region [60..100, 60..100] matches count:", len(res2))
+k = 0
+while (k < len(res2)) {
+    print(" - Point ID:", res2[k])
+    k = k + 1
+}
+
+elapsed = t.millis() - startTime
+print("\nQuadtree benchmark completed in:", elapsed, "ms")
