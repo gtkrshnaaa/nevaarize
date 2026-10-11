@@ -1,0 +1,296 @@
+import stdlib string as str
+import stdlib time as t
+
+// Hirschberg's Space-Efficient Sequence Alignment Algorithm
+// Solves global sequence alignment (Needleman-Wunsch equivalent) in:
+// - Time Complexity: O(M * N)
+// - Space Complexity: O(M + N) linear space via divide-and-conquer
+// Ideal for computational biology, genomics, and long nucleotide/protein alignments.
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Hirschberg Space-Efficient Alignment ===")
+startTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func max2(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func max3(a, b, c) {
+    mVal = a
+    if (b > mVal) {
+        mVal = b
+    }
+    if (c > mVal) {
+        mVal = c
+    }
+    return mVal
+}
+
+func reverseStr(s) {
+    n = str.length(s)
+    rev = ""
+    i = n - 1
+    while (i >= 0) {
+        rev = rev + str.substring(s, i, 1)
+        i = i - 1
+    }
+    return rev
+}
+
+// Compute forward alignment dynamic programming row with O(N) memory
+func scoreRow(xStr, yStr, matchScore, mismatchPenalty, gapPenalty) {
+    nx = str.length(xStr)
+    ny = str.length(yStr)
+    prev = makeIntArray(ny + 1, 0)
+    curr = makeIntArray(ny + 1, 0)
+
+    j = 1
+    while (j <= ny) {
+        prev[j] = prev[j - 1] + gapPenalty
+        j = j + 1
+    }
+
+    i = 1
+    while (i <= nx) {
+        curr[0] = prev[0] + gapPenalty
+        codeX = str.charCodeAt(xStr, i - 1)
+        j = 1
+        while (j <= ny) {
+            codeY = str.charCodeAt(yStr, j - 1)
+            scoreDiag = mismatchPenalty
+            if (codeX == codeY) {
+                scoreDiag = matchScore
+            }
+            diag = prev[j - 1] + scoreDiag
+            up = prev[j] + gapPenalty
+            left = curr[j - 1] + gapPenalty
+            curr[j] = max3(diag, up, left)
+            j = j + 1
+        }
+        j = 0
+        while (j <= ny) {
+            prev[j] = curr[j]
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return prev
+}
+
+// Base case alignment for small sub-problems (len <= 1)
+func needlemanWunschBase(xStr, yStr, matchScore, mismatchPenalty, gapPenalty) {
+    nx = str.length(xStr)
+    ny = str.length(yStr)
+
+    if (nx == 0) {
+        alignX = ""
+        alignY = yStr
+        k = 0
+        while (k < ny) {
+            alignX = alignX + "-"
+            k = k + 1
+        }
+        return [alignX, alignY]
+    }
+
+    if (ny == 0) {
+        alignX = xStr
+        alignY = ""
+        k = 0
+        while (k < nx) {
+            alignY = alignY + "-"
+            k = k + 1
+        }
+        return [alignX, alignY]
+    }
+
+    // 2D DP matrix for minimal base case
+    dp = makeIntArray((nx + 1) * (ny + 1), 0)
+    j = 1
+    while (j <= ny) {
+        dp[j] = dp[j - 1] + gapPenalty
+        j = j + 1
+    }
+    i = 1
+    while (i <= nx) {
+        dp[i * (ny + 1)] = dp[(i - 1) * (ny + 1)] + gapPenalty
+        i = i + 1
+    }
+
+    i = 1
+    while (i <= nx) {
+        codeX = str.charCodeAt(xStr, i - 1)
+        j = 1
+        while (j <= ny) {
+            codeY = str.charCodeAt(yStr, j - 1)
+            scoreDiag = mismatchPenalty
+            if (codeX == codeY) {
+                scoreDiag = matchScore
+            }
+            diag = dp[(i - 1) * (ny + 1) + (j - 1)] + scoreDiag
+            up = dp[(i - 1) * (ny + 1) + j] + gapPenalty
+            left = dp[i * (ny + 1) + (j - 1)] + gapPenalty
+            dp[i * (ny + 1) + j] = max3(diag, up, left)
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    alignX = ""
+    alignY = ""
+    ci = nx
+    cj = ny
+    while (ci > 0 or cj > 0) {
+        codeX = -1
+        if (ci > 0) { codeX = str.charCodeAt(xStr, ci - 1) }
+        codeY = -2
+        if (cj > 0) { codeY = str.charCodeAt(yStr, cj - 1) }
+        scoreDiag = mismatchPenalty
+        if (codeX == codeY) { scoreDiag = matchScore }
+
+        if (ci > 0 and cj > 0 and dp[ci * (ny + 1) + cj] == (dp[(ci - 1) * (ny + 1) + (cj - 1)] + scoreDiag)) {
+            alignX = str.substring(xStr, ci - 1, 1) + alignX
+            alignY = str.substring(yStr, cj - 1, 1) + alignY
+            ci = ci - 1
+            cj = cj - 1
+        } elif (ci > 0 and dp[ci * (ny + 1) + cj] == (dp[(ci - 1) * (ny + 1) + cj] + gapPenalty)) {
+            alignX = str.substring(xStr, ci - 1, 1) + alignX
+            alignY = "-" + alignY
+            ci = ci - 1
+        } else {
+            alignX = "-" + alignX
+            alignY = str.substring(yStr, cj - 1, 1) + alignY
+            cj = cj - 1
+        }
+    }
+    return [alignX, alignY]
+}
+
+// Hirschberg divide-and-conquer recursive alignment
+func hirschbergAlign(xStr, yStr, matchScore, mismatchPenalty, gapPenalty) {
+    nx = str.length(xStr)
+    ny = str.length(yStr)
+
+    if (nx <= 1 or ny <= 1) {
+        return needlemanWunschBase(xStr, yStr, matchScore, mismatchPenalty, gapPenalty)
+    }
+
+    xMid = nx / 2
+    xLeft = str.substring(xStr, 0, xMid)
+    xRight = str.substring(xStr, xMid, nx - xMid)
+
+    scoreL = scoreRow(xLeft, yStr, matchScore, mismatchPenalty, gapPenalty)
+    scoreR = scoreRow(reverseStr(xRight), reverseStr(yStr), matchScore, mismatchPenalty, gapPenalty)
+
+    // Find optimal split position in Y
+    maxScore = -99999999
+    bestSplit = 0
+    k = 0
+    while (k <= ny) {
+        totalScore = scoreL[k] + scoreR[ny - k]
+        if (totalScore > maxScore) {
+            maxScore = totalScore
+            bestSplit = k
+        }
+        k = k + 1
+    }
+
+    yLeft = str.substring(yStr, 0, bestSplit)
+    yRight = str.substring(yStr, bestSplit, ny - bestSplit)
+
+    leftRes = hirschbergAlign(xLeft, yLeft, matchScore, mismatchPenalty, gapPenalty)
+    rightRes = hirschbergAlign(xRight, yRight, matchScore, mismatchPenalty, gapPenalty)
+
+    return [leftRes[0] + rightRes[0], leftRes[1] + rightRes[1]]
+}
+
+// Score the resulting aligned pair
+func computeAlignmentScore(alignX, alignY, matchScore, mismatchPenalty, gapPenalty) {
+    lenA = str.length(alignX)
+    score = 0
+    i = 0
+    while (i < lenA) {
+        chX = str.substring(alignX, i, 1)
+        chY = str.substring(alignY, i, 1)
+        if (chX == "-" or chY == "-") {
+            score = score + gapPenalty
+        } elif (chX == chY) {
+            score = score + matchScore
+        } else {
+            score = score + mismatchPenalty
+        }
+        i = i + 1
+    }
+    return score
+}
+
+func verifyAlignment(caseNum, label, seqA, seqB, matchScore, mismatchPenalty, gapPenalty, expectedScore) {
+    res = hirschbergAlign(seqA, seqB, matchScore, mismatchPenalty, gapPenalty)
+    alignA = res[0]
+    alignB = res[1]
+    actualScore = computeAlignmentScore(alignA, alignB, matchScore, mismatchPenalty, gapPenalty)
+
+    print("--- Case " + caseNum + ": " + label + " ---")
+    print("  Seq A   : " + seqA)
+    print("  Seq B   : " + seqB)
+    print("  Align A : " + alignA)
+    print("  Align B : " + alignB)
+    print("  Score   : " + actualScore + " (Expected: " + expectedScore + ")")
+
+    if (actualScore == expectedScore and str.length(alignA) == str.length(alignB)) {
+        print("  Status  : PASSED\n")
+        return 1
+    }
+    print("  Status  : FAILED\n")
+    return 0
+}
+
+allPassed = 1
+
+// Case 1: Genomic DNA sequence alignment
+c1 = verifyAlignment("1", "Genomic DNA Alignment", "AGTACGCA", "TATGC", 2, -1, -2, 1)
+if (c1 == 0) { allPassed = 0 }
+
+// Case 2: Protein peptide sequence
+c2 = verifyAlignment("2", "Protein Peptide Alignment", "HEAGAWGHEE", "PAWHEAE", 2, -1, -2, -1)
+if (c2 == 0) { allPassed = 0 }
+
+// Case 3: Restriction enzyme sequence
+c3 = verifyAlignment("3", "Restriction Enzyme Sequence", "GAATTC", "GATTA", 2, -1, -2, 5)
+if (c3 == 0) { allPassed = 0 }
+
+// Case 4: Identical sequences (zero gaps)
+c4 = verifyAlignment("4", "Identical Sequences", "NEVAARIZE", "NEVAARIZE", 3, -1, -2, 27)
+if (c4 == 0) { allPassed = 0 }
+
+// Case 5: Completely disjoint sequences
+c5 = verifyAlignment("5", "Disjoint Sequences", "AAAA", "TTTT", 1, -1, -2, -4)
+if (c5 == 0) { allPassed = 0 }
+
+// Case 6: Longer synthetic genome fragment (40 bp)
+longA = "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT"
+longB = "ACGTACGTACGTACGTACGTACGTACGTACGT"
+c6 = verifyAlignment("6", "Longer Genome Fragment (40bp)", longA, longB, 2, -1, -2, 48)
+if (c6 == 0) { allPassed = 0 }
+
+if (allPassed == 1) {
+    print("All Hirschberg space-efficient alignment cases: SUCCESS")
+} else {
+    print("Hirschberg alignment cases: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Hirschberg alignment benchmark completed in", elapsed, "ms")
