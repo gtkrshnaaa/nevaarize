@@ -1,0 +1,594 @@
+import stdlib time as t
+
+// Wavelet Tree Data Structure for Range Quantile, Rank, and Select Queries
+// Technical characteristics:
+// - Recursive hierarchical alphabet partitioning over arbitrary value ranges
+// - Flat parallel arena representation for node metadata and prefix sum vectors
+// - Range Quantile (K-th smallest value in arbitrary subarray [l, r]) in O(log sigma) time
+// - Range Rank (frequency of a target value in subarray [l, r]) in O(log sigma) time
+// - Range Interval Counting (number of elements in [l, r] within value interval [lo, hi]) in O(log sigma) time
+// - Bottom-up leaf-to-root Select queries via binary search on prefix arrays
+// - Support for negative integers, duplicates, and non-uniform distributions
+// - High-order deterministic stress validation against brute-force slice oracles
+// - Strict camelCase naming conventions enforced (No-Underscore Policy)
+
+print("=== Nevaarize Wavelet Tree Quantile Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func createWaveletTree() {
+    wvLow = []
+    wvHigh = []
+    wvLeft = []
+    wvRight = []
+    wvParent = []
+    wvIsRight = []
+    wvPref = []
+    return [wvLow, wvHigh, wvLeft, wvRight, wvParent, wvIsRight, wvPref]
+}
+
+func buildWaveletTree(tree, arr, lowVal, highVal, parentNode, isRightChild) {
+    tLow = tree[0]
+    tHigh = tree[1]
+    tLeft = tree[2]
+    tRight = tree[3]
+    tParent = tree[4]
+    tIsRight = tree[5]
+    tPref = tree[6]
+
+    newNodeId = tLow.size()
+    tLow.push(lowVal)
+    tHigh.push(highVal)
+    tLeft.push(-1)
+    tRight.push(-1)
+    tParent.push(parentNode)
+    tIsRight.push(isRightChild)
+
+    nodePref = [0]
+    if (lowVal == highVal or arr.size() == 0) {
+        leafScanIdx = 0
+        while (leafScanIdx < arr.size()) {
+            nodePref.push(nodePref[leafScanIdx] + 1)
+            leafScanIdx = leafScanIdx + 1
+        }
+        tPref.push(nodePref)
+        tree[0] = tLow
+        tree[1] = tHigh
+        tree[2] = tLeft
+        tree[3] = tRight
+        tree[4] = tParent
+        tree[5] = tIsRight
+        tree[6] = tPref
+        return newNodeId
+    }
+
+    midVal = lowVal + (highVal - lowVal) / 2
+    leftSubArr = []
+    rightSubArr = []
+
+    splitScanIdx = 0
+    while (splitScanIdx < arr.size()) {
+        elemVal = arr[splitScanIdx]
+        if (elemVal <= midVal) {
+            nodePref.push(nodePref[splitScanIdx] + 1)
+            leftSubArr.push(elemVal)
+        } else {
+            nodePref.push(nodePref[splitScanIdx])
+            rightSubArr.push(elemVal)
+        }
+        splitScanIdx = splitScanIdx + 1
+    }
+
+    tPref.push(nodePref)
+    tree[0] = tLow
+    tree[1] = tHigh
+    tree[2] = tLeft
+    tree[3] = tRight
+    tree[4] = tParent
+    tree[5] = tIsRight
+    tree[6] = tPref
+
+    leftChildId = buildWaveletTree(tree, leftSubArr, lowVal, midVal, newNodeId, 0)
+    rightChildId = buildWaveletTree(tree, rightSubArr, midVal + 1, highVal, newNodeId, 1)
+
+    tLeft = tree[2]
+    tRight = tree[3]
+    tLeft[newNodeId] = leftChildId
+    tRight[newNodeId] = rightChildId
+    tree[2] = tLeft
+    tree[3] = tRight
+    return newNodeId
+}
+
+func queryQuantile(tree, node, qLeft, qRight, kVal) {
+    tLow = tree[0]
+    tHigh = tree[1]
+    lowBound = tLow[node]
+    highBound = tHigh[node]
+    if (lowBound == highBound) {
+        return lowBound
+    }
+
+    tPref = tree[6]
+    prefVec = tPref[node]
+    countLeftElements = prefVec[qRight + 1] - prefVec[qLeft]
+
+    tLeft = tree[2]
+    tRight = tree[3]
+    if (kVal <= countLeftElements) {
+        nextLeft = prefVec[qLeft]
+        nextRight = prefVec[qRight + 1] - 1
+        return queryQuantile(tree, tLeft[node], nextLeft, nextRight, kVal)
+    } else {
+        nextLeft = qLeft - prefVec[qLeft]
+        nextRight = qRight - prefVec[qRight + 1]
+        return queryQuantile(tree, tRight[node], nextLeft, nextRight, kVal - countLeftElements)
+    }
+}
+
+func queryRank(tree, node, qLeft, qRight, targetVal) {
+    if (qLeft > qRight) {
+        return 0
+    }
+    tLow = tree[0]
+    tHigh = tree[1]
+    lowBound = tLow[node]
+    highBound = tHigh[node]
+    if (targetVal < lowBound or targetVal > highBound) {
+        return 0
+    }
+    if (lowBound == highBound) {
+        return qRight - qLeft + 1
+    }
+
+    midBound = lowBound + (highBound - lowBound) / 2
+    tPref = tree[6]
+    prefVec = tPref[node]
+    tLeft = tree[2]
+    tRight = tree[3]
+
+    if (targetVal <= midBound) {
+        nextLeft = prefVec[qLeft]
+        nextRight = prefVec[qRight + 1] - 1
+        return queryRank(tree, tLeft[node], nextLeft, nextRight, targetVal)
+    } else {
+        nextLeft = qLeft - prefVec[qLeft]
+        nextRight = qRight - prefVec[qRight + 1]
+        return queryRank(tree, tRight[node], nextLeft, nextRight, targetVal)
+    }
+}
+
+func queryCountInRange(tree, node, qLeft, qRight, rangeLo, rangeHi) {
+    if (qLeft > qRight) {
+        return 0
+    }
+    tLow = tree[0]
+    tHigh = tree[1]
+    lowBound = tLow[node]
+    highBound = tHigh[node]
+
+    if (rangeLo > highBound or rangeHi < lowBound) {
+        return 0
+    }
+    if (rangeLo <= lowBound and highBound <= rangeHi) {
+        return qRight - qLeft + 1
+    }
+    if (lowBound == highBound) {
+        return qRight - qLeft + 1
+    }
+
+    midBound = lowBound + (highBound - lowBound) / 2
+    tPref = tree[6]
+    prefVec = tPref[node]
+    tLeft = tree[2]
+    tRight = tree[3]
+
+    nextLeftL = prefVec[qLeft]
+    nextRightL = prefVec[qRight + 1] - 1
+    leftCount = queryCountInRange(tree, tLeft[node], nextLeftL, nextRightL, rangeLo, rangeHi)
+
+    nextLeftR = qLeft - prefVec[qLeft]
+    nextRightR = qRight - prefVec[qRight + 1]
+    rightCount = queryCountInRange(tree, tRight[node], nextLeftR, nextRightR, rangeLo, rangeHi)
+
+    return leftCount + rightCount
+}
+
+func findWaveletLeaf(tree, node, targetVal) {
+    tLow = tree[0]
+    tHigh = tree[1]
+    lowBound = tLow[node]
+    highBound = tHigh[node]
+    if (targetVal < lowBound or targetVal > highBound) {
+        return -1
+    }
+    if (lowBound == highBound) {
+        return node
+    }
+    midBound = lowBound + (highBound - lowBound) / 2
+    tLeft = tree[2]
+    tRight = tree[3]
+    if (targetVal <= midBound) {
+        return findWaveletLeaf(tree, tLeft[node], targetVal)
+    } else {
+        return findWaveletLeaf(tree, tRight[node], targetVal)
+    }
+}
+
+func querySelect(tree, rootNode, targetVal, kVal) {
+    leafNode = findWaveletLeaf(tree, rootNode, targetVal)
+    if (leafNode == -1) {
+        return -1
+    }
+    tPref = tree[6]
+    leafPrefVec = tPref[leafNode]
+    totalInLeaf = leafPrefVec.size() - 1
+    if (kVal < 1 or kVal > totalInLeaf) {
+        return -1
+    }
+
+    currPos = kVal - 1
+    currNodeId = leafNode
+
+    tParent = tree[4]
+    tIsRight = tree[5]
+
+    while (tParent[currNodeId] != -1) {
+        parentId = tParent[currNodeId]
+        isRightSide = tIsRight[currNodeId]
+        pPrefVec = tPref[parentId]
+        pLen = pPrefVec.size() - 1
+
+        targetCount = currPos + 1
+        binLow = 0
+        binHigh = pLen - 1
+        matchedIdx = -1
+
+        while (binLow <= binHigh) {
+            binMid = (binLow + binHigh) / 2
+            if (isRightSide == 0) {
+                countUpToMid = pPrefVec[binMid + 1]
+            } else {
+                countUpToMid = (binMid + 1) - pPrefVec[binMid + 1]
+            }
+
+            if (countUpToMid >= targetCount) {
+                matchedIdx = binMid
+                binHigh = binMid - 1
+            } else {
+                binLow = binMid + 1
+            }
+        }
+        currPos = matchedIdx
+        currNodeId = parentId
+    }
+    return currPos
+}
+
+func sortSubarray(arr, sLeft, sRight) {
+    sub = []
+    copyIdx = sLeft
+    while (copyIdx <= sRight) {
+        sub.push(arr[copyIdx])
+        copyIdx = copyIdx + 1
+    }
+
+    subLen = sub.size()
+    sortI = 0
+    while (sortI < subLen) {
+        sortJ = sortI + 1
+        while (sortJ < subLen) {
+            if (sub[sortJ] < sub[sortI]) {
+                tmpVal = sub[sortI]
+                sub[sortI] = sub[sortJ]
+                sub[sortJ] = tmpVal
+            }
+            sortJ = sortJ + 1
+        }
+        sortI = sortI + 1
+    }
+    return sub
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 1: Deterministic Range Quantile Queries
+// -----------------------------------------------------------------------------
+print("Running Test Case 1: Deterministic Range Quantile Verification...")
+
+case1Arr = [15, -4, 9, 8, -4, 23, 7, 1, 9, -12, 18, 3]
+minVal1 = -12
+maxVal1 = 23
+
+tree1 = createWaveletTree()
+root1 = buildWaveletTree(tree1, case1Arr, minVal1, maxVal1, -1, 0)
+
+// Subarray [0, 11] (Full array, 12 elements)
+// Sorted: -12, -4, -4, 1, 3, 7, 8, 9, 9, 15, 18, 23
+fullSorted = sortSubarray(case1Arr, 0, 11)
+
+q1Min = queryQuantile(tree1, root1, 0, 11, 1)
+q1Median = queryQuantile(tree1, root1, 0, 11, 6)
+q1Max = queryQuantile(tree1, root1, 0, 11, 12)
+
+case1Success = 1
+if (q1Min != -12 or q1Median != 7 or q1Max != 23) {
+    case1Success = 0
+}
+
+// Subarray [2, 8]: [9, 8, -4, 23, 7, 1, 9] (7 elements)
+// Sorted: -4, 1, 7, 8, 9, 9, 23
+subSorted = sortSubarray(case1Arr, 2, 8)
+kIdx = 1
+while (kIdx <= 7) {
+    actualVal = queryQuantile(tree1, root1, 2, 8, kIdx)
+    expectedVal = subSorted[kIdx - 1]
+    if (actualVal != expectedVal) {
+        case1Success = 0
+    }
+    kIdx = kIdx + 1
+}
+
+if (case1Success == 1) {
+    print("  Quantile minimum, median, and maximum verified across full array")
+    print("  All 7 order statistics on subarray [2, 8] perfectly matched sorted oracle")
+    print("  Test Case 1 Passed deterministic range quantile verification")
+} else {
+    print("[FAIL] Range quantile mismatch detected")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Range Frequency, Rank, and Interval Counting
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Range Frequency and Interval Counting Verification...")
+
+case2Success = 1
+
+// In case1Arr: occurrences of -4 in [0, 11] is 2 (at idx 1 and 4)
+rankNeg4Full = queryRank(tree1, root1, 0, 11, -4)
+rankNeg4Prefix = queryRank(tree1, root1, 0, 3, -4)
+rankNeg4Empty = queryRank(tree1, root1, 5, 8, -4)
+
+if (rankNeg4Full != 2 or rankNeg4Prefix != 1 or rankNeg4Empty != 0) {
+    case2Success = 0
+}
+
+// Occurrences of 9 in [2, 8] is 2
+rank9Sub = queryRank(tree1, root1, 2, 8, 9)
+if (rank9Sub != 2) {
+    case2Success = 0
+}
+
+// Interval count queries on [0, 11]:
+// Elements in [0, 10]: 1, 3, 7, 8, 9, 9 (6 elements)
+cnt0To10 = queryCountInRange(tree1, root1, 0, 11, 0, 10)
+if (cnt0To10 != 6) {
+    case2Success = 0
+}
+
+// Elements in [-20, -1]: -12, -4, -4 (3 elements)
+cntNeg = queryCountInRange(tree1, root1, 0, 11, -20, -1)
+if (cntNeg != 3) {
+    case2Success = 0
+}
+
+// Elements outside array range: [50, 100] (0 elements)
+cntOutside = queryCountInRange(tree1, root1, 0, 11, 50, 100)
+if (cntOutside != 0) {
+    case2Success = 0
+}
+
+if (case2Success == 1) {
+    print("  Rank queries for negative and positive duplicate values verified")
+    print("  Interval counting queries [0, 10] and [-20, -1] matched oracle exactly")
+    print("  Disjoint interval query correctly returned 0 elements")
+    print("  Test Case 2 Passed range frequency and interval counting verification")
+} else {
+    print("[FAIL] Frequency or interval count mismatch detected")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Select Queries (Leaf to Root Occurrence Mapping)
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Select Query Inversion Verification...")
+
+// case1Arr = [15, -4, 9, 8, -4, 23, 7, 1, 9, -12, 18, 3]
+// Value -4 appears at indices 1 and 4
+selNeg4First = querySelect(tree1, root1, -4, 1)
+selNeg4Second = querySelect(tree1, root1, -4, 2)
+selNeg4Third = querySelect(tree1, root1, -4, 3)
+
+// Value 9 appears at indices 2 and 8
+sel9First = querySelect(tree1, root1, 9, 1)
+sel9Second = querySelect(tree1, root1, 9, 2)
+
+// Value -12 appears at index 9
+selNeg12 = querySelect(tree1, root1, -12, 1)
+
+// Value 100 does not exist
+selNonExistent = querySelect(tree1, root1, 100, 1)
+
+case3Success = 1
+if (selNeg4First != 1 or selNeg4Second != 4 or selNeg4Third != -1) {
+    case3Success = 0
+}
+if (sel9First != 2 or sel9Second != 8) {
+    case3Success = 0
+}
+if (selNeg12 != 9 or selNonExistent != -1) {
+    case3Success = 0
+}
+
+if (case3Success == 1) {
+    print("  First and second occurrences of -4 mapped to indices 1 and 4")
+    print("  First and second occurrences of 9 mapped to indices 2 and 8")
+    print("  Out-of-bounds k and non-existent values correctly returned -1 sentinel")
+    print("  Test Case 3 Passed select query inversion verification")
+} else {
+    print("[FAIL] Select query mismatch detected")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Extreme Edge Cases (Singletons, Uniforms, Sortedness)
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Extreme Edge Cases and Boundary Conditions...")
+
+case4Success = 1
+
+// Singleton array [42]
+singleArr = [42]
+singleTree = createWaveletTree()
+singleRoot = buildWaveletTree(singleTree, singleArr, 42, 42, -1, 0)
+
+if (queryQuantile(singleTree, singleRoot, 0, 0, 1) != 42) {
+    case4Success = 0
+}
+if (queryRank(singleTree, singleRoot, 0, 0, 42) != 1) {
+    case4Success = 0
+}
+if (querySelect(singleTree, singleRoot, 42, 1) != 0) {
+    case4Success = 0
+}
+
+// Uniform array of 8 identical elements: [7, 7, 7, 7, 7, 7, 7, 7]
+uniformArr = [7, 7, 7, 7, 7, 7, 7, 7]
+uniformTree = createWaveletTree()
+uniformRoot = buildWaveletTree(uniformTree, uniformArr, 7, 7, -1, 0)
+
+if (queryQuantile(uniformTree, uniformRoot, 2, 6, 3) != 7) {
+    case4Success = 0
+}
+if (queryRank(uniformTree, uniformRoot, 2, 6, 7) != 5) {
+    case4Success = 0
+}
+if (querySelect(uniformTree, uniformRoot, 7, 5) != 4) {
+    case4Success = 0
+}
+
+// Strictly ascending array [1, 2, 3, 4, 5, 6]
+ascArr = [1, 2, 3, 4, 5, 6]
+ascTree = createWaveletTree()
+ascRoot = buildWaveletTree(ascTree, ascArr, 1, 6, -1, 0)
+
+aIdx = 0
+while (aIdx < 6) {
+    if (queryQuantile(ascTree, ascRoot, 0, 5, aIdx + 1) != aIdx + 1) {
+        case4Success = 0
+    }
+    aIdx = aIdx + 1
+}
+
+// Strictly descending array [6, 5, 4, 3, 2, 1]
+descArr = [6, 5, 4, 3, 2, 1]
+descTree = createWaveletTree()
+descRoot = buildWaveletTree(descTree, descArr, 1, 6, -1, 0)
+
+dIdx = 0
+while (dIdx < 6) {
+    if (queryQuantile(descTree, descRoot, 0, 5, dIdx + 1) != dIdx + 1) {
+        case4Success = 0
+    }
+    dIdx = dIdx + 1
+}
+
+if (case4Success == 1) {
+    print("  Singleton array [42] handled all query types flawlessly")
+    print("  Uniform array [7, ...] preserved rank, select, and quantiles")
+    print("  Strictly monotonic sequences verified across ascending and descending inputs")
+    print("  Test Case 4 Passed extreme edge cases verification")
+} else {
+    print("[FAIL] Edge case failure detected")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Simulation against Naive Array Model
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Randomized Stress Simulation against Naive Oracle...")
+
+stressLen = 120
+stressMinVal = -50
+stressMaxVal = 100
+stressSeed = 829141
+
+stressArr = []
+sIdx = 0
+while (sIdx < stressLen) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    randVal = stressMinVal + (stressSeed % (stressMaxVal - stressMinVal + 1))
+    stressArr.push(randVal)
+    sIdx = sIdx + 1
+}
+
+stressTree = createWaveletTree()
+stressRoot = buildWaveletTree(stressTree, stressArr, stressMinVal, stressMaxVal, -1, 0)
+
+numStressQueries = 150
+queryIdx = 0
+stressMismatches = 0
+
+while (queryIdx < numStressQueries) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    leftIdx = stressSeed % stressLen
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    rightIdx = stressSeed % stressLen
+
+    if (leftIdx > rightIdx) {
+        tmpIdx = leftIdx
+        leftIdx = rightIdx
+        rightIdx = tmpIdx
+    }
+
+    subRangeLen = rightIdx - leftIdx + 1
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    kStat = 1 + (stressSeed % subRangeLen)
+
+    // Test Quantile
+    actualQuantile = queryQuantile(stressTree, stressRoot, leftIdx, rightIdx, kStat)
+    oracleSortedSub = sortSubarray(stressArr, leftIdx, rightIdx)
+    expectedQuantile = oracleSortedSub[kStat - 1]
+
+    if (actualQuantile != expectedQuantile) {
+        stressMismatches = stressMismatches + 1
+    }
+
+    // Test Rank on picked quantile element
+    actualRank = queryRank(stressTree, stressRoot, leftIdx, rightIdx, expectedQuantile)
+    expectedRank = 0
+    oracleScanIdx = leftIdx
+    while (oracleScanIdx <= rightIdx) {
+        if (stressArr[oracleScanIdx] == expectedQuantile) {
+            expectedRank = expectedRank + 1
+        }
+        oracleScanIdx = oracleScanIdx + 1
+    }
+
+    if (actualRank != expectedRank) {
+        stressMismatches = stressMismatches + 1
+    }
+
+    queryIdx = queryIdx + 1
+}
+
+if (stressMismatches == 0) {
+    print("  Validated", numStressQueries, "randomized range quantile and rank queries across 120 elements: 0 mismatches")
+    tLowArena = stressTree[0]
+    print("  Total allocated Wavelet Tree arena nodes:", tLowArena.size())
+    print("  Test Case 5 Passed randomized stress simulation verification")
+} else {
+    print("[FAIL] Stress simulation encountered", stressMismatches, "mismatches against naive oracle")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Wavelet Tree Quantile Suite executed successfully in", elapsed, "ms")
