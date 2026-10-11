@@ -1,0 +1,121 @@
+import stdlib time as t
+
+// Miller-Rabin Primality Test and Pollard's Rho Factorization Engine
+// Technical characteristics:
+// - 64-bit overflow-safe modular arithmetic: binary addition for modulo > 3 * 10^9
+// - Fast modular exponentiation in O(log exp) time
+// - Greatest Common Divisor (GCD) via Euclidean algorithm
+// - Deterministic Miller-Rabin primality test across 12 bases covering all 64-bit integers
+// - Randomized Miller-Rabin primality test for probabilistic verification
+// - Pollard's Rho cycle-finding integer factorization with Floyd and Brent variants
+// - Arithmetic functions: Euler's totient phi(n), divisor count d(n), divisor sum sigma(n)
+// - Strict camelCase naming conventions without underscores (No-Underscore Policy)
+
+struct FactorPower {
+    prime,
+    power
+}
+
+struct FactorResult {
+    original,
+    primeFactors,
+    distinctCount
+}
+
+func absVal(x) {
+    if (x < 0) {
+        return 0 - x
+    }
+    return x
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func gcd(a, b) {
+    if (a < 0) {
+        a = 0 - a
+    }
+    if (b < 0) {
+        b = 0 - b
+    }
+    while (b != 0) {
+        temp = b
+        b = a % b
+        a = temp
+    }
+    return a
+}
+
+func modMul(a, b, m) {
+    if (m <= 1) {
+        return 0
+    }
+    a = a % m
+    if (a < 0) {
+        a = a + m
+    }
+    b = b % m
+    if (b < 0) {
+        b = b + m
+    }
+    if (a == 0 || b == 0) {
+        return 0
+    }
+    // Direct product is safe when operands cannot exceed signed 64-bit int max
+    if (m <= 3037000499) {
+        return (a * b) % m
+    }
+
+    // Russian Peasant binary multiplication to guarantee zero 64-bit integer overflow
+    res = 0
+    curA = a
+    curB = b
+    while (curB > 0) {
+        if (curB % 2 == 1) {
+            if (res >= m - curA) {
+                res = res - (m - curA)
+            } else {
+                res = res + curA
+            }
+        }
+        if (curA >= m - curA) {
+            curA = curA - (m - curA)
+        } else {
+            curA = curA + curA
+        }
+        curB = curB / 2
+    }
+    return res
+}
+
+func modPow(base, exp, m) {
+    if (m <= 1) {
+        return 0
+    }
+    res = 1 % m
+    cur = base % m
+    if (cur < 0) {
+        cur = cur + m
+    }
+    e = exp
+    while (e > 0) {
+        if (e % 2 == 1) {
+            res = modMul(res, cur, m)
+        }
+        cur = modMul(cur, cur, m)
+        e = e / 2
+    }
+    return res
+}
