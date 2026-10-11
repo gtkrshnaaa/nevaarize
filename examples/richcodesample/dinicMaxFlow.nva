@@ -1,0 +1,396 @@
+import stdlib time as t
+
+// Dinic's Blocking Flow Algorithm with Level Graph and Pointer Optimization
+// Computes maximum network flow and validates the Max-Flow Min-Cut theorem.
+// Key technical characteristics:
+// - Breadth-First Search (BFS) constructs the layered level graph
+// - Depth-First Search (DFS) with per-vertex current-edge pointer pruning finds blocking flows
+// - Adjacency represented via forward-star edge list with paired residual back-edges
+// - Explicit non-recursive traversal protects JIT frame stability
+// - Min-Cut reachable partition extraction verifies duality: MaxFlow == MinCutCapacity
+// Enforces strict camelCase naming conventions (No-Underscore Policy).
+
+print("=== Nevaarize Dinic Blocking Flow Algorithm ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func createDinicNetwork(numNodes) {
+    head = makeIntArray(numNodes, -1)
+    edgeTo = []
+    edgeCap = []
+    edgeFlow = []
+    edgeRev = []
+    edgeNext = []
+    return [numNodes, head, edgeTo, edgeCap, edgeFlow, edgeRev, edgeNext]
+}
+
+func addDirectedEdge(net, u, v, cap) {
+    head = net[1]
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeRev = net[5]
+    edgeNext = net[6]
+
+    forwardIdx = len(edgeTo)
+    reverseIdx = forwardIdx + 1
+
+    // Add forward edge u -> v with capacity
+    edgeTo.push(v)
+    edgeCap.push(cap)
+    edgeFlow.push(0)
+    edgeRev.push(reverseIdx)
+    edgeNext.push(head[u])
+    head[u] = forwardIdx
+
+    // Add residual back-edge v -> u with 0 capacity
+    edgeTo.push(u)
+    edgeCap.push(0)
+    edgeFlow.push(0)
+    edgeRev.push(forwardIdx)
+    edgeNext.push(head[v])
+    head[v] = reverseIdx
+
+    net[1] = head
+    net[2] = edgeTo
+    net[3] = edgeCap
+    net[4] = edgeFlow
+    net[5] = edgeRev
+    net[6] = edgeNext
+}
+
+func bfsLevelGraph(net, sourceNode, sinkNode) {
+    numNodes = net[0]
+    head = net[1]
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeNext = net[6]
+
+    level = makeIntArray(numNodes, -1)
+    level[sourceNode] = 0
+    queue = [sourceNode]
+    headPtr = 0
+
+    while (headPtr < len(queue)) {
+        curr = queue[headPtr]
+        headPtr = headPtr + 1
+
+        currEdge = head[curr]
+        while (currEdge != -1) {
+            nxt = edgeTo[currEdge]
+            residual = edgeCap[currEdge] - edgeFlow[currEdge]
+            if (residual > 0 and level[nxt] == -1) {
+                level[nxt] = level[curr] + 1
+                queue.push(nxt)
+            }
+            currEdge = edgeNext[currEdge]
+        }
+    }
+
+    return level
+}
+
+func runDinicMaxFlow(net, sourceNode, sinkNode) {
+    numNodes = net[0]
+    head = net[1]
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeRev = net[5]
+    edgeNext = net[6]
+
+    totalMaxFlow = 0
+    phaseCount = 0
+
+    level = bfsLevelGraph(net, sourceNode, sinkNode)
+    while (level[sinkNode] != -1) {
+        phaseCount = phaseCount + 1
+
+        // Initialize edge pointers with copy of head array
+        ptr = []
+        i = 0
+        while (i < numNodes) {
+            ptr.push(head[i])
+            i = i + 1
+        }
+
+        // Iterative DFS blocking flow loop using explicit path stacks
+        pathNodes = [sourceNode]
+        pathEdges = []
+
+        while (len(pathNodes) > 0) {
+            u = pathNodes[len(pathNodes) - 1]
+
+            if (u == sinkNode) {
+                // Find bottleneck residual along the augmenting path
+                bottleneck = edgeCap[pathEdges[0]] - edgeFlow[pathEdges[0]]
+                pIdx = 1
+                while (pIdx < len(pathEdges)) {
+                    e = pathEdges[pIdx]
+                    res = edgeCap[e] - edgeFlow[e]
+                    bottleneck = minInt(bottleneck, res)
+                    pIdx = pIdx + 1
+                }
+
+                // Push blocking flow along the path and adjust residual edges
+                pIdx = 0
+                while (pIdx < len(pathEdges)) {
+                    e = pathEdges[pIdx]
+                    rev = edgeRev[e]
+                    edgeFlow[e] = edgeFlow[e] + bottleneck
+                    edgeFlow[rev] = edgeFlow[rev] - bottleneck
+                    pIdx = pIdx + 1
+                }
+
+                totalMaxFlow = totalMaxFlow + bottleneck
+
+                // Backtrack to the earliest saturated edge on the path
+                firstSaturatedIdx = -1
+                pIdx = 0
+                while (pIdx < len(pathEdges) and firstSaturatedIdx == -1) {
+                    e = pathEdges[pIdx]
+                    if (edgeCap[e] - edgeFlow[e] == 0) {
+                        firstSaturatedIdx = pIdx
+                    }
+                    pIdx = pIdx + 1
+                }
+
+                // Truncate stack back to the saturated node
+                while (len(pathEdges) > firstSaturatedIdx) {
+                    discardEdge = pathEdges.pop()
+                    discardNode = pathNodes.pop()
+                }
+
+                // Advance pointer at the saturated vertex to avoid re-exploring
+                satNode = pathNodes[len(pathNodes) - 1]
+                ptr[satNode] = edgeNext[discardEdge]
+            } else {
+                // Search for valid admissible edge in level graph
+                admissibleEdge = -1
+                while (ptr[u] != -1 and admissibleEdge == -1) {
+                    e = ptr[u]
+                    nxt = edgeTo[e]
+                    res = edgeCap[e] - edgeFlow[e]
+                    if (res > 0 and level[nxt] == level[u] + 1) {
+                        admissibleEdge = e
+                    } else {
+                        ptr[u] = edgeNext[e]
+                    }
+                }
+
+                if (admissibleEdge != -1) {
+                    pathEdges.push(admissibleEdge)
+                    pathNodes.push(edgeTo[admissibleEdge])
+                } else {
+                    // Dead end: mark node unreachable in current phase
+                    level[u] = -1
+                    pathNodes.pop()
+                    if (len(pathEdges) > 0) {
+                        lastEdge = pathEdges.pop()
+                        prevNode = pathNodes[len(pathNodes) - 1]
+                        ptr[prevNode] = edgeNext[lastEdge]
+                    }
+                }
+            }
+        }
+
+        // Recompute level graph for next phase
+        level = bfsLevelGraph(net, sourceNode, sinkNode)
+    }
+
+    return [totalMaxFlow, phaseCount]
+}
+
+func computeMinCutCapacity(net, sourceNode) {
+    numNodes = net[0]
+    head = net[1]
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeNext = net[6]
+
+    visited = makeIntArray(numNodes, 0)
+    visited[sourceNode] = 1
+    queue = [sourceNode]
+    headPtr = 0
+
+    while (headPtr < len(queue)) {
+        curr = queue[headPtr]
+        headPtr = headPtr + 1
+
+        currEdge = head[curr]
+        while (currEdge != -1) {
+            nxt = edgeTo[currEdge]
+            residual = edgeCap[currEdge] - edgeFlow[currEdge]
+            if (visited[nxt] == 0 and residual > 0) {
+                visited[nxt] = 1
+                queue.push(nxt)
+            }
+            currEdge = edgeNext[currEdge]
+        }
+    }
+
+    minCutCapacity = 0
+    u = 0
+    while (u < numNodes) {
+        if (visited[u] == 1) {
+            currEdge = head[u]
+            while (currEdge != -1) {
+                nxt = edgeTo[currEdge]
+                if (visited[nxt] == 0 and edgeCap[currEdge] > 0) {
+                    minCutCapacity = minCutCapacity + edgeCap[currEdge]
+                }
+                currEdge = edgeNext[currEdge]
+            }
+        }
+        u = u + 1
+    }
+
+    return minCutCapacity
+}
+
+func verifyDinicCase(caseId, label, numNodes, edges, src, snk, expectedFlow) {
+    print("--- Test Case " + caseId + ": " + label + " ---")
+    print("Graph vertices: " + numNodes + ", Edges: " + (len(edges) / 3) + ", Source: " + src + ", Sink: " + snk)
+
+    net = createDinicNetwork(numNodes)
+    i = 0
+    while (i < len(edges)) {
+        addDirectedEdge(net, edges[i], edges[i + 1], edges[i + 2])
+        i = i + 3
+    }
+
+    res = runDinicMaxFlow(net, src, snk)
+    computedFlow = res[0]
+    phases = res[1]
+
+    minCutCap = computeMinCutCapacity(net, src)
+
+    print("Max Flow Computed  : " + computedFlow + " (Expected: " + expectedFlow + ")")
+    print("Min Cut Capacity   : " + minCutCap)
+    print("Blocking Phases    : " + phases)
+
+    dualityHolds = 0
+    if (computedFlow == minCutCap) {
+        dualityHolds = 1
+    }
+
+    flowMatches = 0
+    if (computedFlow == expectedFlow) {
+        flowMatches = 1
+    }
+
+    if (dualityHolds == 1 and flowMatches == 1) {
+        print("Verification       : PASSED (Max-Flow Min-Cut Theorem satisfied)\n")
+        return 1
+    }
+
+    print("Verification       : FAILED\n")
+    return 0
+}
+
+allTestsPassed = 1
+
+// Case 1: Classic Textbook Flow Network (6 nodes)
+e1 = [
+    0, 1, 10,
+    0, 2, 10,
+    1, 2, 2,
+    1, 3, 4,
+    1, 4, 8,
+    2, 4, 9,
+    3, 5, 10,
+    4, 3, 6,
+    4, 5, 10
+]
+c1 = verifyDinicCase("1", "Textbook 6-Node Flow Network", 6, e1, 0, 5, 19)
+if (c1 == 0) { allTestsPassed = 0 }
+
+// Case 2: Unit Capacity Matching Network
+e2 = [
+    0, 1, 1,
+    0, 2, 1,
+    0, 3, 1,
+    1, 4, 1,
+    1, 5, 1,
+    2, 5, 1,
+    2, 6, 1,
+    3, 4, 1,
+    4, 7, 1,
+    5, 7, 1,
+    6, 7, 1
+]
+c2 = verifyDinicCase("2", "Unit Capacity Matching Network", 8, e2, 0, 7, 3)
+if (c2 == 0) { allTestsPassed = 0 }
+
+// Case 3: Choke Point Bridge Network
+e3 = [
+    0, 1, 50,
+    0, 2, 50,
+    1, 2, 30,
+    2, 3, 15,
+    3, 4, 40,
+    3, 5, 40,
+    4, 5, 20
+]
+c3 = verifyDinicCase("3", "Choke Point Bottleneck Network", 6, e3, 0, 5, 15)
+if (c3 == 0) { allTestsPassed = 0 }
+
+// Case 4: Diamond Grid Multi-Path Flow
+e4 = [
+    0, 1, 10,
+    0, 2, 5,
+    0, 3, 15,
+    1, 4, 9,
+    1, 2, 4,
+    2, 5, 8,
+    3, 2, 4,
+    3, 6, 16,
+    4, 7, 10,
+    5, 4, 15,
+    5, 7, 10,
+    6, 5, 15,
+    6, 7, 10
+]
+c4 = verifyDinicCase("4", "Diamond Grid Multi-Path Network", 8, e4, 0, 7, 30)
+if (c4 == 0) { allTestsPassed = 0 }
+
+// Case 5: Layered DAG Pipeline (12 nodes)
+e5 = [
+    0, 1, 14,  0, 2, 16,  0, 3, 12,
+    1, 4, 11,  1, 5, 12,
+    2, 5, 14,  2, 6, 10,
+    3, 6, 8,   3, 7, 13,
+    4, 8, 15,  5, 8, 10,  5, 9, 12,
+    6, 9, 11,  7, 10, 14,
+    8, 11, 20, 9, 11, 25, 10, 11, 15
+]
+c5 = verifyDinicCase("5", "Layered 12-Node Industrial Pipeline", 12, e5, 0, 11, 42)
+if (c5 == 0) { allTestsPassed = 0 }
+
+print("--- Dinic Blocking Flow Algorithm Summary ---")
+if (allTestsPassed == 1) {
+    print("All Dinic network flow test suites: SUCCESS")
+} else {
+    print("Some Dinic network flow test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("Execution completed in", totalElapsed, "ms")
