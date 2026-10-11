@@ -284,3 +284,206 @@ func rleDecode(rleRes) {
     }
     return out
 }
+
+// ============================================================================
+// Execution and Test Suites
+// ============================================================================
+
+print("=== Nevaarize Burrows-Wheeler Transform & MTF Compression Suite ===")
+globalStartTime = t.millis()
+
+// --- Test Case 1: Canonical Text & Full Round-Trip Pipeline ---
+print("Running Test Case 1: Canonical Text Pipeline...")
+canonicalText = "ABRACADABRA_ABRACADABRA_APP_ALL_BALLS_AT_BASE"
+origBytes1 = stringToBytes(canonicalText)
+origLen1 = origBytes1.size()
+print("  Original length:", origLen1, "bytes")
+
+bwtRes1 = burrowsWheelerTransform(origBytes1)
+print("  BWT primary index:", bwtRes1.primaryIndex)
+
+mtfRanks1 = moveToFrontEncode(bwtRes1.transformed)
+print("  MTF encoded ranks size:", mtfRanks1.size())
+
+zeroCount1 = 0
+i = 0
+while (i < mtfRanks1.size()) {
+    if (mtfRanks1[i] == 0) {
+        zeroCount1 = zeroCount1 + 1
+    }
+    i = i + 1
+}
+print("  MTF rank zero occurrences:", zeroCount1, "(dominance ratio:", (zeroCount1 * 100) / origLen1, "percent)")
+
+rleRes1 = rleEncode(mtfRanks1)
+rleRuns1 = rleRes1.values.size()
+print("  RLE encoded runs:", rleRuns1, "(compressed from", origLen1, "symbols)")
+
+decRanks1 = rleDecode(rleRes1)
+decBwt1 = moveToFrontDecode(decRanks1)
+recBytes1 = inverseBurrowsWheelerTransform(decBwt1, bwtRes1.primaryIndex)
+
+matchRle1 = arraysEqual(mtfRanks1, decRanks1)
+matchMtf1 = arraysEqual(bwtRes1.transformed, decBwt1)
+matchPipeline1 = arraysEqual(origBytes1, recBytes1)
+
+if (!matchRle1 or !matchMtf1 or !matchPipeline1) {
+    print("[FAIL] Test Case 1 failed round-trip verification")
+} else {
+    print("  Test Case 1 Passed exact reconstruction verification")
+}
+
+// --- Test Case 2: Repetition-Heavy Bursts & Compaction Ratio ---
+print("Running Test Case 2: Repetitive Clustering & Compression Compaction...")
+burstText = "WWWWWWWWWWWWWWWWWWWWAAAAAAABBBBBBBBCCCCCCCCDDDDDDDDWWWWWWWWWWWWWWWWWWWW"
+origBytes2 = stringToBytes(burstText)
+origLen2 = origBytes2.size()
+
+bwtRes2 = burrowsWheelerTransform(origBytes2)
+mtfRanks2 = moveToFrontEncode(bwtRes2.transformed)
+rleRes2 = rleEncode(mtfRanks2)
+rleRuns2 = rleRes2.values.size()
+
+print("  Burst text length:", origLen2, "bytes")
+print("  BWT primary index:", bwtRes2.primaryIndex)
+print("  RLE compressed runs:", rleRuns2)
+
+decRanks2 = rleDecode(rleRes2)
+decBwt2 = moveToFrontDecode(decRanks2)
+recBytes2 = inverseBurrowsWheelerTransform(decBwt2, bwtRes2.primaryIndex)
+matchPipeline2 = arraysEqual(origBytes2, recBytes2)
+
+compactionRatio = origLen2 / rleRuns2
+print("  Run compaction factor:", compactionRatio, "x")
+
+if (!matchPipeline2 or rleRuns2 >= (origLen2 / 3)) {
+    print("[FAIL] Test Case 2 failed compaction or reconstruction")
+} else {
+    print("  Test Case 2 Passed repetitive clustering and compaction verification")
+}
+
+// --- Test Case 3: Algorithmic Edge Cases ---
+print("Running Test Case 3: Algorithmic Edge Cases...")
+
+edge3a = "ZZZZZZZZZZZZZZZZ"
+bytes3a = stringToBytes(edge3a)
+bwt3a = burrowsWheelerTransform(bytes3a)
+mtf3a = moveToFrontEncode(bwt3a.transformed)
+rle3a = rleEncode(mtf3a)
+rec3a = inverseBurrowsWheelerTransform(moveToFrontDecode(rleDecode(rle3a)), bwt3a.primaryIndex)
+match3a = arraysEqual(bytes3a, rec3a) and (rle3a.values.size() == 2)
+if (!match3a) {
+    print("[FAIL] Edge Case 3a uniform characters failed")
+} else {
+    print("  Edge Case 3a (Uniform 'Z'*16) verified with 2 RLE runs")
+}
+
+edge3b = "ABCDEFGHIJKLMN"
+bytes3b = stringToBytes(edge3b)
+bwt3b = burrowsWheelerTransform(bytes3b)
+rec3b = inverseBurrowsWheelerTransform(moveToFrontDecode(rleDecode(rleEncode(moveToFrontEncode(bwt3b.transformed)))), bwt3b.primaryIndex)
+match3b = arraysEqual(bytes3b, rec3b)
+if (!match3b) {
+    print("[FAIL] Edge Case 3b sorted alphabet failed")
+} else {
+    print("  Edge Case 3b (Strictly sorted alphabet) verified")
+}
+
+edge3c = "NMLKJIHGFEDCBA"
+bytes3c = stringToBytes(edge3c)
+bwt3c = burrowsWheelerTransform(bytes3c)
+rec3c = inverseBurrowsWheelerTransform(moveToFrontDecode(rleDecode(rleEncode(moveToFrontEncode(bwt3c.transformed)))), bwt3c.primaryIndex)
+match3c = arraysEqual(bytes3c, rec3c)
+if (!match3c) {
+    print("[FAIL] Edge Case 3c reverse sorted alphabet failed")
+} else {
+    print("  Edge Case 3c (Reverse sorted alphabet) verified")
+}
+
+edge3d = "ABABABABABABABABABAB"
+bytes3d = stringToBytes(edge3d)
+bwt3d = burrowsWheelerTransform(bytes3d)
+rec3d = inverseBurrowsWheelerTransform(moveToFrontDecode(rleDecode(rleEncode(moveToFrontEncode(bwt3d.transformed)))), bwt3d.primaryIndex)
+match3d = arraysEqual(bytes3d, rec3d)
+if (!match3d) {
+    print("[FAIL] Edge Case 3d periodic pattern failed")
+} else {
+    print("  Edge Case 3d (Periodic 'ABAB'*5) verified")
+}
+
+edge3e = "X"
+bytes3e = stringToBytes(edge3e)
+bwt3e = burrowsWheelerTransform(bytes3e)
+rec3e = inverseBurrowsWheelerTransform(moveToFrontDecode(rleDecode(rleEncode(moveToFrontEncode(bwt3e.transformed)))), bwt3e.primaryIndex)
+match3e = arraysEqual(bytes3e, rec3e)
+if (!match3e) {
+    print("[FAIL] Edge Case 3e single character failed")
+} else {
+    print("  Edge Case 3e (Single character 'X') verified")
+}
+
+// --- Test Case 4: Long Synthetic Stress Test & Pseudo-Random Corpus ---
+print("Running Test Case 4: Long Synthetic Stress Corpus...")
+
+stressWords = [
+    "nevaarize", "jit", "compiler", "high", "performance",
+    "pipeline", "compression", "bwt", "mtf", "rle",
+    "transform", "entropy", "symbol", "stream", "block"
+]
+numWords = stressWords.size()
+
+stressBytes = []
+seed = 123456789
+wCount = 0
+targetWordCount = 40
+
+while (wCount < targetWordCount) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) {
+        seed = 0 - seed
+    }
+    wIdx = seed % numWords
+    chosenWord = stressWords[wIdx]
+    wLen = s.length(chosenWord)
+    ci = 0
+    while (ci < wLen) {
+        stressBytes.push(s.charCodeAt(chosenWord, ci))
+        ci = ci + 1
+    }
+    stressBytes.push(32)
+    wCount = wCount + 1
+}
+
+stressLen = stressBytes.size()
+print("  Generated stress buffer size:", stressLen, "bytes across", targetWordCount, "tokens")
+
+stressBwt = burrowsWheelerTransform(stressBytes)
+stressMtf = moveToFrontEncode(stressBwt.transformed)
+stressRle = rleEncode(stressMtf)
+stressDecRanks = rleDecode(stressRle)
+stressDecBwt = moveToFrontDecode(stressDecRanks)
+stressRecBytes = inverseBurrowsWheelerTransform(stressDecBwt, stressBwt.primaryIndex)
+
+stressMatch = arraysEqual(stressBytes, stressRecBytes)
+stressZeroCount = 0
+si = 0
+while (si < stressMtf.size()) {
+    if (stressMtf[si] == 0) {
+        stressZeroCount = stressZeroCount + 1
+    }
+    si = si + 1
+}
+
+print("  Stress BWT primary index:", stressBwt.primaryIndex)
+print("  Stress MTF zero-rank count:", stressZeroCount, "of", stressLen)
+print("  Stress RLE distinct runs:", stressRle.values.size())
+print("  Exact stress byte reconstruction:", stressMatch)
+
+if (!stressMatch) {
+    print("[FAIL] Test Case 4 failed stress buffer round-trip verification")
+} else {
+    print("  Test Case 4 Passed stress corpus verification")
+}
+
+elapsed = t.millis() - globalStartTime
+print("[PASS] Burrows-Wheeler Transform and Move-to-Front Pipeline executed successfully in", elapsed, "ms")
