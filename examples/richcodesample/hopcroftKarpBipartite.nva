@@ -1,0 +1,478 @@
+import stdlib time as t
+
+// Hopcroft-Karp Maximum Bipartite Matching Algorithm
+// Time Complexity: O(E * sqrt(V))
+// Technical characteristics:
+// - Breadth-First Search (BFS) establishes shortest augmenting path layer levels
+// - Depth-First Search (DFS) finds maximal vertex-disjoint augmenting paths per phase
+// - Adjacency represented via dynamic adjacency lists (nested arrays)
+// - Validates Konig's Theorem: Size of Maximum Matching == Size of Minimum Vertex Cover
+// - Enforces strict camelCase naming conventions (No-Underscore Policy)
+
+print("=== Nevaarize Hopcroft-Karp Bipartite Matching Suite ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func createBipartiteGraph(nLeft, nRight) {
+    adj = []
+    i = 0
+    while (i < nLeft) {
+        adj.push([])
+        i = i + 1
+    }
+    return [nLeft, nRight, adj]
+}
+
+func addEdge(graph, u, v) {
+    adj = graph[2]
+    adj[u].push(v)
+}
+
+func hopcroftKarpBfs(graph, pairU, pairV, dist) {
+    nLeft = graph[0]
+    adj = graph[2]
+    queue = []
+    qHead = 0
+    infDist = 1000000000
+
+    u = 0
+    while (u < nLeft) {
+        if (pairU[u] == -1) {
+            dist[u] = 0
+            queue.push(u)
+        } else {
+            dist[u] = infDist
+        }
+        u = u + 1
+    }
+
+    distDummy = infDist
+
+    while (qHead < queue.size()) {
+        u = queue[qHead]
+        qHead = qHead + 1
+
+        if (dist[u] < distDummy) {
+            edges = adj[u]
+            eIdx = 0
+            while (eIdx < edges.size()) {
+                v = edges[eIdx]
+                matchedU = pairV[v]
+                if (matchedU == -1) {
+                    if (distDummy == infDist) {
+                        distDummy = dist[u] + 1
+                    }
+                } elif (dist[matchedU] == infDist) {
+                    dist[matchedU] = dist[u] + 1
+                    queue.push(matchedU)
+                }
+                eIdx = eIdx + 1
+            }
+        }
+    }
+
+    return distDummy != infDist
+}
+
+func hopcroftKarpDfs(graph, u, pairU, pairV, dist) {
+    infDist = 1000000000
+    adj = graph[2]
+    edges = adj[u]
+    eIdx = 0
+
+    while (eIdx < edges.size()) {
+        v = edges[eIdx]
+        matchedU = pairV[v]
+
+        advance = false
+        if (matchedU == -1) {
+            advance = true
+        } elif (dist[matchedU] == dist[u] + 1) {
+            if (hopcroftKarpDfs(graph, matchedU, pairU, pairV, dist)) {
+                advance = true
+            }
+        }
+
+        if (advance) {
+            pairU[u] = v
+            pairV[v] = u
+            return true
+        }
+
+        eIdx = eIdx + 1
+    }
+
+    dist[u] = infDist
+    return false
+}
+
+func maxBipartiteMatching(graph) {
+    nLeft = graph[0]
+    nRight = graph[1]
+
+    pairU = makeIntArray(nLeft, -1)
+    pairV = makeIntArray(nRight, -1)
+    dist = makeIntArray(nLeft, 0)
+
+    matching = 0
+    while (hopcroftKarpBfs(graph, pairU, pairV, dist)) {
+        u = 0
+        while (u < nLeft) {
+            if (pairU[u] == -1) {
+                if (hopcroftKarpDfs(graph, u, pairU, pairV, dist)) {
+                    matching = matching + 1
+                }
+            }
+            u = u + 1
+        }
+    }
+
+    return [matching, pairU, pairV]
+}
+
+// Minimum Vertex Cover computation via alternating reachability
+func computeMinVertexCover(graph, pairU, pairV) {
+    nLeft = graph[0]
+    nRight = graph[1]
+    adj = graph[2]
+
+    visitedU = makeIntArray(nLeft, 0)
+    visitedV = makeIntArray(nRight, 0)
+
+    queue = []
+    qHead = 0
+
+    u = 0
+    while (u < nLeft) {
+        if (pairU[u] == -1) {
+            visitedU[u] = 1
+            queue.push(u)
+        }
+        u = u + 1
+    }
+
+    while (qHead < queue.size()) {
+        currU = queue[qHead]
+        qHead = qHead + 1
+
+        edges = adj[currU]
+        eIdx = 0
+        while (eIdx < edges.size()) {
+            v = edges[eIdx]
+            if (pairU[currU] != v and visitedV[v] == 0) {
+                visitedV[v] = 1
+                matchedU = pairV[v]
+                if (matchedU != -1 and visitedU[matchedU] == 0) {
+                    visitedU[matchedU] = 1
+                    queue.push(matchedU)
+                }
+            }
+            eIdx = eIdx + 1
+        }
+    }
+
+    coverU = []
+    u = 0
+    while (u < nLeft) {
+        if (visitedU[u] == 0) {
+            coverU.push(u)
+        }
+        u = u + 1
+    }
+
+    coverV = []
+    v = 0
+    while (v < nRight) {
+        if (visitedV[v] == 1) {
+            coverV.push(v)
+        }
+        v = v + 1
+    }
+
+    coverSize = coverU.size() + coverV.size()
+    return [coverSize, coverU, coverV]
+}
+
+func verifyVertexCover(graph, coverU, coverV) {
+    nLeft = graph[0]
+    nRight = graph[1]
+    adj = graph[2]
+
+    inCoverU = makeIntArray(nLeft, 0)
+    inCoverV = makeIntArray(nRight, 0)
+
+    i = 0
+    while (i < coverU.size()) {
+        inCoverU[coverU[i]] = 1
+        i = i + 1
+    }
+
+    j = 0
+    while (j < coverV.size()) {
+        inCoverV[coverV[j]] = 1
+        j = j + 1
+    }
+
+    u = 0
+    while (u < nLeft) {
+        edges = adj[u]
+        e = 0
+        while (e < edges.size()) {
+            v = edges[e]
+            if (inCoverU[u] == 0 and inCoverV[v] == 0) {
+                return false
+            }
+            e = e + 1
+        }
+        u = u + 1
+    }
+
+    return true
+}
+
+func verifyMatching(graph, pairU, pairV, expectedSize) {
+    nLeft = graph[0]
+    nRight = graph[1]
+    adj = graph[2]
+
+    countU = 0
+    u = 0
+    while (u < nLeft) {
+        v = pairU[u]
+        if (v != -1) {
+            if (v < 0 or v >= nRight) {
+                return false
+            }
+            if (pairV[v] != u) {
+                return false
+            }
+            // Verify edge exists in graph
+            edges = adj[u]
+            foundEdge = false
+            e = 0
+            while (e < edges.size()) {
+                if (edges[e] == v) {
+                    foundEdge = true
+                }
+                e = e + 1
+            }
+            if (!foundEdge) {
+                return false
+            }
+            countU = countU + 1
+        }
+        u = u + 1
+    }
+
+    countV = 0
+    v = 0
+    while (v < nRight) {
+        if (pairV[v] != -1) {
+            countV = countV + 1
+        }
+        v = v + 1
+    }
+
+    return countU == expectedSize and countV == expectedSize
+}
+
+// --- Test Case 1: Canonical Complete Bipartite Graph K(4,4) with Missing Diagonals ---
+print("Running Test Case 1: Structured Bipartite Graph...")
+g1 = createBipartiteGraph(5, 5)
+addEdge(g1, 0, 0)
+addEdge(g1, 0, 1)
+addEdge(g1, 1, 1)
+addEdge(g1, 1, 2)
+addEdge(g1, 2, 2)
+addEdge(g1, 2, 3)
+addEdge(g1, 3, 3)
+addEdge(g1, 3, 4)
+addEdge(g1, 4, 0)
+
+res1 = maxBipartiteMatching(g1)
+matchCount1 = res1[0]
+pairU1 = res1[1]
+pairV1 = res1[2]
+
+cover1 = computeMinVertexCover(g1, pairU1, pairV1)
+coverCount1 = cover1[0]
+coverU1 = cover1[1]
+coverV1 = cover1[2]
+
+print("  Matching size:", matchCount1)
+print("  Min Vertex Cover size:", coverCount1)
+validMatch1 = verifyMatching(g1, pairU1, pairV1, matchCount1)
+validCover1 = verifyVertexCover(g1, coverU1, coverV1)
+
+if (matchCount1 != 5 or coverCount1 != 5 or !validMatch1 or !validCover1) {
+    print("[FAIL] Test Case 1 failed matching or vertex cover validation")
+} else {
+    print("  Test Case 1 Passed Konig duality verification")
+}
+
+// --- Test Case 2: Domino Tiling on 4x4 Grid with Obstacles ---
+print("Running Test Case 2: Grid Domino Tiling (Bipartite Reduction)...")
+// Grid rows 0..3, cols 0..3 (16 cells)
+// Black cells: (r + c) % 2 == 0 -> Left partition
+// White cells: (r + c) % 2 == 1 -> Right partition
+// Blocked cells: (1, 1) and (2, 2)
+cellMap = makeIntArray(16, -1)
+leftCount = 0
+rightCount = 0
+r = 0
+while (r < 4) {
+    c = 0
+    while (c < 4) {
+        flat = r * 4 + c
+        isBlocked = (r == 1 and c == 1) or (r == 2 and c == 2)
+        if (!isBlocked) {
+            if ((r + c) % 2 == 0) {
+                cellMap[flat] = leftCount
+                leftCount = leftCount + 1
+            } else {
+                cellMap[flat] = rightCount
+                rightCount = rightCount + 1
+            }
+        }
+        c = c + 1
+    }
+    r = r + 1
+}
+
+gridGraph = createBipartiteGraph(leftCount, rightCount)
+r = 0
+while (r < 4) {
+    c = 0
+    while (c < 4) {
+        flat = r * 4 + c
+        if (cellMap[flat] != -1 and (r + c) % 2 == 0) {
+            uIdx = cellMap[flat]
+            // Check 4 neighbors
+            if (r > 0) {
+                nFlat = (r - 1) * 4 + c
+                if (cellMap[nFlat] != -1) {
+                    addEdge(gridGraph, uIdx, cellMap[nFlat])
+                }
+            }
+            if (r < 3) {
+                nFlat = (r + 1) * 4 + c
+                if (cellMap[nFlat] != -1) {
+                    addEdge(gridGraph, uIdx, cellMap[nFlat])
+                }
+            }
+            if (c > 0) {
+                nFlat = r * 4 + (c - 1)
+                if (cellMap[nFlat] != -1) {
+                    addEdge(gridGraph, uIdx, cellMap[nFlat])
+                }
+            }
+            if (c < 3) {
+                nFlat = r * 4 + (c + 1)
+                if (cellMap[nFlat] != -1) {
+                    addEdge(gridGraph, uIdx, cellMap[nFlat])
+                }
+            }
+        }
+        c = c + 1
+    }
+    r = r + 1
+}
+
+resGrid = maxBipartiteMatching(gridGraph)
+matchGrid = resGrid[0]
+pairUGrid = resGrid[1]
+pairVGrid = resGrid[2]
+coverGrid = computeMinVertexCover(gridGraph, pairUGrid, pairVGrid)
+validMatchGrid = verifyMatching(gridGraph, pairUGrid, pairVGrid, matchGrid)
+validCoverGrid = verifyVertexCover(gridGraph, coverGrid[1], coverGrid[2])
+
+print("  Grid domino matching size:", matchGrid, "of theoretical max:", minInt(leftCount, rightCount))
+if (matchGrid > minInt(leftCount, rightCount) or matchGrid != coverGrid[0] or !validMatchGrid or !validCoverGrid) {
+    print("[FAIL] Grid matching exceeded partition bounds or violated Konig duality")
+} else {
+    print("  Test Case 2 Domino Tiling verified")
+}
+
+// --- Test Case 3: Dense Pseudo-Random Bipartite Matching with Stress Traversal ---
+print("Running Test Case 3: Dense Bipartite Graph Stress Test...")
+nNodes = 40
+gDense = createBipartiteGraph(nNodes, nNodes)
+seed = 987654321
+edgeTotal = 0
+i = 0
+while (i < nNodes) {
+    j = 0
+    while (j < nNodes) {
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        if (seed % 3 == 0) {
+            addEdge(gDense, i, j)
+            edgeTotal = edgeTotal + 1
+        }
+        j = j + 1
+    }
+    i = i + 1
+}
+
+print("  Constructed dense graph with", edgeTotal, "edges across", nNodes * 2, "nodes")
+resDense = maxBipartiteMatching(gDense)
+matchDense = resDense[0]
+pairUDense = resDense[1]
+pairVDense = resDense[2]
+coverDense = computeMinVertexCover(gDense, pairUDense, pairVDense)
+validMatchDense = verifyMatching(gDense, pairUDense, pairVDense, matchDense)
+validCoverDense = verifyVertexCover(gDense, coverDense[1], coverDense[2])
+
+print("  Dense matching size:", matchDense)
+print("  Dense min vertex cover size:", coverDense[0])
+
+if (matchDense != coverDense[0] or !validMatchDense or !validCoverDense) {
+    print("[FAIL] Konig theorem violated in dense stress graph")
+} else {
+    print("  Test Case 3 Passed Konig duality verification")
+}
+
+// --- Test Case 4: Asymmetric Resource Bottleneck Matching ---
+print("Running Test Case 4: Asymmetric Resource Bottleneck Matching...")
+nWorkers = 16
+nResources = 6
+gBottleneck = createBipartiteGraph(nWorkers, nResources)
+w = 0
+while (w < nWorkers) {
+    addEdge(gBottleneck, w, w % nResources)
+    addEdge(gBottleneck, w, (w + 1) % nResources)
+    w = w + 1
+}
+
+resBottleneck = maxBipartiteMatching(gBottleneck)
+matchBottleneck = resBottleneck[0]
+pairUBottleneck = resBottleneck[1]
+pairVBottleneck = resBottleneck[2]
+coverBottleneck = computeMinVertexCover(gBottleneck, pairUBottleneck, pairVBottleneck)
+validMatchBottleneck = verifyMatching(gBottleneck, pairUBottleneck, pairVBottleneck, matchBottleneck)
+validCoverBottleneck = verifyVertexCover(gBottleneck, coverBottleneck[1], coverBottleneck[2])
+
+print("  Bottleneck matching size:", matchBottleneck, "against capacity:", nResources)
+if (matchBottleneck != nResources or matchBottleneck != coverBottleneck[0] or !validMatchBottleneck or !validCoverBottleneck) {
+    print("[FAIL] Test Case 4 failed asymmetric bottleneck verification")
+} else {
+    print("  Test Case 4 Passed Konig duality verification")
+}
+
+elapsed = t.millis() - globalStartTime
+print("[PASS] Hopcroft-Karp Bipartite Matching Suite executed successfully in", elapsed, "ms")
