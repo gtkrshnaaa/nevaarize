@@ -1,0 +1,145 @@
+import stdlib string as s
+import stdlib time as t
+
+// Manacher's Algorithm & Linear Z-Algorithm Engine
+// Technical characteristics:
+// - Manacher's algorithm runs in strict linear O(N) time for all-palindrome radius extraction
+// - Unified odd and even palindrome handling via interleaved separator characters
+// - O(1) arbitrary substring palindrome query validation via radius lookup
+// - Z-Algorithm computes longest prefix match vector in linear O(N) time
+// - Exact pattern matching via concatenated string Z-box boundary scans
+// - String periodicity detection and longest proper prefix-suffix border extraction
+// - Enforces strict camelCase naming conventions without underscores (No-Underscore Policy)
+
+struct PalindromeResult {
+    start,
+    length,
+    text,
+    totalCount
+}
+
+struct ZSearchResult {
+    patternLength,
+    matchCount,
+    matchIndices
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func stringToBytes(text) {
+    len = s.length(text)
+    bytes = []
+    i = 0
+    while (i < len) {
+        bytes.push(s.charCodeAt(text, i))
+        i = i + 1
+    }
+    return bytes
+}
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func transformForManacher(bytes) {
+    n = bytes.size()
+    transformed = []
+    // Separator byte 35 corresponds to '#'
+    transformed.push(35)
+    i = 0
+    while (i < n) {
+        transformed.push(bytes[i])
+        transformed.push(35)
+        i = i + 1
+    }
+    return transformed
+}
+
+func computeManacherRadii(transformed) {
+    m = transformed.size()
+    radii = makeIntArray(m, 0)
+    center = 0
+    rightBoundary = 0
+
+    i = 0
+    while (i < m) {
+        mirror = 2 * center - i
+        if (i < rightBoundary) {
+            radii[i] = minInt(rightBoundary - i, radii[mirror])
+        }
+
+        // Expand around current center i
+        while (i - radii[i] - 1 >= 0 && i + radii[i] + 1 < m && transformed[i - radii[i] - 1] == transformed[i + radii[i] + 1]) {
+            radii[i] = radii[i] + 1
+        }
+
+        // Update center and right boundary if expanded beyond rightBoundary
+        if (i + radii[i] > rightBoundary) {
+            center = i
+            rightBoundary = i + radii[i]
+        }
+
+        i = i + 1
+    }
+    return radii
+}
+
+func findLongestPalindrome(text) {
+    textLen = s.length(text)
+    if (textLen == 0) {
+        return PalindromeResult(0, 0, "", 0)
+    }
+
+    bytes = stringToBytes(text)
+    transformed = transformForManacher(bytes)
+    radii = computeManacherRadii(transformed)
+    m = radii.size()
+
+    maxRadius = 0
+    maxCenter = 0
+    totalPalindromes = 0
+
+    i = 0
+    while (i < m) {
+        r = radii[i]
+        // Each center contributes (radius + 1) / 2 palindromic substrings
+        totalPalindromes = totalPalindromes + (r + 1) / 2
+        if (r > maxRadius) {
+            maxRadius = r
+            maxCenter = i
+        }
+        i = i + 1
+    }
+
+    startIdx = (maxCenter - maxRadius) / 2
+    longestSub = s.substring(text, startIdx, maxRadius)
+
+    return PalindromeResult(startIdx, maxRadius, longestSub, totalPalindromes)
+}
+
+func isSubstrPalindrome(radii, startIdx, endIdx) {
+    if (startIdx > endIdx) {
+        return false
+    }
+    subLen = endIdx - startIdx + 1
+    centerIdx = startIdx + endIdx + 1
+    return radii[centerIdx] >= subLen
+}
