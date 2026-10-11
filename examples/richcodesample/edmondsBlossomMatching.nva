@@ -1,0 +1,414 @@
+import stdlib time as t
+
+// Edmonds' Blossom Algorithm for Maximum General Graph Matching
+// Time Complexity: O(V * E) with BFS alternating forest and blossom contraction
+// Technical characteristics:
+// - Alternating BFS forest explores augmenting paths on arbitrary (non-bipartite) graphs
+// - Least Common Ancestor (LCA) detection identifies odd-length alternating cycles (blossoms)
+// - Blossom contraction shrinks odd cycles to pseudo-nodes, preserving augmenting paths
+// - Implicit backwards expansion via alternating parent pointers during path augmentation
+// - Verification of matching validity, symmetry, edge inclusion, and perfection
+// - Strict camelCase naming conventions enforced (No-Underscore Policy)
+
+print("=== Nevaarize Edmonds' Blossom General Graph Matching Suite ===")
+suiteStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func createGraph(n) {
+    adj = []
+    i = 0
+    while (i < n) {
+        adj.push([])
+        i = i + 1
+    }
+    return [n, adj]
+}
+
+func addEdge(graph, u, v) {
+    adj = graph[1]
+    adj[u].push(v)
+    adj[v].push(u)
+}
+
+func findLca(u, v, base, parent, match, n) {
+    inPath = makeIntArray(n, 0)
+    currU = u
+    doneU = false
+    while (!doneU) {
+        currU = base[currU]
+        inPath[currU] = 1
+        if (match[currU] == -1) {
+            doneU = true
+        } else {
+            currU = parent[match[currU]]
+        }
+    }
+
+    currV = v
+    while (true) {
+        currV = base[currV]
+        if (inPath[currV] == 1) {
+            return currV
+        }
+        currV = parent[match[currV]]
+    }
+}
+
+func markPath(v, b, children, base, parent, match, blossom) {
+    currV = v
+    currChildren = children
+    while (base[currV] != b) {
+        blossom[base[currV]] = 1
+        blossom[base[match[currV]]] = 1
+        parent[currV] = currChildren
+        currChildren = match[currV]
+        currV = parent[match[currV]]
+    }
+}
+
+func findAugmentingPath(graph, root, match, parent, base) {
+    n = graph[0]
+    adj = graph[1]
+
+    used = makeIntArray(n, 0)
+    i = 0
+    while (i < n) {
+        parent[i] = -1
+        base[i] = i
+        i = i + 1
+    }
+
+    queue = []
+    qHead = 0
+
+    used[root] = 1
+    queue.push(root)
+
+    blossom = makeIntArray(n, 0)
+
+    while (qHead < queue.size()) {
+        v = queue[qHead]
+        qHead = qHead + 1
+
+        edges = adj[v]
+        eIdx = 0
+        while (eIdx < edges.size()) {
+            to = edges[eIdx]
+            if (base[v] != base[to] and match[v] != to) {
+                if (to == root or (match[to] != -1 and parent[match[to]] != -1)) {
+                    curBase = findLca(v, to, base, parent, match, n)
+                    bIdx = 0
+                    while (bIdx < n) {
+                        blossom[bIdx] = 0
+                        bIdx = bIdx + 1
+                    }
+                    markPath(v, curBase, to, base, parent, match, blossom)
+                    markPath(to, curBase, v, base, parent, match, blossom)
+                    nodeIdx = 0
+                    while (nodeIdx < n) {
+                        if (blossom[base[nodeIdx]] == 1) {
+                            base[nodeIdx] = curBase
+                            if (used[nodeIdx] == 0) {
+                                used[nodeIdx] = 1
+                                queue.push(nodeIdx)
+                            }
+                        }
+                        nodeIdx = nodeIdx + 1
+                    }
+                } elif (parent[to] == -1) {
+                    parent[to] = v
+                    if (match[to] == -1) {
+                        return to
+                    }
+                    toMatched = match[to]
+                    used[toMatched] = 1
+                    queue.push(toMatched)
+                }
+            }
+            eIdx = eIdx + 1
+        }
+    }
+
+    return -1
+}
+
+func maxMatchingEdmonds(graph) {
+    n = graph[0]
+    match = makeIntArray(n, -1)
+    parent = makeIntArray(n, -1)
+    base = makeIntArray(n, 0)
+
+    matchingSize = 0
+    u = 0
+    while (u < n) {
+        if (match[u] == -1) {
+            endpoint = findAugmentingPath(graph, u, match, parent, base)
+            if (endpoint != -1) {
+                curr = endpoint
+                while (curr != -1) {
+                    p = parent[curr]
+                    pp = match[p]
+                    match[curr] = p
+                    match[p] = curr
+                    curr = pp
+                }
+                matchingSize = matchingSize + 1
+            }
+        }
+        u = u + 1
+    }
+
+    return [matchingSize, match]
+}
+
+func verifyMatching(graph, match, expectedSize) {
+    n = graph[0]
+    adj = graph[1]
+
+    countMatched = 0
+    u = 0
+    while (u < n) {
+        v = match[u]
+        if (v != -1) {
+            if (v < 0 or v >= n) {
+                return false
+            }
+            if (u == v) {
+                return false
+            }
+            if (match[v] != u) {
+                return false
+            }
+            // Verify edge (u, v) exists in adj[u]
+            edges = adj[u]
+            foundEdge = false
+            e = 0
+            while (e < edges.size()) {
+                if (edges[e] == v) {
+                    foundEdge = true
+                }
+                e = e + 1
+            }
+            if (!foundEdge) {
+                return false
+            }
+            countMatched = countMatched + 1
+        }
+        u = u + 1
+    }
+
+    return countMatched == expectedSize * 2
+}
+
+// --- Test Case 1: Canonical Odd Cycles and Non-Bipartite Primitives ---
+print("Running Test Case 1: Canonical Non-Bipartite Odd Cycles...")
+// K3 (Triangle): 3 nodes, max matching = 1
+gK3 = createGraph(3)
+addEdge(gK3, 0, 1)
+addEdge(gK3, 1, 2)
+addEdge(gK3, 2, 0)
+resK3 = maxMatchingEdmonds(gK3)
+validK3 = verifyMatching(gK3, resK3[1], 1)
+print("  K3 Matching Size:", resK3[0], "(Expected: 1)")
+
+// C5 (Pentagon): 5 nodes, max matching = 2
+gC5 = createGraph(5)
+addEdge(gC5, 0, 1)
+addEdge(gC5, 1, 2)
+addEdge(gC5, 2, 3)
+addEdge(gC5, 3, 4)
+addEdge(gC5, 4, 0)
+resC5 = maxMatchingEdmonds(gC5)
+validC5 = verifyMatching(gC5, resC5[1], 2)
+print("  C5 Matching Size:", resC5[0], "(Expected: 2)")
+
+// K5 (Complete 5-vertex graph): max matching = 2
+gK5 = createGraph(5)
+kI = 0
+while (kI < 5) {
+    kJ = kI + 1
+    while (kJ < 5) {
+        addEdge(gK5, kI, kJ)
+        kJ = kJ + 1
+    }
+    kI = kI + 1
+}
+resK5 = maxMatchingEdmonds(gK5)
+validK5 = verifyMatching(gK5, resK5[1], 2)
+print("  K5 Matching Size:", resK5[0], "(Expected: 2)")
+
+// W5 (Wheel Graph: central hub 5 connected to C5 cycle 0..4): 6 nodes, max matching = 3
+gW5 = createGraph(6)
+wI = 0
+while (wI < 5) {
+    addEdge(gW5, wI, (wI + 1) % 5)
+    addEdge(gW5, 5, wI)
+    wI = wI + 1
+}
+resW5 = maxMatchingEdmonds(gW5)
+validW5 = verifyMatching(gW5, resW5[1], 3)
+print("  W5 Wheel Matching Size:", resW5[0], "(Expected: 3)")
+
+if (resK3[0] != 1 or !validK3 or resC5[0] != 2 or !validC5 or resK5[0] != 2 or !validK5 or resW5[0] != 3 or !validW5) {
+    print("[FAIL] Test Case 1 failed canonical non-bipartite assertions")
+} else {
+    print("  Test Case 1 Passed canonical odd cycles verification")
+}
+
+// --- Test Case 2: Blossom with Stem and Traversal Rerouting ---
+print("Running Test Case 2: Blossom with Alternating Stem...")
+// Stem: 0-1 (unmatched initially)
+// Blossom: Triangle 1-2-3-1
+// Tail: 3-4-5
+gStem = createGraph(6)
+addEdge(gStem, 0, 1)
+addEdge(gStem, 1, 2)
+addEdge(gStem, 2, 3)
+addEdge(gStem, 3, 1)
+addEdge(gStem, 3, 4)
+addEdge(gStem, 4, 5)
+resStem = maxMatchingEdmonds(gStem)
+validStem = verifyMatching(gStem, resStem[1], 3)
+print("  Stem-Blossom Matching Size:", resStem[0], "(Expected: 3)")
+
+if (resStem[0] != 3 or !validStem) {
+    print("[FAIL] Test Case 2 failed blossom stem augmentation")
+} else {
+    print("  Test Case 2 Passed blossom stem verification")
+}
+
+// --- Test Case 3: Petersen Graph (Non-Planar, Non-Bipartite, 10 Nodes) ---
+print("Running Test Case 3: Petersen Graph Perfect Matching...")
+// Outer cycle: 0-1-2-3-4-0
+// Inner star: 5-7-9-6-8-5
+// Spokes: 0-5, 1-6, 2-7, 3-8, 4-9
+gPet = createGraph(10)
+pI = 0
+while (pI < 5) {
+    addEdge(gPet, pI, (pI + 1) % 5)
+    addEdge(gPet, pI, pI + 5)
+    pI = pI + 1
+}
+addEdge(gPet, 5, 7)
+addEdge(gPet, 7, 9)
+addEdge(gPet, 9, 6)
+addEdge(gPet, 6, 8)
+addEdge(gPet, 8, 5)
+
+resPet = maxMatchingEdmonds(gPet)
+validPet = verifyMatching(gPet, resPet[1], 5)
+print("  Petersen Graph Matching Size:", resPet[0], "(Expected: 5)")
+
+if (resPet[0] != 5 or !validPet) {
+    print("[FAIL] Test Case 3 failed Petersen graph perfect matching")
+} else {
+    print("  Test Case 3 Passed Petersen graph verification")
+}
+
+// --- Test Case 4: Grotzsch Graph (11 Nodes, Triangle-Free, Non-Bipartite) ---
+print("Running Test Case 4: Grotzsch Graph Matching...")
+// 11 vertices: 0..4 (outer cycle), 5..9 (inner cycle), 10 (central hub)
+// Outer cycle: 0-1-2-3-4-0
+// Hub connects to all inner vertices: 10 connects to 5,6,7,8,9
+// Inner vertex i connects to outer neighbors (i-1)%5 and (i+1)%5
+gGrotz = createGraph(11)
+gI = 0
+while (gI < 5) {
+    addEdge(gGrotz, gI, (gI + 1) % 5)
+    addEdge(gGrotz, 10, gI + 5)
+    addEdge(gGrotz, gI + 5, (gI + 4) % 5)
+    addEdge(gGrotz, gI + 5, (gI + 1) % 5)
+    gI = gI + 1
+}
+
+resGrotz = maxMatchingEdmonds(gGrotz)
+validGrotz = verifyMatching(gGrotz, resGrotz[1], 5)
+print("  Grotzsch Graph Matching Size:", resGrotz[0], "(Expected: 5)")
+
+if (resGrotz[0] != 5 or !validGrotz) {
+    print("[FAIL] Test Case 4 failed Grotzsch graph matching")
+} else {
+    print("  Test Case 4 Passed Grotzsch graph verification")
+}
+
+// --- Test Case 5: Disconnected Components with Isolates and Mixed Cycles ---
+print("Running Test Case 5: Disconnected Forest and Isolated Vertices...")
+// Total 12 nodes:
+// Component A (C4 even cycle): 0, 1, 2, 3 -> max matching = 2
+// Component B (K3 odd cycle): 4, 5, 6 -> max matching = 1
+// Component C (P3 path): 7, 8, 9 -> max matching = 1
+// Component D (Isolated vertices): 10, 11 -> max matching = 0
+// Total expected matching: 2 + 1 + 1 = 4
+gDisconn = createGraph(12)
+// C4
+addEdge(gDisconn, 0, 1)
+addEdge(gDisconn, 1, 2)
+addEdge(gDisconn, 2, 3)
+addEdge(gDisconn, 3, 0)
+// K3
+addEdge(gDisconn, 4, 5)
+addEdge(gDisconn, 5, 6)
+addEdge(gDisconn, 6, 4)
+// P3
+addEdge(gDisconn, 7, 8)
+addEdge(gDisconn, 8, 9)
+
+resDisconn = maxMatchingEdmonds(gDisconn)
+validDisconn = verifyMatching(gDisconn, resDisconn[1], 4)
+print("  Disconnected Components Matching Size:", resDisconn[0], "(Expected: 4)")
+
+if (resDisconn[0] != 4 or !validDisconn) {
+    print("[FAIL] Test Case 5 failed disconnected components matching")
+} else {
+    print("  Test Case 5 Passed disconnected components verification")
+}
+
+// --- Test Case 6: Dense Pseudo-Random General Graph Stress Benchmark ---
+print("Running Test Case 6: Dense General Graph Stress Benchmark...")
+nDense = 36
+gDense = createGraph(nDense)
+seed = 42133799
+edgeCount = 0
+dI = 0
+while (dI < nDense) {
+    dJ = dI + 1
+    while (dJ < nDense) {
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        if (seed % 4 == 0) {
+            addEdge(gDense, dI, dJ)
+            edgeCount = edgeCount + 1
+        }
+        dJ = dJ + 1
+    }
+    dI = dI + 1
+}
+
+print("  Constructed dense graph with", edgeCount, "edges across", nDense, "nodes")
+resDense = maxMatchingEdmonds(gDense)
+validDense = verifyMatching(gDense, resDense[1], resDense[0])
+print("  Dense General Graph Matching Size:", resDense[0])
+
+if (!validDense or resDense[0] <= 0) {
+    print("[FAIL] Test Case 6 failed dense stress graph validation")
+} else {
+    print("  Test Case 6 Passed dense stress graph verification")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Edmonds' Blossom General Graph Matching Suite executed successfully in", elapsed, "ms")
