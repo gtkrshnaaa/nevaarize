@@ -1,0 +1,144 @@
+import stdlib time as t
+
+// Bellman-Ford & Shortest Path Faster Algorithm (SPFA)
+// Solves single-source shortest paths on graphs with arbitrary edge weights.
+// Detects negative weight cycles.
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Bellman-Ford & SPFA Shortest Path ===")
+startTime = t.millis()
+
+func runBellmanFord(numNodes, edgeU, edgeV, edgeW, sourceNode) {
+    print("\n--- Bellman-Ford Algorithm (Source:", sourceNode, ") ---")
+    infVal = 999999
+    dist = []
+    i = 0
+    while (i < numNodes) {
+        dist.push(infVal)
+        i = i + 1
+    }
+    dist[sourceNode] = 0
+
+    numEdges = len(edgeU)
+    // Relax all edges V - 1 times
+    pass = 0
+    while (pass < numNodes - 1) {
+        e = 0
+        while (e < numEdges) {
+            u = edgeU[e]
+            v = edgeV[e]
+            w = edgeW[e]
+            if (dist[u] != infVal and dist[u] + w < dist[v]) {
+                dist[v] = dist[u] + w
+            }
+            e = e + 1
+        }
+        pass = pass + 1
+    }
+
+    // Check for negative weight cycles on V-th pass
+    hasCycle = 0
+    e = 0
+    while (e < numEdges) {
+        u = edgeU[e]
+        v = edgeV[e]
+        w = edgeW[e]
+        if (dist[u] != infVal and dist[u] + w < dist[v]) {
+            hasCycle = 1
+        }
+        e = e + 1
+    }
+
+    if (hasCycle == 1) {
+        print("Negative weight cycle detected by Bellman-Ford!")
+    } else {
+        print("Shortest distances from source node", sourceNode, ":")
+        i = 0
+        while (i < numNodes) {
+            print("  Node", i, "-> distance:", dist[i])
+            i = i + 1
+        }
+    }
+    return hasCycle
+}
+
+func runSPFA(numNodes, edgeU, edgeV, edgeW, sourceNode) {
+    print("\n--- SPFA Algorithm (Source:", sourceNode, ") ---")
+    infVal = 999999
+    dist = []
+    inQueue = []
+    updateCount = []
+    i = 0
+    while (i < numNodes) {
+        dist.push(infVal)
+        inQueue.push(0)
+        updateCount.push(0)
+        i = i + 1
+    }
+
+    dist[sourceNode] = 0
+    queue = [sourceNode]
+    inQueue[sourceNode] = 1
+    qHead = 0
+    hasCycle = 0
+    numEdges = len(edgeU)
+
+    while (qHead < len(queue) and hasCycle == 0) {
+        u = queue[qHead]
+        qHead = qHead + 1
+        inQueue[u] = 0
+
+        e = 0
+        while (e < numEdges and hasCycle == 0) {
+            if (edgeU[e] == u) {
+                v = edgeV[e]
+                w = edgeW[e]
+                if (dist[u] + w < dist[v]) {
+                    dist[v] = dist[u] + w
+                    if (inQueue[v] == 0) {
+                        queue.push(v)
+                        inQueue[v] = 1
+                        updateCount[v] = updateCount[v] + 1
+                        if (updateCount[v] >= numNodes) {
+                            hasCycle = 1
+                        }
+                    }
+                }
+            }
+            e = e + 1
+        }
+    }
+
+    if (hasCycle == 1) {
+        print("Negative weight cycle detected by SPFA!")
+    } else {
+        print("SPFA shortest distances from source node", sourceNode, ":")
+        i = 0
+        while (i < numNodes) {
+            print("  Node", i, "-> distance:", dist[i])
+            i = i + 1
+        }
+    }
+    return hasCycle
+}
+
+// Graph 1: 5 vertices, 8 edges with negative edge weights, NO negative cycle
+nodes1 = 5
+u1 = [0, 0, 1, 1, 1, 2, 3, 4]
+v1 = [1, 2, 2, 3, 4, 4, 2, 3]
+w1 = [-1, 4, 3, 2, 2, 5, 1, -3]
+
+bfRes1 = runBellmanFord(nodes1, u1, v1, w1, 0)
+spfaRes1 = runSPFA(nodes1, u1, v1, w1, 0)
+
+// Graph 2: 4 vertices with negative cycle (1 -> 2 -> 3 -> 1 with weight sum: 1 + (-4) + 2 = -1)
+nodes2 = 4
+u2 = [0, 1, 2, 3]
+v2 = [1, 2, 3, 1]
+w2 = [5, 1, -4, 2]
+
+bfRes2 = runBellmanFord(nodes2, u2, v2, w2, 0)
+spfaRes2 = runSPFA(nodes2, u2, v2, w2, 0)
+
+elapsed = t.millis() - startTime
+print("\nBellman-Ford and SPFA benchmark completed in:", elapsed, "ms")
