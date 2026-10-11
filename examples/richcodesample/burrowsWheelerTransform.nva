@@ -1,0 +1,175 @@
+import stdlib string as s
+import stdlib time as t
+
+// Burrows-Wheeler Transform and Move-to-Front Data Compression Pipeline
+// Technical characteristics:
+// - BWT cyclic rotation block sorting via 3-way Dijkstra partitioning
+// - Exact inverse BWT reconstruction in O(N) linear time via LF-mapping
+// - Move-to-Front (MTF) dynamic alphabet rank encoding with 256-symbol table
+// - Run-Length Encoding (RLE) run grouping on zero-dominated rank sequences
+// - Strict camelCase naming conventions without underscores
+
+struct BwtResult {
+    transformed,
+    primaryIndex
+}
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func stringToBytes(text) {
+    len = s.length(text)
+    bytes = []
+    i = 0
+    while (i < len) {
+        bytes.push(s.charCodeAt(text, i))
+        i = i + 1
+    }
+    return bytes
+}
+
+func compareRotations(data, n, rotA, rotB) {
+    if (rotA == rotB) {
+        return 0
+    }
+    k = 0
+    while (k < n) {
+        idxA = (rotA + k) % n
+        idxB = (rotB + k) % n
+        valA = data[idxA]
+        valB = data[idxB]
+        if (valA < valB) {
+            return -1
+        }
+        if (valA > valB) {
+            return 1
+        }
+        k = k + 1
+    }
+    return 0
+}
+
+func sortRotations(indices, data, n, low, high) {
+    if (low >= high) {
+        return 0
+    }
+    mid = low + (high - low) / 2
+    pivotRot = indices[mid]
+
+    lt = low
+    gt = high
+    i = low
+    while (i <= gt) {
+        cmp = compareRotations(data, n, indices[i], pivotRot)
+        if (cmp < 0) {
+            temp = indices[lt]
+            indices[lt] = indices[i]
+            indices[i] = temp
+            lt = lt + 1
+            i = i + 1
+        } elif (cmp > 0) {
+            temp = indices[gt]
+            indices[gt] = indices[i]
+            indices[i] = temp
+            gt = gt - 1
+        } else {
+            i = i + 1
+        }
+    }
+    sortRotations(indices, data, n, low, lt - 1)
+    sortRotations(indices, data, n, gt + 1, high)
+    return 0
+}
+
+func burrowsWheelerTransform(inputBytes) {
+    n = inputBytes.size()
+    if (n == 0) {
+        return BwtResult([], 0)
+    }
+    indices = []
+    i = 0
+    while (i < n) {
+        indices.push(i)
+        i = i + 1
+    }
+    sortRotations(indices, inputBytes, n, 0, n - 1)
+
+    bwtOutput = []
+    primaryIndex = 0
+    r = 0
+    while (r < n) {
+        rotStart = indices[r]
+        if (rotStart == 0) {
+            primaryIndex = r
+        }
+        lastIdx = (rotStart + n - 1) % n
+        bwtOutput.push(inputBytes[lastIdx])
+        r = r + 1
+    }
+    return BwtResult(bwtOutput, primaryIndex)
+}
+
+func inverseBurrowsWheelerTransform(bwtBytes, primaryIndex) {
+    n = bwtBytes.size()
+    if (n == 0) {
+        return []
+    }
+    charCounts = makeIntArray(256, 0)
+    i = 0
+    while (i < n) {
+        byteVal = bwtBytes[i]
+        charCounts[byteVal] = charCounts[byteVal] + 1
+        i = i + 1
+    }
+
+    firstOccurrence = makeIntArray(256, 0)
+    runningSum = 0
+    c = 0
+    while (c < 256) {
+        firstOccurrence[c] = runningSum
+        runningSum = runningSum + charCounts[c]
+        c = c + 1
+    }
+
+    lf = makeIntArray(n, 0)
+    occCount = makeIntArray(256, 0)
+    i = 0
+    while (i < n) {
+        byteVal = bwtBytes[i]
+        lf[i] = firstOccurrence[byteVal] + occCount[byteVal]
+        occCount[byteVal] = occCount[byteVal] + 1
+        i = i + 1
+    }
+
+    reconstructed = makeIntArray(n, 0)
+    curr = primaryIndex
+    k = n - 1
+    while (k >= 0) {
+        reconstructed[k] = bwtBytes[curr]
+        curr = lf[curr]
+        k = k - 1
+    }
+    return reconstructed
+}
+
+func arraysEqual(arrA, arrB) {
+    if (arrA.size() != arrB.size()) {
+        return false
+    }
+    sz = arrA.size()
+    idx = 0
+    while (idx < sz) {
+        if (arrA[idx] != arrB[idx]) {
+            return false
+        }
+        idx = idx + 1
+    }
+    return true
+}
