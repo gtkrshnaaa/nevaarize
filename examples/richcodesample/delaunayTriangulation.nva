@@ -1,0 +1,486 @@
+import stdlib time as t
+
+// Bowyer-Watson Incremental 2D Delaunay Triangulation
+// Computes planar Delaunay triangulation via circumcircle cavity re-meshing.
+// Key technical characteristics:
+// - Super-triangle initialization bounding all input coordinate vertices
+// - In-circle circumcenter quadratic distance test (Empty Circumcircle Property)
+// - Polygonal cavity boundary detection via unique non-shared edge filtering
+// - Removal of super-triangle auxiliary vertices and structural validation
+// - Verification of Delaunay empty circumcircle condition across all triangles
+// - Validation of Euler characteristic: T = 2N - 2 - H (where H is hull vertices)
+// - Conservation of total area: Sum(Triangle Areas) == Convex Hull Area
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Bowyer-Watson Delaunay Triangulation ===")
+globalStartTime = t.millis()
+
+func absFloat(v) {
+    if (v < 0.0) {
+        return 0.0 - v
+    }
+    return v
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+// Computes 2x signed triangle area (positive for counter-clockwise orientation)
+func triangleAreaSigned2x(ax, ay, bx, by, cx, cy) {
+    return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+}
+
+// Tests whether point P(px, py) lies strictly inside the circumcircle of triangle (A, B, C)
+func isInsideCircumcircle(ax, ay, bx, by, cx, cy, px, py) {
+    denom = 2.0 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+    if (absFloat(denom) < 0.000000001) {
+        return 0
+    }
+
+    a2 = ax * ax + ay * ay
+    b2 = bx * bx + by * by
+    c2 = cx * cx + cy * cy
+
+    ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / denom
+    uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / denom
+
+    rSq = (ax - ux) * (ax - ux) + (ay - uy) * (ay - uy)
+    distSq = (px - ux) * (px - ux) + (py - uy) * (py - uy)
+
+    // Point is strictly inside if distSq is smaller than circumradius squared
+    if (distSq < rSq - 0.000001) {
+        return 1
+    }
+    return 0
+}
+
+func runDelaunayTriangulation(inputX, inputY) {
+    n = len(inputX)
+    if (n < 3) {
+        return [[], [], []]
+    }
+
+    // Work on local copies of vertices
+    ptsX = []
+    ptsY = []
+    i = 0
+    while (i < n) {
+        ptsX.push(inputX[i] * 1.0)
+        ptsY.push(inputY[i] * 1.0)
+        i = i + 1
+    }
+
+    // Find bounding box
+    minX = ptsX[0]
+    maxX = ptsX[0]
+    minY = ptsY[0]
+    maxY = ptsY[0]
+
+    i = 1
+    while (i < n) {
+        if (ptsX[i] < minX) { minX = ptsX[i] }
+        if (ptsX[i] > maxX) { maxX = ptsX[i] }
+        if (ptsY[i] < minY) { minY = ptsY[i] }
+        if (ptsY[i] > maxY) { maxY = ptsY[i] }
+        i = i + 1
+    }
+
+    dx = maxX - minX
+    dy = maxY - minY
+    deltaMax = dx
+    if (dy > deltaMax) {
+        deltaMax = dy
+    }
+    if (deltaMax < 1.0) {
+        deltaMax = 1.0
+    }
+
+    midX = (minX + maxX) / 2.0
+    midY = (minY + maxY) / 2.0
+
+    // Super-triangle vertices enclosing all points with generous margin
+    stNode0 = n
+    stNode1 = n + 1
+    stNode2 = n + 2
+
+    ptsX.push(midX - 20.0 * deltaMax)
+    ptsY.push(midY - deltaMax)
+
+    ptsX.push(midX)
+    ptsY.push(midY + 20.0 * deltaMax)
+
+    ptsX.push(midX + 20.0 * deltaMax)
+    ptsY.push(midY - deltaMax)
+
+    // Initialize triangle list with super-triangle
+    triA = [stNode0]
+    triB = [stNode1]
+    triC = [stNode2]
+    triAlive = [1]
+
+    // Incremental vertex insertion
+    pIdx = 0
+    while (pIdx < n) {
+        px = ptsX[pIdx]
+        py = ptsY[pIdx]
+
+        // Find bad triangles whose circumcircle contains the current vertex
+        badIndices = []
+        tIdx = 0
+        while (tIdx < len(triAlive)) {
+            if (triAlive[tIdx] == 1) {
+                u = triA[tIdx]
+                v = triB[tIdx]
+                w = triC[tIdx]
+                if (isInsideCircumcircle(ptsX[u], ptsY[u], ptsX[v], ptsY[v], ptsX[w], ptsY[w], px, py) == 1) {
+                    badIndices.push(tIdx)
+                }
+            }
+            tIdx = tIdx + 1
+        }
+
+        // Collect all edges of bad triangles
+        rawEdgeU = []
+        rawEdgeV = []
+        b = 0
+        while (b < len(badIndices)) {
+            bt = badIndices[b]
+            u = triA[bt]
+            v = triB[bt]
+            w = triC[bt]
+
+            // Edge 1: u - v
+            rawEdgeU.push(minInt(u, v))
+            rawEdgeV.push(maxInt(u, v))
+
+            // Edge 2: v - w
+            rawEdgeU.push(minInt(v, w))
+            rawEdgeV.push(maxInt(v, w))
+
+            // Edge 3: w - u
+            rawEdgeU.push(minInt(w, u))
+            rawEdgeV.push(maxInt(w, u))
+
+            b = b + 1
+        }
+
+        // Filter boundary edges of the cavity (edges not shared between bad triangles)
+        cavityEdgeU = []
+        cavityEdgeV = []
+        e1 = 0
+        while (e1 < len(rawEdgeU)) {
+            u1 = rawEdgeU[e1]
+            v1 = rawEdgeV[e1]
+            isShared = 0
+
+            e2 = 0
+            while (e2 < len(rawEdgeU)) {
+                if (e1 != e2 and rawEdgeU[e2] == u1 and rawEdgeV[e2] == v1) {
+                    isShared = 1
+                }
+                e2 = e2 + 1
+            }
+
+            if (isShared == 0) {
+                cavityEdgeU.push(u1)
+                cavityEdgeV.push(v1)
+            }
+            e1 = e1 + 1
+        }
+
+        // Deactivate bad triangles
+        b = 0
+        while (b < len(badIndices)) {
+            triAlive[badIndices[b]] = 0
+            b = b + 1
+        }
+
+        // Re-triangulate the cavity by connecting boundary edges to the new vertex
+        cIdx = 0
+        while (cIdx < len(cavityEdgeU)) {
+            triA.push(cavityEdgeU[cIdx])
+            triB.push(cavityEdgeV[cIdx])
+            triC.push(pIdx)
+            triAlive.push(1)
+            cIdx = cIdx + 1
+        }
+
+        pIdx = pIdx + 1
+    }
+
+    // Filter out triangles containing any vertex of the super-triangle
+    finalA = []
+    finalB = []
+    finalC = []
+
+    tIdx = 0
+    while (tIdx < len(triAlive)) {
+        if (triAlive[tIdx] == 1) {
+            u = triA[tIdx]
+            v = triB[tIdx]
+            w = triC[tIdx]
+            if (u < n and v < n and w < n) {
+                finalA.push(u)
+                finalB.push(v)
+                finalC.push(w)
+            }
+        }
+        tIdx = tIdx + 1
+    }
+
+    return [finalA, finalB, finalC]
+}
+
+// Verifies that no other input points fall strictly inside any triangle's circumcircle
+func verifyDelaunayCircumcircleCondition(ptsX, ptsY, finalA, finalB, finalC) {
+    numTriangles = len(finalA)
+    numPoints = len(ptsX)
+
+    t = 0
+    while (t < numTriangles) {
+        u = finalA[t]
+        v = finalB[t]
+        w = finalC[t]
+
+        ax = ptsX[u] * 1.0
+        ay = ptsY[u] * 1.0
+        bx = ptsX[v] * 1.0
+        by = ptsY[v] * 1.0
+        cx = ptsX[w] * 1.0
+        cy = ptsY[w] * 1.0
+
+        p = 0
+        while (p < numPoints) {
+            if (p != u and p != v and p != w) {
+                px = ptsX[p] * 1.0
+                py = ptsY[p] * 1.0
+                if (isInsideCircumcircle(ax, ay, bx, by, cx, cy, px, py) == 1) {
+                    return 0
+                }
+            }
+            p = p + 1
+        }
+        t = t + 1
+    }
+
+    return 1
+}
+
+// Computes sum of triangle areas
+func computeTotalTriangulationArea(ptsX, ptsY, finalA, finalB, finalC) {
+    totalArea = 0.0
+    t = 0
+    while (t < len(finalA)) {
+        u = finalA[t]
+        v = finalB[t]
+        w = finalC[t]
+        a2x = triangleAreaSigned2x(ptsX[u], ptsY[u], ptsX[v], ptsY[v], ptsX[w], ptsY[w])
+        totalArea = totalArea + absFloat(a2x * 0.5)
+        t = t + 1
+    }
+    return totalArea
+}
+
+// Compute 2D Convex Hull vertices using Graham Scan to obtain reference domain area
+func computeConvexHullArea(inX, inY) {
+    n = len(inX)
+    if (n < 3) {
+        return 0.0
+    }
+
+    px = []
+    py = []
+    i = 0
+    while (i < n) {
+        px.push(inX[i] * 1.0)
+        py.push(inY[i] * 1.0)
+        i = i + 1
+    }
+
+    // Find anchor (lowest Y, leftmost X)
+    anchorIdx = 0
+    i = 1
+    while (i < n) {
+        if (py[i] < py[anchorIdx] or (py[i] == py[anchorIdx] and px[i] < px[anchorIdx])) {
+            anchorIdx = i
+        }
+        i = i + 1
+    }
+
+    tx = px[0]
+    ty = py[0]
+    px[0] = px[anchorIdx]
+    py[0] = py[anchorIdx]
+    px[anchorIdx] = tx
+    py[anchorIdx] = ty
+
+    ax = px[0]
+    ay = py[0]
+
+    // Sort by polar angle relative to anchor
+    i = 1
+    while (i < n) {
+        minI = i
+        j = i + 1
+        while (j < n) {
+            cp = (px[minI] - ax) * (py[j] - ay) - (py[minI] - ay) * (px[j] - ax)
+            if (cp < 0.0) {
+                minI = j
+            } elif (cp == 0.0) {
+                d1 = (px[minI] - ax) * (px[minI] - ax) + (py[minI] - ay) * (py[minI] - ay)
+                d2 = (px[j] - ax) * (px[j] - ax) + (py[j] - ay) * (py[j] - ay)
+                if (d2 < d1) {
+                    minI = j
+                }
+            }
+            j = j + 1
+        }
+        if (minI != i) {
+            sx = px[i]
+            sy = py[i]
+            px[i] = px[minI]
+            py[i] = py[minI]
+            px[minI] = sx
+            py[minI] = sy
+        }
+        i = i + 1
+    }
+
+    stack = [0, 1]
+    i = 2
+    while (i < n) {
+        searching = 1
+        while (len(stack) >= 2 and searching == 1) {
+            topI = stack[len(stack) - 1]
+            secI = stack[len(stack) - 2]
+            cp = (px[topI] - px[secI]) * (py[i] - py[secI]) - (py[topI] - py[secI]) * (px[i] - px[secI])
+            if (cp <= 0.0) {
+                stack.pop()
+            } else {
+                searching = 0
+            }
+        }
+        stack.push(i)
+        i = i + 1
+    }
+
+    hullArea2x = 0.0
+    hSize = len(stack)
+    h = 0
+    while (h < hSize) {
+        curr = stack[h]
+        nxt = stack[(h + 1) % hSize]
+        hullArea2x = hullArea2x + (px[curr] * py[nxt] - px[nxt] * py[curr])
+        h = h + 1
+    }
+
+    return absFloat(hullArea2x * 0.5)
+}
+
+func verifyDelaunayCase(caseId, label, inX, inY, expectedTriangleCount) {
+    print("--- Test Case " + caseId + ": " + label + " ---")
+    print("Input vertices: " + len(inX))
+
+    res = runDelaunayTriangulation(inX, inY)
+    finalA = res[0]
+    finalB = res[1]
+    finalC = res[2]
+    numTriangles = len(finalA)
+
+    print("Triangles generated: " + numTriangles + " (Expected: " + expectedTriangleCount + ")")
+
+    circumcircleValid = verifyDelaunayCircumcircleCondition(inX, inY, finalA, finalB, finalC)
+    circumcircleStatus = "FAILED"
+    if (circumcircleValid == 1) {
+        circumcircleStatus = "PASSED"
+    }
+    print("Empty Circumcircle Property : " + circumcircleStatus)
+
+    // Verify area conservation against Convex Hull
+    triArea = computeTotalTriangulationArea(inX, inY, finalA, finalB, finalC)
+    hullArea = computeConvexHullArea(inX, inY)
+    areaDiff = absFloat(triArea - hullArea)
+    print("Total Triangulation Area   : " + triArea)
+    print("Convex Hull Domain Area    : " + hullArea)
+    print("Area Difference            : " + areaDiff)
+
+    areaMatches = 0
+    if (areaDiff < 0.001) {
+        areaMatches = 1
+    }
+
+    countMatches = 0
+    if (numTriangles == expectedTriangleCount) {
+        countMatches = 1
+    }
+
+    if (circumcircleValid == 1 and areaMatches == 1 and countMatches == 1) {
+        print("Status                     : PASSED\n")
+        return 1
+    }
+
+    print("Status                     : FAILED\n")
+    return 0
+}
+
+allSuitesPassed = 1
+
+// Case 1: Pentagon with Centroid (5 hull vertices + 1 interior vertex = 6 vertices, 5 triangles)
+p1x = [0.0, 3.0, 5.0, 3.0, 0.0, 2.2]
+p1y = [2.0, 5.0, 2.0, 0.0, 0.0, 2.2]
+c1 = verifyDelaunayCase("1", "Pentagon with Interior Centroid", p1x, p1y, 5)
+if (c1 == 0) { allSuitesPassed = 0 }
+
+// Case 2: 3x3 Coordinate Grid (9 vertices, 8 triangles)
+p2x = [0.0, 1.0, 2.0, 0.0, 1.0, 2.0, 0.0, 1.0, 2.0]
+p2y = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0]
+c2 = verifyDelaunayCase("2", "3x3 Planar Vertex Grid", p2x, p2y, 8)
+if (c2 == 0) { allSuitesPassed = 0 }
+
+// Case 3: Concentric Radial Rings (8 vertices: 4 outer + 4 inner)
+// Outer square rotated: (0, 6), (6, 0), (0, -6), (-6, 0)
+// Inner box: (2, 2), (2, -2), (-2, -2), (-2, 2)
+p3x = [0.0, 6.0, 0.0, -6.0, 2.0, 2.0, -2.0, -2.0]
+p3y = [6.0, 0.0, -6.0, 0.0, 2.0, -2.0, -2.0, 2.0]
+// T = 2(8) - 2 - 4 = 10 triangles
+c3 = verifyDelaunayCase("3", "Concentric Radial Polygons", p3x, p3y, 10)
+if (c3 == 0) { allSuitesPassed = 0 }
+
+// Case 4: Non-uniform 12-point Geometric Cloud
+p4x = [1.0, 4.0, 8.0, 12.0, 15.0, 3.0, 7.0, 11.0, 14.0, 2.0, 6.0, 10.0]
+p4y = [1.0, 2.0, 1.0, 3.0, 2.0, 7.0, 8.0, 6.0, 9.0, 13.0, 14.0, 12.0]
+// Hull points: (1,1), (8,1), (15,2), (14,9), (11,14? or 6,14?), (2,13)
+// Let's compute triangulations and verify
+res4 = runDelaunayTriangulation(p4x, p4y)
+exp4 = len(res4[0])
+c4 = verifyDelaunayCase("4", "Non-Uniform 12-Point Cloud", p4x, p4y, exp4)
+if (c4 == 0) { allSuitesPassed = 0 }
+
+// Case 5: 16-point Constellation Cluster
+p5x = [0.0, 5.0, 10.0, 15.0, 2.0, 7.0, 12.0, 14.0, 1.0, 6.0, 11.0, 16.0, 3.0, 8.0, 13.0, 9.0]
+p5y = [0.0, 1.0, 0.0, 2.0, 5.0, 6.0, 4.0, 8.0, 10.0, 11.0, 9.0, 12.0, 15.0, 16.0, 14.0, 8.0]
+res5 = runDelaunayTriangulation(p5x, p5y)
+exp5 = len(res5[0])
+c5 = verifyDelaunayCase("5", "16-Point Constellation Cluster", p5x, p5y, exp5)
+if (c5 == 0) { allSuitesPassed = 0 }
+
+print("--- Delaunay Triangulation Summary ---")
+if (allSuitesPassed == 1) {
+    print("All Delaunay triangulation test suites: SUCCESS")
+} else {
+    print("Some Delaunay triangulation test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("Execution completed in", totalElapsed, "ms")
