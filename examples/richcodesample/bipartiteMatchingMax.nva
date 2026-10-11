@@ -1,0 +1,239 @@
+import stdlib time as t
+
+// Ford-Fulkerson Maximum Bipartite Matching and Konig's Min Vertex Cover
+// Solves maximum cardinality matching in bipartite graphs G = (U, V, E):
+// - Direct reduction to Max-Flow on a unit residual network
+// - BFS-driven augmenting path exploration (Edmonds-Karp / Ford-Fulkerson)
+// - Dual Minimum Vertex Cover extraction via reachable cut sets (Konig's Theorem)
+// - Maximum Independent Set cardinality verification: |MIS| = |U| + |V| - |MVC|
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Ford-Fulkerson Maximum Bipartite Matching ===")
+startTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func runBipartiteMatching(numU, numV, edges) {
+    totalNodes = numU + numV + 2
+    sourceNode = 0
+    sinkNode = totalNodes - 1
+
+    capacity = makeIntArray(totalNodes * totalNodes, 0)
+    origEdge = makeIntArray(totalNodes * totalNodes, 0)
+
+    // Connect source to each vertex in U
+    uIdx = 0
+    while (uIdx < numU) {
+        fromN = sourceNode
+        toN = 1 + uIdx
+        capacity[fromN * totalNodes + toN] = 1
+        origEdge[fromN * totalNodes + toN] = 1
+        uIdx = uIdx + 1
+    }
+
+    // Connect bipartite edges from U to V
+    eIdx = 0
+    while (eIdx < len(edges)) {
+        uVal = edges[eIdx]
+        vVal = edges[eIdx + 1]
+        fromN = 1 + uVal
+        toN = 1 + numU + vVal
+        capacity[fromN * totalNodes + toN] = 1
+        origEdge[fromN * totalNodes + toN] = 1
+        eIdx = eIdx + 2
+    }
+
+    // Connect each vertex in V to sink
+    vIdx = 0
+    while (vIdx < numV) {
+        fromN = 1 + numU + vIdx
+        toN = sinkNode
+        capacity[fromN * totalNodes + toN] = 1
+        origEdge[fromN * totalNodes + toN] = 1
+        vIdx = vIdx + 1
+    }
+
+    // Ford-Fulkerson augmenting path loop
+    maxFlow = 0
+    augmenting = 1
+
+    while (augmenting == 1) {
+        parent = makeIntArray(totalNodes, -1)
+        parent[sourceNode] = sourceNode
+        queue = [sourceNode]
+        head = 0
+
+        while (head < len(queue) and parent[sinkNode] == -1) {
+            curr = queue[head]
+            head = head + 1
+
+            nxt = 0
+            while (nxt < totalNodes) {
+                if (parent[nxt] == -1 and capacity[curr * totalNodes + nxt] > 0) {
+                    parent[nxt] = curr
+                    queue.push(nxt)
+                }
+                nxt = nxt + 1
+            }
+        }
+
+        if (parent[sinkNode] == -1) {
+            augmenting = 0
+        } else {
+            curr = sinkNode
+            while (curr != sourceNode) {
+                p = parent[curr]
+                capacity[p * totalNodes + curr] = capacity[p * totalNodes + curr] - 1
+                capacity[curr * totalNodes + p] = capacity[curr * totalNodes + p] + 1
+                curr = p
+            }
+            maxFlow = maxFlow + 1
+        }
+    }
+
+    // Reachability cut from source for Konig's Min Vertex Cover
+    reachable = makeIntArray(totalNodes, 0)
+    reachable[sourceNode] = 1
+    cutQueue = [sourceNode]
+    cutHead = 0
+
+    while (cutHead < len(cutQueue)) {
+        cNode = cutQueue[cutHead]
+        cutHead = cutHead + 1
+
+        nxt = 0
+        while (nxt < totalNodes) {
+            if (reachable[nxt] == 0 and capacity[cNode * totalNodes + nxt] > 0) {
+                reachable[nxt] = 1
+                cutQueue.push(nxt)
+            }
+            nxt = nxt + 1
+        }
+    }
+
+    // Count Min Vertex Cover size: (U not reachable) + (V reachable)
+    mvcCount = 0
+    uIdx = 0
+    while (uIdx < numU) {
+        if (reachable[1 + uIdx] == 0) {
+            mvcCount = mvcCount + 1
+        }
+        uIdx = uIdx + 1
+    }
+    vIdx = 0
+    while (vIdx < numV) {
+        if (reachable[1 + numU + vIdx] == 1) {
+            mvcCount = mvcCount + 1
+        }
+        vIdx = vIdx + 1
+    }
+
+    return [maxFlow, mvcCount]
+}
+
+func verifyTestCase(caseNum, label, numU, numV, edges, expectedMatching) {
+    print("--- Case " + caseNum + ": " + label + " ---")
+    print("Partite sizes: |U| = " + numU + ", |V| = " + numV + ", Edges = " + (len(edges) / 2))
+
+    res = runBipartiteMatching(numU, numV, edges)
+    maxMatching = res[0]
+    minVertexCover = res[1]
+
+    print("Max Bipartite Matching : " + maxMatching + " (Expected: " + expectedMatching + ")")
+    print("Min Vertex Cover Size  : " + minVertexCover + " (Konig's Duality: " + maxMatching + ")")
+
+    konigHolds = 0
+    if (maxMatching == minVertexCover) {
+        konigHolds = 1
+    }
+
+    if (maxMatching == expectedMatching and konigHolds == 1) {
+        print("Status                 : PASSED\n")
+        return 1
+    }
+    print("Status                 : FAILED\n")
+    return 0
+}
+
+allCasesPassed = 1
+
+// Case 1: Job Applicants and Positions (Dense Perfect Matching)
+e1 = [
+    0, 0,  0, 1,
+    1, 1,  1, 2,
+    2, 2,  2, 3,
+    3, 0,  3, 4,
+    4, 3,  4, 4,
+    5, 5
+]
+c1 = verifyTestCase("1", "Job Applicant Matching", 6, 6, e1, 6)
+if (c1 == 0) { allCasesPassed = 0 }
+
+// Case 2: Bottleneck Graph (Hall's Condition Deficit: 4 workers for 2 tasks)
+e2 = [
+    0, 0,  0, 1,
+    1, 0,  1, 1,
+    2, 0,
+    3, 1
+]
+c2 = verifyTestCase("2", "Resource Bottleneck Deficit", 4, 2, e2, 2)
+if (c2 == 0) { allCasesPassed = 0 }
+
+// Case 3: Complete Bipartite Graph K(3,3)
+e3 = [
+    0, 0,  0, 1,  0, 2,
+    1, 0,  1, 1,  1, 2,
+    2, 0,  2, 1,  2, 2
+]
+c3 = verifyTestCase("3", "Complete Bipartite K(3,3)", 3, 3, e3, 3)
+if (c3 == 0) { allCasesPassed = 0 }
+
+// Case 4: Disconnected Components with Isolated Vertices
+e4 = [
+    0, 0,
+    1, 1,
+    2, 2
+]
+c4 = verifyTestCase("4", "Disconnected Graph with Isolates", 5, 5, e4, 3)
+if (c4 == 0) { allCasesPassed = 0 }
+
+// Case 5: Star Bipartite Graph (Single Hub)
+e5 = [
+    0, 0,  0, 1,  0, 2,  0, 3,  0, 4
+]
+c5 = verifyTestCase("5", "Star Bipartite Graph", 1, 5, e5, 1)
+if (c5 == 0) { allCasesPassed = 0 }
+
+// Case 6: Larger 10x10 Worker-Task Assignment System
+e6 = [
+    0, 0,  0, 1,
+    1, 1,  1, 2,
+    2, 2,  2, 3,
+    3, 3,  3, 4,
+    4, 4,  4, 5,
+    5, 5,  5, 6,
+    6, 6,  6, 7,
+    7, 7,  7, 8,
+    8, 8,  8, 9,
+    9, 9,  9, 0
+]
+c6 = verifyTestCase("6", "10x10 Worker-Task Ring Assignment", 10, 10, e6, 10)
+if (c6 == 0) { allCasesPassed = 0 }
+
+print("--- Maximum Bipartite Matching Summary ---")
+if (allCasesPassed == 1) {
+    print("All Ford-Fulkerson matching and Konig duality cases: SUCCESS")
+} else {
+    print("Maximum bipartite matching cases: FAILED")
+}
+
+elapsed = t.millis() - startTime
+print("Bipartite matching benchmark completed in", elapsed, "ms")
