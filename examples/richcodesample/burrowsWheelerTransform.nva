@@ -14,6 +14,11 @@ struct BwtResult {
     primaryIndex
 }
 
+struct RleResult {
+    values,
+    counts
+}
+
 func makeIntArray(sz, fillVal) {
     arr = []
     i = 0
@@ -232,4 +237,50 @@ func moveToFrontDecode(ranks) {
         i = i + 1
     }
     return decoded
+}
+
+func rleEncode(data) {
+    n = data.size()
+    if (n == 0) {
+        return RleResult([], [])
+    }
+    vals = []
+    cnts = []
+    i = 0
+    while (i < n) {
+        currVal = data[i]
+        currCnt = 1
+        j = i + 1
+        while (j < n) {
+            if (data[j] == currVal) {
+                currCnt = currCnt + 1
+                j = j + 1
+            } else {
+                j = n
+            }
+        }
+        vals.push(currVal)
+        cnts.push(currCnt)
+        i = i + currCnt
+    }
+    return RleResult(vals, cnts)
+}
+
+func rleDecode(rleRes) {
+    vals = rleRes.values
+    cnts = rleRes.counts
+    numRuns = vals.size()
+    out = []
+    r = 0
+    while (r < numRuns) {
+        v = vals[r]
+        c = cnts[r]
+        k = 0
+        while (k < c) {
+            out.push(v)
+            k = k + 1
+        }
+        r = r + 1
+    }
+    return out
 }
