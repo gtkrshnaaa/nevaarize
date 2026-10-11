@@ -1,0 +1,137 @@
+import stdlib math as m
+import stdlib time as t
+
+// Scaled Dot-Product Self-Attention Simulation
+// Implements transformer attention mechanism: Attention(Q, K, V) = softmax(Q * K^T / sqrt(dK)) * V
+// Demonstrates bidirectional encoder attention and causal masked decoder attention.
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Scaled Dot-Product Self-Attention ===")
+startTime = t.millis()
+
+func computeAttention(seqLen, embedDim, matQ, matK, matV, isCausal) {
+    scale = 1.0 / m.Sqrt(embedDim * 1.0)
+    scores = []
+    i = 0
+    while (i < seqLen * seqLen) {
+        scores.push(0.0)
+        i = i + 1
+    }
+
+    // Step 1: Compute Q * K^T / sqrt(dK)
+    r = 0
+    while (r < seqLen) {
+        c = 0
+        while (c < seqLen) {
+            dot = 0.0
+            kDim = 0
+            while (kDim < embedDim) {
+                dot = dot + (matQ[r * embedDim + kDim] * matK[c * embedDim + kDim])
+                kDim = kDim + 1
+            }
+            scaledVal = dot * scale
+            if (isCausal == 1 and c > r) {
+                scaledVal = -10000.0
+            }
+            scores[r * seqLen + c] = scaledVal
+            c = c + 1
+        }
+        r = r + 1
+    }
+
+    // Step 2: Numerically stable row-wise Softmax
+    attnWeights = []
+    i = 0
+    while (i < seqLen * seqLen) {
+        attnWeights.push(0.0)
+        i = i + 1
+    }
+
+    r = 0
+    while (r < seqLen) {
+        maxScore = scores[r * seqLen + 0]
+        c = 1
+        while (c < seqLen) {
+            if (scores[r * seqLen + c] > maxScore) {
+                maxScore = scores[r * seqLen + c]
+            }
+            c = c + 1
+        }
+
+        sumExp = 0.0
+        c = 0
+        while (c < seqLen) {
+            ev = m.Exp(scores[r * seqLen + c] - maxScore)
+            attnWeights[r * seqLen + c] = ev
+            sumExp = sumExp + ev
+            c = c + 1
+        }
+
+        c = 0
+        while (c < seqLen) {
+            attnWeights[r * seqLen + c] = attnWeights[r * seqLen + c] / sumExp
+            c = c + 1
+        }
+        r = r + 1
+    }
+
+    // Step 3: Compute Context Output = Attention * V
+    output = []
+    i = 0
+    while (i < seqLen * embedDim) {
+        output.push(0.0)
+        i = i + 1
+    }
+
+    r = 0
+    while (r < seqLen) {
+        d = 0
+        while (d < embedDim) {
+            val = 0.0
+            c = 0
+            while (c < seqLen) {
+                val = val + (attnWeights[r * seqLen + c] * matV[c * embedDim + d])
+                c = c + 1
+            }
+            output[r * embedDim + d] = val
+            d = d + 1
+        }
+        r = r + 1
+    }
+
+    return output
+}
+
+// 4 Tokens sequence (e.g. "The", "cat", "sat", "down") with 4D embeddings
+seqLength = 4
+dim = 4
+
+// Token embedding projections for Query, Key, Value
+matQuery = [1.0, 0.0, 1.0, 0.0,  0.0, 1.0, 0.0, 1.0,  1.0, 1.0, 0.0, 0.0,  0.0, 0.0, 1.0, 1.0]
+matKey = [1.0, 0.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 1.0, 0.0,  0.0, 0.0, 1.0, 1.0]
+matValue = [0.5, 1.5, 0.0, 2.0,  1.0, 0.0, 2.5, 0.5,  0.0, 2.0, 1.0, 1.0,  2.0, 1.0, 0.5, 0.0]
+
+print("Sequence Length:", seqLength)
+print("Embedding Dimension:", dim)
+
+// 1. Bidirectional Attention (Full sequence cross-visibility)
+print("\n--- Bidirectional Encoder Attention Output ---")
+outBidi = computeAttention(seqLength, dim, matQuery, matKey, matValue, 0)
+row = 0
+while (row < seqLength) {
+    print("Token", row, "bidi vector: [", outBidi[row * dim + 0], ",", outBidi[row * dim + 1], ",", outBidi[row * dim + 2], ",", outBidi[row * dim + 3], "]")
+    row = row + 1
+}
+
+
+// 2. Causal Masked Attention (Autoregressive decoder restriction)
+print("\n--- Causal Masked Decoder Attention Output ---")
+outCausal = computeAttention(seqLength, dim, matQuery, matKey, matValue, 1)
+row = 0
+while (row < seqLength) {
+    print("Token", row, "causal vector: [", outCausal[row * dim + 0], ",", outCausal[row * dim + 1], ",", outCausal[row * dim + 2], ",", outCausal[row * dim + 3], "]")
+    row = row + 1
+}
+
+elapsed = t.millis() - startTime
+print("\nTransformer Attention simulation completed in:", elapsed, "ms")
