@@ -8851,19 +8851,16 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
         
         case NodeType::INDEX_ACCESS: {
             // map/array[index] - load element dynamically based on type
-            JITValue arrVal = compileExpr(ast, node.left);
-            X64Reg arrReg = arrVal.valueReg;
-            X64Reg tReg = arrVal.typeReg;
-            
-            JITValue idxVal = compileExpr(ast, node.right);
-            X64Reg idxReg = idxVal.valueReg;
-            freeReg(idxVal.typeReg);
-            
             CodeBuffer& buf = codegen.getCode();
             int32_t valOffset = allocateStackSlot();
             int32_t typeOffset = allocateStackSlot();
             int32_t arrSlot = allocateStackSlot();
+            int32_t arrTypeSlot = allocateStackSlot();
             int32_t idxSlot = allocateStackSlot();
+
+            JITValue arrVal = compileExpr(ast, node.left);
+            X64Reg arrReg = arrVal.valueReg;
+            X64Reg tReg = arrVal.typeReg;
 
             // Save arrVal.valueReg to [rbp + arrSlot]
             bool arrHigh = static_cast<uint8_t>(arrReg) >= 8;
@@ -8871,16 +8868,30 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(arrReg) & 0x7) << 3));
             buf.emit32(static_cast<uint32_t>(arrSlot));
 
+            // Save arrVal.typeReg to [rbp + arrTypeSlot]
+            bool tHigh = static_cast<uint8_t>(tReg) >= 8;
+            buf.emit8(0x48 | (tHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(tReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(arrTypeSlot));
+
+            freeReg(arrVal.valueReg);
+            freeReg(arrVal.typeReg);
+
+            JITValue idxVal = compileExpr(ast, node.right);
+            X64Reg idxReg = idxVal.valueReg;
+
             // Save idxVal.valueReg to [rbp + idxSlot]
             bool idxHigh = static_cast<uint8_t>(idxReg) >= 8;
             buf.emit8(0x48 | (idxHigh ? 0x04 : 0));
             buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(idxReg) & 0x7) << 3));
             buf.emit32(static_cast<uint32_t>(idxSlot));
-            
+
+            freeReg(idxVal.valueReg);
+            freeReg(idxVal.typeReg);
+
             // Check if arr is MAP
-            bool tHigh = static_cast<uint8_t>(tReg) >= 8;
-            buf.emit8(0x48 | (tHigh ? 0x01 : 0));
-            buf.emit8(0x83); buf.emit8(0xF8 + (static_cast<uint8_t>(tReg) & 0x7));
+            buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xBD);
+            buf.emit32(static_cast<uint32_t>(arrTypeSlot));
             buf.emit8(static_cast<uint8_t>(ValueType::MAP));
             
             buf.emit8(0x0F); buf.emit8(0x84); // je is_map
@@ -9013,10 +9024,6 @@ JITValue JIT::compileExpr(const AST& ast, NodeIndex idx) {
             buf.emit8(0x48 | (typeHighDst ? 0x04 : 0));
             buf.emit8(0x8B); buf.emit8(0x85 | ((static_cast<uint8_t>(result.typeReg) & 0x7) << 3));
             buf.emit32(static_cast<uint32_t>(typeOffset));
-            
-            freeReg(arrReg);
-            freeReg(tReg);
-            freeReg(idxReg);
             
             return result;
         }
@@ -10014,104 +10021,157 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
         case NodeType::INDEX_ASSIGN: {
             // map/array[idx] = value
             CodeBuffer& buf = codegen.getCode();
+            int32_t valSlot = allocateStackSlot();
+            int32_t valTypeSlot = allocateStackSlot();
+            int32_t arrSlot = allocateStackSlot();
+            int32_t arrTypeSlot = allocateStackSlot();
+            int32_t idxSlot = allocateStackSlot();
+
             JITValue value = compileExpr(ast, node.extra);
+            bool valHigh = static_cast<uint8_t>(value.valueReg) >= 8;
+            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(value.valueReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(valSlot));
+
+            bool valTypeHigh = static_cast<uint8_t>(value.typeReg) >= 8;
+            buf.emit8(0x48 | (valTypeHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(value.typeReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(valTypeSlot));
+
+            freeReg(value.valueReg);
+            freeReg(value.typeReg);
+
             JITValue arr = compileExpr(ast, node.left);
+            bool arrHigh = static_cast<uint8_t>(arr.valueReg) >= 8;
+            buf.emit8(0x48 | (arrHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(arr.valueReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(arrSlot));
+
+            bool arrTypeHigh = static_cast<uint8_t>(arr.typeReg) >= 8;
+            buf.emit8(0x48 | (arrTypeHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(arr.typeReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(arrTypeSlot));
+
+            freeReg(arr.valueReg);
+            freeReg(arr.typeReg);
+
             JITValue idxVal = compileExpr(ast, node.right);
-            
-            X64Reg arrReg = arr.valueReg;
-            X64Reg tReg = arr.typeReg;
-            X64Reg idxReg = idxVal.valueReg;
-            X64Reg valueReg = value.valueReg;
-            
+            bool idxHigh = static_cast<uint8_t>(idxVal.valueReg) >= 8;
+            buf.emit8(0x48 | (idxHigh ? 0x04 : 0));
+            buf.emit8(0x89); buf.emit8(0x85 | ((static_cast<uint8_t>(idxVal.valueReg) & 0x7) << 3));
+            buf.emit32(static_cast<uint32_t>(idxSlot));
+
+            freeReg(idxVal.valueReg);
+            freeReg(idxVal.typeReg);
+
             // Check if arr is MAP
-            bool tHigh = static_cast<uint8_t>(tReg) >= 8;
-            buf.emit8(0x48 | (tHigh ? 0x01 : 0));
-            buf.emit8(0x83); buf.emit8(0xF8 + (static_cast<uint8_t>(tReg) & 0x7));
+            buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xBD);
+            buf.emit32(static_cast<uint32_t>(arrTypeSlot));
             buf.emit8(static_cast<uint8_t>(ValueType::MAP));
             
             buf.emit8(0x0F); buf.emit8(0x84); // je is_map
             size_t isMapJump = buf.size();
             buf.emit32(0);
-            
+
             // --- ARRAY SET ---
             // Save Scratch Registers
             buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); buf.emit8(0x56); buf.emit8(0x57);
             buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
             buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
-            
-            // Set Args (RDI = arrReg, RSI = idxReg, RDX = valueReg)
-            bool arrHigh = static_cast<uint8_t>(arrReg) >= 8;
-            buf.emit8(0x48 | (arrHigh ? 0x04 : 0));
-            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arrReg) & 0x7) << 3) | 7);
-            
-            bool idxHigh = static_cast<uint8_t>(idxReg) >= 8;
-            buf.emit8(0x48 | (idxHigh ? 0x04 : 0));
-            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(idxReg) & 0x7) << 3) | 6);
-            
-            bool valHigh = static_cast<uint8_t>(valueReg) >= 8;
-            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3) | 2);
-            
-            // Call jit_array_set
+
+            // 16-byte align
+            buf.emit8(0x53); // push rbx
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+            buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+            // Set Args (RDI = [rbp + arrSlot], RSI = [rbp + idxSlot], RDX = [rbp + valSlot], RCX = [rbp + valTypeSlot])
+            buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+            buf.emit32(static_cast<uint32_t>(arrSlot));
+
+            buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+            buf.emit32(static_cast<uint32_t>(idxSlot));
+
+            buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x95);
+            buf.emit32(static_cast<uint32_t>(valSlot));
+
+            buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x8D);
+            buf.emit32(static_cast<uint32_t>(valTypeSlot));
+
+            // Call jit_array_set_typed
             buf.emit8(0x48); buf.emit8(0xB8);
-            buf.emit64(reinterpret_cast<uint64_t>(jit_array_set));
+            buf.emit64(reinterpret_cast<uint64_t>(jit_array_set_typed));
             buf.emit8(0xFF); buf.emit8(0xD0);
-            
+
+            // Restore Stack
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+            buf.emit8(0x5B); // pop rbx
+
             // Restore Scratch Registers
             buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
             buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
             buf.emit8(0x5F); buf.emit8(0x5E); buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
-            
+
             buf.emit8(0xE9); // jmp done
             size_t doneJump = buf.size();
             buf.emit32(0);
-            
+
             // --- MAP SET ---
             size_t isMapTarget = buf.size();
             buf.patch32(isMapJump, static_cast<int32_t>(isMapTarget - (isMapJump + 4)));
-            
+
             // Save Scratch Registers
             buf.emit8(0x50); buf.emit8(0x51); buf.emit8(0x52); buf.emit8(0x56); buf.emit8(0x57);
             buf.emit8(0x41); buf.emit8(0x50); buf.emit8(0x41); buf.emit8(0x51);
             buf.emit8(0x41); buf.emit8(0x52); buf.emit8(0x41); buf.emit8(0x53);
-            
-            // Set Args (RDI = arrReg, RSI = idxReg, RDX = valueReg)
-            buf.emit8(0x48 | (arrHigh ? 0x04 : 0));
-            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(arrReg) & 0x7) << 3) | 7);
-            
-            buf.emit8(0x48 | (idxHigh ? 0x04 : 0));
-            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(idxReg) & 0x7) << 3) | 6);
-            
-            buf.emit8(0x48 | (valHigh ? 0x04 : 0));
-            buf.emit8(0x89); buf.emit8(0xC0 | ((static_cast<uint8_t>(valueReg) & 0x7) << 3) | 2);
-            
+
+            // 16-byte align
+            buf.emit8(0x53); // push rbx
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xE3); // mov rbx, rsp
+            buf.emit8(0x48); buf.emit8(0x83); buf.emit8(0xE4); buf.emit8(0xF0); // and rsp, -16
+
+            // Set Args (RDI = [rbp + arrSlot], RSI = [rbp + idxSlot], RDX = [rbp + valSlot])
+            buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xBD);
+            buf.emit32(static_cast<uint32_t>(arrSlot));
+
+            buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0xB5);
+            buf.emit32(static_cast<uint32_t>(idxSlot));
+
+            buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x95);
+            buf.emit32(static_cast<uint32_t>(valSlot));
+
             // Call jit_map_set (returns new map ptr in RAX)
             buf.emit8(0x48); buf.emit8(0xB8);
             buf.emit64(reinterpret_cast<uint64_t>(jit_map_set));
             buf.emit8(0xFF); buf.emit8(0xD0);
-            
+
+            // Save returned map ptr RAX to [rbp + arrSlot]
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
+            buf.emit32(static_cast<uint32_t>(arrSlot));
+
+            // Restore Stack
+            buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0xDC); // mov rsp, rbx
+            buf.emit8(0x5B); // pop rbx
+
             // Update variable with new map pointer if source is identifier
             if (node.left != INVALID_NODE) {
                 const ASTNode& srcNode = ast.get(node.left);
                 if (srcNode.type == NodeType::IDENTIFIER && variables.count(srcNode.name)) {
                     int32_t offset = variables[srcNode.name].stackOffset;
+                    buf.emit8(0x48); buf.emit8(0x8B); buf.emit8(0x85);
+                    buf.emit32(static_cast<uint32_t>(arrSlot));
                     buf.emit8(0x48); buf.emit8(0x89); buf.emit8(0x85);
                     buf.emit32(static_cast<uint32_t>(offset));
                 }
             }
-            
+
             // Restore Scratch Registers
             buf.emit8(0x41); buf.emit8(0x5B); buf.emit8(0x41); buf.emit8(0x5A);
             buf.emit8(0x41); buf.emit8(0x59); buf.emit8(0x41); buf.emit8(0x58);
             buf.emit8(0x5F); buf.emit8(0x5E); buf.emit8(0x5A); buf.emit8(0x59); buf.emit8(0x58);
-            
+
             // --- DONE ---
             size_t doneTarget = buf.size();
             buf.patch32(doneJump, static_cast<int32_t>(doneTarget - (doneJump + 4)));
-            
-            freeReg(value.valueReg); freeReg(value.typeReg);
-            freeReg(arr.valueReg); freeReg(arr.typeReg);
-            freeReg(idxVal.valueReg); freeReg(idxVal.typeReg);
             break;
         }
         
