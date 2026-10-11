@@ -1,0 +1,417 @@
+import stdlib math as m
+import stdlib time as t
+
+// High-Order Runge-Kutta 4th Order (RK4) Numerical ODE Solver Suite
+// Solves initial value problems (IVPs) for scalar and coupled multi-variable ODEs:
+// - Classical 4th-order Runge-Kutta integration scheme with O(h^4) global truncation error
+// - 4th-order convergence rate verification via systematic step-halving on analytical IVP
+// - Coupled 2D Hamiltonian harmonic oscillator integration with energy conservation tracking
+// - Coupled 3D non-linear Lorenz chaotic attractor integration with bounded manifold verification
+// - Non-linear Van der Pol limit cycle oscillator integration with relaxation dynamics
+// - Step-doubling Richardson extrapolation local truncation error estimator
+// Enforces strict camelCase naming convention (No-Underscore Policy).
+
+print("=== Nevaarize Runge-Kutta 4th Order ODE Numerical Solver Suite ===")
+globalStartTime = t.millis()
+
+func absFloat(v) {
+    if (v < 0.0) {
+        return 0.0 - v
+    }
+    return v
+}
+
+func maxFloat(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func minFloat(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+// ---------------------------------------------------------------------------
+// Suite 1: Scalar Analytical IVP and Convergence Order Verification
+// Problem: dy/dt = y - t^2 + 1,  y(0) = 0.5
+// Exact solution: y(t) = (t + 1)^2 - 0.5 * exp(t)
+// ---------------------------------------------------------------------------
+
+func scalarDeriv(tVal, yVal) {
+    return yVal - (tVal * tVal) + 1.0
+}
+
+func scalarExact(tVal) {
+    termOne = (tVal + 1.0) * (tVal + 1.0)
+    termTwo = 0.5 * m.Exp(tVal)
+    return termOne - termTwo
+}
+
+func scalarRk4Step(tVal, yVal, hVal) {
+    kOne = scalarDeriv(tVal, yVal)
+    kTwo = scalarDeriv(tVal + 0.5 * hVal, yVal + 0.5 * hVal * kOne)
+    kThree = scalarDeriv(tVal + 0.5 * hVal, yVal + 0.5 * hVal * kTwo)
+    kFour = scalarDeriv(tVal + hVal, yVal + hVal * kThree)
+    slope = (kOne + 2.0 * kTwo + 2.0 * kThree + kFour) / 6.0
+    return yVal + hVal * slope
+}
+
+func solveScalarIVP(tStart, tEnd, yInit, stepCount) {
+    currT = tStart
+    currY = yInit
+    stepSize = (tEnd - tStart) / (stepCount * 1.0)
+    s = 0
+    while (s < stepCount) {
+        currY = scalarRk4Step(currT, currY, stepSize)
+        currT = currT + stepSize
+        s = s + 1
+    }
+    return currY
+}
+
+print("[Test 1] Scalar ODE Integration & O(h^4) Convergence Rate")
+tStart = 0.0
+tEnd = 2.0
+yInit = 0.5
+exactYEnd = scalarExact(tEnd)
+print("  Target interval: [0.0, 2.0], Exact y(2.0):", exactYEnd)
+
+stepCounts = [10, 20, 40, 80]
+errors = []
+idx = 0
+while (idx < len(stepCounts)) {
+    numSteps = stepCounts[idx]
+    h = (tEnd - tStart) / (numSteps * 1.0)
+    approxY = solveScalarIVP(tStart, tEnd, yInit, numSteps)
+    err = absFloat(approxY - exactYEnd)
+    errors.push(err)
+    print("  h =", h, "(steps:", numSteps, ") -> approx:", approxY, "error:", err)
+    idx = idx + 1
+}
+
+// Verify convergence ratios (should approach 2^4 = 16 as h is halved)
+convRatioOne = errors[0] / errors[1]
+convRatioTwo = errors[1] / errors[2]
+convRatioThree = errors[2] / errors[3]
+print("  Convergence Ratios (h / (h/2)):", convRatioOne, convRatioTwo, convRatioThree)
+if (convRatioOne > 15.0 and convRatioTwo > 15.0 and convRatioThree > 15.0) {
+    print("  Convergence validation: PASSED (Verified 4th-order asymptotic scaling)")
+} else {
+    print("  Convergence validation: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 2: Coupled 2D Harmonic Oscillator & Energy Conservation
+// State vector: Y = [position x, velocity v]
+// System: dx/dt = v,  dv/dt = -omega^2 * x
+// Invariant: Total Energy E = 0.5 * v^2 + 0.5 * omega^2 * x^2 == constant
+// ---------------------------------------------------------------------------
+
+func harmonicStep(currX, currV, omegaSq, hVal) {
+    // k1 derivatives
+    kx1 = currV
+    kv1 = 0.0 - omegaSq * currX
+
+    // k2 derivatives
+    midX1 = currX + 0.5 * hVal * kx1
+    midV1 = currV + 0.5 * hVal * kv1
+    kx2 = midV1
+    kv2 = 0.0 - omegaSq * midX1
+
+    // k3 derivatives
+    midX2 = currX + 0.5 * hVal * kx2
+    midV2 = currV + 0.5 * hVal * kv2
+    kx3 = midV2
+    kv3 = 0.0 - omegaSq * midX2
+
+    // k4 derivatives
+    endX = currX + hVal * kx3
+    endV = currV + hVal * kv3
+    kx4 = endV
+    kv4 = 0.0 - omegaSq * endX
+
+    nextX = currX + (hVal / 6.0) * (kx1 + 2.0 * kx2 + 2.0 * kx3 + kx4)
+    nextV = currV + (hVal / 6.0) * (kv1 + 2.0 * kv2 + 2.0 * kv3 + kv4)
+    return [nextX, nextV]
+}
+
+print("[Test 2] Coupled 2D Harmonic Oscillator & Energy Invariant")
+omega = 2.0
+omegaSq = omega * omega
+xZero = 1.0
+vZero = 0.0
+initialEnergy = 0.5 * vZero * vZero + 0.5 * omegaSq * xZero * xZero
+print("  Natural frequency omega =", omega, "Initial Energy E0 =", initialEnergy)
+
+simH = 0.005
+simSteps = 2000
+curX = xZero
+curV = vZero
+curT = 0.0
+maxEnergyDrift = 0.0
+stepI = 0
+while (stepI < simSteps) {
+    nextState = harmonicStep(curX, curV, omegaSq, simH)
+    curX = nextState[0]
+    curV = nextState[1]
+    curT = curT + simH
+    currentEnergy = 0.5 * curV * curV + 0.5 * omegaSq * curX * curX
+    drift = absFloat(currentEnergy - initialEnergy)
+    if (drift > maxEnergyDrift) {
+        maxEnergyDrift = drift
+    }
+    stepI = stepI + 1
+}
+
+exactFinalX = m.Cos(omega * curT)
+exactFinalV = 0.0 - omega * m.Sin(omega * curT)
+posError = absFloat(curX - exactFinalX)
+velError = absFloat(curV - exactFinalV)
+
+print("  Simulated t =", curT, "Final (x, v):", curX, curV)
+print("  Exact (x, v):", exactFinalX, exactFinalV)
+print("  Position absolute error:", posError)
+print("  Max energy invariant drift over 2000 steps:", maxEnergyDrift)
+if (maxEnergyDrift < 0.00001 and posError < 0.0001) {
+    print("  Harmonic oscillator energy conservation: PASSED")
+} else {
+    print("  Harmonic oscillator energy conservation: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 3: Coupled 3D Non-linear Lorenz Chaotic Attractor
+// System:
+//   dx/dt = sigma * (y - x)
+//   dy/dt = x * (rho - z) - y
+//   dz/dt = x * y - beta * z
+// Standard parameters: sigma = 10, rho = 28, beta = 8/3 (2.6666666667)
+// ---------------------------------------------------------------------------
+
+func lorenzStep(x, y, z, sigma, rho, beta, h) {
+    // k1
+    fx1 = sigma * (y - x)
+    fy1 = x * (rho - z) - y
+    fz1 = x * y - beta * z
+
+    // k2
+    xMid1 = x + 0.5 * h * fx1
+    yMid1 = y + 0.5 * h * fy1
+    zMid1 = z + 0.5 * h * fz1
+    fx2 = sigma * (yMid1 - xMid1)
+    fy2 = xMid1 * (rho - zMid1) - yMid1
+    fz2 = xMid1 * yMid1 - beta * zMid1
+
+    // k3
+    xMid2 = x + 0.5 * h * fx2
+    yMid2 = y + 0.5 * h * fy2
+    zMid2 = z + 0.5 * h * fz2
+    fx3 = sigma * (yMid2 - xMid2)
+    fy3 = xMid2 * (rho - zMid2) - yMid2
+    fz3 = xMid2 * yMid2 - beta * zMid2
+
+    // k4
+    xEnd = x + h * fx3
+    yEnd = y + h * fy3
+    zEnd = z + h * fz3
+    fx4 = sigma * (yEnd - xEnd)
+    fy4 = xEnd * (rho - zEnd) - yEnd
+    fz4 = xEnd * yEnd - beta * zEnd
+
+    xNext = x + (h / 6.0) * (fx1 + 2.0 * fx2 + 2.0 * fx3 + fx4)
+    yNext = y + (h / 6.0) * (fy1 + 2.0 * fy2 + 2.0 * fy3 + fy4)
+    zNext = z + (h / 6.0) * (fz1 + 2.0 * fz2 + 2.0 * fz3 + fz4)
+    return [xNext, yNext, zNext]
+}
+
+print("[Test 3] Coupled 3D Non-linear Lorenz Chaotic Attractor")
+sigma = 10.0
+rho = 28.0
+beta = 8.0 / 3.0
+lorenzH = 0.01
+lorenzSteps = 1500
+
+lx = 1.0
+ly = 1.0
+lz = 1.0
+
+minLx = lx
+maxLx = lx
+minLy = ly
+maxLy = ly
+minLz = lz
+maxLz = lz
+
+sumLx = 0.0
+sumLy = 0.0
+sumLz = 0.0
+
+lzStep = 0
+while (lzStep < lorenzSteps) {
+    nextLState = lorenzStep(lx, ly, lz, sigma, rho, beta, lorenzH)
+    lx = nextLState[0]
+    ly = nextLState[1]
+    lz = nextLState[2]
+
+    minLx = minFloat(minLx, lx)
+    maxLx = maxFloat(maxLx, lx)
+    minLy = minFloat(minLy, ly)
+    maxLy = maxFloat(maxLy, ly)
+    minLz = minFloat(minLz, lz)
+    maxLz = maxFloat(maxLz, lz)
+
+    sumLx = sumLx + lx
+    sumLy = sumLy + ly
+    sumLz = sumLz + lz
+    lzStep = lzStep + 1
+}
+
+meanLx = sumLx / (lorenzSteps * 1.0)
+meanLy = sumLy / (lorenzSteps * 1.0)
+meanLz = sumLz / (lorenzSteps * 1.0)
+
+print("  Lorenz trajectory after", lorenzSteps, "steps:")
+print("  X bounds: [", minLx, ",", maxLx, "] Mean X:", meanLx)
+print("  Y bounds: [", minLy, ",", maxLy, "] Mean Y:", meanLy)
+print("  Z bounds: [", minLz, ",", maxLz, "] Mean Z:", meanLz)
+
+// Manifold boundedness criteria for standard Lorenz butterfly attractor
+isLorenzBounded = 1
+if (minLx < -25.0 or maxLx > 25.0) { isLorenzBounded = 0 }
+if (minLy < -30.0 or maxLy > 30.0) { isLorenzBounded = 0 }
+if (minLz < 0.0 or maxLz > 55.0) { isLorenzBounded = 0 }
+
+if (isLorenzBounded == 1) {
+    print("  Lorenz chaotic attractor manifold containment: PASSED")
+} else {
+    print("  Lorenz chaotic attractor manifold containment: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 4: Non-linear Van der Pol Relaxation Oscillator Limit Cycle
+// System:
+//   dx/dt = v
+//   dv/dt = mu * (1 - x^2) * v - x
+// Limit cycle radius approaches approximately 2.0 for x
+// ---------------------------------------------------------------------------
+
+func vanderpolStep(x, v, mu, h) {
+    fx1 = v
+    fv1 = mu * (1.0 - x * x) * v - x
+
+    midX1 = x + 0.5 * h * fx1
+    midV1 = v + 0.5 * h * fv1
+    fx2 = midV1
+    fv2 = mu * (1.0 - midX1 * midX1) * midV1 - midX1
+
+    midX2 = x + 0.5 * h * fx2
+    midV2 = v + 0.5 * h * fv2
+    fx3 = midV2
+    fv3 = mu * (1.0 - midX2 * midX2) * midV2 - midX2
+
+    endX = x + h * fx3
+    endV = v + h * fv3
+    fx4 = endV
+    fv4 = mu * (1.0 - endX * endX) * endV - endX
+
+    xNext = x + (h / 6.0) * (fx1 + 2.0 * fx2 + 2.0 * fx3 + fx4)
+    vNext = v + (h / 6.0) * (fv1 + 2.0 * fv2 + 2.0 * fv3 + fv4)
+    return [xNext, vNext]
+}
+
+print("[Test 4] Van der Pol Limit Cycle Oscillator")
+vdpMu = 1.0
+vdpH = 0.02
+vdpSteps = 1000
+
+vx = 0.2
+vv = 0.0
+vdpIdx = 0
+peakAmplitude = 0.0
+
+// Allow initial transient to decay towards the limit cycle (last 400 steps)
+while (vdpIdx < vdpSteps) {
+    vNext = vanderpolStep(vx, vv, vdpMu, vdpH)
+    vx = vNext[0]
+    vv = vNext[1]
+    if (vdpIdx > 600) {
+        if (absFloat(vx) > peakAmplitude) {
+            peakAmplitude = absFloat(vx)
+        }
+    }
+    vdpIdx = vdpIdx + 1
+}
+
+print("  Final state (x, v):", vx, vv)
+print("  Observed limit cycle peak amplitude:", peakAmplitude, "(expected ~2.00)")
+if (peakAmplitude > 1.95 and peakAmplitude < 2.05) {
+    print("  Van der Pol limit cycle attraction: PASSED")
+} else {
+    print("  Van der Pol limit cycle attraction: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 5: Step-Doubling Local Truncation Error Estimation & Extrapolation
+// Problem: dy/dt = -2 * t * y,  y(0) = 1.0
+// Exact solution: y(t) = exp(-t^2)
+// ---------------------------------------------------------------------------
+
+func decayDeriv(tVal, yVal) {
+    return 0.0 - 2.0 * tVal * yVal
+}
+
+func decayExact(tVal) {
+    return m.Exp(0.0 - tVal * tVal)
+}
+
+func decayRk4Step(tVal, yVal, hVal) {
+    k1 = decayDeriv(tVal, yVal)
+    k2 = decayDeriv(tVal + 0.5 * hVal, yVal + 0.5 * hVal * k1)
+    k3 = decayDeriv(tVal + 0.5 * hVal, yVal + 0.5 * hVal * k2)
+    k4 = decayDeriv(tVal + hVal, yVal + hVal * k3)
+    return yVal + (hVal / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+}
+
+print("[Test 5] Step-Doubling Richardson Error Estimation & Extrapolation")
+tCurrent = 0.0
+yCurrent = 1.0
+macroStep = 0.2
+
+// Single full step of size H
+yFullStep = decayRk4Step(tCurrent, yCurrent, macroStep)
+
+// Two half steps of size H / 2
+halfH = macroStep * 0.5
+yHalfOne = decayRk4Step(tCurrent, yCurrent, halfH)
+yHalfTwo = decayRk4Step(tCurrent + halfH, yHalfOne, halfH)
+
+// Richardson extrapolation local error estimate:
+// delta = (yHalfTwo - yFullStep) / 15.0
+estimatedLocalError = absFloat(yHalfTwo - yFullStep) / 15.0
+yExtrapolated = yHalfTwo + (yHalfTwo - yFullStep) / 15.0
+
+exactAtMacro = decayExact(tCurrent + macroStep)
+actualHalfError = absFloat(yHalfTwo - exactAtMacro)
+actualExtrapError = absFloat(yExtrapolated - exactAtMacro)
+
+print("  Exact y(0.2):", exactAtMacro)
+print("  Full step y:", yFullStep)
+print("  Two half steps y:", yHalfTwo)
+print("  Richardson estimated error:", estimatedLocalError)
+print("  Actual two-half-steps error:", actualHalfError)
+print("  Extrapolated 5th-order y:", yExtrapolated, "error:", actualExtrapError)
+
+// Error estimation accuracy check (estimator within order-of-magnitude and strictly improves accuracy)
+ratioErr = estimatedLocalError / actualHalfError
+print("  Error Estimator Ratio (estimated / actual):", ratioErr)
+if (ratioErr > 1.0 and ratioErr < 2.5 and actualExtrapError < actualHalfError) {
+    print("  Richardson error estimation & extrapolation: PASSED")
+} else {
+    print("  Richardson error estimation & extrapolation: FAILED")
+}
+
+elapsedTotal = t.millis() - globalStartTime
+print("=== All RK4 ODE Numerical Solvers Successfully Executed (Time:", elapsedTotal, "ms) ===")
