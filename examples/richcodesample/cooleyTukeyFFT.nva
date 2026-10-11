@@ -236,3 +236,248 @@ func naivePolynomialMultiply(polyA, polyB) {
     }
     return result
 }
+
+// ============================================================================
+// Execution and Test Suites
+// ============================================================================
+
+print("=== Nevaarize Radix-2 Cooley-Tukey FFT & Convolution Suite ===")
+globalStartTime = t.millis()
+
+// --- Test Case 1: Canonical Signal & Precision Verification vs Naive DFT ---
+print("Running Test Case 1: Harmonic Signal vs Naive DFT Precision...")
+numSamples1 = 16
+twoPi = 2.0 * m.PI
+
+origReal1 = makeFloatArray(numSamples1, 0.0)
+origImag1 = makeFloatArray(numSamples1, 0.0)
+
+sIdx = 0
+while (sIdx < numSamples1) {
+    tRatio = (1.0 * sIdx) / (1.0 * numSamples1)
+    s1 = 2.5 * m.Sin(twoPi * 1.0 * tRatio)
+    s2 = 1.25 * m.Cos(twoPi * 3.0 * tRatio)
+    s3 = 0.75 * m.Sin(twoPi * 5.0 * tRatio)
+    origReal1[sIdx] = s1 + s2 - s3
+    origImag1[sIdx] = 0.0
+    sIdx = sIdx + 1
+}
+
+dftRes1 = discreteFourierTransform(origReal1, origImag1, false)
+
+fftReal1 = copyFloatArray(origReal1)
+fftImag1 = copyFloatArray(origImag1)
+cooleyTukeyFft(fftReal1, fftImag1, false)
+
+maxDftError1 = 0.0
+k = 0
+while (k < numSamples1) {
+    errR = m.Abs(fftReal1[k] - dftRes1.real[k])
+    errI = m.Abs(fftImag1[k] - dftRes1.imag[k])
+    if (errR > maxDftError1) { maxDftError1 = errR }
+    if (errI > maxDftError1) { maxDftError1 = errI }
+    k = k + 1
+}
+
+print("  Maximum deviation between FFT and Naive DFT:", maxDftError1)
+
+// Invert FFT to restore original signal
+ifftReal1 = copyFloatArray(fftReal1)
+ifftImag1 = copyFloatArray(fftImag1)
+cooleyTukeyFft(ifftReal1, ifftImag1, true)
+
+maxReconError1 = 0.0
+k = 0
+while (k < numSamples1) {
+    recErrR = m.Abs(ifftReal1[k] - origReal1[k])
+    recErrI = m.Abs(ifftImag1[k] - origImag1[k])
+    if (recErrR > maxReconError1) { maxReconError1 = recErrR }
+    if (recErrI > maxReconError1) { maxReconError1 = recErrI }
+    k = k + 1
+}
+
+print("  Maximum reconstruction error after IFFT:", maxReconError1)
+
+if (maxDftError1 > 0.0000001 or maxReconError1 > 0.0000001) {
+    print("[FAIL] Test Case 1 failed DFT or IFFT precision thresholds")
+} else {
+    print("  Test Case 1 Passed exact DFT match and IFFT reconstruction")
+}
+
+// --- Test Case 2: Parseval's Energy Conservation Invariance ---
+print("Running Test Case 2: Parseval Energy Invariance...")
+timeEnergy2 = 0.0
+k = 0
+while (k < numSamples1) {
+    rVal = origReal1[k]
+    iVal = origImag1[k]
+    timeEnergy2 = timeEnergy2 + (rVal * rVal + iVal * iVal)
+    k = k + 1
+}
+
+freqEnergy2 = 0.0
+k = 0
+while (k < numSamples1) {
+    rVal = fftReal1[k]
+    iVal = fftImag1[k]
+    freqEnergy2 = freqEnergy2 + (rVal * rVal + iVal * iVal)
+    k = k + 1
+}
+freqEnergyNormalized2 = freqEnergy2 / (1.0 * numSamples1)
+
+parsevalDiff2 = m.Abs(timeEnergy2 - freqEnergyNormalized2)
+print("  Time-domain total energy:", timeEnergy2)
+print("  Frequency-domain normalized energy:", freqEnergyNormalized2)
+print("  Parseval energy discrepancy:", parsevalDiff2)
+
+if (parsevalDiff2 > 0.0000001) {
+    print("[FAIL] Parseval theorem violated")
+} else {
+    print("  Test Case 2 Passed Parseval energy conservation")
+}
+
+// --- Test Case 3: Polynomial Cauchy Convolution Verification ---
+print("Running Test Case 3: Polynomial Convolution Verification...")
+polyA3 = [3, 2, 5, 1]
+polyB3 = [4, 1, 2, 7, 6]
+
+fftConv3 = convolvePolynomials(polyA3, polyB3)
+naiveConv3 = naivePolynomialMultiply(polyA3, polyB3)
+
+print("  Polynomial A degrees:", polyA3.size() - 1, "and B degrees:", polyB3.size() - 1)
+print("  Resulting product degree:", fftConv3.size() - 1)
+
+convMatch3 = true
+k = 0
+while (k < fftConv3.size()) {
+    diffVal = m.Abs(fftConv3[k] - naiveConv3[k])
+    if (diffVal > 0.000001) {
+        convMatch3 = false
+    }
+    k = k + 1
+}
+
+if (!convMatch3) {
+    print("[FAIL] Polynomial convolution mismatch against Cauchy product")
+} else {
+    print("  Test Case 3 Passed polynomial convolution verification")
+}
+
+// --- Test Case 4: High-Degree Pseudo-Random Stress Convolution ---
+print("Running Test Case 4: High-Degree Stress Convolution...")
+degSize4 = 32
+stressPolyA4 = []
+stressPolyB4 = []
+seed4 = 987654321
+
+k = 0
+while (k < degSize4) {
+    seed4 = (seed4 * 1103515245 + 12345) % 2147483648
+    if (seed4 < 0) { seed4 = 0 - seed4 }
+    coeffA = (seed4 % 25) - 12
+    stressPolyA4.push(coeffA)
+
+    seed4 = (seed4 * 1103515245 + 12345) % 2147483648
+    if (seed4 < 0) { seed4 = 0 - seed4 }
+    coeffB = (seed4 % 25) - 12
+    stressPolyB4.push(coeffB)
+    k = k + 1
+}
+
+stressFftConv4 = convolvePolynomials(stressPolyA4, stressPolyB4)
+stressNaiveConv4 = naivePolynomialMultiply(stressPolyA4, stressPolyB4)
+
+print("  Stress product coefficients evaluated:", stressFftConv4.size())
+
+stressMatch4 = true
+maxStressDiff4 = 0.0
+k = 0
+while (k < stressFftConv4.size()) {
+    cDiff = m.Abs(stressFftConv4[k] - stressNaiveConv4[k])
+    if (cDiff > maxStressDiff4) {
+        maxStressDiff4 = cDiff
+    }
+    if (cDiff > 0.0001) {
+        stressMatch4 = false
+    }
+    k = k + 1
+}
+print("  Max discrepancy across 63 stress coefficients:", maxStressDiff4)
+
+if (!stressMatch4) {
+    print("[FAIL] High-degree stress convolution failed")
+} else {
+    print("  Test Case 4 Passed high-degree stress convolution")
+}
+
+// --- Test Case 5: Dirac Delta, Constant DC, and Nyquist Spectral Edge Cases ---
+print("Running Test Case 5: Spectral Edge Cases...")
+edgeSize5 = 8
+
+// 5a: Dirac Delta impulse [1, 0, 0, ...]
+deltaR5 = makeFloatArray(edgeSize5, 0.0)
+deltaI5 = makeFloatArray(edgeSize5, 0.0)
+deltaR5[0] = 1.0
+cooleyTukeyFft(deltaR5, deltaI5, false)
+
+deltaFlat = true
+k = 0
+while (k < edgeSize5) {
+    if (m.Abs(deltaR5[k] - 1.0) > 0.0000001 or m.Abs(deltaI5[k]) > 0.0000001) {
+        deltaFlat = false
+    }
+    k = k + 1
+}
+if (!deltaFlat) {
+    print("[FAIL] Dirac delta spectrum is not flat")
+} else {
+    print("  Edge Case 5a (Dirac delta impulse flat spectrum) verified")
+}
+
+// 5b: Constant DC signal [3.5, 3.5, ...]
+dcR5 = makeFloatArray(edgeSize5, 3.5)
+dcI5 = makeFloatArray(edgeSize5, 0.0)
+cooleyTukeyFft(dcR5, dcI5, false)
+
+dcValid = (m.Abs(dcR5[0] - (3.5 * edgeSize5)) < 0.0000001)
+k = 1
+while (k < edgeSize5) {
+    if (m.Abs(dcR5[k]) > 0.0000001 or m.Abs(dcI5[k]) > 0.0000001) {
+        dcValid = false
+    }
+    k = k + 1
+}
+if (!dcValid) {
+    print("[FAIL] Constant DC signal has non-zero AC bins")
+} else {
+    print("  Edge Case 5b (Constant DC spike at bin 0) verified")
+}
+
+// 5c: Alternating Nyquist signal [1, -1, 1, -1, ...]
+nyqR5 = makeFloatArray(edgeSize5, 0.0)
+nyqI5 = makeFloatArray(edgeSize5, 0.0)
+k = 0
+while (k < edgeSize5) {
+    if (k % 2 == 0) { nyqR5[k] = 1.0 } else { nyqR5[k] = -1.0 }
+    k = k + 1
+}
+cooleyTukeyFft(nyqR5, nyqI5, false)
+
+nyqValid = (m.Abs(nyqR5[edgeSize5 / 2] - (1.0 * edgeSize5)) < 0.0000001)
+k = 0
+while (k < edgeSize5) {
+    if (k != (edgeSize5 / 2)) {
+        if (m.Abs(nyqR5[k]) > 0.0000001 or m.Abs(nyqI5[k]) > 0.0000001) {
+            nyqValid = false
+        }
+    }
+    k = k + 1
+}
+if (!nyqValid) {
+    print("[FAIL] Nyquist signal did not concentrate at bin N/2")
+} else {
+    print("  Edge Case 5c (Alternating Nyquist frequency spike at bin N/2) verified")
+}
+
+elapsed = t.millis() - globalStartTime
+print("[PASS] Radix-2 Cooley-Tukey FFT & Convolution Suite executed successfully in", elapsed, "ms")
