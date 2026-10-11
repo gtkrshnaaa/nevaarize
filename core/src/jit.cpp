@@ -10407,7 +10407,10 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
             modInfo.filePath = fullPath.string();
             
             
-            // Compile top-level functions from imported file
+            // Compile top-level functions, structs, and imports from imported file
+            std::string prevSourceDir = sourceDir;
+            sourceDir = fullPath.parent_path().string();
+
             const ASTNode& root = storedAST.get(storedAST.root());
             for (NodeIndex childIdx : root.children) {
                 const ASTNode& child = storedAST.get(childIdx);
@@ -10425,10 +10428,28 @@ void JIT::compileStatement(const AST& ast, NodeIndex idx) {
                     info.sourceAST = &storedAST;  // Point to stored AST
                     
                     userFunctions[namespacedName] = info;
+                    if (userFunctions.find(child.name) == userFunctions.end()) {
+                        userFunctions[child.name] = info;
+                    }
                     modInfo.exportedFunctions[child.name] = childIdx;
+                } else if (child.type == NodeType::STRUCT_DECL) {
+                    StructInfo sInfo;
+                    sInfo.fieldNames = child.paramNames;
+                    sInfo.size = child.paramNames.size();
+                    structs[child.name] = sInfo;
+                    structs[alias + "_" + child.name] = sInfo;
+                } else if (child.type == NodeType::IMPORT_STDLIB) {
+                    if (!child.paramNames.empty()) {
+                        std::string moduleName = child.name;
+                        std::string subAlias = child.paramNames[0];
+                        stdlibAliases[subAlias] = moduleName;
+                    }
+                } else if (child.type == NodeType::IMPORT_FILE) {
+                    compileStatement(storedAST, childIdx);
                 }
             }
             
+            sourceDir = prevSourceDir;
             modules[alias] = modInfo;
             break;
         }

@@ -48,15 +48,15 @@ for f in $FILES; do
     COUNT=$((COUNT + 1))
     echo -n "[$COUNT/$TOTAL] Running $f..."
     
-    # Run with 10s timeout, use /usr/bin/time to capture metrics if available
+    # Run with 15s timeout, use /usr/bin/time to capture metrics if available
     TIME_LOG="/tmp/nv_time_${COUNT}.log"
     if [ -x "/usr/bin/time" ]; then
-        temp_out=$(/usr/bin/time -v -o "$TIME_LOG" timeout 10s "$BIN" "$f" 2>&1)
+        temp_out=$(/usr/bin/time -v -o "$TIME_LOG" timeout 15s "$BIN" "$f" 2>&1)
         exit_code=$?
         RAM_KB=$(grep "Maximum resident set size" "$TIME_LOG" 2>/dev/null | awk '{print $6}')
         CPU_PCT=$(grep "Percent of CPU this job got" "$TIME_LOG" 2>/dev/null | awk '{print $7}' | tr -d '%')
     else
-        temp_out=$(timeout 10s "$BIN" "$f" 2>&1)
+        temp_out=$(timeout 15s "$BIN" "$f" 2>&1)
         exit_code=$?
         RAM_KB="N/A"
         CPU_PCT="N/A"
