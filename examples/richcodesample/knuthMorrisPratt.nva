@@ -1,0 +1,111 @@
+import stdlib string as str
+import stdlib time as t
+
+// Knuth-Morris-Pratt (KMP) String Matching Algorithm
+// Computes Longest Prefix Suffix (LPS) table in O(M) and searches in O(N).
+// Compares character codes directly for peak JIT numeric performance.
+// Strict camelCase naming enforced (No-Underscore Policy).
+
+print("=== Nevaarize Knuth-Morris-Pratt Pattern Matching ===")
+startTime = t.millis()
+
+func buildLpsTable(pattern) {
+    m = str.length(pattern)
+    lps = []
+    i = 0
+    while (i < m) {
+        lps.push(0)
+        i = i + 1
+    }
+
+    prevLps = 0
+    i = 1
+    while (i < m) {
+        codeI = str.charCodeAt(pattern, i)
+        codePrev = str.charCodeAt(pattern, prevLps)
+
+        if (codeI == codePrev) {
+            prevLps = prevLps + 1
+            lps[i] = prevLps
+            i = i + 1
+        } else {
+            if (prevLps != 0) {
+                prevLps = lps[prevLps - 1]
+            } else {
+                lps[i] = 0
+                i = i + 1
+            }
+        }
+    }
+    return lps
+}
+
+func searchKMP(text, pattern) {
+    n = str.length(text)
+    m = str.length(pattern)
+    lps = buildLpsTable(pattern)
+    matches = []
+
+    print("\nSearch Pattern: '" + pattern + "' (length:", m, ") in Text: '" + text + "' (length:", n, ")")
+    print("LPS Table values:")
+    i = 0
+    while (i < m) {
+        print("  Index", i, "char code:", str.charCodeAt(pattern, i), "lps:", lps[i])
+        i = i + 1
+    }
+
+    tIdx = 0
+    pIdx = 0
+    while (tIdx < n) {
+        codeT = str.charCodeAt(text, tIdx)
+        codeP = str.charCodeAt(pattern, pIdx)
+
+        if (codeT == codeP) {
+            tIdx = tIdx + 1
+            pIdx = pIdx + 1
+        }
+
+        if (pIdx == m) {
+            matchPos = tIdx - pIdx
+            matches.push(matchPos)
+            pIdx = lps[pIdx - 1]
+        } elif (tIdx < n and codeT != codeP) {
+            if (pIdx != 0) {
+                pIdx = lps[pIdx - 1]
+            } else {
+                tIdx = tIdx + 1
+            }
+        }
+    }
+
+    print("Total matches found:", len(matches))
+    k = 0
+    while (k < len(matches)) {
+        print("  Match", k + 1, "at index:", matches[k])
+        k = k + 1
+    }
+    return matches
+}
+
+// Case 1: Standard textbook example
+txt1 = "ABABDABACDABABCABAB"
+pat1 = "ABABCABAB"
+res1 = searchKMP(txt1, pat1)
+
+// Case 2: Overlapping matches
+txt2 = "AAAAABAAABA"
+pat2 = "AAAA"
+res2 = searchKMP(txt2, pat2)
+
+// Case 3: Periodic biological sequence
+txt3 = "GATCGATCGATCGATC"
+pat3 = "ATCGATC"
+res3 = searchKMP(txt3, pat3)
+
+// Case 4: Non-matching pattern
+txt4 = "NEVAARIZEJITCOMPILER"
+pat4 = "PYTHON"
+res4 = searchKMP(txt4, pat4)
+
+elapsed = t.millis() - startTime
+print("\nKMP pattern matching benchmark completed in:", elapsed, "ms")
