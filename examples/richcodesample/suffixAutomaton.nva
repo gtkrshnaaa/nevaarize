@@ -1,0 +1,474 @@
+import stdlib string as s
+import stdlib time as t
+
+// Suffix Automaton (SAM / Directed Acyclic Word Graph - DAWG)
+// High-performance string index structure representing all substrings in linear O(N) space and time:
+// - Online state machine construction with suffix link maintenance and cloned state branching
+// - Linear upper bound verification: at most 2N - 1 states and 3N - 4 transitions
+// - Exact distinct substring counting via topological equivalence class summation
+// - O(|P|) pattern existence testing and exact occurrence frequency via endpos propagation
+// - 0-indexed first occurrence position localization in O(|P|) time
+// - Linear-time Longest Common Substring (LCS) between arbitrary pairs of strings
+// Enforces strict camelCase naming convention (No-Underscore Policy).
+
+print("=== Nevaarize Suffix Automaton (SAM / DAWG) Engine ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func createSuffixAutomaton(maxStates) {
+    // Alphabet size: 128 (ASCII support)
+    samLen = makeIntArray(maxStates, 0)
+    samLink = makeIntArray(maxStates, -1)
+    samNext = makeIntArray(maxStates * 128, -1)
+    samEndpos = makeIntArray(maxStates, 0)
+    firstPos = makeIntArray(maxStates, 0)
+    isClone = makeIntArray(maxStates, 0)
+
+    // State 0 is the initial root state
+    samLink[0] = -1
+    samLen[0] = 0
+
+    // Pack into array structure
+    // 0: samSz, 1: lastState, 2: samLen, 3: samLink, 4: samNext, 5: samEndpos, 6: firstPos, 7: isClone, 8: maxStates
+    return [1, 0, samLen, samLink, samNext, samEndpos, firstPos, isClone, maxStates]
+}
+
+func extendSuffixAutomaton(sam, charCode, charIdx) {
+    samSz = sam[0]
+    last = sam[1]
+    samLen = sam[2]
+    samLink = sam[3]
+    samNext = sam[4]
+    samEndpos = sam[5]
+    firstPos = sam[6]
+    isClone = sam[7]
+
+    cur = samSz
+    samSz = samSz + 1
+    samLen[cur] = samLen[last] + 1
+    samEndpos[cur] = 1
+    firstPos[cur] = charIdx
+    isClone[cur] = 0
+
+    p = last
+    while (p != -1 and samNext[p * 128 + charCode] == -1) {
+        samNext[p * 128 + charCode] = cur
+        p = samLink[p]
+    }
+
+    if (p == -1) {
+        samLink[cur] = 0
+    } else {
+        q = samNext[p * 128 + charCode]
+        if (samLen[p] + 1 == samLen[q]) {
+            samLink[cur] = q
+        } else {
+            clone = samSz
+            samSz = samSz + 1
+            samLen[clone] = samLen[p] + 1
+            samLink[clone] = samLink[q]
+            firstPos[clone] = firstPos[q]
+            isClone[clone] = 1
+            samEndpos[clone] = 0
+
+            // Copy transitions of state q to clone state
+            ci = 0
+            while (ci < 128) {
+                samNext[clone * 128 + ci] = samNext[q * 128 + ci]
+                ci = ci + 1
+            }
+
+            // Redirect edges pointing to q from predecessors of p to clone
+            while (p != -1 and samNext[p * 128 + charCode] == q) {
+                samNext[p * 128 + charCode] = clone
+                p = samLink[p]
+            }
+
+            samLink[q] = clone
+            samLink[cur] = clone
+        }
+    }
+
+    sam[0] = samSz
+    sam[1] = cur
+}
+
+func buildSuffixAutomaton(inputStr) {
+    strLen = s.length(inputStr)
+    maxCap = strLen * 2 + 10
+    sam = createSuffixAutomaton(maxCap)
+
+    idx = 0
+    while (idx < strLen) {
+        chCode = s.charCodeAt(inputStr, idx)
+        extendSuffixAutomaton(sam, chCode, idx)
+        idx = idx + 1
+    }
+
+    // Compute endpos frequencies using iterative counting sort by length
+    computeEndposCounts(sam, strLen)
+    return sam
+}
+
+func computeEndposCounts(sam, maxLen) {
+    samSz = sam[0]
+    samLen = sam[2]
+    samLink = sam[3]
+    samEndpos = sam[5]
+
+    // Frequency bucket of state lengths
+    cnt = makeIntArray(maxLen + 1, 0)
+    i = 0
+    while (i < samSz) {
+        cnt[samLen[i]] = cnt[samLen[i]] + 1
+        i = i + 1
+    }
+
+    // Prefix sums
+    lenIdx = 1
+    while (lenIdx <= maxLen) {
+        cnt[lenIdx] = cnt[lenIdx] + cnt[lenIdx - 1]
+        lenIdx = lenIdx + 1
+    }
+
+    // Order states in non-descending order of length
+    order = makeIntArray(samSz, 0)
+    st = 0
+    while (st < samSz) {
+        pos = cnt[samLen[st]] - 1
+        cnt[samLen[st]] = cnt[samLen[st]] - 1
+        order[pos] = st
+        st = st + 1
+    }
+
+    // Propagate endpos sizes in descending order of length (from back to front)
+    k = samSz - 1
+    while (k > 0) {
+        currState = order[k]
+        parentLink = samLink[currState]
+        if (parentLink != -1) {
+            samEndpos[parentLink] = samEndpos[parentLink] + samEndpos[currState]
+        }
+        k = k - 1
+    }
+}
+
+func countDistinctSubstrings(sam) {
+    samSz = sam[0]
+    samLen = sam[2]
+    samLink = sam[3]
+
+    totalDistinct = 0
+    u = 1
+    while (u < samSz) {
+        parentLink = samLink[u]
+        parentLen = 0
+        if (parentLink != -1) {
+            parentLen = samLen[parentLink]
+        }
+        totalDistinct = totalDistinct + (samLen[u] - parentLen)
+        u = u + 1
+    }
+    return totalDistinct
+}
+
+func isSubstring(sam, pattern) {
+    samNext = sam[4]
+    patLen = s.length(pattern)
+    curr = 0
+    i = 0
+    while (i < patLen) {
+        chCode = s.charCodeAt(pattern, i)
+        nxt = samNext[curr * 128 + chCode]
+        if (nxt == -1) {
+            return 0
+        }
+        curr = nxt
+        i = i + 1
+    }
+    return 1
+}
+
+func countOccurrences(sam, pattern) {
+    samNext = sam[4]
+    samEndpos = sam[5]
+    patLen = s.length(pattern)
+    curr = 0
+    i = 0
+    while (i < patLen) {
+        chCode = s.charCodeAt(pattern, i)
+        nxt = samNext[curr * 128 + chCode]
+        if (nxt == -1) {
+            return 0
+        }
+        curr = nxt
+        i = i + 1
+    }
+    return samEndpos[curr]
+}
+
+func findFirstOccurrence(sam, pattern) {
+    samNext = sam[4]
+    firstPos = sam[6]
+    patLen = s.length(pattern)
+    curr = 0
+    i = 0
+    while (i < patLen) {
+        chCode = s.charCodeAt(pattern, i)
+        nxt = samNext[curr * 128 + chCode]
+        if (nxt == -1) {
+            return -1
+        }
+        curr = nxt
+        i = i + 1
+    }
+    return firstPos[curr] - patLen + 1
+}
+
+func findLongestCommonSubstring(sam, targetStr) {
+    samLen = sam[2]
+    samLink = sam[3]
+    samNext = sam[4]
+
+    targetLen = s.length(targetStr)
+    curr = 0
+    curLen = 0
+    bestLen = 0
+    bestPos = 0
+
+    ti = 0
+    while (ti < targetLen) {
+        chCode = s.charCodeAt(targetStr, ti)
+
+        while (curr != -1 and samNext[curr * 128 + chCode] == -1) {
+            curr = samLink[curr]
+            if (curr != -1) {
+                curLen = samLen[curr]
+            }
+        }
+
+        if (curr == -1) {
+            curr = 0
+            curLen = 0
+        } else {
+            curr = samNext[curr * 128 + chCode]
+            curLen = curLen + 1
+        }
+
+        if (curLen > bestLen) {
+            bestLen = curLen
+            bestPos = ti - curLen + 1
+        }
+        ti = ti + 1
+    }
+
+    if (bestLen == 0) {
+        return ""
+    }
+    return s.substring(targetStr, bestPos, bestLen)
+}
+
+// ---------------------------------------------------------------------------
+// Suite 1: Suffix Automaton State Space & Topology Bound Invariants
+// ---------------------------------------------------------------------------
+print("[Test 1] SAM Topology & State Space Linear Bound Invariants")
+sampleStr = "mississippi"
+samMiss = buildSuffixAutomaton(sampleStr)
+missLen = s.length(sampleStr)
+missStates = samMiss[0]
+
+// Count transitions
+totalEdges = 0
+eState = 0
+while (eState < missStates) {
+    cIdx = 0
+    while (cIdx < 128) {
+        if (samMiss[4][eState * 128 + cIdx] != -1) {
+            totalEdges = totalEdges + 1
+        }
+        cIdx = cIdx + 1
+    }
+    eState = eState + 1
+}
+
+maxAllowableStates = 2 * missLen - 1
+maxAllowableEdges = 3 * missLen - 4
+
+print("  Input string:", sampleStr, "(len:", missLen, ")")
+print("  Automaton states:", missStates, "(upper bound <= 2N - 1:", maxAllowableStates, ")")
+print("  Automaton transitions:", totalEdges, "(upper bound <= 3N - 4:", maxAllowableEdges, ")")
+
+dagPropertyValid = 1
+chkState = 1
+while (chkState < missStates) {
+    pLink = samMiss[3][chkState]
+    if (pLink != -1) {
+        if (samMiss[2][pLink] >= samMiss[2][chkState]) {
+            dagPropertyValid = 0
+        }
+    }
+    chkState = chkState + 1
+}
+
+if (missStates <= maxAllowableStates and totalEdges <= maxAllowableEdges and dagPropertyValid == 1) {
+    print("  SAM structural topological invariants: PASSED")
+} else {
+    print("  SAM structural topological invariants: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 2: Distinct Substrings Equivalence Verification
+// ---------------------------------------------------------------------------
+print("[Test 2] Distinct Substrings Equivalence Verification")
+testStrings = ["banana", "mississippi", "abracadabra", "abcde"]
+expectedDistinct = [15, 53, 54, 15]
+
+distinctPass = 1
+dsIdx = 0
+while (dsIdx < len(testStrings)) {
+    curStr = testStrings[dsIdx]
+    curSam = buildSuffixAutomaton(curStr)
+    computedDistinct = countDistinctSubstrings(curSam)
+    expDistinct = expectedDistinct[dsIdx]
+    print("  String: '" + curStr + "' -> distinct:", computedDistinct, "(expected:", expDistinct, ")")
+    if (computedDistinct != expDistinct) {
+        distinctPass = 0
+    }
+    dsIdx = dsIdx + 1
+}
+
+if (distinctPass == 1) {
+    print("  Distinct substrings counting suite: PASSED")
+} else {
+    print("  Distinct substrings counting suite: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 3: O(|P|) Fast Substring Existence Testing
+// ---------------------------------------------------------------------------
+print("[Test 3] O(|P|) Fast Substring Existence Testing")
+samBanana = buildSuffixAutomaton("banana")
+
+positivePatterns = ["ban", "nana", "anana", "a", "banana"]
+negativePatterns = ["band", "nanan", "xyz", "apple", "bann"]
+
+existPass = 1
+posIdx = 0
+while (posIdx < len(positivePatterns)) {
+    pat = positivePatterns[posIdx]
+    if (isSubstring(samBanana, pat) != 1) {
+        print("  Error: False negative for pattern:", pat)
+        existPass = 0
+    }
+    posIdx = posIdx + 1
+}
+
+negIdx = 0
+while (negIdx < len(negativePatterns)) {
+    pat = negativePatterns[negIdx]
+    if (isSubstring(samBanana, pat) != 0) {
+        print("  Error: False positive for pattern:", pat)
+        existPass = 0
+    }
+    negIdx = negIdx + 1
+}
+
+if (existPass == 1) {
+    print("  Pattern existence query verification: PASSED")
+} else {
+    print("  Pattern existence query verification: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 4: Exact Substring Occurrence Frequency via Endpos Propagation
+// ---------------------------------------------------------------------------
+print("[Test 4] Substring Occurrence Frequency via Endpos Propagation")
+freqPatterns = ["s", "i", "p", "m", "ss", "iss", "issip", "pp", "mississippi", "z"]
+expectedFreq = [4, 4, 2, 1, 2, 2, 1, 1, 1, 0]
+
+freqPass = 1
+fpIdx = 0
+while (fpIdx < len(freqPatterns)) {
+    pat = freqPatterns[fpIdx]
+    computedFreq = countOccurrences(samMiss, pat)
+    expFreq = expectedFreq[fpIdx]
+    print("  Pattern: '" + pat + "' -> occurrences:", computedFreq, "(expected:", expFreq, ")")
+    if (computedFreq != expFreq) {
+        freqPass = 0
+    }
+    fpIdx = fpIdx + 1
+}
+
+if (freqPass == 1) {
+    print("  Endpos frequency counting verification: PASSED")
+} else {
+    print("  Endpos frequency counting verification: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 5: First Occurrence Index Localization
+// ---------------------------------------------------------------------------
+print("[Test 5] First Occurrence Position Localization")
+locPatterns = ["m", "issip", "ssi", "ppi", "mississippi"]
+expectedLoc = [0, 4, 2, 8, 0]
+
+locPass = 1
+lpIdx = 0
+while (lpIdx < len(locPatterns)) {
+    pat = locPatterns[lpIdx]
+    computedLoc = findFirstOccurrence(samMiss, pat)
+    expLoc = expectedLoc[lpIdx]
+    print("  Pattern: '" + pat + "' -> first position:", computedLoc, "(expected:", expLoc, ")")
+    if (computedLoc != expLoc) {
+        locPass = 0
+    }
+    lpIdx = lpIdx + 1
+}
+
+if (locPass == 1) {
+    print("  First occurrence localization verification: PASSED")
+} else {
+    print("  First occurrence localization verification: FAILED")
+}
+
+// ---------------------------------------------------------------------------
+// Suite 6: Linear-Time Longest Common Substring (LCS)
+// ---------------------------------------------------------------------------
+print("[Test 6] Linear-Time Longest Common Substring (LCS)")
+samAbacaba = buildSuffixAutomaton("abacaba")
+lcs1 = findLongestCommonSubstring(samAbacaba, "bacad")
+lcs1Len = s.length(lcs1)
+print("  LCS of 'abacaba' and 'bacad': '" + lcs1 + "' (len:", lcs1Len, ", expected: 'baca', 4)")
+
+samMiss2 = buildSuffixAutomaton("mississippi")
+lcs2 = findLongestCommonSubstring(samMiss2, "sipipis")
+lcs2Len = s.length(lcs2)
+print("  LCS of 'mississippi' and 'sipipis': '" + lcs2 + "' (len:", lcs2Len, ", expected: 'sip', 3)")
+
+samStruct = buildSuffixAutomaton("structuralengineering")
+lcs3 = findLongestCommonSubstring(samStruct, "reverseengineering")
+lcs3Len = s.length(lcs3)
+print("  LCS of 'structuralengineering' and 'reverseengineering': '" + lcs3 + "' (len:", lcs3Len, ", expected: 'engineering', 11)")
+
+lcsPass = 1
+if (lcs1Len != 4 or lcs1 != "baca") { lcsPass = 0 }
+if (lcs2Len != 3 or lcs2 != "sip") { lcsPass = 0 }
+if (lcs3Len != 11 or lcs3 != "engineering") { lcsPass = 0 }
+
+if (lcsPass == 1) {
+    print("  Longest common substring extraction: PASSED")
+} else {
+    print("  Longest common substring extraction: FAILED")
+}
+
+elapsedTotal = t.millis() - globalStartTime
+print("=== Suffix Automaton Engine Execution Complete (Time:", elapsedTotal, "ms) ===")
