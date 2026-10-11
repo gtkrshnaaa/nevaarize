@@ -84,3 +84,84 @@ func discreteFourierTransform(real, imag, invert) {
     }
     return ComplexVector(outR, outI)
 }
+
+func bitReversePermutation(real, imag, n) {
+    j = 0
+    i = 0
+    while (i < n) {
+        if (i < j) {
+            tempR = real[i]
+            real[i] = real[j]
+            real[j] = tempR
+
+            tempI = imag[i]
+            imag[i] = imag[j]
+            imag[j] = tempI
+        }
+        bit = n / 2
+        while (bit <= j and bit > 0) {
+            j = j - bit
+            bit = bit / 2
+        }
+        j = j + bit
+        i = i + 1
+    }
+}
+
+func cooleyTukeyFft(real, imag, invert) {
+    n = real.size()
+    bitReversePermutation(real, imag, n)
+
+    twoPi = 2.0 * m.PI
+    lenVal = 2
+    while (lenVal <= n) {
+        ang = twoPi / (1.0 * lenVal)
+        if (!invert) {
+            ang = 0.0 - ang
+        }
+        wStepR = m.Cos(ang)
+        wStepI = m.Sin(ang)
+
+        halfLen = lenVal / 2
+        subIdx = 0
+        while (subIdx < n) {
+            curWR = 1.0
+            curWI = 0.0
+            stepIdx = 0
+            while (stepIdx < halfLen) {
+                evenIdx = subIdx + stepIdx
+                oddIdx = evenIdx + halfLen
+
+                uR = real[evenIdx]
+                uI = imag[evenIdx]
+
+                vR = real[oddIdx] * curWR - imag[oddIdx] * curWI
+                vI = real[oddIdx] * curWI + imag[oddIdx] * curWR
+
+                real[evenIdx] = uR + vR
+                imag[evenIdx] = uI + vI
+                real[oddIdx] = uR - vR
+                imag[oddIdx] = uI - vI
+
+                nextWR = curWR * wStepR - curWI * wStepI
+                nextWI = curWR * wStepI + curWI * wStepR
+                curWR = nextWR
+                curWI = nextWI
+
+                stepIdx = stepIdx + 1
+            }
+            subIdx = subIdx + lenVal
+        }
+        lenVal = lenVal * 2
+    }
+
+    if (invert) {
+        invN = 1.0 / (1.0 * n)
+        i = 0
+        while (i < n) {
+            real[i] = real[i] * invN
+            imag[i] = imag[i] * invN
+            i = i + 1
+        }
+    }
+}
