@@ -1,0 +1,8 @@
+[
+  {
+    "id": "ISSUE-1",
+    "title": "feat(algorithms): implement persistentFenwickTree in richcodesamples",
+    "status": "in-progress",
+    "file": "ISSUE-1.md"
+  }
+]
