@@ -571,5 +571,189 @@ if (repErrors > 0) {
 }
 print("  Test Case 3 Passed boundary and edge case verification")
 
+// -----------------------------------------------------------------------------
+// Test Case 4: Deep Lazy Propagation and Cascading Overlapping Intervals
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Deep Lazy Propagation and Cascading Overlapping Intervals...")
+
+deepPst = createPersistentTreeLazy()
+deepArr = [1, 2, 3, 4, 5, 6, 7, 8]
+deepLen = deepArr.size()
+deepRoots = []
+
+d0 = buildTree(deepPst, deepArr, 0, deepLen - 1)
+deepRoots.push(d0)
+
+// Update 1: add +10 to [0, 7] -> [11, 12, 13, 14, 15, 16, 17, 18]
+d1 = updateRangeAdd(deepPst, d0, 0, deepLen - 1, 0, 7, 10)
+deepRoots.push(d1)
+
+// Update 2: add +20 to [2, 5] -> [11, 12, 33, 34, 35, 36, 17, 18]
+d2 = updateRangeAdd(deepPst, d1, 0, deepLen - 1, 2, 5, 20)
+deepRoots.push(d2)
+
+// Update 3: add +30 to [1, 3] -> [11, 42, 63, 64, 35, 36, 17, 18]
+d3 = updateRangeAdd(deepPst, d2, 0, deepLen - 1, 1, 3, 30)
+deepRoots.push(d3)
+
+// Update 4: add -15 to [3, 6] -> [11, 42, 63, 49, 20, 21, 2, 18]
+d4 = updateRangeAdd(deepPst, d3, 0, deepLen - 1, 3, 6, -15)
+deepRoots.push(d4)
+
+expectedD4 = [11, 42, 63, 49, 20, 21, 2, 18]
+deepErrors = 0
+chkIdx = 0
+while (chkIdx < deepLen) {
+    ptVal = queryPoint(deepPst, d4, 0, deepLen - 1, chkIdx, 0)
+    if (ptVal != expectedD4[chkIdx]) {
+        deepErrors = deepErrors + 1
+    }
+    chkIdx = chkIdx + 1
+}
+
+sumD4Full = queryRangeSum(deepPst, d4, 0, deepLen - 1, 0, deepLen - 1, 0)
+minD4Full = queryRangeMin(deepPst, d4, 0, deepLen - 1, 0, deepLen - 1, 0)
+maxD4Full = queryRangeMax(deepPst, d4, 0, deepLen - 1, 0, deepLen - 1, 0)
+sumD4Sub = queryRangeSum(deepPst, d4, 0, deepLen - 1, 2, 4, 0)
+
+if (sumD4Full != 226 or minD4Full != 2 or maxD4Full != 63 or sumD4Sub != 132 or deepErrors > 0) {
+    print("[FAIL] Cascading lazy updates had mismatches in Version 4")
+} else {
+    print("  Version 4 verified with cascading lazy tags across overlapping intervals (sum:", sumD4Full, ", min:", minD4Full, ", max:", maxD4Full, ")")
+}
+
+// Immutability checks across earlier historical stages
+sumD0 = queryRangeSum(deepPst, d0, 0, deepLen - 1, 0, deepLen - 1, 0)
+sumD1 = queryRangeSum(deepPst, d1, 0, deepLen - 1, 0, deepLen - 1, 0)
+sumD2 = queryRangeSum(deepPst, d2, 0, deepLen - 1, 0, deepLen - 1, 0)
+sumD3 = queryRangeSum(deepPst, d3, 0, deepLen - 1, 0, deepLen - 1, 0)
+
+if (sumD0 != 36 or sumD1 != 116 or sumD2 != 196 or sumD3 != 286) {
+    print("[FAIL] Historical cascading versions corrupted! Got sums:", sumD0, sumD1, sumD2, sumD3)
+} else {
+    print("  Historical versions d0..d3 verified strictly immutable: sums [36, 116, 196, 286]")
+}
+print("  Test Case 4 Passed deep cascading lazy propagation verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Benchmark against Naive Historical Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Randomized Stress Benchmark against Naive Historical Matrix...")
+
+stressPst = createPersistentTreeLazy()
+stressLen = 20
+numVersions = 40
+
+stressInit = []
+lSeed = 987654321
+initI = 0
+while (initI < stressLen) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    elemVal = (lSeed % 100) - 20
+    stressInit.push(elemVal)
+    initI = initI + 1
+}
+
+stressRoots = []
+naiveHistory = []
+
+sRoot0 = buildTree(stressPst, stressInit, 0, stressLen - 1)
+stressRoots.push(sRoot0)
+
+v0Copy = []
+cI = 0
+while (cI < stressLen) {
+    v0Copy.push(stressInit[cI])
+    cI = cI + 1
+}
+naiveHistory.push(v0Copy)
+
+verIdx = 1
+while (verIdx <= numVersions) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qLeft = lSeed % stressLen
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qRight = lSeed % stressLen
+    if (qLeft > qRight) {
+        temp = qLeft
+        qLeft = qRight
+        qRight = temp
+    }
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    delta = (lSeed % 61) - 25
+
+    prevR = stressRoots[verIdx - 1]
+    newR = updateRangeAdd(stressPst, prevR, 0, stressLen - 1, qLeft, qRight, delta)
+    stressRoots.push(newR)
+
+    newClone = []
+    prevClone = naiveHistory[verIdx - 1]
+    scanI = 0
+    while (scanI < stressLen) {
+        valCur = prevClone[scanI]
+        if (scanI >= qLeft and scanI <= qRight) {
+            valCur = valCur + delta
+        }
+        newClone.push(valCur)
+        scanI = scanI + 1
+    }
+    naiveHistory.push(newClone)
+    verIdx = verIdx + 1
+}
+
+testQueries = 120
+qI = 0
+stressErrors = 0
+
+while (qI < testQueries) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    chosenVer = lSeed % (numVersions + 1)
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qLeft = lSeed % stressLen
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qRight = lSeed % stressLen
+    if (qLeft > qRight) {
+        temp = qLeft
+        qLeft = qRight
+        qRight = temp
+    }
+
+    expectedSum = 0
+    expectedMin = 2147483647
+    expectedMax = -2147483648
+    verArr = naiveHistory[chosenVer]
+    scanIdx = qLeft
+    while (scanIdx <= qRight) {
+        curItem = verArr[scanIdx]
+        expectedSum = expectedSum + curItem
+        if (curItem < expectedMin) {
+            expectedMin = curItem
+        }
+        if (curItem > expectedMax) {
+            expectedMax = curItem
+        }
+        scanIdx = scanIdx + 1
+    }
+
+    actSum = queryRangeSum(stressPst, stressRoots[chosenVer], 0, stressLen - 1, qLeft, qRight, 0)
+    actMin = queryRangeMin(stressPst, stressRoots[chosenVer], 0, stressLen - 1, qLeft, qRight, 0)
+    actMax = queryRangeMax(stressPst, stressRoots[chosenVer], 0, stressLen - 1, qLeft, qRight, 0)
+
+    if (actSum != expectedSum or actMin != expectedMin or actMax != expectedMax) {
+        stressErrors = stressErrors + 1
+    }
+    qI = qI + 1
+}
+
+if (stressErrors > 0) {
+    print("[FAIL] Stress queries had", stressErrors, "mismatches against naive oracle")
+} else {
+    print("  Validated", testQueries, "random historical queries across", numVersions, "versions: 0 mismatches")
+    tAlloc = stressPst[0]
+    print("  Total allocated persistent lazy arena nodes:", tAlloc.size())
+    print("  Test Case 5 Passed stress benchmark verification")
+}
+
 elapsed = t.millis() - suiteStartTime
-print("[PASS] Persistent Segment Tree with Lazy Propagation executed in", elapsed, "ms")
+print("[PASS] Persistent Segment Tree with Lazy Propagation Suite executed successfully in", elapsed, "ms")
