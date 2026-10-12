@@ -162,6 +162,68 @@ func insertWord(trie, prevRoot, word) {
     return newRoot
 }
 
+func removeWord(trie, prevRoot, word) {
+    if (prevRoot == -1) {
+        return -1
+    }
+    if (containsWord(trie, prevRoot, word) == 0) {
+        return prevRoot
+    }
+    wordLen = str.length(word)
+    newRoot = cloneNode(trie, prevRoot)
+    tPrefixCount = trie[2]
+    tPrefixCount[newRoot] = tPrefixCount[newRoot] - 1
+    trie[2] = tPrefixCount
+
+    if (wordLen == 0) {
+        tWordCount = trie[1]
+        tWordCount[newRoot] = tWordCount[newRoot] - 1
+        trie[1] = tWordCount
+        return newRoot
+    }
+
+    currNode = newRoot
+    tChildren = trie[0]
+    alphaSize = trie[5]
+    pruned = 0
+    i = 0
+    while (i < wordLen and pruned == 0) {
+        charCode = str.charCodeAt(word, i)
+        cIdx = charToIndex(charCode)
+        if (cIdx < 0) {
+            i = i + 1
+        } else {
+            oldChild = tChildren[currNode * alphaSize + cIdx]
+            newChild = cloneNode(trie, oldChild)
+            tPrefixCount = trie[2]
+            newPref = tPrefixCount[newChild] - 1
+            tPrefixCount[newChild] = newPref
+            trie[2] = tPrefixCount
+
+            if (newPref == 0) {
+                tChildren = trie[0]
+                tChildren[currNode * alphaSize + cIdx] = -1
+                trie[0] = tChildren
+                pruned = 1
+            } else {
+                tChildren = trie[0]
+                tChildren[currNode * alphaSize + cIdx] = newChild
+                trie[0] = tChildren
+                currNode = newChild
+                i = i + 1
+            }
+        }
+    }
+
+    if (pruned == 0) {
+        tWordCount = trie[1]
+        tWordCount[currNode] = tWordCount[currNode] - 1
+        trie[1] = tWordCount
+    }
+
+    return newRoot
+}
+
 func containsWord(trie, root, word) {
     if (root == -1) {
         return 0
@@ -734,4 +796,157 @@ if (countTotalWords(trie, v6) != 6 or containsWord(trie, v6, "apply") != 0 or co
     print("  Trunk Version 6 strictly preserved: 6 words, zero branch leakage")
 }
 print("  Test Case 3 Passed timeline forking and branching isolation verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Boundary Edge Cases, Deletion, and Longest Common Prefix
+// -----------------------------------------------------------------------------
+print("\nRunning Test Case 4: Boundary Edge Cases, Deletion, and Longest Common Prefix...")
+
+// 4.1 Empty string insertion and deletion
+vEmptyBase = allocNode(trie, -1, 0)
+if (containsWord(trie, vEmptyBase, "") != 0 or countTotalWords(trie, vEmptyBase) != 0) {
+    print("[FAIL] Empty base trie should not contain empty string")
+}
+
+vWithEmpty = insertWord(trie, vEmptyBase, "")
+if (containsWord(trie, vWithEmpty, "") != 1 or countTotalWords(trie, vWithEmpty) != 1) {
+    print("[FAIL] Empty string insertion failed")
+}
+if (containsWord(trie, vEmptyBase, "") != 0) {
+    print("[FAIL] Immutability violated for empty base")
+}
+
+vAfterRemoveEmpty = removeWord(trie, vWithEmpty, "")
+if (containsWord(trie, vAfterRemoveEmpty, "") != 0 or countTotalWords(trie, vAfterRemoveEmpty) != 0) {
+    print("[FAIL] Empty string deletion failed")
+}
+print("  Edge Case 4.1 Passed empty string insertion, query, and deletion")
+
+// 4.2 Single character strings
+vSingleBase = allocNode(trie, -1, 0)
+vSingle1 = insertWord(trie, vSingleBase, "a")
+vSingle2 = insertWord(trie, vSingle1, "z")
+vSingle3 = insertWord(trie, vSingle2, "m")
+
+if (containsWord(trie, vSingle3, "a") != 1 or containsWord(trie, vSingle3, "z") != 1 or containsWord(trie, vSingle3, "m") != 1) {
+    print("[FAIL] Single character word lookup failed")
+}
+if (containsWord(trie, vSingle3, "b") != 0 or containsWord(trie, vSingle3, "y") != 0) {
+    print("[FAIL] Non-existent single character word falsely reported")
+}
+if (countPrefix(trie, vSingle3, "a") != 1 or countPrefix(trie, vSingle3, "z") != 1) {
+    print("[FAIL] Single character prefix count mismatch")
+}
+print("  Edge Case 4.2 Passed single-character boundaries")
+
+// 4.3 Deep repeated prefix chain
+vChain0 = allocNode(trie, -1, 0)
+vChain1 = insertWord(trie, vChain0, "a")
+vChain2 = insertWord(trie, vChain1, "aa")
+vChain3 = insertWord(trie, vChain2, "aaa")
+vChain4 = insertWord(trie, vChain3, "aaaa")
+vChain5 = insertWord(trie, vChain4, "aaaaa")
+
+if (countTotalWords(trie, vChain5) != 5) {
+    print("[FAIL] Repeated chain word count expected 5, got", countTotalWords(trie, vChain5))
+}
+if (countPrefix(trie, vChain5, "a") != 5 or countPrefix(trie, vChain5, "aa") != 4 or countPrefix(trie, vChain5, "aaa") != 3) {
+    print("[FAIL] Repeated prefix chain count mismatch")
+}
+if (countPrefix(trie, vChain5, "aaaa") != 2 or countPrefix(trie, vChain5, "aaaaa") != 1) {
+    print("[FAIL] Repeated prefix chain tail count mismatch")
+}
+chainWords = collectWordsWithPrefix(trie, vChain5, "aa", 10)
+if (chainWords.size() != 4 or chainWords[0] != "aa" or chainWords[1] != "aaa" or chainWords[2] != "aaaa" or chainWords[3] != "aaaaa") {
+    print("[FAIL] Repeated prefix chain collection mismatch")
+}
+print("  Edge Case 4.3 Passed deep repeated prefix chain verification")
+
+// 4.4 Longest Common Prefix (LCP) evaluation
+vLcp0 = allocNode(trie, -1, 0)
+vLcp1 = insertWord(trie, vLcp0, "internationalization")
+vLcp2 = insertWord(trie, vLcp1, "international")
+vLcp3 = insertWord(trie, vLcp2, "internet")
+vLcp4 = insertWord(trie, vLcp3, "internal")
+
+if (longestCommonPrefix(trie, vLcp4, "internationalization") != 20) {
+    print("[FAIL] LCP internationalization expected 20, got", longestCommonPrefix(trie, vLcp4, "internationalization"))
+}
+if (longestCommonPrefix(trie, vLcp4, "internationalize") != 15) {
+    print("[FAIL] LCP internationalize expected 15, got", longestCommonPrefix(trie, vLcp4, "internationalize"))
+}
+if (longestCommonPrefix(trie, vLcp4, "internetworking") != 8) {
+    print("[FAIL] LCP internetworking expected 8, got", longestCommonPrefix(trie, vLcp4, "internetworking"))
+}
+if (longestCommonPrefix(trie, vLcp4, "internalize") != 8) {
+    print("[FAIL] LCP internalize expected 8, got", longestCommonPrefix(trie, vLcp4, "internalize"))
+}
+if (longestCommonPrefix(trie, vLcp4, "interpret") != 5) {
+    print("[FAIL] LCP interpret expected 5, got", longestCommonPrefix(trie, vLcp4, "interpret"))
+}
+if (longestCommonPrefix(trie, vLcp4, "quantum") != 0) {
+    print("[FAIL] LCP quantum expected 0, got", longestCommonPrefix(trie, vLcp4, "quantum"))
+}
+print("  Edge Case 4.4 Passed Longest Common Prefix (LCP) assertions")
+
+// 4.5 Duplicate word insertions and frequency counting
+vDup0 = allocNode(trie, -1, 0)
+vDup1 = insertWord(trie, vDup0, "echo")
+vDup2 = insertWord(trie, vDup1, "echo")
+vDup3 = insertWord(trie, vDup2, "echo")
+
+if (countWord(trie, vDup3, "echo") != 3) {
+    print("[FAIL] Duplicate word count expected 3, got", countWord(trie, vDup3, "echo"))
+}
+if (countPrefix(trie, vDup3, "ec") != 3) {
+    print("[FAIL] Duplicate word prefix count expected 3, got", countPrefix(trie, vDup3, "ec"))
+}
+if (countTotalWords(trie, vDup3) != 3) {
+    print("[FAIL] Duplicate word total count expected 3, got", countTotalWords(trie, vDup3))
+}
+
+// Remove 1 occurrence of duplicate word
+vDupRem1 = removeWord(trie, vDup3, "echo")
+if (countWord(trie, vDupRem1, "echo") != 2 or countTotalWords(trie, vDupRem1) != 2) {
+    print("[FAIL] After 1st deletion expected word count 2, got", countWord(trie, vDupRem1, "echo"))
+}
+if (countWord(trie, vDup3, "echo") != 3) {
+    print("[FAIL] Ancestral snapshot corrupted after deletion")
+}
+
+// Remove non-existent word (No-op validation)
+vNoOp = removeWord(trie, vDupRem1, "phantom")
+if (vNoOp != vDupRem1 or countWord(trie, vNoOp, "echo") != 2) {
+    print("[FAIL] Deletion of non-existent word failed to return unchanged root")
+}
+print("  Edge Case 4.5 Passed duplicate frequency and no-op deletion handling")
+
+// 4.6 Persistent Deletion from Trunk Version 6
+// Remove "band" from Version 6 (which contains: apple, app, application, banana, band, bandwidth)
+v6DelBand = removeWord(trie, v6, "band")
+
+if (containsWord(trie, v6DelBand, "band") != 0) {
+    print("[FAIL] v6DelBand should no longer contain exact word band")
+}
+if (containsWord(trie, v6DelBand, "bandwidth") != 1) {
+    print("[FAIL] v6DelBand must preserve bandwidth")
+}
+if (countPrefix(trie, v6DelBand, "band") != 1) {
+    print("[FAIL] v6DelBand prefix band count expected 1 (bandwidth), got", countPrefix(trie, v6DelBand, "band"))
+}
+if (countPrefix(trie, v6DelBand, "ban") != 2) {
+    print("[FAIL] v6DelBand prefix ban count expected 2 (banana, bandwidth), got", countPrefix(trie, v6DelBand, "ban"))
+}
+if (countTotalWords(trie, v6DelBand) != 5) {
+    print("[FAIL] v6DelBand total words expected 5, got", countTotalWords(trie, v6DelBand))
+}
+
+// Immutability of Version 6 confirmed
+if (containsWord(trie, v6, "band") != 1 or countPrefix(trie, v6, "band") != 2 or countTotalWords(trie, v6) != 6) {
+    print("[FAIL] Version 6 was mutated by deletion branch!")
+} else {
+    print("  Version 6 immutability strictly confirmed: band still present with count 6")
+}
+print("  Edge Case 4.6 Passed persistent deletion and branch isolation")
+print("  Test Case 4 Passed all boundary edge case assertions")
 
