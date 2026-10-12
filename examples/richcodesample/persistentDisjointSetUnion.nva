@@ -583,3 +583,181 @@ if (rankRoot0 != 1 or rankRoot2 != 1 or rankRootL2A != 2 or rankRootL2B != 2 or 
     print("  Test Case 3 Passed boundary and edge case verification")
 }
 
+// -----------------------------------------------------------------------------
+// Test Case 4: Version Rollback & State Reconstruction
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Version Rollback and State Reconstruction...")
+
+tc4Elements = 6
+tc4Dsu = createPersistentDisjointSet()
+initPersistentDisjointSet(tc4Dsu, tc4Elements, "tc4 v0: baseline")
+
+// v1: union 0-1 (components: 5)
+tc4V1 = unionSets(tc4Dsu, 0, 0, 1, "tc4 v1: union 0-1", tc4Elements)
+// v2: union 2-3 (components: 4)
+tc4V2 = unionSets(tc4Dsu, tc4V1, 2, 3, "tc4 v2: union 2-3", tc4Elements)
+// v3: union 4-5 (components: 3)
+tc4V3 = unionSets(tc4Dsu, tc4V2, 4, 5, "tc4 v3: union 4-5", tc4Elements)
+// v4: union 0-2 (components: 2) -> unites {0,1} and {2,3}
+tc4V4 = unionSets(tc4Dsu, tc4V3, 0, 2, "tc4 v4: union 0-2", tc4Elements)
+// v5: union 0-4 (components: 1) -> all 6 connected
+tc4V5 = unionSets(tc4Dsu, tc4V4, 0, 4, "tc4 v5: union 0-4", tc4Elements)
+
+v5Count = getComponentCount(tc4Dsu, tc4V5)
+v5Conn05 = isConnected(tc4Dsu, tc4V5, 0, 5, tc4Elements)
+v5Size0 = getSetSize(tc4Dsu, tc4V5, 0, tc4Elements)
+
+if (v5Count != 1 or v5Conn05 != 1 or v5Size0 != 6) {
+    print("[FAIL] Test Case 4 Setup before rollback failed")
+}
+
+// Rollback to Version 2: {0,1} and {2,3} united, 4 and 5 separate singletons
+tc4V6 = rollbackTo(tc4Dsu, tc4V2, "tc4 v6: rollback to v2")
+
+v6Count = getComponentCount(tc4Dsu, tc4V6)
+v6Conn01 = isConnected(tc4Dsu, tc4V6, 0, 1, tc4Elements)
+v6Conn23 = isConnected(tc4Dsu, tc4V6, 2, 3, tc4Elements)
+v6Conn02 = isConnected(tc4Dsu, tc4V6, 0, 2, tc4Elements)
+v6Conn04 = isConnected(tc4Dsu, tc4V6, 0, 4, tc4Elements)
+v6Parent = getVersionParent(tc4Dsu, tc4V6)
+
+if (v6Count != 4 or v6Conn01 != 1 or v6Conn23 != 1 or v6Conn02 != 0 or v6Conn04 != 0 or v6Parent != tc4V2) {
+    print("[FAIL] Test Case 4 Rollback state reconstruction failed")
+} else {
+    print("  Version rollback to Version 2 verified: component count restored to 4, clusters {0,1} and {2,3}")
+}
+
+// Post-rollback evolution: branch from rolled-back v6 by uniting 1-4
+tc4V7 = unionSets(tc4Dsu, tc4V6, 1, 4, "tc4 v7: post-rollback union 1-4", tc4Elements)
+
+v7Count = getComponentCount(tc4Dsu, tc4V7)
+v7Conn04 = isConnected(tc4Dsu, tc4V7, 0, 4, tc4Elements)
+v7Conn02 = isConnected(tc4Dsu, tc4V7, 0, 2, tc4Elements)
+v7Size0 = getSetSize(tc4Dsu, tc4V7, 0, tc4Elements)
+v7Size2 = getSetSize(tc4Dsu, tc4V7, 2, tc4Elements)
+
+// Check that original v2, v5, and v6 are all unaffected
+v2CheckCount = getComponentCount(tc4Dsu, tc4V2)
+v5CheckCount = getComponentCount(tc4Dsu, tc4V5)
+v6CheckCount = getComponentCount(tc4Dsu, tc4V6)
+
+if (v7Count != 3 or v7Conn04 != 1 or v7Conn02 != 0 or v7Size0 != 3 or v7Size2 != 2) {
+    print("[FAIL] Test Case 4 Post-rollback evolution failed")
+} else {
+    if (v2CheckCount != 4 or v5CheckCount != 1 or v6CheckCount != 4) {
+        print("[FAIL] Test Case 4 Historical versions corrupted after post-rollback update")
+    } else {
+        print("  Post-rollback evolution verified: v7 formed cluster {0,1,4} of size 3 while v2 and v5 retained invariants")
+        print("  Test Case 4 Passed rollback and state reconstruction verification")
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Stress Benchmark against Naive Historical Disjoint Set Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Stress Benchmark against Naive Historical Matrix...")
+
+func naiveFindRoot(parentArr, xVal) {
+    currVal = xVal
+    while (parentArr[currVal] != currVal) {
+        currVal = parentArr[currVal]
+    }
+    return currVal
+}
+
+stressElements = 24
+stressDsu = createPersistentDisjointSet()
+initPersistentDisjointSet(stressDsu, stressElements, "stress baseline initialization")
+
+naiveHistory = []
+naiveInitial = []
+initIdx = 0
+while (initIdx < stressElements) {
+    naiveInitial.push(initIdx)
+    initIdx = initIdx + 1
+}
+naiveHistory.push(naiveInitial)
+naiveCounts = [stressElements]
+
+lSeed = 987654321
+numStressVersions = 45
+verIdx = 1
+
+while (verIdx <= numStressVersions) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    baseVer = lSeed % naiveHistory.size()
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    uElem = lSeed % stressElements
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    vElem = lSeed % stressElements
+
+    newVer = unionSets(stressDsu, baseVer, uElem, vElem, "stress union", stressElements)
+
+    baseParents = naiveHistory[baseVer]
+    newParents = []
+    copyIdx = 0
+    while (copyIdx < stressElements) {
+        newParents.push(baseParents[copyIdx])
+        copyIdx = copyIdx + 1
+    }
+
+    rootUVal = naiveFindRoot(newParents, uElem)
+    rootVVal = naiveFindRoot(newParents, vElem)
+    baseCountVal = naiveCounts[baseVer]
+
+    if (rootUVal != rootVVal) {
+        newParents[rootUVal] = rootVVal
+        naiveCounts.push(baseCountVal - 1)
+    } else {
+        naiveCounts.push(baseCountVal)
+    }
+    naiveHistory.push(newParents)
+    verIdx = verIdx + 1
+}
+
+numStressQueries = 200
+qIdx = 0
+stressErrors = 0
+
+while (qIdx < numStressQueries) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    chosenVer = lSeed % naiveHistory.size()
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qU = lSeed % stressElements
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qV = lSeed % stressElements
+
+    verArr = naiveHistory[chosenVer]
+    expRootU = naiveFindRoot(verArr, qU)
+    expRootV = naiveFindRoot(verArr, qV)
+    expConn = 0
+    if (expRootU == expRootV) {
+        expConn = 1
+    }
+    expCount = naiveCounts[chosenVer]
+
+    actConn = isConnected(stressDsu, chosenVer, qU, qV, stressElements)
+    actCount = getComponentCount(stressDsu, chosenVer)
+
+    if (actConn != expConn or actCount != expCount) {
+        stressErrors = stressErrors + 1
+    }
+    qIdx = qIdx + 1
+}
+
+if (stressErrors > 0) {
+    print("[FAIL] Stress queries had", stressErrors, "mismatches against naive oracle")
+} else {
+    print("  Validated", numStressQueries, "random historical queries across", numStressVersions, "versions: 0 mismatches")
+    tAlloc = getTotalArenaNodes(stressDsu)
+    print("  Total allocated persistent tree arena nodes:", tAlloc)
+    print("  Test Case 5 Passed stress benchmark verification")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Persistent Disjoint Set Union Suite executed successfully in", elapsed, "ms")
+
