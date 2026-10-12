@@ -860,3 +860,312 @@ if (pSum613 != 475 or pMax613 != 145 or pMin613 != 35) {
     print("  Test Case 3 Passed subtree range updates and lazy propagation")
 }
 
+// -----------------------------------------------------------------------------
+// Test Case 4: Boundary Cases & Degenerate Topologies
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Boundary Cases and Degenerate Topologies...")
+
+// 4.1: Singleton tree (N = 1)
+tc4Single = createHldEngine(1)
+setVertexWeight(tc4Single, 0, 42)
+buildHld(tc4Single, 0)
+
+sSum = queryPathSum(tc4Single, 0, 0)
+sSubSum = querySubtreeSum(tc4Single, 0)
+sLca = queryLca(tc4Single, 0, 0)
+sDist = queryDistance(tc4Single, 0, 0)
+
+updateSubtreeAdd(tc4Single, 0, 10)
+sSumAfter = queryPathSum(tc4Single, 0, 0)
+
+updateVertexPoint(tc4Single, 0, -2)
+sSumPoint = queryPathSum(tc4Single, 0, 0)
+
+if (sSum != 42 or sSubSum != 42 or sLca != 0 or sDist != 0 or sSumAfter != 52 or sSumPoint != 50) {
+    print("[FAIL] Singleton tree verification failed")
+} else {
+    print("  Singleton tree verified: 1 vertex, path sum 42 -> update to 50, dist 0, lca 0")
+}
+
+// 4.2: Star Topology (Hub at 0 with 6 peripheral leaves)
+tc4Star = createHldEngine(7)
+starIdx = 1
+while (starIdx < 7) {
+    addEdge(tc4Star, 0, starIdx)
+    setVertexWeight(tc4Star, starIdx, starIdx * 10)
+    starIdx = starIdx + 1
+}
+setVertexWeight(tc4Star, 0, 100)
+buildHld(tc4Star, 0)
+
+starLca12 = queryLca(tc4Star, 1, 2)
+starLca35 = queryLca(tc4Star, 3, 5)
+starDist12 = queryDistance(tc4Star, 1, 2)
+starDist40 = queryDistance(tc4Star, 4, 0)
+starPathSum12 = queryPathSum(tc4Star, 1, 2)
+starPathMax12 = queryPathMax(tc4Star, 1, 2)
+starPathMin12 = queryPathMin(tc4Star, 1, 2)
+starSubSum0 = querySubtreeSum(tc4Star, 0)
+starSubSum3 = querySubtreeSum(tc4Star, 3)
+
+// path 1..2: 1(10) - 0(100) - 2(20) -> sum 130, max 100, min 10
+// full star sum: 100 + 10 + 20 + 30 + 40 + 50 + 60 = 310
+if (starLca12 != 0 or starLca35 != 0 or starDist12 != 2 or starDist40 != 1 or starPathSum12 != 130 or starPathMax12 != 100 or starPathMin12 != 10 or starSubSum0 != 310 or starSubSum3 != 30) {
+    print("[FAIL] Star topology verification failed")
+} else {
+    print("  Star topology verified: hub routing with lca 0, dist 2, path sum 130, total sum 310")
+}
+
+// 4.3: Degenerate Line Chain (0 - 1 - 2 - 3 - 4 - 5 - 6 - 7)
+tc4Line = createHldEngine(8)
+lineIdx = 0
+while (lineIdx < 7) {
+    addEdge(tc4Line, lineIdx, lineIdx + 1)
+    setVertexWeight(tc4Line, lineIdx, lineIdx + 1)
+    lineIdx = lineIdx + 1
+}
+setVertexWeight(tc4Line, 7, 8)
+buildHld(tc4Line, 0)
+
+lineChainHead7 = tc4Line[9][7]
+lineLca26 = queryLca(tc4Line, 2, 6)
+lineDist26 = queryDistance(tc4Line, 2, 6)
+linePathSum25 = queryPathSum(tc4Line, 2, 5)
+linePathMax16 = queryPathMax(tc4Line, 1, 6)
+linePathMin16 = queryPathMin(tc4Line, 1, 6)
+
+// path 2..5: nodes 2(3), 3(4), 4(5), 5(6) -> sum 18
+// path 1..6: nodes 1..6 (values 2..7) -> max 7, min 2
+updatePathAdd(tc4Line, 3, 5, 10)
+linePathSum25After = queryPathSum(tc4Line, 2, 5)
+lineSubSum4 = querySubtreeSum(tc4Line, 4)
+
+// After adding 10 to nodes 3, 4, 5:
+// path 2..5 sum: 18 + 30 = 48
+// subtree 4 contains nodes 4, 5, 6, 7 (values (5+10)=15, (6+10)=16, 7, 8) -> sum = 46
+if (lineChainHead7 != 0 or lineLca26 != 2 or lineDist26 != 4 or linePathSum25 != 18 or linePathMax16 != 7 or linePathMin16 != 2 or linePathSum25After != 48 or lineSubSum4 != 46) {
+    print("[FAIL] Line chain topology verification failed")
+} else {
+    print("  Line chain topology verified: single heavy chain spanned all 8 nodes with O(1) chain hops")
+    print("  Test Case 4 Passed boundary cases and degenerate topologies")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Benchmark against Naive Tree Traversal Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Stress Benchmark against Naive Tree Traversal Oracle...")
+
+func oracleGetPath(numVerts, adjMat, u, v) {
+    if (u == v) {
+        return [u]
+    }
+    bfsQueue = [u]
+    parentArr = makeIntArray(numVerts, -1)
+    visited = makeIntArray(numVerts, 0)
+    visited[u] = 1
+    head = 0
+
+    found = 0
+    while (head < bfsQueue.size() and found == 0) {
+        curr = bfsQueue[head]
+        head = head + 1
+        if (curr == v) {
+            found = 1
+        } else {
+            nxt = 0
+            while (nxt < numVerts) {
+                if (adjMat[curr * numVerts + nxt] == 1 and visited[nxt] == 0) {
+                    visited[nxt] = 1
+                    parentArr[nxt] = curr
+                    bfsQueue.push(nxt)
+                }
+                nxt = nxt + 1
+            }
+        }
+    }
+
+    path = []
+    curr = v
+    while (curr != -1) {
+        path.push(curr)
+        curr = parentArr[curr]
+    }
+    return path
+}
+
+func oracleGetSubtree(numVerts, adjMat, u) {
+    res = []
+    x = 0
+    while (x < numVerts) {
+        p = oracleGetPath(numVerts, adjMat, 0, x)
+        inSub = 0
+        pIdx = 0
+        while (pIdx < p.size()) {
+            if (p[pIdx] == u) {
+                inSub = 1
+            }
+            pIdx = pIdx + 1
+        }
+        if (inSub == 1) {
+            res.push(x)
+        }
+        x = x + 1
+    }
+    return res
+}
+
+stressVerts = 16
+stressEngine = createHldEngine(stressVerts)
+stressAdjMat = makeIntArray(stressVerts * stressVerts, 0)
+stressOracleWeights = makeIntArray(stressVerts, 0)
+
+rngSeed = 987654321
+
+func nextStressRand(seedArr) {
+    s = seedArr[0]
+    s = (s * 1103515245 + 12345) % 2147483648
+    if (s < 0) {
+        s = 0 - s
+    }
+    seedArr[0] = s
+    return s
+}
+
+seedBox = [rngSeed]
+
+// Build connected random tree
+treeBuildIdx = 1
+while (treeBuildIdx < stressVerts) {
+    parNode = nextStressRand(seedBox) % treeBuildIdx
+    addEdge(stressEngine, parNode, treeBuildIdx)
+    stressAdjMat[parNode * stressVerts + treeBuildIdx] = 1
+    stressAdjMat[treeBuildIdx * stressVerts + parNode] = 1
+    treeBuildIdx = treeBuildIdx + 1
+}
+
+// Assign random initial weights
+initWeightIdx = 0
+while (initWeightIdx < stressVerts) {
+    w = (nextStressRand(seedBox) % 100) + 1
+    setVertexWeight(stressEngine, initWeightIdx, w)
+    stressOracleWeights[initWeightIdx] = w
+    initWeightIdx = initWeightIdx + 1
+}
+
+buildHld(stressEngine, 0)
+
+stressOps = 120
+stressOpIdx = 0
+stressMismatches = 0
+
+while (stressOpIdx < stressOps) {
+    opType = nextStressRand(seedBox) % 6
+    randU = nextStressRand(seedBox) % stressVerts
+    randV = nextStressRand(seedBox) % stressVerts
+
+    if (opType == 0) {
+        // Query Path Sum
+        hldSum = queryPathSum(stressEngine, randU, randV)
+        pathNodes = oracleGetPath(stressVerts, stressAdjMat, randU, randV)
+        orcSum = 0
+        pnIdx = 0
+        while (pnIdx < pathNodes.size()) {
+            orcSum = orcSum + stressOracleWeights[pathNodes[pnIdx]]
+            pnIdx = pnIdx + 1
+        }
+        if (hldSum != orcSum) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (opType == 1) {
+        // Query Path Max
+        hldMax = queryPathMax(stressEngine, randU, randV)
+        pathNodes = oracleGetPath(stressVerts, stressAdjMat, randU, randV)
+        orcMax = -2147483648
+        pnIdx = 0
+        while (pnIdx < pathNodes.size()) {
+            val = stressOracleWeights[pathNodes[pnIdx]]
+            if (val > orcMax) {
+                orcMax = val
+            }
+            pnIdx = pnIdx + 1
+        }
+        if (hldMax != orcMax) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (opType == 2) {
+        // Query Path Min
+        hldMin = queryPathMin(stressEngine, randU, randV)
+        pathNodes = oracleGetPath(stressVerts, stressAdjMat, randU, randV)
+        orcMin = 2147483647
+        pnIdx = 0
+        while (pnIdx < pathNodes.size()) {
+            val = stressOracleWeights[pathNodes[pnIdx]]
+            if (val < orcMin) {
+                orcMin = val
+            }
+            pnIdx = pnIdx + 1
+        }
+        if (hldMin != orcMin) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (opType == 3) {
+        // Query Subtree Sum
+        hldSubSum = querySubtreeSum(stressEngine, randU)
+        subNodes = oracleGetSubtree(stressVerts, stressAdjMat, randU)
+        orcSubSum = 0
+        snIdx = 0
+        while (snIdx < subNodes.size()) {
+            orcSubSum = orcSubSum + stressOracleWeights[subNodes[snIdx]]
+            snIdx = snIdx + 1
+        }
+        if (hldSubSum != orcSubSum) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (opType == 4) {
+        // Update Path Add
+        delta = (nextStressRand(seedBox) % 20) + 1
+        updatePathAdd(stressEngine, randU, randV, delta)
+        pathNodes = oracleGetPath(stressVerts, stressAdjMat, randU, randV)
+        pnIdx = 0
+        while (pnIdx < pathNodes.size()) {
+            nId = pathNodes[pnIdx]
+            stressOracleWeights[nId] = stressOracleWeights[nId] + delta
+            pnIdx = pnIdx + 1
+        }
+    }
+
+    if (opType == 5) {
+        // Update Subtree Add
+        delta = (nextStressRand(seedBox) % 15) + 1
+        updateSubtreeAdd(stressEngine, randU, delta)
+        subNodes = oracleGetSubtree(stressVerts, stressAdjMat, randU)
+        snIdx = 0
+        while (snIdx < subNodes.size()) {
+            nId = subNodes[snIdx]
+            stressOracleWeights[nId] = stressOracleWeights[nId] + delta
+            snIdx = snIdx + 1
+        }
+    }
+
+    stressOpIdx = stressOpIdx + 1
+}
+
+if (stressMismatches > 0) {
+    print("[FAIL] Stress benchmark encountered ", stressMismatches, " mismatches against oracle")
+} else {
+    print("  Validated ", stressOps, " randomized path and subtree queries/updates against Oracle: 0 mismatches")
+    print("  Test Case 5 Passed randomized stress benchmark verification")
+}
+
+elapsedTime = t.millis() - suiteStartTime
+print("[PASS] Heavy-Light Decomposition Engine Suite executed successfully in ", elapsedTime, " ms")
+
+
