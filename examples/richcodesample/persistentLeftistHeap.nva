@@ -430,6 +430,87 @@ func compareIntArrays(arr1, arr2) {
     return 1
 }
 
+func nextPrng(rng) {
+    val = rng[0]
+    val = (val * 1103515245 + 12345) % 2147483648
+    if (val < 0) {
+        val = 0 - val
+    }
+    rng[0] = val
+    return val
+}
+
+func copyArray(arr) {
+    res = []
+    i = 0
+    sz = arr.size()
+    while (i < sz) {
+        res.push(arr[i])
+        i = i + 1
+    }
+    return res
+}
+
+func insertIntoSortedArray(arr, val) {
+    res = []
+    inserted = 0
+    i = 0
+    sz = arr.size()
+    while (i < sz) {
+        elem = arr[i]
+        if (inserted == 0 and val <= elem) {
+            res.push(val)
+            inserted = 1
+        }
+        res.push(elem)
+        i = i + 1
+    }
+    if (inserted == 0) {
+        res.push(val)
+    }
+    return res
+}
+
+func dropFirstElement(arr) {
+    res = []
+    sz = arr.size()
+    if (sz <= 1) {
+        return res
+    }
+    i = 1
+    while (i < sz) {
+        res.push(arr[i])
+        i = i + 1
+    }
+    return res
+}
+
+func mergeSortedArrays(arr1, arr2) {
+    res = []
+    i = 0
+    j = 0
+    sz1 = arr1.size()
+    sz2 = arr2.size()
+    while (i < sz1 and j < sz2) {
+        if (arr1[i] <= arr2[j]) {
+            res.push(arr1[i])
+            i = i + 1
+        } else {
+            res.push(arr2[j])
+            j = j + 1
+        }
+    }
+    while (i < sz1) {
+        res.push(arr1[i])
+        i = i + 1
+    }
+    while (j < sz2) {
+        res.push(arr2[j])
+        j = j + 1
+    }
+    return res
+}
+
 // -----------------------------------------------------------------------------
 // Test Case 1: Sequential Version Updates & Priority Queue Invariants
 // -----------------------------------------------------------------------------
@@ -763,4 +844,202 @@ if (oobMinKey != -1 or oobSize != 0 or oobDist != 0 or oobPar != -1 or oobDesc !
     print("  Degenerate and out-of-bounds queries gracefully returned default neutral values")
     print("  Test Case 3 Passed boundary and edge case verification")
 }
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Version Rollback & State Reconstruction
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Version Rollback and State Reconstruction...")
+tc4Heap = createPersistentLeftistHeap()
+initPersistentLeftistHeap(tc4Heap, "v0: empty")
+
+// Initial timeline evolution:
+v41 = insertElement(tc4Heap, 0, 50, 1, "v1: insert 50")
+v42 = insertElement(tc4Heap, v41, 20, 2, "v2: insert 20")
+v43 = insertElement(tc4Heap, v42, 80, 3, "v3: insert 80")
+v44 = insertElement(tc4Heap, v43, 10, 4, "v4: insert 10 (checkpoint)")
+v45 = insertElement(tc4Heap, v44, 60, 5, "v5: insert 60")
+v46 = insertElement(tc4Heap, v45, 5, 6, "v6: insert 5")
+v47 = deleteMin(tc4Heap, v46, "v7: deleteMin (pop 5)")
+v48 = deleteMin(tc4Heap, v47, "v8: deleteMin (pop 10)")
+
+v44Min = getMinKey(tc4Heap, v44)
+v44Size = getHeapSize(tc4Heap, v44)
+v48Min = getMinKey(tc4Heap, v48)
+v48Size = getHeapSize(tc4Heap, v48)
+
+if (v44Min != 10 or v44Size != 4 or v48Min != 20 or v48Size != 4) {
+    print("[FAIL] Test Case 4 Initial timeline evolution failed")
+} else {
+    print("  Timeline evolved to v8: checkpoint v4 has min 10 (size 4), tip v8 has min 20 (size 4)")
+}
+
+// Rollback to checkpoint Version 4
+v4Rollback = rollbackTo(tc4Heap, v44, "v9: rollback to v4")
+rbMin = getMinKey(tc4Heap, v4Rollback)
+rbSize = getHeapSize(tc4Heap, v4Rollback)
+rbExt = extractAllSortedKeys(tc4Heap, tc4Heap[6][v4Rollback])
+expRb = [10, 20, 50, 80]
+matchRb = compareIntArrays(rbExt, expRb)
+
+if (rbMin != 10 or rbSize != 4 or matchRb != 1) {
+    print("[FAIL] Rollback to Version 4 failed")
+} else {
+    print("  Version rollback to Version 4 verified: restored size 4, minKey 10, keys [10, 20, 50, 80]")
+}
+
+// Post-rollback evolution from rollback version
+v4New1 = insertElement(tc4Heap, v4Rollback, 15, 7, "v10: branch from rollback insert 15")
+v4New2 = insertElement(tc4Heap, v4New1, 3, 8, "v11: branch from rollback insert 3")
+
+newMin = getMinKey(tc4Heap, v4New2)
+newSize = getHeapSize(tc4Heap, v4New2)
+newExt = extractAllSortedKeys(tc4Heap, tc4Heap[6][v4New2])
+expNew = [3, 10, 15, 20, 50, 80]
+matchNew = compareIntArrays(newExt, expNew)
+
+if (newMin != 3 or newSize != 6 or matchNew != 1) {
+    print("[FAIL] Post-rollback evolution failed")
+} else {
+    print("  Post-rollback evolution verified: v11 formed size 6 with min 3, keys [3, 10, 15, 20, 50, 80]")
+}
+
+// Verify historical checkpoint v4 and former tip v8 remain pristine
+v44FinalExt = extractAllSortedKeys(tc4Heap, tc4Heap[6][v44])
+v48FinalExt = extractAllSortedKeys(tc4Heap, tc4Heap[6][v48])
+exp44 = [10, 20, 50, 80]
+exp48 = [20, 50, 60, 80]
+match44 = compareIntArrays(v44FinalExt, exp44)
+match48 = compareIntArrays(v48FinalExt, exp48)
+
+if (match44 != 1 or match48 != 1) {
+    print("[FAIL] Historical snapshots compromised during rollback evolution")
+} else {
+    print("  Historical snapshots v4 and v8 remained pristine and isolated throughout rollback")
+    print("  Test Case 4 Passed rollback and state reconstruction verification")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Stress Benchmark against Naive Priority Queue Reference Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Stress Benchmark against Naive Priority Queue Reference Oracle...")
+tc5Heap = createPersistentLeftistHeap()
+initPersistentLeftistHeap(tc5Heap, "v0: empty baseline")
+
+oracleVersions = [[]]
+rngState = [1234567]
+
+stressOpsCount = 60
+opIdx = 0
+mismatchCount = 0
+
+while (opIdx < stressOpsCount) {
+    numVersions = oracleVersions.size()
+    randChoice = nextPrng(rngState) % 100
+    baseVer = nextPrng(rngState) % numVersions
+
+    if (randChoice < 55) {
+        // Insert operation
+        randKey = (nextPrng(rngState) % 500) + 1
+        randVal = nextPrng(rngState) % 1000
+        newVer = insertElement(tc5Heap, baseVer, randKey, randVal, "stress insert")
+        baseList = oracleVersions[baseVer]
+        newList = insertIntoSortedArray(baseList, randKey)
+        oracleVersions.push(newList)
+        actualNewSize = getHeapSize(tc5Heap, newVer)
+        if (actualNewSize != newList.size()) {
+            mismatchCount = mismatchCount + 1
+        }
+    } else {
+        if (randChoice < 80) {
+            // deleteMin operation
+            baseList = oracleVersions[baseVer]
+            if (baseList.size() > 0) {
+                newVer = deleteMin(tc5Heap, baseVer, "stress deleteMin")
+                newList = dropFirstElement(baseList)
+                oracleVersions.push(newList)
+                actualNewSize = getHeapSize(tc5Heap, newVer)
+                if (actualNewSize != newList.size()) {
+                    mismatchCount = mismatchCount + 1
+                }
+            } else {
+                newVer = insertElement(tc5Heap, baseVer, 50, 1, "stress fallback insert")
+                newList = insertIntoSortedArray(baseList, 50)
+                oracleVersions.push(newList)
+                actualNewSize = getHeapSize(tc5Heap, newVer)
+                if (actualNewSize != newList.size()) {
+                    mismatchCount = mismatchCount + 1
+                }
+            }
+        } else {
+            // Meld two historical versions
+            otherVer = nextPrng(rngState) % numVersions
+            newVer = meldHeaps(tc5Heap, baseVer, otherVer, "stress meld")
+            listA = oracleVersions[baseVer]
+            listB = oracleVersions[otherVer]
+            mergedList = mergeSortedArrays(listA, listB)
+            oracleVersions.push(mergedList)
+            actualNewSize = getHeapSize(tc5Heap, newVer)
+            if (actualNewSize != mergedList.size()) {
+                mismatchCount = mismatchCount + 1
+            }
+        }
+    }
+    opIdx = opIdx + 1
+}
+
+// Randomized historical validation queries across generated versions
+numGeneratedVersions = oracleVersions.size()
+randomQueriesCount = 150
+qIdx = 0
+
+while (qIdx < randomQueriesCount) {
+    qVer = nextPrng(rngState) % numGeneratedVersions
+    expectedList = oracleVersions[qVer]
+    actualSize = getHeapSize(tc5Heap, qVer)
+
+    if (actualSize != expectedList.size()) {
+        mismatchCount = mismatchCount + 1
+    } else {
+        if (actualSize > 0) {
+            actualMin = getMinKey(tc5Heap, qVer)
+            expectedMin = expectedList[0]
+            if (actualMin != expectedMin) {
+                mismatchCount = mismatchCount + 1
+            }
+        } else {
+            if (isHeapEmpty(tc5Heap, qVer) != 1 or getMinKey(tc5Heap, qVer) != -1) {
+                mismatchCount = mismatchCount + 1
+            }
+        }
+    }
+
+    // Comprehensive structural check on sampled versions
+    if (qIdx % 15 == 0) {
+        qRoot = tc5Heap[6][qVer]
+        if (verifyLeftistInvariant(tc5Heap, qRoot) != 1) {
+            mismatchCount = mismatchCount + 1
+        }
+        actualExt = extractAllSortedKeys(tc5Heap, qRoot)
+        if (compareIntArrays(actualExt, expectedList) != 1) {
+            mismatchCount = mismatchCount + 1
+        }
+    }
+
+    qIdx = qIdx + 1
+}
+
+totalArenaNodes = getTotalArenaNodes(tc5Heap)
+
+if (mismatchCount > 0) {
+    print("[FAIL] Stress benchmark encountered ", mismatchCount, " mismatches")
+} else {
+    print("  Validated ", randomQueriesCount, " random historical queries across ", numGeneratedVersions, " versions: 0 mismatches")
+    print("  Total allocated persistent leftist heap arena nodes: ", totalArenaNodes)
+    print("  Test Case 5 Passed stress benchmark verification")
+}
+
+suiteEndTime = t.millis()
+suiteDuration = suiteEndTime - suiteStartTime
+print("[PASS] Persistent Leftist Heap Suite executed successfully in ", suiteDuration, " ms")
+
 
