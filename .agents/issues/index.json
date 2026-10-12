@@ -23,7 +23,8 @@
   {
     "id": "ISSUE-4",
     "title": "test(regression): execute containerized test suite and sanitizer audit",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "06267bb",
     "file": "ISSUE-4-sanitizerAudit.md"
   }
 ]
