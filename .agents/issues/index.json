@@ -2,7 +2,8 @@
   {
     "id": "ISSUE-1",
     "title": "feat(algorithms): implement persistentDisjointSetStack in richcodesamples",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "b95fe2a",
     "file": "ISSUE-1-disjointSetStack.md"
   },
   {
