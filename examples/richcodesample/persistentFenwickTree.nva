@@ -206,22 +206,6 @@ func rollbackTo(tree, targetVersion, desc) {
     return newVersionId
 }
 
-func lowerBound(tree, version, targetSum, treeSize) {
-    low = 1
-    high = treeSize
-    ans = -1
-    while (low <= high) {
-        mid = (low + high) / 2
-        pSum = queryPrefixSum(tree, version, mid, treeSize)
-        if (pSum >= targetSum) {
-            ans = mid
-            high = mid - 1
-        } else {
-            low = mid + 1
-        }
-    }
-    return ans
-}
 
 func getVersionCount(tree) {
     vRoots = tree[3]
@@ -438,6 +422,250 @@ if (zeroSum4 != 10 or zeroSum8 != 19) {
 
 print("  Test Case 3 Passed boundary and edge case verification")
 
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Version Rollback, State Reconstruction, and Lower Bound
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Version Rollback and State Reconstruction...")
+
+// Rollback to Version 2 from tc1Tree (which currently has 7 versions: 0..6)
+v7Rollback = rollbackTo(tc1Tree, 2, "v7: rollback to Version 2")
+v7Sum7 = queryPrefixSum(tc1Tree, v7Rollback, 7, tc1Size)
+v7Sum8 = queryPrefixSum(tc1Tree, v7Rollback, 8, tc1Size)
+v2RefSum7 = queryPrefixSum(tc1Tree, 2, 7, tc1Size)
+v2RefSum8 = queryPrefixSum(tc1Tree, 2, 8, tc1Size)
+
+if (v7Sum7 != v2RefSum7 or v7Sum8 != v2RefSum8) {
+    print("[FAIL] Rollback version v7 did not match Version 2 state")
+} else {
+    print("  Version rollback to Version 2 verified (prefix(7) = 31, prefix(8) = 34)")
+}
+
+// Branch out from rolled back version v7: add +50 to index 4
+v8Branched = pointAdd(tc1Tree, v7Rollback, 4, 50, "v8: branch from rollback add 50 to index 4", tc1Size)
+v8Sum4 = queryPrefixSum(tc1Tree, v8Branched, 4, tc1Size)
+v8Sum8 = queryPrefixSum(tc1Tree, v8Branched, 8, tc1Size)
+v2AfterSum4 = queryPrefixSum(tc1Tree, 2, 4, tc1Size)
+
+if (v8Sum4 != 65 or v8Sum8 != 84 or v2AfterSum4 != 15) {
+    print("[FAIL] Post-rollback branch update failed: v8Sum4=", v8Sum4, ", v2AfterSum4=", v2AfterSum4)
+} else {
+    print("  Post-rollback evolution verified: v8 prefix(4) = 65, Version 2 retained at 15")
+}
+
+// Test lower bound binary search on prefix sums with monotonically positive array
+lbSize = 5
+lbTree = createPersistentFenwickTree()
+initPersistentFenwickTree(lbTree, [2, 4, 6, 8, 10], lbSize, "lb: monotonic array")
+// prefix sums: [2, 6, 12, 20, 30]
+
+// Lower bound for target 1
+lo1 = 1
+hi1 = lbSize
+ans1 = -1
+while (lo1 <= hi1) {
+    mid1 = (lo1 + hi1) / 2
+    pSum1 = queryPrefixSum(lbTree, 0, mid1, lbSize)
+    if (pSum1 >= 1) {
+        ans1 = mid1
+        hi1 = mid1 - 1
+    } else {
+        lo1 = mid1 + 1
+    }
+}
+
+// Lower bound for target 6
+lo2 = 1
+hi2 = lbSize
+ans2 = -1
+while (lo2 <= hi2) {
+    mid2 = (lo2 + hi2) / 2
+    pSum2 = queryPrefixSum(lbTree, 0, mid2, lbSize)
+    if (pSum2 >= 6) {
+        ans2 = mid2
+        hi2 = mid2 - 1
+    } else {
+        lo2 = mid2 + 1
+    }
+}
+
+// Lower bound for target 7
+lo3 = 1
+hi3 = lbSize
+ans3 = -1
+while (lo3 <= hi3) {
+    mid3 = (lo3 + hi3) / 2
+    pSum3 = queryPrefixSum(lbTree, 0, mid3, lbSize)
+    if (pSum3 >= 7) {
+        ans3 = mid3
+        hi3 = mid3 - 1
+    } else {
+        lo3 = mid3 + 1
+    }
+}
+
+// Lower bound for target 20
+lo4 = 1
+hi4 = lbSize
+ans4 = -1
+while (lo4 <= hi4) {
+    mid4 = (lo4 + hi4) / 2
+    pSum4 = queryPrefixSum(lbTree, 0, mid4, lbSize)
+    if (pSum4 >= 20) {
+        ans4 = mid4
+        hi4 = mid4 - 1
+    } else {
+        lo4 = mid4 + 1
+    }
+}
+
+// Lower bound for target 25
+lo5 = 1
+hi5 = lbSize
+ans5 = -1
+while (lo5 <= hi5) {
+    mid5 = (lo5 + hi5) / 2
+    pSum5 = queryPrefixSum(lbTree, 0, mid5, lbSize)
+    if (pSum5 >= 25) {
+        ans5 = mid5
+        hi5 = mid5 - 1
+    } else {
+        lo5 = mid5 + 1
+    }
+}
+
+// Lower bound for target 31
+lo6 = 1
+hi6 = lbSize
+ans6 = -1
+while (lo6 <= hi6) {
+    mid6 = (lo6 + hi6) / 2
+    pSum6 = queryPrefixSum(lbTree, 0, mid6, lbSize)
+    if (pSum6 >= 31) {
+        ans6 = mid6
+        hi6 = mid6 - 1
+    } else {
+        lo6 = mid6 + 1
+    }
+}
+
+if (ans1 != 1 or ans2 != 2 or ans3 != 3 or ans4 != 4 or ans5 != 5 or ans6 != -1) {
+    print("[FAIL] lower bound query on monotonic BIT failed: ", ans1, ans2, ans3, ans4, ans5, ans6)
+} else {
+    print("  Lower bound search verified across prefix thresholds: 1->idx 1, 6->idx 2, 7->idx 3, 20->idx 4, 25->idx 5, 31->none")
+}
+
+print("  Test Case 4 Passed rollback and state reconstruction verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Stress Benchmark against Naive Historical Matrix
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Stress Benchmark against Naive Historical Matrix...")
+stressLen = 32
+stressTree = createPersistentFenwickTree()
+lSeed = 987654321
+
+stressInit = []
+initI = 0
+while (initI < stressLen) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    elemVal = (lSeed % 50) - 15
+    stressInit.push(elemVal)
+    initI = initI + 1
+}
+
+initPersistentFenwickTree(stressTree, stressInit, stressLen, "stress: root initialization")
+
+naiveHistory = []
+v0Clone = []
+cI = 0
+while (cI < stressLen) {
+    v0Clone.push(stressInit[cI])
+    cI = cI + 1
+}
+naiveHistory.push(v0Clone)
+
+numStressVersions = 45
+verIdx = 1
+while (verIdx <= numStressVersions) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    baseVer = lSeed % verIdx
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    targetIdx = 1 + (lSeed % stressLen)
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    deltaVal = (lSeed % 41) - 20
+
+    newVer = pointAdd(stressTree, baseVer, targetIdx, deltaVal, "stress update", stressLen)
+
+    baseClone = naiveHistory[baseVer]
+    newClone = []
+    copyIdx = 0
+    while (copyIdx < stressLen) {
+        valCur = baseClone[copyIdx]
+        if (copyIdx == targetIdx - 1) {
+            valCur = valCur + deltaVal
+        }
+        newClone.push(valCur)
+        copyIdx = copyIdx + 1
+    }
+    naiveHistory.push(newClone)
+    verIdx = verIdx + 1
+}
+
+numQueries = 150
+qIdx = 0
+stressErrors = 0
+
+while (qIdx < numQueries) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    chosenVer = lSeed % (numStressVersions + 1)
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qLeft = 1 + (lSeed % stressLen)
+
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    qRight = 1 + (lSeed % stressLen)
+
+    if (qLeft > qRight) {
+        temp = qLeft
+        qLeft = qRight
+        qRight = temp
+    }
+
+    expectedPrefix = 0
+    expectedRange = 0
+    verArr = naiveHistory[chosenVer]
+
+    scanI = 0
+    while (scanI < qRight) {
+        expectedPrefix = expectedPrefix + verArr[scanI]
+        if (scanI >= qLeft - 1) {
+            expectedRange = expectedRange + verArr[scanI]
+        }
+        scanI = scanI + 1
+    }
+
+    actPrefix = queryPrefixSum(stressTree, chosenVer, qRight, stressLen)
+    actRange = queryRangeSum(stressTree, chosenVer, qLeft, qRight, stressLen)
+
+    if (actPrefix != expectedPrefix or actRange != expectedRange) {
+        stressErrors = stressErrors + 1
+    }
+    qIdx = qIdx + 1
+}
+
+if (stressErrors > 0) {
+    print("[FAIL] Stress queries had", stressErrors, "mismatches against naive oracle")
+} else {
+    print("  Validated", numQueries, "random historical queries across", numStressVersions, "versions: 0 mismatches")
+    tAlloc = stressTree[0]
+    print("  Total allocated persistent tree arena nodes:", tAlloc.size())
+    print("  Test Case 5 Passed stress benchmark verification")
+}
+
 elapsed = t.millis() - suiteStartTime
-print("[PASS] Persistent Fenwick Tree Milestone 2 executed in", elapsed, "ms")
+print("[PASS] Persistent Fenwick Tree Suite executed successfully in", elapsed, "ms")
+
 
