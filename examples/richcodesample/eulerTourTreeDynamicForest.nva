@@ -549,3 +549,130 @@ if (c1Pass == 1) {
 } else {
     print("[FAIL] Test Case 1 encountered assertion mismatches")
 }
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Dynamic Cuts and Component Partition Invariants
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Dynamic Cuts and Component Partition Invariants...")
+c2Pass = 1
+
+// Cut edge (1, 2) in Tree A -> separates into {0, 1} and {2, 3}
+cut(c1Ett, 1, 2)
+
+if (isConnected(c1Ett, 0, 2) or isConnected(c1Ett, 1, 3)) {
+    c2Pass = 0
+}
+if (!isConnected(c1Ett, 0, 1) or !isConnected(c1Ett, 2, 3)) {
+    c2Pass = 0
+}
+
+// Subcomponent sums: {0, 1} = 30, {2, 3} = 70
+if (queryTreeSum(c1Ett, 0) != 30 or queryTreeSize(c1Ett, 0) != 2) {
+    c2Pass = 0
+}
+if (queryTreeSum(c1Ett, 3) != 70 or queryTreeSize(c1Ett, 3) != 2) {
+    c2Pass = 0
+}
+
+// Cut edge (4, 6) from Tree B -> separates node 6 from star {4, 5, 7}
+cut(c1Ett, 4, 6)
+
+if (isConnected(c1Ett, 4, 6) or isConnected(c1Ett, 5, 6)) {
+    c2Pass = 0
+}
+if (!isConnected(c1Ett, 4, 5) or !isConnected(c1Ett, 5, 7)) {
+    c2Pass = 0
+}
+if (queryTreeSum(c1Ett, 6) != 70 or queryTreeSize(c1Ett, 6) != 1) {
+    c2Pass = 0
+}
+if (queryTreeSum(c1Ett, 4) != 190 or queryTreeSize(c1Ett, 4) != 3) {
+    c2Pass = 0
+}
+
+// Bridge linking: connect {0, 1} to {4, 5, 7} via edge (1, 4)
+link(c1Ett, 1, 4)
+if (!isConnected(c1Ett, 0, 7) or !isConnected(c1Ett, 1, 5)) {
+    c2Pass = 0
+}
+// Combined sum: 30 + 190 = 220, size: 2 + 3 = 5
+if (queryTreeSum(c1Ett, 0) != 220 or queryTreeSize(c1Ett, 7) != 5) {
+    c2Pass = 0
+}
+
+if (c2Pass == 1) {
+    print("  Topological cut (1, 2) split component into {0, 1} and {2, 3}")
+    print("  Isolated leaf cut (4, 6) detached singleton vertex 6")
+    print("  Bridge link (1, 4) created united 5-node component with sum 220")
+    print("  Test Case 2 Passed successfully")
+} else {
+    print("[FAIL] Test Case 2 encountered assertion mismatches")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Subtree Aggregate Queries and Reroot Invariance
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Subtree Aggregate Queries and Reroot Invariance...")
+c3Pass = 1
+
+// We have component {0, 1, 4, 5, 7}
+// Topology: 0 - 1 - 4 with 4 having children 5, 7
+// Root at 0:
+// - Subtree of 0 is full component: sum 220, size 5
+// - Subtree of 1: nodes {1, 4, 5, 7}: 20 + 50 + 60 + 80 = 210, size 4
+// - Subtree of 4: nodes {4, 5, 7}: 50 + 60 + 80 = 190, size 3
+// - Subtree of 5: node 5: 60, size 1
+// - Subtree of 7: node 7: 80, size 1
+
+if (querySubtreeSum(c1Ett, 0, 0) != 220 or querySubtreeSize(c1Ett, 0, 0) != 5) {
+    c3Pass = 0
+}
+if (querySubtreeSum(c1Ett, 0, 1) != 210 or querySubtreeSize(c1Ett, 0, 1) != 4) {
+    c3Pass = 0
+}
+if (querySubtreeSum(c1Ett, 0, 4) != 190 or querySubtreeSize(c1Ett, 0, 4) != 3) {
+    c3Pass = 0
+}
+if (querySubtreeSum(c1Ett, 0, 5) != 60 or querySubtreeSize(c1Ett, 0, 5) != 1) {
+    c3Pass = 0
+}
+if (querySubtreeSum(c1Ett, 0, 7) != 80 or querySubtreeSize(c1Ett, 0, 7) != 1) {
+    c3Pass = 0
+}
+
+// Now reroot at 4:
+// Topology from root 4: children are 1, 5, 7; 1 has child 0
+// - Subtree of 4 is full component: sum 220, size 5
+// - Subtree of 1: nodes {1, 0}: 20 + 10 = 30, size 2
+// - Subtree of 0: node 0: 10, size 1
+// - Subtree of 5: node 5: 60, size 1
+// - Subtree of 7: node 7: 80, size 1
+
+if (querySubtreeSum(c1Ett, 4, 4) != 220 or querySubtreeSize(c1Ett, 4, 4) != 5) {
+    c3Pass = 0
+}
+if (querySubtreeSum(c1Ett, 4, 1) != 30 or querySubtreeSize(c1Ett, 4, 1) != 2) {
+    c3Pass = 0
+}
+if (querySubtreeSum(c1Ett, 4, 0) != 10 or querySubtreeSize(c1Ett, 4, 0) != 1) {
+    c3Pass = 0
+}
+if (querySubtreeSum(c1Ett, 4, 5) != 60 or querySubtreeSize(c1Ett, 4, 5) != 1) {
+    c3Pass = 0
+}
+
+// Now reroot at 5:
+// Topology from root 5: 5 - 4, 4 has children 7 and 1, 1 has child 0
+// - Subtree of 4: nodes {4, 7, 1, 0}: 50 + 80 + 20 + 10 = 160, size 4
+if (querySubtreeSum(c1Ett, 5, 4) != 160 or querySubtreeSize(c1Ett, 5, 4) != 4) {
+    c3Pass = 0
+}
+
+if (c3Pass == 1) {
+    print("  Subtree queries from Root 0 verified accurately (sizes 5, 4, 3, 1, 1)")
+    print("  Subtree queries from Root 4 verified correctly (sizes 5, 2, 1, 1, 1)")
+    print("  Subtree queries from Root 5 verified inverted orientation (size 4, sum 160)")
+    print("  Test Case 3 Passed successfully")
+} else {
+    print("[FAIL] Test Case 3 encountered assertion mismatches")
+}
