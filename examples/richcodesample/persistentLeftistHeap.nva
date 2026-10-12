@@ -416,6 +416,20 @@ func extractAllSortedKeys(heap, root) {
     return res
 }
 
+func compareIntArrays(arr1, arr2) {
+    if (arr1.size() != arr2.size()) {
+        return 0
+    }
+    i = 0
+    while (i < arr1.size()) {
+        if (arr1[i] != arr2[i]) {
+            return 0
+        }
+        i = i + 1
+    }
+    return 1
+}
+
 // -----------------------------------------------------------------------------
 // Test Case 1: Sequential Version Updates & Priority Queue Invariants
 // -----------------------------------------------------------------------------
@@ -537,3 +551,216 @@ if (v10FinalMin != 4 or v10FinalSize != 10) {
     print("  Version 10 remained pristine and unmodified throughout full extraction cycle")
     print("  Test Case 1 Passed sequential updates and immutability verification")
 }
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Timeline Forking and Multi-Way Timeline Branching
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Timeline Forking and Tree Branching...")
+tc2Heap = createPersistentLeftistHeap()
+initPersistentLeftistHeap(tc2Heap, "v0: empty")
+
+// Common ancestor tree with elements: 50, 30, 70, 20
+vA1 = insertElement(tc2Heap, 0, 50, 500, "v1: insert 50")
+vA2 = insertElement(tc2Heap, vA1, 30, 300, "v2: insert 30")
+vA3 = insertElement(tc2Heap, vA2, 70, 700, "v3: insert 70")
+vAncestor = insertElement(tc2Heap, vA3, 20, 200, "v4: insert 20 (ancestor)")
+
+ancMin = getMinKey(tc2Heap, vAncestor)
+ancSize = getHeapSize(tc2Heap, vAncestor)
+if (ancMin != 20 or ancSize != 4) {
+    print("[FAIL] Test Case 2 Ancestor creation failed")
+} else {
+    print("  Ancestor Version 4 verified: size 4, minKey 20")
+}
+
+// Branch A: fork from vAncestor and insert smaller elements [5, 15, 2]
+vForkA0 = forkTimeline(tc2Heap, vAncestor, "fork Branch A from v4")
+vForkA1 = insertElement(tc2Heap, vForkA0, 5, 50, "branch A: insert 5")
+vForkA2 = insertElement(tc2Heap, vForkA1, 15, 150, "branch A: insert 15")
+vForkA3 = insertElement(tc2Heap, vForkA2, 2, 20, "branch A: insert 2")
+
+// Branch B: fork from vAncestor and insert larger elements [100, 80, 90]
+vForkB0 = forkTimeline(tc2Heap, vAncestor, "fork Branch B from v4")
+vForkB1 = insertElement(tc2Heap, vForkB0, 100, 1000, "branch B: insert 100")
+vForkB2 = insertElement(tc2Heap, vForkB1, 80, 800, "branch B: insert 80")
+vForkB3 = insertElement(tc2Heap, vForkB2, 90, 900, "branch B: insert 90")
+
+// Branch C: fork from vAncestor and perform two deleteMin operations
+vForkC0 = forkTimeline(tc2Heap, vAncestor, "fork Branch C from v4")
+vForkC1 = deleteMin(tc2Heap, vForkC0, "branch C: deleteMin 20")
+vForkC2 = deleteMin(tc2Heap, vForkC1, "branch C: deleteMin 30")
+
+// Verification of Branch A
+minA = getMinKey(tc2Heap, vForkA3)
+sizeA = getHeapSize(tc2Heap, vForkA3)
+extA = extractAllSortedKeys(tc2Heap, tc2Heap[6][vForkA3])
+expA = [2, 5, 15, 20, 30, 50, 70]
+matchA = compareIntArrays(extA, expA)
+
+// Verification of Branch B
+minB = getMinKey(tc2Heap, vForkB3)
+sizeB = getHeapSize(tc2Heap, vForkB3)
+extB = extractAllSortedKeys(tc2Heap, tc2Heap[6][vForkB3])
+expB = [20, 30, 50, 70, 80, 90, 100]
+matchB = compareIntArrays(extB, expB)
+
+// Verification of Branch C
+minC = getMinKey(tc2Heap, vForkC2)
+sizeC = getHeapSize(tc2Heap, vForkC2)
+extC = extractAllSortedKeys(tc2Heap, tc2Heap[6][vForkC2])
+expC = [50, 70]
+matchC = compareIntArrays(extC, expC)
+
+if (minA != 2 or sizeA != 7 or matchA != 1 or minB != 20 or sizeB != 7 or matchB != 1 or minC != 50 or sizeC != 2 or matchC != 1) {
+    print("[FAIL] Test Case 2 Divergent branches failed")
+} else {
+    print("  Branch A (min 2, size 7), Branch B (min 20, size 7), and Branch C (min 50, size 2) verified")
+}
+
+// Ancestor immutability check
+ancFinalMin = getMinKey(tc2Heap, vAncestor)
+ancFinalSize = getHeapSize(tc2Heap, vAncestor)
+extAnc = extractAllSortedKeys(tc2Heap, tc2Heap[6][vAncestor])
+expAnc = [20, 30, 50, 70]
+matchAnc = compareIntArrays(extAnc, expAnc)
+
+if (ancFinalMin != 20 or ancFinalSize != 4 or matchAnc != 1) {
+    print("[FAIL] Ancestor Version 4 mutated across timeline branches")
+} else {
+    print("  Ancestor Version 4 remained pristine across timeline divergence")
+}
+
+// Lineage validation
+parForkA = getVersionParent(tc2Heap, vForkA0)
+parForkB = getVersionParent(tc2Heap, vForkB0)
+parForkC = getVersionParent(tc2Heap, vForkC0)
+if (parForkA != vAncestor or parForkB != vAncestor or parForkC != vAncestor) {
+    print("[FAIL] Version lineage broken in timeline branches")
+} else {
+    print("  Version lineage verified: branches correctly reference parent Version 4")
+    print("  Test Case 2 Passed timeline forking verification")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Logarithmic Heap Meld across Timelines & Boundary Edge Cases
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Boundary and Edge Cases...")
+tc3Heap = createPersistentLeftistHeap()
+initPersistentLeftistHeap(tc3Heap, "v0: empty")
+
+// Sub-case 3.1: Logarithmic Heap Meld between two independent heaps
+// Heap X elements: [10, 25, 40, 55, 70]
+vX1 = insertElement(tc3Heap, 0, 10, 1, "hx: 10")
+vX2 = insertElement(tc3Heap, vX1, 25, 2, "hx: 25")
+vX3 = insertElement(tc3Heap, vX2, 40, 3, "hx: 40")
+vX4 = insertElement(tc3Heap, vX3, 55, 4, "hx: 55")
+vX5 = insertElement(tc3Heap, vX4, 70, 5, "hx: 70")
+
+// Heap Y elements: [5, 18, 32, 60, 85]
+vY1 = insertElement(tc3Heap, 0, 5, 10, "hy: 5")
+vY2 = insertElement(tc3Heap, vY1, 18, 20, "hy: 18")
+vY3 = insertElement(tc3Heap, vY2, 32, 30, "hy: 32")
+vY4 = insertElement(tc3Heap, vY3, 60, 40, "hy: 60")
+vY5 = insertElement(tc3Heap, vY4, 85, 50, "hy: 85")
+
+vMeldXY = meldHeaps(tc3Heap, vX5, vY5, "meld X and Y")
+
+meldMin = getMinKey(tc3Heap, vMeldXY)
+meldSize = getHeapSize(tc3Heap, vMeldXY)
+meldInvariant = verifyLeftistInvariant(tc3Heap, tc3Heap[6][vMeldXY])
+meldExt = extractAllSortedKeys(tc3Heap, tc3Heap[6][vMeldXY])
+expMeld = [5, 10, 18, 25, 32, 40, 55, 60, 70, 85]
+matchMeld = compareIntArrays(meldExt, expMeld)
+
+if (meldMin != 5 or meldSize != 10 or meldInvariant != 1 or matchMeld != 1) {
+    print("[FAIL] Sub-case 3.1 Meld Heaps failed")
+} else {
+    print("  Two-way heap meld verified: size 10, min 5, sorted keys [5, 10, 18, 25, 32, 40, 55, 60, 70, 85]")
+}
+
+// Check input heaps X and Y remain untouched
+sizeX = getHeapSize(tc3Heap, vX5)
+sizeY = getHeapSize(tc3Heap, vY5)
+minX = getMinKey(tc3Heap, vX5)
+minY = getMinKey(tc3Heap, vY5)
+if (sizeX != 5 or sizeY != 5 or minX != 10 or minY != 5) {
+    print("[FAIL] Input heaps mutated during meld operation")
+} else {
+    print("  Input heaps X and Y preserved immutability during cross-timeline meld")
+}
+
+// Sub-case 3.2: Empty and Single-Element Heap Operations
+vSingle = insertElement(tc3Heap, 0, 999, 1, "single 999")
+singleSize = getHeapSize(tc3Heap, vSingle)
+singleMin = getMinKey(tc3Heap, vSingle)
+singleDist = getHeapDist(tc3Heap, vSingle)
+vSingleDel = deleteMin(tc3Heap, vSingle, "delete single")
+delSingleEmpty = isHeapEmpty(tc3Heap, vSingleDel)
+delSingleSize = getHeapSize(tc3Heap, vSingleDel)
+
+if (singleSize != 1 or singleMin != 999 or singleDist != 1 or delSingleEmpty != 1 or delSingleSize != 0) {
+    print("[FAIL] Single-element heap lifecycle failed")
+} else {
+    print("  Single-element heap verified: [999] (dist 1) -> deleteMin yields empty heap (size 0)")
+}
+
+// Sub-case 3.3: Melding with empty heaps
+vMeldEmptyRight = meldHeaps(tc3Heap, vX5, 0, "meld X with empty")
+vMeldEmptyLeft = meldHeaps(tc3Heap, 0, vY5, "meld empty with Y")
+vMeldBothEmpty = meldHeaps(tc3Heap, 0, 0, "meld empty with empty")
+
+if (getHeapSize(tc3Heap, vMeldEmptyRight) != 5 or getMinKey(tc3Heap, vMeldEmptyRight) != 10 or getHeapSize(tc3Heap, vMeldEmptyLeft) != 5 or getMinKey(tc3Heap, vMeldEmptyLeft) != 5 or isHeapEmpty(tc3Heap, vMeldBothEmpty) != 1) {
+    print("[FAIL] Melding with empty heaps failed")
+} else {
+    print("  Melding with empty heaps identity property verified")
+}
+
+// Sub-case 3.4: Duplicate / Identical keys
+vDup0 = insertElement(tc3Heap, 0, 42, 1, "dup 1")
+vDup1 = insertElement(tc3Heap, vDup0, 42, 2, "dup 2")
+vDup2 = insertElement(tc3Heap, vDup1, 42, 3, "dup 3")
+vDup3 = insertElement(tc3Heap, vDup2, 42, 4, "dup 4")
+
+dupSize = getHeapSize(tc3Heap, vDup3)
+dupMin = getMinKey(tc3Heap, vDup3)
+dupExt = extractAllSortedKeys(tc3Heap, tc3Heap[6][vDup3])
+expDup = [42, 42, 42, 42]
+matchDup = compareIntArrays(dupExt, expDup)
+
+if (dupSize != 4 or dupMin != 42 or matchDup != 1) {
+    print("[FAIL] Duplicate keys handling failed")
+} else {
+    print("  Duplicate keys verified: 4 elements with identical key 42 extracted in order")
+}
+
+// Sub-case 3.5: Negative and Extreme Keys
+vNeg0 = insertElement(tc3Heap, 0, -100, 1, "neg -100")
+vNeg1 = insertElement(tc3Heap, vNeg0, 50, 2, "pos 50")
+vNeg2 = insertElement(tc3Heap, vNeg1, -25, 3, "neg -25")
+vNeg3 = insertElement(tc3Heap, vNeg2, 0, 4, "zero 0")
+
+negMin = getMinKey(tc3Heap, vNeg3)
+negExt = extractAllSortedKeys(tc3Heap, tc3Heap[6][vNeg3])
+expNeg = [-100, -25, 0, 50]
+matchNeg = compareIntArrays(negExt, expNeg)
+
+if (negMin != -100 or matchNeg != 1) {
+    print("[FAIL] Negative keys handling failed")
+} else {
+    print("  Negative and zero keys verified: sorted order [-100, -25, 0, 50]")
+}
+
+// Sub-case 3.6: Degenerate and Out-of-bounds Queries
+oobMinKey = getMinKey(tc3Heap, 99999)
+oobSize = getHeapSize(tc3Heap, -5)
+oobDist = getHeapDist(tc3Heap, 88888)
+oobPar = getVersionParent(tc3Heap, -1)
+oobDesc = getVersionDescription(tc3Heap, 99999)
+
+if (oobMinKey != -1 or oobSize != 0 or oobDist != 0 or oobPar != -1 or oobDesc != "") {
+    print("[FAIL] Degenerate out-of-bounds query handling failed")
+} else {
+    print("  Degenerate and out-of-bounds queries gracefully returned default neutral values")
+    print("  Test Case 3 Passed boundary and edge case verification")
+}
+
