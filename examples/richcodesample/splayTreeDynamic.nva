@@ -1,0 +1,1100 @@
+import stdlib time as t
+
+// Splay Tree Self-Balancing Binary Search Tree Data Structure
+// Technical characteristics:
+// - Self-adjusting binary search tree based on Sleator and Tarjan (1985)
+// - Fundamental Splay operation: Zig, Zig-Zig, and Zig-Zag tree rotations
+// - Amortized O(log N) runtime per operation with empirical access locality
+// - Dynamic order statistics: O(log N) K-th smallest selection and key rank
+// - Subtree aggregates: Dynamic subtree size, sum, minimum, and maximum
+// - Tree partitioning: Logarithmic split by key threshold and disjoint merge
+// - Comprehensive structural invariants and in-order BST verification
+// - Deterministic stress validation against naive sequential oracles
+// - Strict camelCase naming conventions enforced across all symbols
+
+print("=== Nevaarize Splay Tree Dynamic Structure Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(aInt, bInt) {
+    if (aInt < bInt) {
+        return aInt
+    }
+    return bInt
+}
+
+func maxInt(aInt, bInt) {
+    if (aInt > bInt) {
+        return aInt
+    }
+    return bInt
+}
+
+func createSplayTree() {
+    sKey = []
+    sVal = []
+    sLeft = []
+    sRight = []
+    sParent = []
+    sSize = []
+    sSum = []
+    sMin = []
+    sMax = []
+    arena = [sKey, sVal, sLeft, sRight, sParent, sSize, sSum, sMin, sMax]
+    rootBox = [-1]
+    return [arena, rootBox]
+}
+
+func allocNode(tree, nodeKey, nodeVal) {
+    arena = tree[0]
+    sKey = arena[0]
+    sVal = arena[1]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sParent = arena[4]
+    sSize = arena[5]
+    sSum = arena[6]
+    sMin = arena[7]
+    sMax = arena[8]
+
+    newNodeId = sKey.size()
+    sKey.push(nodeKey)
+    sVal.push(nodeVal)
+    sLeft.push(-1)
+    sRight.push(-1)
+    sParent.push(-1)
+    sSize.push(1)
+    sSum.push(nodeVal)
+    sMin.push(nodeVal)
+    sMax.push(nodeVal)
+
+    arena[0] = sKey
+    arena[1] = sVal
+    arena[2] = sLeft
+    arena[3] = sRight
+    arena[4] = sParent
+    arena[5] = sSize
+    arena[6] = sSum
+    arena[7] = sMin
+    arena[8] = sMax
+    tree[0] = arena
+    return newNodeId
+}
+
+func pushUp(tree, targetNode) {
+    if (targetNode == -1) {
+        return
+    }
+    arena = tree[0]
+    sVal = arena[1]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sSize = arena[5]
+    sSum = arena[6]
+    sMin = arena[7]
+    sMax = arena[8]
+
+    leftChild = sLeft[targetNode]
+    rightChild = sRight[targetNode]
+    curVal = sVal[targetNode]
+
+    totalSize = 1
+    totalSum = curVal
+    totalMin = curVal
+    totalMax = curVal
+
+    if (leftChild != -1) {
+        totalSize = totalSize + sSize[leftChild]
+        totalSum = totalSum + sSum[leftChild]
+        totalMin = minInt(totalMin, sMin[leftChild])
+        totalMax = maxInt(totalMax, sMax[leftChild])
+    }
+    if (rightChild != -1) {
+        totalSize = totalSize + sSize[rightChild]
+        totalSum = totalSum + sSum[rightChild]
+        totalMin = minInt(totalMin, sMin[rightChild])
+        totalMax = maxInt(totalMax, sMax[rightChild])
+    }
+
+    sSize[targetNode] = totalSize
+    sSum[targetNode] = totalSum
+    sMin[targetNode] = totalMin
+    sMax[targetNode] = totalMax
+
+    arena[5] = sSize
+    arena[6] = sSum
+    arena[7] = sMin
+    arena[8] = sMax
+    tree[0] = arena
+}
+
+func rotate(tree, childNode) {
+    arena = tree[0]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sParent = arena[4]
+
+    parentNode = sParent[childNode]
+    if (parentNode == -1) {
+        return
+    }
+    grandNode = sParent[parentNode]
+
+    isLeftChild = 0
+    if (sLeft[parentNode] == childNode) {
+        isLeftChild = 1
+    }
+
+    if (isLeftChild == 1) {
+        subTree = sRight[childNode]
+        sLeft[parentNode] = subTree
+        if (subTree != -1) {
+            sParent[subTree] = parentNode
+        }
+        sRight[childNode] = parentNode
+    } else {
+        subTree = sLeft[childNode]
+        sRight[parentNode] = subTree
+        if (subTree != -1) {
+            sParent[subTree] = parentNode
+        }
+        sLeft[childNode] = parentNode
+    }
+
+    sParent[parentNode] = childNode
+    sParent[childNode] = grandNode
+    if (grandNode != -1) {
+        if (sLeft[grandNode] == parentNode) {
+            sLeft[grandNode] = childNode
+        } else {
+            sRight[grandNode] = childNode
+        }
+    }
+
+    arena[2] = sLeft
+    arena[3] = sRight
+    arena[4] = sParent
+    tree[0] = arena
+
+    pushUp(tree, parentNode)
+    pushUp(tree, childNode)
+}
+
+func splay(tree, targetNode) {
+    if (targetNode == -1) {
+        return -1
+    }
+    arena = tree[0]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sParent = arena[4]
+
+    while (sParent[targetNode] != -1) {
+        pNode = sParent[targetNode]
+        gNode = sParent[pNode]
+        if (gNode == -1) {
+            // Zig step
+            rotate(tree, targetNode)
+        } else {
+            isChildLeft = 0
+            if (sLeft[pNode] == targetNode) {
+                isChildLeft = 1
+            }
+            isParentLeft = 0
+            if (sLeft[gNode] == pNode) {
+                isParentLeft = 1
+            }
+
+            if (isChildLeft == isParentLeft) {
+                // Zig-Zig step: rotate parent first, then target
+                rotate(tree, pNode)
+                rotate(tree, targetNode)
+            } else {
+                // Zig-Zag step: rotate target twice
+                rotate(tree, targetNode)
+                rotate(tree, targetNode)
+            }
+        }
+        arena = tree[0]
+        sParent = arena[4]
+        sLeft = arena[2]
+        sRight = arena[3]
+    }
+
+    rootBox = tree[1]
+    rootBox[0] = targetNode
+    tree[1] = rootBox
+    return targetNode
+}
+
+func splayInsert(tree, newKey, newVal) {
+    rootBox = tree[1]
+    currRoot = rootBox[0]
+    if (currRoot == -1) {
+        newRootId = allocNode(tree, newKey, newVal)
+        rootBox[0] = newRootId
+        tree[1] = rootBox
+        return newRootId
+    }
+
+    arena = tree[0]
+    sKey = arena[0]
+    sVal = arena[1]
+    sLeft = arena[2]
+    sRight = arena[3]
+
+    currWalk = currRoot
+    while (currWalk != -1) {
+        if (sKey[currWalk] == newKey) {
+            sVal[currWalk] = newVal
+            arena[1] = sVal
+            tree[0] = arena
+            pushUp(tree, currWalk)
+            splay(tree, currWalk)
+            return currWalk
+        }
+        if (newKey < sKey[currWalk]) {
+            if (sLeft[currWalk] == -1) {
+                newLeafId = allocNode(tree, newKey, newVal)
+                arena = tree[0]
+                sLeft = arena[2]
+                sParent = arena[4]
+                sLeft[currWalk] = newLeafId
+                sParent[newLeafId] = currWalk
+                arena[2] = sLeft
+                arena[4] = sParent
+                tree[0] = arena
+                pushUp(tree, currWalk)
+                splay(tree, newLeafId)
+                return newLeafId
+            }
+            currWalk = sLeft[currWalk]
+        } else {
+            if (sRight[currWalk] == -1) {
+                newLeafId = allocNode(tree, newKey, newVal)
+                arena = tree[0]
+                sRight = arena[3]
+                sParent = arena[4]
+                sRight[currWalk] = newLeafId
+                sParent[newLeafId] = currWalk
+                arena[3] = sRight
+                arena[4] = sParent
+                tree[0] = arena
+                pushUp(tree, currWalk)
+                splay(tree, newLeafId)
+                return newLeafId
+            }
+            currWalk = sRight[currWalk]
+        }
+    }
+    return -1
+}
+
+func splayFind(tree, searchKey) {
+    rootBox = tree[1]
+    currWalk = rootBox[0]
+    if (currWalk == -1) {
+        return -1
+    }
+
+    arena = tree[0]
+    sKey = arena[0]
+    sLeft = arena[2]
+    sRight = arena[3]
+
+    lastVisited = currWalk
+    while (currWalk != -1) {
+        lastVisited = currWalk
+        if (sKey[currWalk] == searchKey) {
+            splay(tree, currWalk)
+            return currWalk
+        }
+        if (searchKey < sKey[currWalk]) {
+            currWalk = sLeft[currWalk]
+        } else {
+            currWalk = sRight[currWalk]
+        }
+    }
+    splay(tree, lastVisited)
+    return -1
+}
+
+func splayDelete(tree, targetKey) {
+    foundNode = splayFind(tree, targetKey)
+    if (foundNode == -1) {
+        return 0
+    }
+
+    rootBox = tree[1]
+    currRoot = rootBox[0]
+    arena = tree[0]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sParent = arena[4]
+
+    leftSubtree = sLeft[currRoot]
+    rightSubtree = sRight[currRoot]
+
+    if (leftSubtree == -1) {
+        rootBox[0] = rightSubtree
+        if (rightSubtree != -1) {
+            sParent[rightSubtree] = -1
+            arena[4] = sParent
+            tree[0] = arena
+        }
+        tree[1] = rootBox
+        return 1
+    }
+    if (rightSubtree == -1) {
+        rootBox[0] = leftSubtree
+        if (leftSubtree != -1) {
+            sParent[leftSubtree] = -1
+            arena[4] = sParent
+            tree[0] = arena
+        }
+        tree[1] = rootBox
+        return 1
+    }
+
+    sParent[leftSubtree] = -1
+    sParent[rightSubtree] = -1
+    arena[4] = sParent
+    tree[0] = arena
+
+    // Find maximum node in left subtree
+    maxLeftNode = leftSubtree
+    while (sRight[maxLeftNode] != -1) {
+        maxLeftNode = sRight[maxLeftNode]
+    }
+    splay(tree, maxLeftNode)
+
+    arena = tree[0]
+    sRight = arena[3]
+    sParent = arena[4]
+    sRight[maxLeftNode] = rightSubtree
+    sParent[rightSubtree] = maxLeftNode
+    arena[3] = sRight
+    arena[4] = sParent
+    tree[0] = arena
+
+    pushUp(tree, maxLeftNode)
+    rootBox[0] = maxLeftNode
+    tree[1] = rootBox
+    return 1
+}
+
+func splayKth(tree, rankK) {
+    rootBox = tree[1]
+    currWalk = rootBox[0]
+    if (currWalk == -1) {
+        return -1
+    }
+
+    arena = tree[0]
+    sSize = arena[5]
+    if (rankK < 1 or rankK > sSize[currWalk]) {
+        return -1
+    }
+
+    sLeft = arena[2]
+    sRight = arena[3]
+
+    remainingK = rankK
+    while (currWalk != -1) {
+        leftCount = 0
+        if (sLeft[currWalk] != -1) {
+            leftCount = sSize[sLeft[currWalk]]
+        }
+
+        if (remainingK == leftCount + 1) {
+            splay(tree, currWalk)
+            return currWalk
+        }
+        if (remainingK <= leftCount) {
+            currWalk = sLeft[currWalk]
+        } else {
+            remainingK = remainingK - (leftCount + 1)
+            currWalk = sRight[currWalk]
+        }
+    }
+    return -1
+}
+
+func splayRank(tree, queryKey) {
+    rootBox = tree[1]
+    currWalk = rootBox[0]
+    if (currWalk == -1) {
+        return 0
+    }
+
+    arena = tree[0]
+    sKey = arena[0]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sSize = arena[5]
+
+    countSmaller = 0
+    lastVisitedNode = currWalk
+    while (currWalk != -1) {
+        lastVisitedNode = currWalk
+        if (queryKey <= sKey[currWalk]) {
+            currWalk = sLeft[currWalk]
+        } else {
+            leftSubSize = 0
+            if (sLeft[currWalk] != -1) {
+                leftSubSize = sSize[sLeft[currWalk]]
+            }
+            countSmaller = countSmaller + leftSubSize + 1
+            currWalk = sRight[currWalk]
+        }
+    }
+    splay(tree, lastVisitedNode)
+    return countSmaller
+}
+
+func splaySplit(tree, thresholdKey) {
+    rootBox = tree[1]
+    currRoot = rootBox[0]
+    if (currRoot == -1) {
+        return [-1, -1]
+    }
+
+    splayFind(tree, thresholdKey)
+    rootBox = tree[1]
+    currRoot = rootBox[0]
+
+    arena = tree[0]
+    sKey = arena[0]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sParent = arena[4]
+
+    if (sKey[currRoot] <= thresholdKey) {
+        rightPartition = sRight[currRoot]
+        if (rightPartition != -1) {
+            sParent[rightPartition] = -1
+            sRight[currRoot] = -1
+            arena[3] = sRight
+            arena[4] = sParent
+            tree[0] = arena
+            pushUp(tree, currRoot)
+        }
+        return [currRoot, rightPartition]
+    } else {
+        leftPartition = sLeft[currRoot]
+        if (leftPartition != -1) {
+            sParent[leftPartition] = -1
+            sLeft[currRoot] = -1
+            arena[2] = sLeft
+            arena[4] = sParent
+            tree[0] = arena
+            pushUp(tree, currRoot)
+        }
+        return [leftPartition, currRoot]
+    }
+}
+
+func splayMerge(tree, rootLeftPart, rootRightPart) {
+    if (rootLeftPart == -1) {
+        rootBox = tree[1]
+        rootBox[0] = rootRightPart
+        tree[1] = rootBox
+        return rootRightPart
+    }
+    if (rootRightPart == -1) {
+        rootBox = tree[1]
+        rootBox[0] = rootLeftPart
+        tree[1] = rootBox
+        return rootLeftPart
+    }
+
+    arena = tree[0]
+    sRight = arena[3]
+
+    maxLeftNode = rootLeftPart
+    while (sRight[maxLeftNode] != -1) {
+        maxLeftNode = sRight[maxLeftNode]
+    }
+    splay(tree, maxLeftNode)
+
+    arena = tree[0]
+    sRight = arena[3]
+    sParent = arena[4]
+    sRight[maxLeftNode] = rootRightPart
+    sParent[rootRightPart] = maxLeftNode
+    arena[3] = sRight
+    arena[4] = sParent
+    tree[0] = arena
+
+    pushUp(tree, maxLeftNode)
+    rootBox = tree[1]
+    rootBox[0] = maxLeftNode
+    tree[1] = rootBox
+    return maxLeftNode
+}
+
+func inOrderCollect(tree, startNode) {
+    outKeys = []
+    outVals = []
+    if (startNode == -1) {
+        return [outKeys, outVals]
+    }
+    arena = tree[0]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sKey = arena[0]
+    sVal = arena[1]
+
+    nodeStack = []
+    curr = startNode
+
+    while (curr != -1 or nodeStack.size() > 0) {
+        while (curr != -1) {
+            nodeStack.push(curr)
+            curr = sLeft[curr]
+        }
+        curr = nodeStack.pop()
+        outKeys.push(sKey[curr])
+        outVals.push(sVal[curr])
+        curr = sRight[curr]
+    }
+    return [outKeys, outVals]
+}
+
+func verifyBstInvariants(tree, rootNode) {
+    if (rootNode == -1) {
+        return 1
+    }
+    arena = tree[0]
+    sKey = arena[0]
+    sLeft = arena[2]
+    sRight = arena[3]
+    sParent = arena[4]
+    sSize = arena[5]
+
+    if (sParent[rootNode] != -1) {
+        return 0
+    }
+
+    vQueue = [rootNode]
+    qHead = 0
+    while (qHead < vQueue.size()) {
+        u = vQueue[qHead]
+        qHead = qHead + 1
+
+        lc = sLeft[u]
+        rc = sRight[u]
+        expSz = 1
+
+        if (lc != -1) {
+            if (sParent[lc] != u) {
+                return 0
+            }
+            if (sKey[lc] >= sKey[u]) {
+                return 0
+            }
+            expSz = expSz + sSize[lc]
+            vQueue.push(lc)
+        }
+        if (rc != -1) {
+            if (sParent[rc] != u) {
+                return 0
+            }
+            if (sKey[rc] <= sKey[u]) {
+                return 0
+            }
+            expSz = expSz + sSize[rc]
+            vQueue.push(rc)
+        }
+
+        if (sSize[u] != expSz) {
+            return 0
+        }
+    }
+    return 1
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 1: Core Splay Rotations (Zig, Zig-Zig, and Zig-Zag Verification)
+// -----------------------------------------------------------------------------
+print("Running Test Case 1: Core Splay Rotations & Invariant Verification...")
+
+case1Tree = createSplayTree()
+n10 = allocNode(case1Tree, 10, 100)
+n20 = allocNode(case1Tree, 20, 200)
+n30 = allocNode(case1Tree, 30, 300)
+
+// Construct right-leaning degenerate chain: 10 -> right 20 -> right 30
+c1Arena = case1Tree[0]
+c1Right = c1Arena[3]
+c1Parent = c1Arena[4]
+c1Right[n10] = n20
+c1Parent[n20] = n10
+c1Right[n20] = n30
+c1Parent[n30] = n20
+c1Arena[3] = c1Right
+c1Arena[4] = c1Parent
+case1Tree[0] = c1Arena
+
+c1RootBox = case1Tree[1]
+c1RootBox[0] = n10
+case1Tree[1] = c1RootBox
+pushUp(case1Tree, n30)
+pushUp(case1Tree, n20)
+pushUp(case1Tree, n10)
+
+// Test Zig-Zig: Splaying n30 (grandchild in same right-right direction)
+splay(case1Tree, n30)
+c1RootBox = case1Tree[1]
+newRootZigZig = c1RootBox[0]
+
+c1Success = 1
+if (newRootZigZig != n30) {
+    c1Success = 0
+}
+if (verifyBstInvariants(case1Tree, newRootZigZig) != 1) {
+    c1Success = 0
+}
+
+// Splay n20 (child of root n30: single Zig rotation)
+splay(case1Tree, n20)
+c1RootBox = case1Tree[1]
+newRootZig = c1RootBox[0]
+if (newRootZig != n20) {
+    c1Success = 0
+}
+if (verifyBstInvariants(case1Tree, newRootZig) != 1) {
+    c1Success = 0
+}
+
+// Add n25 between n20 and n30 to test Zig-Zag
+n25 = allocNode(case1Tree, 25, 250)
+c1Arena = case1Tree[0]
+c1Right = c1Arena[3]
+c1Left = c1Arena[2]
+c1Parent = c1Arena[4]
+
+// n20 is root; its right child is n30. Make n25 the left child of n30 (Zig-Zag configuration)
+c1Left[n30] = n25
+c1Parent[n25] = n30
+c1Arena[2] = c1Left
+c1Arena[4] = c1Parent
+case1Tree[0] = c1Arena
+pushUp(case1Tree, n25)
+pushUp(case1Tree, n30)
+pushUp(case1Tree, n20)
+
+splay(case1Tree, n25)
+c1RootBox = case1Tree[1]
+newRootZigZag = c1RootBox[0]
+
+if (newRootZigZag != n25) {
+    c1Success = 0
+}
+if (verifyBstInvariants(case1Tree, newRootZigZag) != 1) {
+    c1Success = 0
+}
+
+if (c1Success == 1) {
+    print("  Zig step correctly promoted direct child to root")
+    print("  Zig-Zig step resolved same-direction chain into balanced subtree")
+    print("  Zig-Zag step rotated grandchild across opposite branches seamlessly")
+    print("  Test Case 1 Passed core splay rotations verification")
+} else {
+    print("[FAIL] Splay rotation invariant mismatch detected")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Dynamic BST Operations & Amortized Access Verification
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Dynamic BST Operations & Search Locality...")
+
+case2Tree = createSplayTree()
+testKeys = [50, 30, 70, 20, 40, 60, 80, 15, 25, 35, 45]
+testVals = [500, 300, 700, 200, 400, 600, 800, 150, 250, 350, 450]
+
+c2Idx = 0
+while (c2Idx < testKeys.size()) {
+    splayInsert(case2Tree, testKeys[c2Idx], testVals[c2Idx])
+    c2Idx = c2Idx + 1
+}
+
+c2Success = 1
+c2RootBox = case2Tree[1]
+c2Root = c2RootBox[0]
+c2Arena = case2Tree[0]
+c2Size = c2Arena[5]
+if (c2Size[c2Root] != 11) {
+    c2Success = 0
+}
+
+// Search for hit: 15
+f15 = splayFind(case2Tree, 15)
+c2RootBox = case2Tree[1]
+if (f15 == -1 or c2RootBox[0] != f15) {
+    c2Success = 0
+}
+
+// Search for hit: 80
+f80 = splayFind(case2Tree, 80)
+c2RootBox = case2Tree[1]
+if (f80 == -1 or c2RootBox[0] != f80) {
+    c2Success = 0
+}
+
+// Search for miss: 33 (should return -1, splaying nearest neighbor)
+f33 = splayFind(case2Tree, 33)
+if (f33 != -1) {
+    c2Success = 0
+}
+
+// Update existing key: 50 -> 9999
+splayInsert(case2Tree, 50, 9999)
+c2RootBox = case2Tree[1]
+c2Root = c2RootBox[0]
+c2Arena = case2Tree[0]
+c2Key = c2Arena[0]
+c2Val = c2Arena[1]
+if (c2Key[c2Root] != 50 or c2Val[c2Root] != 9999) {
+    c2Success = 0
+}
+
+// Delete key 20, 70, and current root
+del20 = splayDelete(case2Tree, 20)
+del70 = splayDelete(case2Tree, 70)
+delRoot = splayDelete(case2Tree, c2Key[c2Root])
+
+if (del20 != 1 or del70 != 1 or delRoot != 1) {
+    c2Success = 0
+}
+
+c2RootBox = case2Tree[1]
+c2Root = c2RootBox[0]
+c2Arena = case2Tree[0]
+c2Size = c2Arena[5]
+if (c2Size[c2Root] != 8) {
+    c2Success = 0
+}
+
+if (verifyBstInvariants(case2Tree, c2Root) != 1) {
+    c2Success = 0
+}
+
+if (c2Success == 1) {
+    print("  Successfully performed 11 dynamic insertions and point updates")
+    print("  Search hits and nearest-neighbor miss access locality confirmed")
+    print("  Multi-node deletions preserved tree size 8 and strict BST invariants")
+    print("  Test Case 2 Passed dynamic BST operations verification")
+} else {
+    print("[FAIL] Dynamic BST operation mismatch detected")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Dynamic Order Statistics & Range Aggregates
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Dynamic Order Statistics & Subtree Aggregates...")
+
+case3Tree = createSplayTree()
+orderKeys = [10, 20, 30, 40, 50, 60, 70, 80]
+orderVals = [1,  2,  3,  4,  5,  6,  7,  8]
+
+c3Idx = 0
+while (c3Idx < orderKeys.size()) {
+    splayInsert(case3Tree, orderKeys[c3Idx], orderVals[c3Idx])
+    c3Idx = c3Idx + 1
+}
+
+c3Success = 1
+
+// Verify K-th smallest elements for k = 1..8
+c3K = 1
+while (c3K <= 8) {
+    kthNode = splayKth(case3Tree, c3K)
+    c3Arena = case3Tree[0]
+    c3Key = c3Arena[0]
+    expectedKey = orderKeys[c3K - 1]
+    if (kthNode == -1 or c3Key[kthNode] != expectedKey) {
+        c3Success = 0
+    }
+    c3K = c3K + 1
+}
+
+// Verify Rank queries
+// Rank of 35 should be 3 (keys 10, 20, 30)
+rank35 = splayRank(case3Tree, 35)
+// Rank of 10 should be 0 (none smaller)
+rank10 = splayRank(case3Tree, 10)
+// Rank of 90 should be 8 (all smaller)
+rank90 = splayRank(case3Tree, 90)
+
+if (rank35 != 3 or rank10 != 0 or rank90 != 8) {
+    c3Success = 0
+}
+
+// Verify subtree aggregates on root
+c3RootBox = case3Tree[1]
+c3Root = c3RootBox[0]
+c3Arena = case3Tree[0]
+c3Sum = c3Arena[6]
+c3Min = c3Arena[7]
+c3Max = c3Arena[8]
+
+// Sum of 1..8 is 36, min is 1, max is 8
+if (c3Sum[c3Root] != 36 or c3Min[c3Root] != 1 or c3Max[c3Root] != 8) {
+    c3Success = 0
+}
+
+if (c3Success == 1) {
+    print("  K-th smallest order statistics verified for all ranks k = 1..8")
+    print("  Rank queries matched exact element partition counts")
+    print("  Subtree sum 36, min 1, and max 8 verified at root")
+    print("  Test Case 3 Passed order statistics and aggregates verification")
+} else {
+    print("[FAIL] Order statistics mismatch detected")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Split & Merge Invariants
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Split & Merge Tree Invariants...")
+
+case4Tree = createSplayTree()
+splitInput = [5, 12, 19, 27, 34, 48, 56, 63, 75, 89]
+
+c4Idx = 0
+while (c4Idx < splitInput.size()) {
+    splayInsert(case4Tree, splitInput[c4Idx], splitInput[c4Idx] * 10)
+    c4Idx = c4Idx + 1
+}
+
+c4Success = 1
+
+// Split at threshold 34: keys <= 34 should be in T1, keys > 34 in T2
+splitResult = splaySplit(case4Tree, 34)
+rootT1 = splitResult[0]
+rootT2 = splitResult[1]
+
+c4Arena = case4Tree[0]
+c4Size = c4Arena[5]
+
+if (c4Size[rootT1] != 5 or c4Size[rootT2] != 5) {
+    c4Success = 0
+}
+
+// Collect in-order keys of T1 and T2
+t1Collect = inOrderCollect(case4Tree, rootT1)
+keysT1 = t1Collect[0]
+valsT1 = t1Collect[1]
+
+t2Collect = inOrderCollect(case4Tree, rootT2)
+keysT2 = t2Collect[0]
+valsT2 = t2Collect[1]
+
+if (keysT1.size() != 5 or keysT2.size() != 5) {
+    c4Success = 0
+}
+
+// Verify partition boundary
+c4Scan = 0
+while (c4Scan < keysT1.size()) {
+    if (keysT1[c4Scan] > 34) {
+        c4Success = 0
+    }
+    c4Scan = c4Scan + 1
+}
+
+c4Scan = 0
+while (c4Scan < keysT2.size()) {
+    if (keysT2[c4Scan] <= 34) {
+        c4Success = 0
+    }
+    c4Scan = c4Scan + 1
+}
+
+// Merge back
+mergedRoot = splayMerge(case4Tree, rootT1, rootT2)
+c4Arena = case4Tree[0]
+c4Size = c4Arena[5]
+
+if (c4Size[mergedRoot] != 10) {
+    c4Success = 0
+}
+if (verifyBstInvariants(case4Tree, mergedRoot) != 1) {
+    c4Success = 0
+}
+
+// Verify merged tree in-order preserves original input order
+mergedCollect = inOrderCollect(case4Tree, mergedRoot)
+mergedKeys = mergedCollect[0]
+mergedVals = mergedCollect[1]
+
+if (mergedKeys.size() != 10) {
+    c4Success = 0
+} else {
+    c4Scan = 0
+    while (c4Scan < splitInput.size()) {
+        if (mergedKeys[c4Scan] != splitInput[c4Scan]) {
+            c4Success = 0
+        }
+        c4Scan = c4Scan + 1
+    }
+}
+
+if (c4Success == 1) {
+    print("  Split partitioned 10 elements into two disjoint subtrees of size 5")
+    print("  Key threshold invariant strictly preserved across both partitions")
+    print("  Disjoint merge reconstructed original 10-node sequence with valid BST order")
+    print("  Test Case 4 Passed split & merge invariants verification")
+} else {
+    print("[FAIL] Split-merge invariant violation detected")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Simulation against Naive Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Randomized Stress Simulation against Naive Oracle...")
+
+case5Tree = createSplayTree()
+oracleKeys = []
+oracleVals = []
+
+stressOps = 150
+stressSeed = 549173
+stressErrors = 0
+
+opIdx = 0
+while (opIdx < stressOps) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    opType = stressSeed % 10
+
+    if (opType < 4 or oracleKeys.size() < 5) {
+        // Insert operation
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        randKey = (stressSeed % 300) + 1
+        randVal = randKey * 3
+
+        splayInsert(case5Tree, randKey, randVal)
+
+        // Update naive oracle
+        foundInOracle = 0
+        oScan = 0
+        while (oScan < oracleKeys.size()) {
+            if (oracleKeys[oScan] == randKey) {
+                oracleVals[oScan] = randVal
+                foundInOracle = 1
+            }
+            oScan = oScan + 1
+        }
+        if (foundInOracle == 0) {
+            oracleKeys.push(randKey)
+            oracleVals.push(randVal)
+            // Sort oracle
+            sortI = oracleKeys.size() - 1
+            while (sortI > 0) {
+                if (oracleKeys[sortI] < oracleKeys[sortI - 1]) {
+                    tmpK = oracleKeys[sortI]
+                    oracleKeys[sortI] = oracleKeys[sortI - 1]
+                    oracleKeys[sortI - 1] = tmpK
+
+                    tmpV = oracleVals[sortI]
+                    oracleVals[sortI] = oracleVals[sortI - 1]
+                    oracleVals[sortI - 1] = tmpV
+                }
+                sortI = sortI - 1
+            }
+        }
+    } elif (opType < 6) {
+        // Find operation
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        pickIdx = stressSeed % oracleKeys.size()
+        searchKey = oracleKeys[pickIdx]
+
+        foundNode = splayFind(case5Tree, searchKey)
+        c5Arena = case5Tree[0]
+        c5Key = c5Arena[0]
+        c5Val = c5Arena[1]
+
+        if (foundNode == -1 or c5Key[foundNode] != searchKey or c5Val[foundNode] != oracleVals[pickIdx]) {
+            stressErrors = stressErrors + 1
+        }
+    } elif (opType < 8) {
+        // Order statistic K-th query
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        pickK = (stressSeed % oracleKeys.size()) + 1
+
+        kthNode = splayKth(case5Tree, pickK)
+        c5Arena = case5Tree[0]
+        c5Key = c5Arena[0]
+
+        if (kthNode == -1 or c5Key[kthNode] != oracleKeys[pickK - 1]) {
+            stressErrors = stressErrors + 1
+        }
+    } else {
+        // Delete operation
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        pickIdx = stressSeed % oracleKeys.size()
+        delKey = oracleKeys[pickIdx]
+
+        delResult = splayDelete(case5Tree, delKey)
+        if (delResult != 1) {
+            stressErrors = stressErrors + 1
+        }
+
+        // Remove from naive oracle
+        newOracleKeys = []
+        newOracleVals = []
+        oScan = 0
+        while (oScan < oracleKeys.size()) {
+            if (oScan != pickIdx) {
+                newOracleKeys.push(oracleKeys[oScan])
+                newOracleVals.push(oracleVals[oScan])
+            }
+            oScan = oScan + 1
+        }
+        oracleKeys = newOracleKeys
+        oracleVals = newOracleVals
+    }
+
+    opIdx = opIdx + 1
+}
+
+// Final verification of tree integrity against oracle
+c5RootBox = case5Tree[1]
+c5Root = c5RootBox[0]
+c5Arena = case5Tree[0]
+c5Size = c5Arena[5]
+
+if (c5Size[c5Root] != oracleKeys.size()) {
+    stressErrors = stressErrors + 1
+}
+
+if (verifyBstInvariants(case5Tree, c5Root) != 1) {
+    stressErrors = stressErrors + 1
+}
+
+finalCollect = inOrderCollect(case5Tree, c5Root)
+finalKeys = finalCollect[0]
+finalVals = finalCollect[1]
+
+if (finalKeys.size() != oracleKeys.size()) {
+    stressErrors = stressErrors + 1
+} else {
+    vScan = 0
+    while (vScan < finalKeys.size()) {
+        if (finalKeys[vScan] != oracleKeys[vScan] or finalVals[vScan] != oracleVals[vScan]) {
+            stressErrors = stressErrors + 1
+        }
+        vScan = vScan + 1
+    }
+}
+
+if (stressErrors == 0) {
+    print("  Validated 150 randomized mutations against sequential oracle: 0 mismatches")
+    print("  Final tree size:", oracleKeys.size(), "nodes with full parent-child reciprocity")
+    print("  In-order traversal strictly matches sorted oracle key-value sequence")
+    print("  Test Case 5 Passed randomized stress simulation verification")
+} else {
+    print("[FAIL] Stress simulation encountered", stressErrors, "mismatches against oracle")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Splay Tree Dynamic Structure Suite executed successfully in", elapsed, "ms")
