@@ -385,6 +385,195 @@ func queryDistance(engine, u, v) {
     return depth[u] + depth[v] - 2 * depth[lcaNode]
 }
 
+func queryPathSum(engine, u, v) {
+    n = engine[0]
+    parent = engine[5]
+    depth = engine[6]
+    chainHead = engine[9]
+    pos = engine[10]
+    segTree = engine[12]
+
+    currU = u
+    currV = v
+    totalSum = 0
+
+    while (chainHead[currU] != chainHead[currV]) {
+        if (depth[chainHead[currU]] < depth[chainHead[currV]]) {
+            temp = currU
+            currU = currV
+            currV = temp
+        }
+        headU = chainHead[currU]
+        s = querySegSum(segTree, 1, 0, n - 1, pos[headU], pos[currU])
+        totalSum = totalSum + s
+        currU = parent[headU]
+    }
+
+    if (depth[currU] > depth[currV]) {
+        temp = currU
+        currU = currV
+        currV = temp
+    }
+    s = querySegSum(segTree, 1, 0, n - 1, pos[currU], pos[currV])
+    totalSum = totalSum + s
+    return totalSum
+}
+
+func queryPathMax(engine, u, v) {
+    n = engine[0]
+    parent = engine[5]
+    depth = engine[6]
+    chainHead = engine[9]
+    pos = engine[10]
+    segTree = engine[12]
+
+    currU = u
+    currV = v
+    curMax = -2147483648
+
+    while (chainHead[currU] != chainHead[currV]) {
+        if (depth[chainHead[currU]] < depth[chainHead[currV]]) {
+            temp = currU
+            currU = currV
+            currV = temp
+        }
+        headU = chainHead[currU]
+        m = querySegMax(segTree, 1, 0, n - 1, pos[headU], pos[currU])
+        if (m > curMax) {
+            curMax = m
+        }
+        currU = parent[headU]
+    }
+
+    if (depth[currU] > depth[currV]) {
+        temp = currU
+        currU = currV
+        currV = temp
+    }
+    m = querySegMax(segTree, 1, 0, n - 1, pos[currU], pos[currV])
+    if (m > curMax) {
+        curMax = m
+    }
+    return curMax
+}
+
+func queryPathMin(engine, u, v) {
+    n = engine[0]
+    parent = engine[5]
+    depth = engine[6]
+    chainHead = engine[9]
+    pos = engine[10]
+    segTree = engine[12]
+
+    currU = u
+    currV = v
+    curMin = 2147483647
+
+    while (chainHead[currU] != chainHead[currV]) {
+        if (depth[chainHead[currU]] < depth[chainHead[currV]]) {
+            temp = currU
+            currU = currV
+            currV = temp
+        }
+        headU = chainHead[currU]
+        m = querySegMin(segTree, 1, 0, n - 1, pos[headU], pos[currU])
+        if (m < curMin) {
+            curMin = m
+        }
+        currU = parent[headU]
+    }
+
+    if (depth[currU] > depth[currV]) {
+        temp = currU
+        currU = currV
+        currV = temp
+    }
+    m = querySegMin(segTree, 1, 0, n - 1, pos[currU], pos[currV])
+    if (m < curMin) {
+        curMin = m
+    }
+    return curMin
+}
+
+func updatePathAdd(engine, u, v, delta) {
+    n = engine[0]
+    parent = engine[5]
+    depth = engine[6]
+    chainHead = engine[9]
+    pos = engine[10]
+    segTree = engine[12]
+
+    currU = u
+    currV = v
+
+    while (chainHead[currU] != chainHead[currV]) {
+        if (depth[chainHead[currU]] < depth[chainHead[currV]]) {
+            temp = currU
+            currU = currV
+            currV = temp
+        }
+        headU = chainHead[currU]
+        updateSegRangeAdd(segTree, 1, 0, n - 1, pos[headU], pos[currU], delta)
+        currU = parent[headU]
+    }
+
+    if (depth[currU] > depth[currV]) {
+        temp = currU
+        currU = currV
+        currV = temp
+    }
+    updateSegRangeAdd(segTree, 1, 0, n - 1, pos[currU], pos[currV], delta)
+    return 0
+}
+
+func querySubtreeSum(engine, u) {
+    n = engine[0]
+    pos = engine[10]
+    subSize = engine[7]
+    segTree = engine[12]
+    return querySegSum(segTree, 1, 0, n - 1, pos[u], pos[u] + subSize[u] - 1)
+}
+
+func querySubtreeMax(engine, u) {
+    n = engine[0]
+    pos = engine[10]
+    subSize = engine[7]
+    segTree = engine[12]
+    return querySegMax(segTree, 1, 0, n - 1, pos[u], pos[u] + subSize[u] - 1)
+}
+
+func querySubtreeMin(engine, u) {
+    n = engine[0]
+    pos = engine[10]
+    subSize = engine[7]
+    segTree = engine[12]
+    return querySegMin(segTree, 1, 0, n - 1, pos[u], pos[u] + subSize[u] - 1)
+}
+
+func updateSubtreeAdd(engine, u, delta) {
+    n = engine[0]
+    pos = engine[10]
+    subSize = engine[7]
+    segTree = engine[12]
+    updateSegRangeAdd(segTree, 1, 0, n - 1, pos[u], pos[u] + subSize[u] - 1, delta)
+    return 0
+}
+
+func updateVertexPoint(engine, u, delta) {
+    n = engine[0]
+    pos = engine[10]
+    segTree = engine[12]
+    updateSegRangeAdd(segTree, 1, 0, n - 1, pos[u], pos[u], delta)
+    return 0
+}
+
+func getVertexWeight(engine, u) {
+    n = engine[0]
+    pos = engine[10]
+    segTree = engine[12]
+    return querySegSum(segTree, 1, 0, n - 1, pos[u], pos[u])
+}
+
 // -----------------------------------------------------------------------------
 // Test Case 1: Tree Construction, Heavy-Light Decomposition & LCA Invariants
 // -----------------------------------------------------------------------------
@@ -492,3 +681,182 @@ if (dist910 != 2 or dist913 != 7 or dist1213 != 1 or dist80 != 2 or distSelf != 
     print("  Tree distances verified: dist(9,10)=2, dist(9,13)=7, dist(12,13)=1, dist(8,0)=2, dist(4,4)=0")
     print("  Test Case 1 Passed tree construction, HLD layout, and LCA verification")
 }
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Path Aggregation Queries and Point Updates
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Path Aggregation Queries and Point Updates...")
+tc2Verts = 14
+tc2Engine = createHldEngine(tc2Verts)
+addEdge(tc2Engine, 0, 1)
+addEdge(tc2Engine, 0, 2)
+addEdge(tc2Engine, 0, 3)
+addEdge(tc2Engine, 1, 4)
+addEdge(tc2Engine, 1, 5)
+addEdge(tc2Engine, 2, 6)
+addEdge(tc2Engine, 2, 7)
+addEdge(tc2Engine, 3, 8)
+addEdge(tc2Engine, 4, 9)
+addEdge(tc2Engine, 4, 10)
+addEdge(tc2Engine, 5, 11)
+addEdge(tc2Engine, 7, 12)
+addEdge(tc2Engine, 12, 13)
+
+tc2U = 0
+while (tc2U < tc2Verts) {
+    setVertexWeight(tc2Engine, tc2U, (tc2U + 1) * 10)
+    tc2U = tc2U + 1
+}
+buildHld(tc2Engine, 0)
+
+// Initial baseline path queries:
+// Path 9 to 10: 9(100) - 4(50) - 10(110) -> sum 260, max 110, min 50
+pSum910 = queryPathSum(tc2Engine, 9, 10)
+pMax910 = queryPathMax(tc2Engine, 9, 10)
+pMin910 = queryPathMin(tc2Engine, 9, 10)
+
+// Path 9 to 11: 9(100) - 4(50) - 1(20) - 5(60) - 11(120) -> sum 350, max 120, min 20
+pSum911 = queryPathSum(tc2Engine, 9, 11)
+pMax911 = queryPathMax(tc2Engine, 9, 11)
+pMin911 = queryPathMin(tc2Engine, 9, 11)
+
+// Path 8 to 13: 8(90) - 3(40) - 0(10) - 2(30) - 7(80) - 12(130) - 13(140) -> sum 520, max 140, min 10
+pSum813 = queryPathSum(tc2Engine, 8, 13)
+pMax813 = queryPathMax(tc2Engine, 8, 13)
+pMin813 = queryPathMin(tc2Engine, 8, 13)
+
+// Single-node path 4 to 4: 4(50) -> sum 50, max 50, min 50
+pSum44 = queryPathSum(tc2Engine, 4, 4)
+pMax44 = queryPathMax(tc2Engine, 4, 4)
+pMin44 = queryPathMin(tc2Engine, 4, 4)
+
+tc2Fail = 0
+if (pSum910 != 260 or pMax910 != 110 or pMin910 != 50) { tc2Fail = 1 }
+if (pSum911 != 350 or pMax911 != 120 or pMin911 != 20) { tc2Fail = 1 }
+if (pSum813 != 520 or pMax813 != 140 or pMin813 != 10) { tc2Fail = 1 }
+if (pSum44 != 50 or pMax44 != 50 or pMin44 != 50) { tc2Fail = 1 }
+
+if (tc2Fail != 0) {
+    print("[FAIL] Baseline path aggregation queries failed")
+} else {
+    print("  Baseline path queries verified: path(9..10) sum=260, path(9..11) sum=350, path(8..13) sum=520")
+}
+
+// Point update on node 4: add 25 (node 4 weight: 50 -> 75)
+updateVertexPoint(tc2Engine, 4, 25)
+w4 = getVertexWeight(tc2Engine, 4)
+pSum910After = queryPathSum(tc2Engine, 9, 10)
+pMin910After = queryPathMin(tc2Engine, 9, 10)
+
+if (w4 != 75 or pSum910After != 285 or pMin910After != 75) {
+    print("[FAIL] Point update verification failed: w4=", w4, ", sum910=", pSum910After, ", min910=", pMin910After)
+} else {
+    print("  Point update verified: node 4 increased to 75, new path(9..10) sum=285, min=75")
+}
+
+// Path range addition on path 9 to 11: add 10 to each node on path {9, 4, 1, 5, 11}
+// Node 9: 100+10=110
+// Node 4: 75+10=85
+// Node 1: 20+10=30
+// Node 5: 60+10=70
+// Node 11: 120+10=130
+// Node 10 (not on path): remains 110
+updatePathAdd(tc2Engine, 9, 11, 10)
+
+pSum911After = queryPathSum(tc2Engine, 9, 11)
+pMax911After = queryPathMax(tc2Engine, 9, 11)
+pMin911After = queryPathMin(tc2Engine, 9, 11)
+pSum910AfterAdd = queryPathSum(tc2Engine, 9, 10)
+
+// path 9..11 sum: 110 + 85 + 30 + 70 + 130 = 425
+// path 9..10: 9(110) + 4(85) + 10(110) = 305
+if (pSum911After != 425 or pMax911After != 130 or pMin911After != 30 or pSum910AfterAdd != 305) {
+    print("[FAIL] Path range addition verification failed: pSum911=", pSum911After, ", pSum910=", pSum910AfterAdd)
+} else {
+    print("  Path range addition verified: path(9..11) sum updated to 425, path(9..10) updated to 305")
+    print("  Test Case 2 Passed path aggregation and point update verification")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Subtree Range Updates with Lazy Propagation
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Subtree Range Updates with Lazy Propagation...")
+tc3Verts = 14
+tc3Engine = createHldEngine(tc3Verts)
+addEdge(tc3Engine, 0, 1)
+addEdge(tc3Engine, 0, 2)
+addEdge(tc3Engine, 0, 3)
+addEdge(tc3Engine, 1, 4)
+addEdge(tc3Engine, 1, 5)
+addEdge(tc3Engine, 2, 6)
+addEdge(tc3Engine, 2, 7)
+addEdge(tc3Engine, 3, 8)
+addEdge(tc3Engine, 4, 9)
+addEdge(tc3Engine, 4, 10)
+addEdge(tc3Engine, 5, 11)
+addEdge(tc3Engine, 7, 12)
+addEdge(tc3Engine, 12, 13)
+
+tc3U = 0
+while (tc3U < tc3Verts) {
+    setVertexWeight(tc3Engine, tc3U, (tc3U + 1) * 10)
+    tc3U = tc3U + 1
+}
+buildHld(tc3Engine, 0)
+
+// Initial subtree queries:
+// Subtree 2 contains: 2(30), 6(70), 7(80), 12(130), 13(140) -> total 5 nodes
+// Sum = 30 + 70 + 80 + 130 + 140 = 450, max = 140, min = 30
+subSum2 = querySubtreeSum(tc3Engine, 2)
+subMax2 = querySubtreeMax(tc3Engine, 2)
+subMin2 = querySubtreeMin(tc3Engine, 2)
+
+// Subtree 1 contains 6 nodes: 1(20), 4(50), 5(60), 9(100), 10(110), 11(120)
+// Sum = 20 + 50 + 60 + 100 + 110 + 120 = 460
+subSum1 = querySubtreeSum(tc3Engine, 1)
+
+// Subtree 0 (entire tree) contains all 14 nodes: sum = 10 * (1 + 2 + ... + 14) = 1050
+subSum0 = querySubtreeSum(tc3Engine, 0)
+
+tc3Fail = 0
+if (subSum2 != 450 or subMax2 != 140 or subMin2 != 30) { tc3Fail = 1 }
+if (subSum1 != 460 or subSum0 != 1050) { tc3Fail = 1 }
+
+if (tc3Fail != 0) {
+    print("[FAIL] Baseline subtree aggregate queries failed")
+} else {
+    print("  Baseline subtree queries verified: subtree(2) sum=450, subtree(1) sum=460, full tree sum=1050")
+}
+
+// Subtree range update: add 5 to entire subtree 2 (5 nodes)
+// New sum: 450 + 5 * 5 = 475, max: 140 + 5 = 145, min: 30 + 5 = 35
+updateSubtreeAdd(tc3Engine, 2, 5)
+subSum2After = querySubtreeSum(tc3Engine, 2)
+subMax2After = querySubtreeMax(tc3Engine, 2)
+subMin2After = querySubtreeMin(tc3Engine, 2)
+
+// Full tree sum should now be 1050 + 25 = 1075
+subSum0After = querySubtreeSum(tc3Engine, 0)
+
+// Subtree 1 should be completely unaffected: still 460
+subSum1After = querySubtreeSum(tc3Engine, 1)
+
+if (subSum2After != 475 or subMax2After != 145 or subMin2After != 35 or subSum0After != 1075 or subSum1After != 460) {
+    print("[FAIL] Subtree range addition verification failed")
+} else {
+    print("  Subtree range addition verified: subtree(2) updated to sum=475, max=145, min=35; subtree(1) isolated at 460")
+}
+
+// Cross-check: Path query passing through updated subtree
+// Path from 6 to 13 is entirely in subtree 2: 6(75) - 2(35) - 7(85) - 12(135) - 13(145) -> sum = 475
+pSum613 = queryPathSum(tc3Engine, 6, 13)
+pMax613 = queryPathMax(tc3Engine, 6, 13)
+pMin613 = queryPathMin(tc3Engine, 6, 13)
+
+if (pSum613 != 475 or pMax613 != 145 or pMin613 != 35) {
+    print("[FAIL] Path query across updated subtree failed: pSum613=", pSum613)
+} else {
+    print("  Path query across updated subtree verified: path(6..13) sum=475, max=145, min=35")
+    print("  Test Case 3 Passed subtree range updates and lazy propagation")
+}
+
