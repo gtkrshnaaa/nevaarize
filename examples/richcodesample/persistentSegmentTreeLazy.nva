@@ -422,5 +422,154 @@ print("  Version 4 point addition verified: sum =", sumV4, ", point 8 =", ptValV
 print("  Historical index 8 across versions: v0 =", ptValV0, ", v3 =", ptValV3, ", v4 =", ptValV4)
 print("  Test Case 1 Passed sequential updates and immutability verification")
 
+// -----------------------------------------------------------------------------
+// Test Case 2: Timeline Forking and Tree Branching
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Timeline Forking and Tree Branching...")
+
+// Branch A forks from Version 2: add +100 to range [1, 7]
+// v2 sum was 177, range [1, 7] has 7 elements, adding 700 -> expected sum 877
+vBranchA = updateRangeAdd(pst, v2, 0, n - 1, 1, 7, 100)
+
+// Branch B forks independently from Version 2: add -20 to range [0, 3]
+// v2 sum was 177, range [0, 3] has 4 elements, adding -80 -> expected sum 97
+// min of [0, 3] in v2 was 8, after -20 becomes -12
+vBranchB = updateRangeAdd(pst, v2, 0, n - 1, 0, 3, -20)
+
+// Branch C forks from Branch A: add +50 to range [8, 9]
+// Branch A sum was 877, range [8, 9] has 2 elements, adding 100 -> expected sum 977
+vBranchC = updateRangeAdd(pst, vBranchA, 0, n - 1, 8, 9, 50)
+
+sumBranchA = queryRangeSum(pst, vBranchA, 0, n - 1, 0, n - 1, 0)
+maxBranchA = queryRangeMax(pst, vBranchA, 0, n - 1, 0, n - 1, 0)
+sumBranchB = queryRangeSum(pst, vBranchB, 0, n - 1, 0, n - 1, 0)
+minBranchB = queryRangeMin(pst, vBranchB, 0, n - 1, 0, n - 1, 0)
+sumBranchC = queryRangeSum(pst, vBranchC, 0, n - 1, 0, n - 1, 0)
+
+// Check parent and ancestor stability
+sumParentV2 = queryRangeSum(pst, v2, 0, n - 1, 0, n - 1, 0)
+sumAncestorV0 = queryRangeSum(pst, v0, 0, n - 1, 0, n - 1, 0)
+
+if (sumBranchA != 877 or maxBranchA != 134) {
+    print("[FAIL] Branch A expected sum 877 max 134, got sum", sumBranchA, "max", maxBranchA)
+}
+if (sumBranchB != 97 or minBranchB != -12) {
+    print("[FAIL] Branch B expected sum 97 min -12, got sum", sumBranchB, "min", minBranchB)
+}
+if (sumBranchC != 977) {
+    print("[FAIL] Branch C expected sum 977, got", sumBranchC)
+}
+if (sumParentV2 != 177) {
+    print("[FAIL] Parent Version 2 mutated after branching! Expected 177, got", sumParentV2)
+}
+if (sumAncestorV0 != 102) {
+    print("[FAIL] Ancestor Version 0 mutated after branching! Expected 102, got", sumAncestorV0)
+}
+
+print("  Branch A (sum:", sumBranchA, ", max:", maxBranchA, ") verified independently")
+print("  Branch B (sum:", sumBranchB, ", min:", minBranchB, ") verified independently")
+print("  Branch C (sum:", sumBranchC, ") derived from Branch A verified")
+print("  Parent Version 2 preserved immutability (sum:", sumParentV2, ")")
+print("  Test Case 2 Passed timeline forking verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Boundary and Edge Cases
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Boundary and Edge Cases...")
+
+// Subcase 3.1: Single-element segment tree
+singlePst = createPersistentTreeLazy()
+singleArr = [42]
+s0 = buildTree(singlePst, singleArr, 0, 0)
+
+sSum0 = queryRangeSum(singlePst, s0, 0, 0, 0, 0, 0)
+sMin0 = queryRangeMin(singlePst, s0, 0, 0, 0, 0, 0)
+sMax0 = queryRangeMax(singlePst, s0, 0, 0, 0, 0, 0)
+
+if (sSum0 != 42 or sMin0 != 42 or sMax0 != 42) {
+    print("[FAIL] Single element v0 expected 42, got sum", sSum0, "min", sMin0, "max", sMax0)
+}
+
+s1 = updateRangeAdd(singlePst, s0, 0, 0, 0, 0, 58)
+sSum1 = queryRangeSum(singlePst, s1, 0, 0, 0, 0, 0)
+sSum0After = queryRangeSum(singlePst, s0, 0, 0, 0, 0, 0)
+
+if (sSum1 != 100 or sSum0After != 42) {
+    print("[FAIL] Single element v1 expected 100 and v0 expected 42, got v1", sSum1, "v0", sSum0After)
+}
+
+s2 = updateRangeAdd(singlePst, s1, 0, 0, 0, 0, -200)
+sSum2 = queryRangeSum(singlePst, s2, 0, 0, 0, 0, 0)
+sMin2 = queryRangeMin(singlePst, s2, 0, 0, 0, 0, 0)
+sMax2 = queryRangeMax(singlePst, s2, 0, 0, 0, 0, 0)
+
+if (sSum2 != -100 or sMin2 != -100 or sMax2 != -100) {
+    print("[FAIL] Single element v2 expected -100, got sum", sSum2, "min", sMin2, "max", sMax2)
+}
+print("  Single-element segment tree verified across 3 versions (42 -> 100 -> -100)")
+
+// Subcase 3.2: Two-element segment tree
+twoPst = createPersistentTreeLazy()
+twoArr = [10, 20]
+t0 = buildTree(twoPst, twoArr, 0, 1)
+
+t1 = updateRangeAdd(twoPst, t0, 0, 1, 0, 0, 5)
+t2 = updateRangeAdd(twoPst, t1, 0, 1, 1, 1, 10)
+t3 = updateRangeAdd(twoPst, t2, 0, 1, 0, 1, -5)
+
+tSum0 = queryRangeSum(twoPst, t0, 0, 1, 0, 1, 0)
+tSum1 = queryRangeSum(twoPst, t1, 0, 1, 0, 1, 0)
+tSum2 = queryRangeSum(twoPst, t2, 0, 1, 0, 1, 0)
+tSum3 = queryRangeSum(twoPst, t3, 0, 1, 0, 1, 0)
+
+if (tSum0 != 30 or tSum1 != 35 or tSum2 != 45 or tSum3 != 35) {
+    print("[FAIL] Two-element tree sums expected [30, 35, 45, 35], got", tSum0, tSum1, tSum2, tSum3)
+}
+print("  Two-element segment tree verified across 4 versions")
+
+// Subcase 3.3: Out-of-bounds and disjoint queries
+oobSum = queryRangeSum(pst, v0, 0, n - 1, 20, 25, 0)
+oobMin = queryRangeMin(pst, v0, 0, n - 1, 20, 25, 0)
+oobMax = queryRangeMax(pst, v0, 0, n - 1, 20, 25, 0)
+invSum = queryRangeSum(pst, v0, 0, n - 1, 7, 3, 0)
+
+if (oobSum != 0 or oobMin != 2147483647 or oobMax != -2147483648 or invSum != 0) {
+    print("[FAIL] Disjoint query identity elements mismatched")
+}
+print("  Disjoint and out-of-bounds queries gracefully returned identity neutral values")
+
+// Subcase 3.4: Repeated updates to identical interval
+repeatPst = createPersistentTreeLazy()
+zeroArr = [0, 0, 0, 0, 0]
+repRoots = []
+rep0 = buildTree(repeatPst, zeroArr, 0, 4)
+repRoots.push(rep0)
+
+repIter = 0
+while (repIter < 5) {
+    lastRoot = repRoots[repIter]
+    nextRoot = updateRangeAdd(repeatPst, lastRoot, 0, 4, 1, 3, 10)
+    repRoots.push(nextRoot)
+    repIter = repIter + 1
+}
+
+repIdx = 0
+repErrors = 0
+while (repIdx <= 5) {
+    expectedRepSum = repIdx * 30
+    actualRepSum = queryRangeSum(repeatPst, repRoots[repIdx], 0, 4, 0, 4, 0)
+    if (actualRepSum != expectedRepSum) {
+        repErrors = repErrors + 1
+    }
+    repIdx = repIdx + 1
+}
+
+if (repErrors > 0) {
+    print("[FAIL] Repeated updates had", repErrors, "sum mismatches")
+} else {
+    print("  Repeated identical range updates verified across 5 versions with cumulative lazy tags")
+}
+print("  Test Case 3 Passed boundary and edge case verification")
+
 elapsed = t.millis() - suiteStartTime
 print("[PASS] Persistent Segment Tree with Lazy Propagation executed in", elapsed, "ms")
