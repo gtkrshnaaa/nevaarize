@@ -310,6 +310,105 @@ func countTotalWords(trie, root) {
     return tPrefixCount[root]
 }
 
+func findPrefixNode(trie, root, prefix) {
+    if (root == -1) {
+        return -1
+    }
+    prefLen = str.length(prefix)
+    if (prefLen == 0) {
+        return root
+    }
+    curr = root
+    tChildren = trie[0]
+    alphaSize = trie[5]
+    i = 0
+    while (i < prefLen) {
+        charCode = str.charCodeAt(prefix, i)
+        cIdx = charToIndex(charCode)
+        if (cIdx < 0) {
+            return -1
+        }
+        nxt = tChildren[curr * alphaSize + cIdx]
+        if (nxt == -1) {
+            return -1
+        }
+        curr = nxt
+        i = i + 1
+    }
+    return curr
+}
+
+func longestCommonPrefix(trie, root, word) {
+    if (root == -1) {
+        return 0
+    }
+    wordLen = str.length(word)
+    if (wordLen == 0) {
+        return 0
+    }
+    curr = root
+    tChildren = trie[0]
+    alphaSize = trie[5]
+    matchedLen = 0
+    while (matchedLen < wordLen) {
+        charCode = str.charCodeAt(word, matchedLen)
+        cIdx = charToIndex(charCode)
+        if (cIdx < 0) {
+            return matchedLen
+        }
+        nxt = tChildren[curr * alphaSize + cIdx]
+        if (nxt == -1) {
+            return matchedLen
+        }
+        curr = nxt
+        matchedLen = matchedLen + 1
+    }
+    return matchedLen
+}
+
+func dfsCollectWords(trie, node, currentWord, charMap, outList, maxLimit) {
+    if (outList.size() >= maxLimit) {
+        return
+    }
+    tChildren = trie[0]
+    tWordCount = trie[1]
+    alphaSize = trie[5]
+
+    c = 0
+    while (c < alphaSize and outList.size() < maxLimit) {
+        child = tChildren[node * alphaSize + c]
+        if (child != -1) {
+            nextWord = currentWord + charMap[c]
+            if (tWordCount[child] > 0) {
+                outList.push(nextWord)
+            }
+            dfsCollectWords(trie, child, nextWord, charMap, outList, maxLimit)
+        }
+        c = c + 1
+    }
+}
+
+func collectWordsWithPrefix(trie, root, prefix, maxLimit) {
+    outList = []
+    if (root == -1) {
+        return outList
+    }
+    prefNode = findPrefixNode(trie, root, prefix)
+    if (prefNode == -1) {
+        return outList
+    }
+    tWordCount = trie[1]
+    if (tWordCount[prefNode] > 0) {
+        outList.push(prefix)
+    }
+    charMap = [
+        "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+        "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"
+    ]
+    dfsCollectWords(trie, prefNode, prefix, charMap, outList, maxLimit)
+    return outList
+}
+
 // -----------------------------------------------------------------------------
 // Test Case 1: Sequential Version Updates and Exact Matching
 // -----------------------------------------------------------------------------
@@ -469,3 +568,170 @@ print("  Historical chain immutability check PASSED across all 7 versions")
 
 elapsed = t.millis() - suiteStartTime
 print("Test Case 1 finished in", elapsed, "ms")
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Historical Version Rollback and Non-Chronological Queries
+// -----------------------------------------------------------------------------
+print("\nRunning Test Case 2: Historical Version Rollback and Non-Chronological Queries...")
+
+// Non-chronological sequence: V4 -> V1 -> V5 -> V2 -> V6 -> V0 -> V3
+// Query Version 4
+if (containsWord(trie, v4, "banana") != 1 or containsWord(trie, v4, "band") != 0) {
+    print("[FAIL] V4 query mismatch: banana should exist, band should not")
+}
+if (countTotalWords(trie, v4) != 4) {
+    print("[FAIL] V4 word count expected 4, got", countTotalWords(trie, v4))
+}
+v4BanWords = collectWordsWithPrefix(trie, v4, "ban", 10)
+if (v4BanWords.size() != 1 or v4BanWords[0] != "banana") {
+    print("[FAIL] V4 ban prefix collection mismatch")
+}
+
+// Query Version 1
+if (containsWord(trie, v1, "apple") != 1 or containsWord(trie, v1, "app") != 0) {
+    print("[FAIL] V1 query mismatch: apple should exist, app should not")
+}
+v1AppWords = collectWordsWithPrefix(trie, v1, "app", 10)
+if (v1AppWords.size() != 1 or v1AppWords[0] != "apple") {
+    print("[FAIL] V1 app prefix collection mismatch")
+}
+
+// Query Version 5
+if (containsWord(trie, v5, "band") != 1 or containsWord(trie, v5, "bandwidth") != 0) {
+    print("[FAIL] V5 query mismatch: band should exist, bandwidth should not")
+}
+if (countPrefix(trie, v5, "ba") != 2) {
+    print("[FAIL] V5 prefix ba count expected 2, got", countPrefix(trie, v5, "ba"))
+}
+
+// Query Version 2
+if (containsWord(trie, v2, "app") != 1 or containsWord(trie, v2, "apple") != 1 or containsWord(trie, v2, "application") != 0) {
+    print("[FAIL] V2 query mismatch")
+}
+v2AppWords = collectWordsWithPrefix(trie, v2, "app", 10)
+if (v2AppWords.size() != 2 or v2AppWords[0] != "app" or v2AppWords[1] != "apple") {
+    print("[FAIL] V2 app prefix collection mismatch, expected [app, apple]")
+}
+
+// Query Version 6
+if (containsWord(trie, v6, "bandwidth") != 1 or countTotalWords(trie, v6) != 6) {
+    print("[FAIL] V6 query mismatch")
+}
+v6BandWords = collectWordsWithPrefix(trie, v6, "band", 10)
+if (v6BandWords.size() != 2 or v6BandWords[0] != "band" or v6BandWords[1] != "bandwidth") {
+    print("[FAIL] V6 band prefix collection mismatch, expected [band, bandwidth]")
+}
+
+// Query Version 0
+if (countTotalWords(trie, v0) != 0) {
+    print("[FAIL] V0 word count expected 0, got", countTotalWords(trie, v0))
+}
+v0Words = collectWordsWithPrefix(trie, v0, "", 10)
+if (v0Words.size() != 0) {
+    print("[FAIL] V0 word collection expected empty, got size", v0Words.size())
+}
+
+// Query Version 3
+if (containsWord(trie, v3, "application") != 1 or containsWord(trie, v3, "banana") != 0) {
+    print("[FAIL] V3 query mismatch")
+}
+v3AppWords = collectWordsWithPrefix(trie, v3, "app", 10)
+if (v3AppWords.size() != 3 or v3AppWords[0] != "app" or v3AppWords[1] != "apple" or v3AppWords[2] != "application") {
+    print("[FAIL] V3 app prefix collection mismatch, expected [app, apple, application]")
+}
+
+// Rollback validation: simulate active pointer rollback to Version 2
+activeRoot = v2
+print("  Active pointer rolled back to Version 2 (total words:", countTotalWords(trie, activeRoot), ")")
+if (containsWord(trie, activeRoot, "app") != 1 or containsWord(trie, activeRoot, "apple") != 1) {
+    print("[FAIL] Rollback active root missing baseline words")
+}
+if (containsWord(trie, activeRoot, "application") != 0 or containsWord(trie, activeRoot, "banana") != 0) {
+    print("[FAIL] Rollback active root contains future version words")
+}
+print("  Test Case 2 Passed historical rollback and non-chronological query validation")
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Timeline Forking and Branching
+// -----------------------------------------------------------------------------
+print("\nRunning Test Case 3: Timeline Forking and Branching...")
+
+// Fork A branches from Version 2 (which has: app, apple)
+// Insert "apply", then "aptitude"
+vForkA1 = insertWord(trie, v2, "apply")
+vForkA2 = insertWord(trie, vForkA1, "aptitude")
+
+if (countTotalWords(trie, vForkA2) != 4) {
+    print("[FAIL] Fork A2 word count expected 4, got", countTotalWords(trie, vForkA2))
+}
+if (containsWord(trie, vForkA2, "app") != 1 or containsWord(trie, vForkA2, "apple") != 1) {
+    print("[FAIL] Fork A2 missing ancestral words")
+}
+if (containsWord(trie, vForkA2, "apply") != 1 or containsWord(trie, vForkA2, "aptitude") != 1) {
+    print("[FAIL] Fork A2 missing newly branched words")
+}
+if (containsWord(trie, vForkA2, "application") != 0 or containsWord(trie, vForkA2, "banana") != 0) {
+    print("[FAIL] Fork A2 leaked words from main trunk!")
+}
+forkAWords = collectWordsWithPrefix(trie, vForkA2, "app", 10)
+if (forkAWords.size() != 3 or forkAWords[0] != "app" or forkAWords[1] != "apple" or forkAWords[2] != "apply") {
+    print("[FAIL] Fork A2 prefix app words expected [app, apple, apply]")
+}
+print("  Fork A created successfully with 4 words (prefix app count:", countPrefix(trie, vForkA2, "app"), ")")
+
+// Fork B also branches from Version 2 (independent parallel timeline)
+// Insert "approach", then "approval"
+vForkB1 = insertWord(trie, v2, "approach")
+vForkB2 = insertWord(trie, vForkB1, "approval")
+
+if (countTotalWords(trie, vForkB2) != 4) {
+    print("[FAIL] Fork B2 word count expected 4, got", countTotalWords(trie, vForkB2))
+}
+if (containsWord(trie, vForkB2, "approach") != 1 or containsWord(trie, vForkB2, "approval") != 1) {
+    print("[FAIL] Fork B2 missing newly branched words")
+}
+if (containsWord(trie, vForkB2, "apply") != 0 or containsWord(trie, vForkB2, "aptitude") != 0) {
+    print("[FAIL] Fork B2 contaminated with words from Fork A!")
+}
+if (containsWord(trie, vForkB2, "application") != 0 or containsWord(trie, vForkB2, "bandwidth") != 0) {
+    print("[FAIL] Fork B2 contaminated with words from trunk!")
+}
+forkBWords = collectWordsWithPrefix(trie, vForkB2, "app", 10)
+if (forkBWords.size() != 4 or forkBWords[0] != "app" or forkBWords[1] != "apple" or forkBWords[2] != "approach" or forkBWords[3] != "approval") {
+    print("[FAIL] Fork B2 prefix app words expected [app, apple, approach, approval]")
+}
+print("  Fork B created successfully with 4 words, zero cross-talk with Fork A")
+
+// Fork C branches from Version 0 (Empty root)
+// Completely independent vocabulary: "cat", "caterpillar", "dog"
+vForkC1 = insertWord(trie, v0, "cat")
+vForkC2 = insertWord(trie, vForkC1, "caterpillar")
+vForkC3 = insertWord(trie, vForkC2, "dog")
+
+if (countTotalWords(trie, vForkC3) != 3) {
+    print("[FAIL] Fork C3 word count expected 3, got", countTotalWords(trie, vForkC3))
+}
+if (containsWord(trie, vForkC3, "cat") != 1 or containsWord(trie, vForkC3, "caterpillar") != 1 or containsWord(trie, vForkC3, "dog") != 1) {
+    print("[FAIL] Fork C3 missing words")
+}
+if (containsWord(trie, vForkC3, "apple") != 0 or containsWord(trie, vForkC3, "banana") != 0) {
+    print("[FAIL] Fork C3 contaminated with words from other trees!")
+}
+if (countPrefix(trie, vForkC3, "cat") != 2) {
+    print("[FAIL] Fork C3 prefix cat count expected 2, got", countPrefix(trie, vForkC3, "cat"))
+}
+print("  Fork C created from empty root, 3 isolated words verified")
+
+// Trunk integrity verification: Version 2 and Version 6 MUST remain unaltered
+if (countTotalWords(trie, v2) != 2 or containsWord(trie, v2, "apply") != 0 or containsWord(trie, v2, "approach") != 0) {
+    print("[FAIL] Trunk Version 2 corrupted by forking branches!")
+} else {
+    print("  Trunk Version 2 strictly preserved: 2 words, zero branch leakage")
+}
+if (countTotalWords(trie, v6) != 6 or containsWord(trie, v6, "apply") != 0 or containsWord(trie, v6, "approval") != 0 or containsWord(trie, v6, "cat") != 0) {
+    print("[FAIL] Trunk Version 6 corrupted by forking branches!")
+} else {
+    print("  Trunk Version 6 strictly preserved: 6 words, zero branch leakage")
+}
+print("  Test Case 3 Passed timeline forking and branching isolation verification")
+
