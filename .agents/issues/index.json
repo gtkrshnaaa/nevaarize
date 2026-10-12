@@ -5,5 +5,11 @@
     "status": "closed",
     "commit": "0aaba36",
     "file": "ISSUE-1.md"
+  },
+  {
+    "id": "ISSUE-2",
+    "title": "feat(algorithms): implement persistentDisjointSetUnion in richcodesamples",
+    "status": "in-progress",
+    "file": "ISSUE-2.md"
   }
 ]
