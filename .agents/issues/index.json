@@ -16,7 +16,8 @@
   {
     "id": "ISSUE-3",
     "title": "feat(algorithms): implement persistentLeftistHeap in richcodesamples",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "90268df",
     "file": "ISSUE-3.md"
   }
 ]
