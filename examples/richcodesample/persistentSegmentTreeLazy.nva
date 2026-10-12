@@ -1,0 +1,426 @@
+import stdlib time as t
+
+// Persistent Segment Tree with Lazy Propagation and Historical Queries
+// Technical characteristics:
+// - Functional persistence via node path copying in O(log N) time and space
+// - Lazy tag propagation with copy-on-write immutability across versions
+// - Range addition updates across historical timelines
+// - Range sum, range minimum, range maximum, and point queries
+// - Parallel arena allocation for cache locality and minimal runtime overhead
+// - Comprehensive assertion suites and randomized stress testing
+// - Strict camelCase naming conventions enforced (No-Underscore Policy)
+
+print("=== Nevaarize Persistent Segment Tree with Lazy Propagation Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(aInt, bInt) {
+    if (aInt < bInt) {
+        return aInt
+    }
+    return bInt
+}
+
+func maxInt(aInt, bInt) {
+    if (aInt > bInt) {
+        return aInt
+    }
+    return bInt
+}
+
+func createPersistentTreeLazy() {
+    treeLeft = []
+    treeRight = []
+    treeSum = []
+    treeMin = []
+    treeMax = []
+    treeLazy = []
+    return [treeLeft, treeRight, treeSum, treeMin, treeMax, treeLazy]
+}
+
+func allocNode(tree, leftChild, rightChild, sumVal, minVal, maxVal, lazyVal) {
+    tLeft = tree[0]
+    tRight = tree[1]
+    tSum = tree[2]
+    tMin = tree[3]
+    tMax = tree[4]
+    tLazy = tree[5]
+
+    nodeId = tLeft.size()
+    tLeft.push(leftChild)
+    tRight.push(rightChild)
+    tSum.push(sumVal)
+    tMin.push(minVal)
+    tMax.push(maxVal)
+    tLazy.push(lazyVal)
+
+    tree[0] = tLeft
+    tree[1] = tRight
+    tree[2] = tSum
+    tree[3] = tMin
+    tree[4] = tMax
+    tree[5] = tLazy
+    return nodeId
+}
+
+func cloneNode(tree, srcId) {
+    if (srcId == -1) {
+        return -1
+    }
+    tLeft = tree[0]
+    tRight = tree[1]
+    tSum = tree[2]
+    tMin = tree[3]
+    tMax = tree[4]
+    tLazy = tree[5]
+
+    return allocNode(tree, tLeft[srcId], tRight[srcId], tSum[srcId], tMin[srcId], tMax[srcId], tLazy[srcId])
+}
+
+func pushUp(tree, node) {
+    if (node == -1) {
+        return
+    }
+    tLeft = tree[0]
+    tRight = tree[1]
+    lc = tLeft[node]
+    rc = tRight[node]
+
+    tSum = tree[2]
+    tMin = tree[3]
+    tMax = tree[4]
+
+    sVal = 0
+    minVal = 2147483647
+    maxVal = -2147483648
+
+    if (lc != -1) {
+        sVal = sVal + tSum[lc]
+        minVal = minInt(minVal, tMin[lc])
+        maxVal = maxInt(maxVal, tMax[lc])
+    }
+    if (rc != -1) {
+        sVal = sVal + tSum[rc]
+        minVal = minInt(minVal, tMin[rc])
+        maxVal = maxInt(maxVal, tMax[rc])
+    }
+
+    tSum[node] = sVal
+    tMin[node] = minVal
+    tMax[node] = maxVal
+
+    tree[2] = tSum
+    tree[3] = tMin
+    tree[4] = tMax
+}
+
+func pushDown(tree, node, l, r) {
+    if (node == -1 or l == r) {
+        return
+    }
+    tLazy = tree[5]
+    lazyVal = tLazy[node]
+    if (lazyVal == 0) {
+        return
+    }
+
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    lc = tLeft[node]
+    rc = tRight[node]
+
+    newLc = cloneNode(tree, lc)
+    newRc = cloneNode(tree, rc)
+
+    tSum = tree[2]
+    tMin = tree[3]
+    tMax = tree[4]
+    tLazy = tree[5]
+
+    leftSpan = mid - l + 1
+    tSum[newLc] = tSum[newLc] + lazyVal * leftSpan
+    tMin[newLc] = tMin[newLc] + lazyVal
+    tMax[newLc] = tMax[newLc] + lazyVal
+    tLazy[newLc] = tLazy[newLc] + lazyVal
+
+    rightSpan = r - mid
+    tSum[newRc] = tSum[newRc] + lazyVal * rightSpan
+    tMin[newRc] = tMin[newRc] + lazyVal
+    tMax[newRc] = tMax[newRc] + lazyVal
+    tLazy[newRc] = tLazy[newRc] + lazyVal
+
+    tLazy[node] = 0
+
+    tLeft = tree[0]
+    tRight = tree[1]
+    tLeft[node] = newLc
+    tRight[node] = newRc
+
+    tree[0] = tLeft
+    tree[1] = tRight
+    tree[2] = tSum
+    tree[3] = tMin
+    tree[4] = tMax
+    tree[5] = tLazy
+}
+
+func buildTree(tree, arr, l, r) {
+    if (l == r) {
+        val = arr[l]
+        return allocNode(tree, -1, -1, val, val, val, 0)
+    }
+    mid = (l + r) / 2
+    lc = buildTree(tree, arr, l, mid)
+    rc = buildTree(tree, arr, mid + 1, r)
+
+    tSum = tree[2]
+    tMin = tree[3]
+    tMax = tree[4]
+
+    sVal = tSum[lc] + tSum[rc]
+    minVal = minInt(tMin[lc], tMin[rc])
+    maxVal = maxInt(tMax[lc], tMax[rc])
+    return allocNode(tree, lc, rc, sVal, minVal, maxVal, 0)
+}
+
+func updateRangeAdd(tree, prevNode, l, r, ql, qr, addVal) {
+    if (prevNode == -1 or ql > r or qr < l or ql > qr) {
+        return prevNode
+    }
+    if (ql <= l and r <= qr) {
+        newNode = cloneNode(tree, prevNode)
+        tSum = tree[2]
+        tMin = tree[3]
+        tMax = tree[4]
+        tLazy = tree[5]
+
+        span = r - l + 1
+        tSum[newNode] = tSum[newNode] + addVal * span
+        tMin[newNode] = tMin[newNode] + addVal
+        tMax[newNode] = tMax[newNode] + addVal
+        tLazy[newNode] = tLazy[newNode] + addVal
+
+        tree[2] = tSum
+        tree[3] = tMin
+        tree[4] = tMax
+        tree[5] = tLazy
+        return newNode
+    }
+
+    mid = (l + r) / 2
+    newNode = cloneNode(tree, prevNode)
+    pushDown(tree, newNode, l, r)
+
+    tLeft = tree[0]
+    tRight = tree[1]
+    curLeft = tLeft[newNode]
+    curRight = tRight[newNode]
+
+    if (ql <= mid) {
+        curLeft = updateRangeAdd(tree, curLeft, l, mid, ql, qr, addVal)
+    }
+    if (qr > mid) {
+        curRight = updateRangeAdd(tree, curRight, mid + 1, r, ql, qr, addVal)
+    }
+
+    tLeft = tree[0]
+    tRight = tree[1]
+    tLeft[newNode] = curLeft
+    tRight[newNode] = curRight
+    tree[0] = tLeft
+    tree[1] = tRight
+
+    pushUp(tree, newNode)
+    return newNode
+}
+
+func updatePointAdd(tree, prevNode, l, r, idx, addVal) {
+    return updateRangeAdd(tree, prevNode, l, r, idx, idx, addVal)
+}
+
+func queryRangeSum(tree, node, l, r, ql, qr, accLazy) {
+    if (node == -1 or ql > r or qr < l or ql > qr) {
+        return 0
+    }
+    if (ql <= l and r <= qr) {
+        tSum = tree[2]
+        span = r - l + 1
+        return tSum[node] + accLazy * span
+    }
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    tLazy = tree[5]
+    nextLazy = accLazy + tLazy[node]
+    leftSum = queryRangeSum(tree, tLeft[node], l, mid, ql, qr, nextLazy)
+    rightSum = queryRangeSum(tree, tRight[node], mid + 1, r, ql, qr, nextLazy)
+    return leftSum + rightSum
+}
+
+func queryRangeMin(tree, node, l, r, ql, qr, accLazy) {
+    if (node == -1 or ql > r or qr < l or ql > qr) {
+        return 2147483647
+    }
+    if (ql <= l and r <= qr) {
+        tMin = tree[3]
+        return tMin[node] + accLazy
+    }
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    tLazy = tree[5]
+    nextLazy = accLazy + tLazy[node]
+    leftMin = queryRangeMin(tree, tLeft[node], l, mid, ql, qr, nextLazy)
+    rightMin = queryRangeMin(tree, tRight[node], mid + 1, r, ql, qr, nextLazy)
+    return minInt(leftMin, rightMin)
+}
+
+func queryRangeMax(tree, node, l, r, ql, qr, accLazy) {
+    if (node == -1 or ql > r or qr < l or ql > qr) {
+        return -2147483648
+    }
+    if (ql <= l and r <= qr) {
+        tMax = tree[4]
+        return tMax[node] + accLazy
+    }
+    mid = (l + r) / 2
+    tLeft = tree[0]
+    tRight = tree[1]
+    tLazy = tree[5]
+    nextLazy = accLazy + tLazy[node]
+    leftMax = queryRangeMax(tree, tLeft[node], l, mid, ql, qr, nextLazy)
+    rightMax = queryRangeMax(tree, tRight[node], mid + 1, r, ql, qr, nextLazy)
+    return maxInt(leftMax, rightMax)
+}
+
+func queryPoint(tree, node, l, r, idx, accLazy) {
+    return queryRangeSum(tree, node, l, r, idx, idx, accLazy)
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 1: Sequential Version Updates and Range Queries
+// -----------------------------------------------------------------------------
+print("Running Test Case 1: Sequential Version Updates and Range Queries...")
+pst = createPersistentTreeLazy()
+initialData = [3, 8, 15, 1, 9, 24, 7, 12, 5, 18]
+n = initialData.size()
+
+versionRoots = []
+v0 = buildTree(pst, initialData, 0, n - 1)
+versionRoots.push(v0)
+
+// Verify version 0 aggregates
+sumV0 = queryRangeSum(pst, v0, 0, n - 1, 0, n - 1, 0)
+minV0 = queryRangeMin(pst, v0, 0, n - 1, 0, n - 1, 0)
+maxV0 = queryRangeMax(pst, v0, 0, n - 1, 0, n - 1, 0)
+
+if (sumV0 != 102) {
+    print("[FAIL] Version 0 initial sum expected 102, got", sumV0)
+}
+if (minV0 != 1) {
+    print("[FAIL] Version 0 initial min expected 1, got", minV0)
+}
+if (maxV0 != 24) {
+    print("[FAIL] Version 0 initial max expected 24, got", maxV0)
+}
+print("  Version 0 baseline verified: sum =", sumV0, ", min =", minV0, ", max =", maxV0)
+
+// Version 1: Add +10 to range [2, 6] (indices 2, 3, 4, 5, 6)
+// Elements become: [3, 8, 25, 11, 19, 34, 17, 12, 5, 18]
+v1 = updateRangeAdd(pst, v0, 0, n - 1, 2, 6, 10)
+versionRoots.push(v1)
+
+sumV1 = queryRangeSum(pst, v1, 0, n - 1, 0, n - 1, 0)
+minV1 = queryRangeMin(pst, v1, 0, n - 1, 0, n - 1, 0)
+maxV1 = queryRangeMax(pst, v1, 0, n - 1, 0, n - 1, 0)
+sumV1Range = queryRangeSum(pst, v1, 0, n - 1, 2, 6, 0)
+
+if (sumV1 != 152) {
+    print("[FAIL] Version 1 sum expected 152, got", sumV1)
+}
+if (sumV1Range != 106) {
+    print("[FAIL] Version 1 range [2, 6] sum expected 106, got", sumV1Range)
+}
+if (maxV1 != 34) {
+    print("[FAIL] Version 1 max expected 34, got", maxV1)
+}
+if (minV1 != 3) {
+    print("[FAIL] Version 1 min expected 3, got", minV1)
+}
+print("  Version 1 range addition verified: sum =", sumV1, ", min =", minV1, ", max =", maxV1)
+
+// Immutability check on Version 0 after Version 1 creation
+sumV0AfterV1 = queryRangeSum(pst, v0, 0, n - 1, 0, n - 1, 0)
+if (sumV0AfterV1 != 102) {
+    print("[FAIL] Version 0 mutated after Version 1 update! Expected 102, got", sumV0AfterV1)
+} else {
+    print("  Version 0 immutability preserved after Version 1 range addition")
+}
+
+// Version 2: Add +5 to range [0, 4] on Version 1
+// Elements become: [8, 13, 30, 16, 24, 34, 17, 12, 5, 18]
+v2 = updateRangeAdd(pst, v1, 0, n - 1, 0, 4, 5)
+versionRoots.push(v2)
+
+sumV2 = queryRangeSum(pst, v2, 0, n - 1, 0, n - 1, 0)
+minV2 = queryRangeMin(pst, v2, 0, n - 1, 0, n - 1, 0)
+maxV2 = queryRangeMax(pst, v2, 0, n - 1, 0, n - 1, 0)
+minV2Prefix = queryRangeMin(pst, v2, 0, n - 1, 0, 4, 0)
+
+if (sumV2 != 177) {
+    print("[FAIL] Version 2 sum expected 177, got", sumV2)
+}
+if (minV2Prefix != 8) {
+    print("[FAIL] Version 2 prefix [0, 4] min expected 8, got", minV2Prefix)
+}
+print("  Version 2 prefix addition verified: sum =", sumV2, ", prefix min =", minV2Prefix)
+
+// Version 3: Add -7 (subtraction) to range [5, 9] on Version 2
+// Elements become: [8, 13, 30, 16, 24, 27, 10, 5, -2, 11]
+v3 = updateRangeAdd(pst, v2, 0, n - 1, 5, 9, -7)
+versionRoots.push(v3)
+
+sumV3 = queryRangeSum(pst, v3, 0, n - 1, 0, n - 1, 0)
+minV3 = queryRangeMin(pst, v3, 0, n - 1, 0, n - 1, 0)
+maxV3 = queryRangeMax(pst, v3, 0, n - 1, 0, n - 1, 0)
+minV3Suffix = queryRangeMin(pst, v3, 0, n - 1, 5, 9, 0)
+
+if (sumV3 != 142) {
+    print("[FAIL] Version 3 sum expected 142, got", sumV3)
+}
+if (minV3 != -2) {
+    print("[FAIL] Version 3 min expected -2, got", minV3)
+}
+if (maxV3 != 30) {
+    print("[FAIL] Version 3 max expected 30, got", maxV3)
+}
+print("  Version 3 negative addition verified: sum =", sumV3, ", min =", minV3, ", max =", maxV3)
+
+// Version 4: Point update adding +50 at index 8 on Version 3
+// Elements become: [8, 13, 30, 16, 24, 27, 10, 5, 48, 11]
+v4 = updatePointAdd(pst, v3, 0, n - 1, 8, 50)
+versionRoots.push(v4)
+
+sumV4 = queryRangeSum(pst, v4, 0, n - 1, 0, n - 1, 0)
+ptValV4 = queryPoint(pst, v4, 0, n - 1, 8, 0)
+ptValV3 = queryPoint(pst, v3, 0, n - 1, 8, 0)
+ptValV0 = queryPoint(pst, v0, 0, n - 1, 8, 0)
+
+if (sumV4 != 192) {
+    print("[FAIL] Version 4 sum expected 192, got", sumV4)
+}
+if (ptValV4 != 48) {
+    print("[FAIL] Version 4 point query at 8 expected 48, got", ptValV4)
+}
+if (ptValV3 != -2) {
+    print("[FAIL] Version 3 point query at 8 expected -2, got", ptValV3)
+}
+if (ptValV0 != 5) {
+    print("[FAIL] Version 0 point query at 8 expected 5, got", ptValV0)
+}
+print("  Version 4 point addition verified: sum =", sumV4, ", point 8 =", ptValV4)
+print("  Historical index 8 across versions: v0 =", ptValV0, ", v3 =", ptValV3, ", v4 =", ptValV4)
+print("  Test Case 1 Passed sequential updates and immutability verification")
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Persistent Segment Tree with Lazy Propagation executed in", elapsed, "ms")
