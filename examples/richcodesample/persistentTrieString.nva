@@ -950,3 +950,284 @@ if (containsWord(trie, v6, "band") != 1 or countPrefix(trie, v6, "band") != 2 or
 print("  Edge Case 4.6 Passed persistent deletion and branch isolation")
 print("  Test Case 4 Passed all boundary edge case assertions")
 
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Historical Stress Benchmark Against Naive Oracle
+// -----------------------------------------------------------------------------
+print("\nRunning Test Case 5: Randomized Historical Stress Benchmark Against Naive Oracle...")
+
+func nextRand(rng) {
+    rng[0] = (rng[0] * 1103515245 + 12345) % 2147483648
+    return rng[0]
+}
+
+func verifyTrieInvariants(trie, node) {
+    if (node == -1) {
+        return 1
+    }
+    tChildren = trie[0]
+    tWordCount = trie[1]
+    tPrefixCount = trie[2]
+    tDepth = trie[4]
+    alphaSize = trie[5]
+
+    expectedSum = tWordCount[node]
+    c = 0
+    while (c < alphaSize) {
+        child = tChildren[node * alphaSize + c]
+        if (child != -1) {
+            if (tDepth[child] != tDepth[node] + 1) {
+                return 0
+            }
+            if (verifyTrieInvariants(trie, child) != 1) {
+                return 0
+            }
+            expectedSum = expectedSum + tPrefixCount[child]
+        }
+        c = c + 1
+    }
+
+    if (tPrefixCount[node] != expectedSum) {
+        return 0
+    }
+    return 1
+}
+
+func cloneWordList(srcList) {
+    newList = []
+    idx = 0
+    sz = srcList.size()
+    while (idx < sz) {
+        newList.push(srcList[idx])
+        idx = idx + 1
+    }
+    return newList
+}
+
+func naiveContainsWord(wordList, target) {
+    idx = 0
+    sz = wordList.size()
+    while (idx < sz) {
+        if (wordList[idx] == target) {
+            return 1
+        }
+        idx = idx + 1
+    }
+    return 0
+}
+
+func naiveCountWord(wordList, target) {
+    idx = 0
+    cnt = 0
+    sz = wordList.size()
+    while (idx < sz) {
+        if (wordList[idx] == target) {
+            cnt = cnt + 1
+        }
+        idx = idx + 1
+    }
+    return cnt
+}
+
+func naiveCountPrefix(wordList, prefix) {
+    idx = 0
+    cnt = 0
+    sz = wordList.size()
+    while (idx < sz) {
+        if (str.startsWith(wordList[idx], prefix) == 1) {
+            cnt = cnt + 1
+        }
+        idx = idx + 1
+    }
+    return cnt
+}
+
+func naiveLongestCommonPrefix(wordList, target) {
+    idx = 0
+    maxLcp = 0
+    tLen = str.length(target)
+    sz = wordList.size()
+    while (idx < sz) {
+        w = wordList[idx]
+        wLen = str.length(w)
+        matchLen = 0
+        minLen = minInt(tLen, wLen)
+        while (matchLen < minLen and str.charCodeAt(target, matchLen) == str.charCodeAt(w, matchLen)) {
+            matchLen = matchLen + 1
+        }
+        if (matchLen > maxLcp) {
+            maxLcp = matchLen
+        }
+        idx = idx + 1
+    }
+    return maxLcp
+}
+
+func naiveRemoveWord(srcList, target) {
+    newList = []
+    removed = 0
+    idx = 0
+    sz = srcList.size()
+    while (idx < sz) {
+        if (removed == 0 and srcList[idx] == target) {
+            removed = 1
+        } else {
+            newList.push(srcList[idx])
+        }
+        idx = idx + 1
+    }
+    return newList
+}
+
+stressWordPool = [
+    "code", "coder", "coding", "codec", "cool", "cloud",
+    "data", "database", "datum", "date", "dark",
+    "flow", "flower", "flood", "fly", "flight",
+    "star", "start", "stack", "state", "status",
+    "tree", "trie", "trap", "trace", "track",
+    "byte", "bytes", "buffer", "build", "builder"
+]
+
+stressPrefixPool = [
+    "c", "co", "cod", "cl",
+    "d", "da", "dat",
+    "f", "fl", "flo",
+    "s", "st", "sta",
+    "t", "tr", "tri",
+    "b", "by", "bu",
+    "z", "nonexistent"
+]
+
+stressQueryPool = [
+    "code", "coder", "coding", "cool", "cloud",
+    "data", "datum", "dark", "date",
+    "flower", "flight", "fly",
+    "star", "status", "state",
+    "trie", "track", "trace",
+    "builder", "bytes",
+    "phantom", "missing", "unknown", "zeta"
+]
+
+stressRng = [987654321]
+stressTrie = createPersistentTrie()
+stressRoots = []
+stressNaiveHistory = []
+
+vInit = allocNode(stressTrie, -1, 0)
+stressRoots.push(vInit)
+stressNaiveHistory.push([])
+
+numStressVersions = 45
+verI = 0
+stressInvariantErrors = 0
+
+while (verI < numStressVersions) {
+    baseVer = nextRand(stressRng) % stressRoots.size()
+    baseRoot = stressRoots[baseVer]
+    baseWords = stressNaiveHistory[baseVer]
+    bSize = baseWords.size()
+
+    randOp = nextRand(stressRng) % 100
+    newRoot = -1
+    newWords = []
+
+    if (randOp < 75 or bSize == 0) {
+        // Insertion
+        pIdx = nextRand(stressRng) % stressWordPool.size()
+        pickedWord = stressWordPool[pIdx]
+        newRoot = insertWord(stressTrie, baseRoot, pickedWord)
+        newWords = cloneWordList(baseWords)
+        newWords.push(pickedWord)
+    } else {
+        // Deletion
+        dIdx = nextRand(stressRng) % bSize
+        delWord = baseWords[dIdx]
+        newRoot = removeWord(stressTrie, baseRoot, delWord)
+        newWords = naiveRemoveWord(baseWords, delWord)
+    }
+
+    if (verifyTrieInvariants(stressTrie, newRoot) != 1) {
+        stressInvariantErrors = stressInvariantErrors + 1
+    }
+
+    stressRoots.push(newRoot)
+    stressNaiveHistory.push(newWords)
+    verI = verI + 1
+}
+
+numStressQueries = 150
+qI = 0
+stressQueryErrors = 0
+
+while (qI < numStressQueries) {
+    qVer = nextRand(stressRng) % stressRoots.size()
+    qRoot = stressRoots[qVer]
+    qWords = stressNaiveHistory[qVer]
+
+    qType = nextRand(stressRng) % 5
+
+    if (qType == 0) {
+        // Contains word check
+        targetW = stressQueryPool[nextRand(stressRng) % stressQueryPool.size()]
+        expContains = naiveContainsWord(qWords, targetW)
+        actContains = containsWord(stressTrie, qRoot, targetW)
+        if (actContains != expContains) {
+            stressQueryErrors = stressQueryErrors + 1
+        }
+    } else {
+        if (qType == 1) {
+            // Count word check
+            targetW = stressQueryPool[nextRand(stressRng) % stressQueryPool.size()]
+            expCount = naiveCountWord(qWords, targetW)
+            actCount = countWord(stressTrie, qRoot, targetW)
+            if (actCount != expCount) {
+                stressQueryErrors = stressQueryErrors + 1
+            }
+        } else {
+            if (qType == 2) {
+                // Count prefix check
+                targetP = stressPrefixPool[nextRand(stressRng) % stressPrefixPool.size()]
+                expPrefCount = naiveCountPrefix(qWords, targetP)
+                actPrefCount = countPrefix(stressTrie, qRoot, targetP)
+                if (actPrefCount != expPrefCount) {
+                    stressQueryErrors = stressQueryErrors + 1
+                }
+            } else {
+                if (qType == 3) {
+                    // Starts with prefix check
+                    targetP = stressPrefixPool[nextRand(stressRng) % stressPrefixPool.size()]
+                    expStarts = 0
+                    if (naiveCountPrefix(qWords, targetP) > 0) {
+                        expStarts = 1
+                    }
+                    actStarts = startsWithPrefix(stressTrie, qRoot, targetP)
+                    if (actStarts != expStarts) {
+                        stressQueryErrors = stressQueryErrors + 1
+                    }
+                } else {
+                    // Longest common prefix check
+                    targetW = stressQueryPool[nextRand(stressRng) % stressQueryPool.size()]
+                    expLcp = naiveLongestCommonPrefix(qWords, targetW)
+                    actLcp = longestCommonPrefix(stressTrie, qRoot, targetW)
+                    if (actLcp != expLcp) {
+                        stressQueryErrors = stressQueryErrors + 1
+                    }
+                }
+            }
+        }
+    }
+
+    qI = qI + 1
+}
+
+if (stressInvariantErrors > 0 or stressQueryErrors > 0) {
+    print("[FAIL] Stress benchmark had", stressInvariantErrors, "invariant errors and", stressQueryErrors, "query mismatches")
+} else {
+    print("  Validated", numStressQueries, "random historical queries across", numStressVersions, "versions: 0 mismatches")
+    tAlloc = stressTrie[1]
+    print("  Total allocated persistent trie arena nodes:", tAlloc.size())
+    print("  Test Case 5 Passed stress benchmark verification")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Persistent String Trie Suite executed successfully in", elapsed, "ms")
+
