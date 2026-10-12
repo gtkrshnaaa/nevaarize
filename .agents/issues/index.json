@@ -16,7 +16,8 @@
   {
     "id": "ISSUE-3",
     "title": "feat(algorithms): implement heavyLightDecompositionEngine in richcodesamples",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "0e62573",
     "file": "ISSUE-3-heavyLightDecomp.md"
   },
   {
