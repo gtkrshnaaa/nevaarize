@@ -9,7 +9,8 @@
   {
     "id": "ISSUE-2",
     "title": "feat(algorithms): implement persistentDisjointSetUnion in richcodesamples",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "36ac375",
     "file": "ISSUE-2.md"
   }
 ]
