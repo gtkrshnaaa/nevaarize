@@ -424,3 +424,162 @@ if (v1HistConn07 != 0 or v6HistConn07 != 0 or v7HistConn07 != 0 or v8HistConn07 
     print("  Historical progression verified across timeline: disconnected until v8")
     print("  Test Case 1 Passed sequential updates and immutability verification")
 }
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Timeline Forking and Tree Branching
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Timeline Forking and Tree Branching...")
+
+// Base state is Version 2 from tc1Dsu where {0,1} and {2,3} exist, others singletons
+// Branch A: Branch from v2, unite 0-4 then 4-8 -> forms {0,1,4,8}
+branchAVer1 = unionSets(tc1Dsu, 2, 0, 4, "Branch A v1: union 0-4", tc1Elements)
+branchAVer2 = unionSets(tc1Dsu, branchAVer1, 4, 8, "Branch A v2: union 4-8", tc1Elements)
+
+// Branch B: Branch from v2, unite 2-5 then 5-9 -> forms {2,3,5,9}
+branchBVer1 = unionSets(tc1Dsu, 2, 2, 5, "Branch B v1: union 2-5", tc1Elements)
+branchBVer2 = unionSets(tc1Dsu, branchBVer1, 5, 9, "Branch B v2: union 5-9", tc1Elements)
+
+// Branch C: Branch from v2, unite 0-2 directly -> forms {0,1,2,3}
+branchCVer1 = unionSets(tc1Dsu, 2, 0, 2, "Branch C v1: union 0-2", tc1Elements)
+
+bACount = getComponentCount(tc1Dsu, branchAVer2)
+bAConn08 = isConnected(tc1Dsu, branchAVer2, 0, 8, tc1Elements)
+bAConn05 = isConnected(tc1Dsu, branchAVer2, 0, 5, tc1Elements)
+bASize0 = getSetSize(tc1Dsu, branchAVer2, 0, tc1Elements)
+
+bBCount = getComponentCount(tc1Dsu, branchBVer2)
+bBConn29 = isConnected(tc1Dsu, branchBVer2, 2, 9, tc1Elements)
+bBConn28 = isConnected(tc1Dsu, branchBVer2, 2, 8, tc1Elements)
+bBSize2 = getSetSize(tc1Dsu, branchBVer2, 2, tc1Elements)
+
+bCCount = getComponentCount(tc1Dsu, branchCVer1)
+bCConn03 = isConnected(tc1Dsu, branchCVer1, 0, 3, tc1Elements)
+bCConn08 = isConnected(tc1Dsu, branchCVer1, 0, 8, tc1Elements)
+bCConn09 = isConnected(tc1Dsu, branchCVer1, 0, 9, tc1Elements)
+
+if (bACount != 6 or bAConn08 != 1 or bAConn05 != 0 or bASize0 != 4) {
+    print("[FAIL] Test Case 2 Branch A failed")
+}
+if (bBCount != 6 or bBConn29 != 1 or bBConn28 != 0 or bBSize2 != 4) {
+    print("[FAIL] Test Case 2 Branch B failed")
+}
+if (bCCount != 7 or bCConn03 != 1 or bCConn08 != 0 or bCConn09 != 0) {
+    print("[FAIL] Test Case 2 Branch C failed")
+}
+
+print("  Branch A (cluster {0,1,4,8}), Branch B (cluster {2,3,5,9}), and Branch C (cluster {0,1,2,3}) verified")
+
+// Verify parent Version 2 immutability
+v2ParentCount = getComponentCount(tc1Dsu, 2)
+v2ParentConn04 = isConnected(tc1Dsu, 2, 0, 4, tc1Elements)
+v2ParentConn25 = isConnected(tc1Dsu, 2, 2, 5, tc1Elements)
+v2ParentConn02 = isConnected(tc1Dsu, 2, 0, 2, tc1Elements)
+
+if (v2ParentCount != 8 or v2ParentConn04 != 0 or v2ParentConn25 != 0 or v2ParentConn02 != 0) {
+    print("[FAIL] Test Case 2 Parent Version 2 was mutated by branches")
+} else {
+    print("  Parent Version 2 remained pristine across timeline divergence")
+}
+
+// Verify lineage tracking
+pA1 = getVersionParent(tc1Dsu, branchAVer1)
+pB1 = getVersionParent(tc1Dsu, branchBVer1)
+pC1 = getVersionParent(tc1Dsu, branchCVer1)
+if (pA1 != 2 or pB1 != 2 or pC1 != 2) {
+    print("[FAIL] Test Case 2 Lineage tracking failed")
+} else {
+    print("  Version lineage verified: branches correctly reference parent Version 2")
+    print("  Test Case 2 Passed timeline forking verification")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Boundary and Edge Cases
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Boundary and Edge Cases...")
+
+// 3.1: Single-element universe
+tc3SingleDsu = createPersistentDisjointSet()
+initPersistentDisjointSet(tc3SingleDsu, 1, "v0: single element universe")
+s0Count = getComponentCount(tc3SingleDsu, 0)
+s0Find = findSet(tc3SingleDsu, 0, 0, 1)
+s0Size = getSetSize(tc3SingleDsu, 0, 0, 1)
+s0Rank = getSetRank(tc3SingleDsu, 0, 0, 1)
+
+s1 = unionSets(tc3SingleDsu, 0, 0, 0, "v1: self union", 1)
+s1Count = getComponentCount(tc3SingleDsu, s1)
+s1Size = getSetSize(tc3SingleDsu, s1, 0, 1)
+
+if (s0Count != 1 or s0Find != 0 or s0Size != 1 or s0Rank != 0 or s1Count != 1 or s1Size != 1) {
+    print("[FAIL] Test Case 3 Single-element universe failed")
+} else {
+    print("  Single-element universe verified: self-union preserved size 1 and component count 1")
+}
+
+// 3.2: Redundant and self unions
+tc3RedundantDsu = createPersistentDisjointSet()
+initPersistentDisjointSet(tc3RedundantDsu, 4, "v0: redundant universe")
+r1 = unionSets(tc3RedundantDsu, 0, 0, 1, "v1: union 0-1", 4)
+r2 = unionSets(tc3RedundantDsu, r1, 0, 1, "v2: duplicate union 0-1", 4)
+r3 = unionSets(tc3RedundantDsu, r2, 1, 0, "v3: reverse duplicate union 1-0", 4)
+r4 = unionSets(tc3RedundantDsu, r3, 2, 2, "v4: self union 2-2", 4)
+
+r1Count = getComponentCount(tc3RedundantDsu, r1)
+r2Count = getComponentCount(tc3RedundantDsu, r2)
+r3Count = getComponentCount(tc3RedundantDsu, r3)
+r4Count = getComponentCount(tc3RedundantDsu, r4)
+
+if (r1Count != 3 or r2Count != 3 or r3Count != 3 or r4Count != 3) {
+    print("[FAIL] Test Case 3 Redundant union component count mutated")
+} else {
+    print("  Redundant and self-unions verified without extraneous component alteration")
+}
+
+// 3.3: Out-of-bounds queries and operations
+tc3OobFindNeg = findSet(tc1Dsu, 0, -1, tc1Elements)
+tc3OobFindHigh = findSet(tc1Dsu, 0, 999, tc1Elements)
+tc3OobFindVer = findSet(tc1Dsu, 999, 0, tc1Elements)
+tc3OobConn = isConnected(tc1Dsu, 0, -5, 100, tc1Elements)
+tc3OobSize = getSetSize(tc1Dsu, 0, -1, tc1Elements)
+tc3OobRank = getSetRank(tc1Dsu, 0, 999, tc1Elements)
+tc3OobCount = getComponentCount(tc1Dsu, -1)
+tc3OobUnion = unionSets(tc1Dsu, 0, -1, 0, "oob union", tc1Elements)
+
+if (tc3OobFindNeg != -1 or tc3OobFindHigh != -1 or tc3OobFindVer != -1 or tc3OobConn != 0 or tc3OobSize != 0 or tc3OobRank != -1 or tc3OobCount != 0 or tc3OobUnion != -1) {
+    print("[FAIL] Test Case 3 Out-of-bounds guards failed")
+} else {
+    print("  Degenerate and out-of-bounds queries gracefully returned default neutral values")
+}
+
+// 3.4: Rank growth and tree balancing
+tc3RankDsu = createPersistentDisjointSet()
+initPersistentDisjointSet(tc3RankDsu, 8, "v0: 8 elements for rank test")
+// Level 1 unions: (0,1), (2,3), (4,5), (6,7)
+rk1 = unionSets(tc3RankDsu, 0, 0, 1, "rk1: 0-1", 8)
+rk2 = unionSets(tc3RankDsu, rk1, 2, 3, "rk2: 2-3", 8)
+rk3 = unionSets(tc3RankDsu, rk2, 4, 5, "rk3: 4-5", 8)
+rk4 = unionSets(tc3RankDsu, rk3, 6, 7, "rk4: 6-7", 8)
+// Roots of {0,1}, {2,3}, {4,5}, {6,7} should have rank 1
+rankRoot0 = getSetRank(tc3RankDsu, rk4, 0, 8)
+rankRoot2 = getSetRank(tc3RankDsu, rk4, 2, 8)
+rankRoot4 = getSetRank(tc3RankDsu, rk4, 4, 8)
+rankRoot6 = getSetRank(tc3RankDsu, rk4, 6, 8)
+
+// Level 2 unions: unite (0,2) and (4,6)
+rk5 = unionSets(tc3RankDsu, rk4, 0, 2, "rk5: 0-2", 8)
+rk6 = unionSets(tc3RankDsu, rk5, 4, 6, "rk6: 4-6", 8)
+rankRootL2A = getSetRank(tc3RankDsu, rk6, 0, 8)
+rankRootL2B = getSetRank(tc3RankDsu, rk6, 4, 8)
+
+// Level 3 union: unite (0,4)
+rk7 = unionSets(tc3RankDsu, rk6, 0, 4, "rk7: 0-4", 8)
+finalRank = getSetRank(tc3RankDsu, rk7, 0, 8)
+finalSize = getSetSize(tc3RankDsu, rk7, 0, 8)
+finalCount = getComponentCount(tc3RankDsu, rk7)
+
+if (rankRoot0 != 1 or rankRoot2 != 1 or rankRootL2A != 2 or rankRootL2B != 2 or finalRank != 3 or finalSize != 8 or finalCount != 1) {
+    print("[FAIL] Test Case 3 Rank progression failed: rk0=", rankRoot0, ", rkL2=", rankRootL2A, ", finalRank=", finalRank)
+} else {
+    print("  Union-by-rank logarithmic depth progression verified: ranks 0 -> 1 -> 2 -> 3 for 8 elements")
+    print("  Test Case 3 Passed boundary and edge case verification")
+}
+
