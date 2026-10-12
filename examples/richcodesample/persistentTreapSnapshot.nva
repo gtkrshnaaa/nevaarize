@@ -303,6 +303,149 @@ func nextRand(state) {
     return s
 }
 
+func splitRange(arena, root, lowKey, highKey, outTriple) {
+    p1 = [-1, -1]
+    split(arena, root, lowKey - 1, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], highKey, p2)
+    outTriple[0] = p1[0]
+    outTriple[1] = p2[0]
+    outTriple[2] = p2[1]
+}
+
+func queryRangeSum(arena, root, lowKey, highKey) {
+    if (root == -1 or lowKey > highKey) {
+        return 0
+    }
+    tKey = arena[0]
+    tVal = arena[1]
+    tLeft = arena[4]
+    tRight = arena[5]
+    nodeKey = tKey[root]
+    s = 0
+    if (nodeKey >= lowKey and nodeKey <= highKey) {
+        s = s + tVal[root]
+    }
+    if (nodeKey > lowKey and tLeft[root] != -1) {
+        s = s + queryRangeSum(arena, tLeft[root], lowKey, highKey)
+    }
+    if (nodeKey < highKey and tRight[root] != -1) {
+        s = s + queryRangeSum(arena, tRight[root], lowKey, highKey)
+    }
+    return s
+}
+
+func queryRangeMin(arena, root, lowKey, highKey) {
+    if (root == -1 or lowKey > highKey) {
+        return 2147483647
+    }
+    tKey = arena[0]
+    tVal = arena[1]
+    tLeft = arena[4]
+    tRight = arena[5]
+    nodeKey = tKey[root]
+    mn = 2147483647
+    if (nodeKey >= lowKey and nodeKey <= highKey) {
+        mn = tVal[root]
+    }
+    if (nodeKey > lowKey and tLeft[root] != -1) {
+        leftMin = queryRangeMin(arena, tLeft[root], lowKey, highKey)
+        mn = minInt(mn, leftMin)
+    }
+    if (nodeKey < highKey and tRight[root] != -1) {
+        rightMin = queryRangeMin(arena, tRight[root], lowKey, highKey)
+        mn = minInt(mn, rightMin)
+    }
+    return mn
+}
+
+func queryRangeMax(arena, root, lowKey, highKey) {
+    if (root == -1 or lowKey > highKey) {
+        return -2147483648
+    }
+    tKey = arena[0]
+    tVal = arena[1]
+    tLeft = arena[4]
+    tRight = arena[5]
+    nodeKey = tKey[root]
+    mx = -2147483648
+    if (nodeKey >= lowKey and nodeKey <= highKey) {
+        mx = tVal[root]
+    }
+    if (nodeKey > lowKey and tLeft[root] != -1) {
+        leftMax = queryRangeMax(arena, tLeft[root], lowKey, highKey)
+        mx = maxInt(mx, leftMax)
+    }
+    if (nodeKey < highKey and tRight[root] != -1) {
+        rightMax = queryRangeMax(arena, tRight[root], lowKey, highKey)
+        mx = maxInt(mx, rightMax)
+    }
+    return mx
+}
+
+func queryRangeCount(arena, root, lowKey, highKey) {
+    if (root == -1 or lowKey > highKey) {
+        return 0
+    }
+    tKey = arena[0]
+    tLeft = arena[4]
+    tRight = arena[5]
+    nodeKey = tKey[root]
+    cnt = 0
+    if (nodeKey >= lowKey and nodeKey <= highKey) {
+        cnt = 1
+    }
+    if (nodeKey > lowKey and tLeft[root] != -1) {
+        cnt = cnt + queryRangeCount(arena, tLeft[root], lowKey, highKey)
+    }
+    if (nodeKey < highKey and tRight[root] != -1) {
+        cnt = cnt + queryRangeCount(arena, tRight[root], lowKey, highKey)
+    }
+    return cnt
+}
+
+func findKthSmallest(arena, root, k, outPair) {
+    if (root == -1 or k <= 0 or k > getSize(arena, root)) {
+        outPair[0] = -1
+        outPair[1] = -1
+        return
+    }
+    tKey = arena[0]
+    tVal = arena[1]
+    tLeft = arena[4]
+    tRight = arena[5]
+    lc = tLeft[root]
+    leftSize = getSize(arena, lc)
+    if (k <= leftSize) {
+        findKthSmallest(arena, lc, k, outPair)
+        return
+    }
+    if (k == leftSize + 1) {
+        outPair[0] = tKey[root]
+        outPair[1] = tVal[root]
+        return
+    }
+    rc = tRight[root]
+    findKthSmallest(arena, rc, k - leftSize - 1, outPair)
+}
+
+func findRank(arena, root, key) {
+    if (root == -1) {
+        return 1
+    }
+    tKey = arena[0]
+    tLeft = arena[4]
+    tRight = arena[5]
+    nodeKey = tKey[root]
+    if (key <= nodeKey) {
+        return findRank(arena, tLeft[root], key)
+    } else {
+        leftSize = getSize(arena, tLeft[root])
+        return leftSize + 1 + findRank(arena, tRight[root], key)
+    }
+}
+
+
 // -----------------------------------------------------------------------------
 // Test Case 1: Sequential Version Updates and Historical Immutability
 // -----------------------------------------------------------------------------
@@ -428,6 +571,187 @@ if (containsKey(arena1, historyRoots[8], 5) != 1 or getSize(arena1, historyRoots
 }
 
 print("  Test Case 1 Passed sequential updates and immutability verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Timeline Forking and Snapshot Branching
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Timeline Forking and Snapshot Branching...")
+
+// Fork from Version 5 of historyRoots (keys: [5, 10, 15, 20, 25], sum = 750)
+baseVer5 = historyRoots[5]
+baseSize = getSize(arena1, baseVer5)
+baseSum = getSum(arena1, baseVer5)
+
+// Branch A: Add keys 12 (120) and 18 (180), then delete key 10
+rngA = [101]
+branchA1 = insertKey(arena1, baseVer5, 12, 120, nextRand(rngA) % 100000)
+branchA2 = insertKey(arena1, branchA1, 18, 180, nextRand(rngA) % 100000)
+branchA3 = deleteKey(arena1, branchA2, 10)
+
+// Branch B: Add keys 2 (20) and 100 (1000), then delete key 25
+rngB = [202]
+branchB1 = insertKey(arena1, baseVer5, 2, 20, nextRand(rngB) % 100000)
+branchB2 = insertKey(arena1, branchB1, 100, 1000, nextRand(rngB) % 100000)
+branchB3 = deleteKey(arena1, branchB2, 25)
+
+// Branch C: Fork from Branch A3, add key 99 (990)
+rngC = [303]
+branchC1 = insertKey(arena1, branchA3, 99, 990, nextRand(rngC) % 100000)
+
+// Verify Base Version 5 immutability
+if (getSize(arena1, baseVer5) != baseSize or getSum(arena1, baseVer5) != baseSum) {
+    print("[FAIL] Base Version 5 corrupted during branching")
+} else {
+    print("  Parent Version 5 preserved immutability: size = 5, sum = 750")
+}
+
+// Verify Branch A3
+keysA = treeToKeys(arena1, branchA3)
+sumA = getSum(arena1, branchA3)
+if (keysA.size() != 6 or sumA != 950 or containsKey(arena1, branchA3, 10) != 0 or containsKey(arena1, branchA3, 12) != 1 or containsKey(arena1, branchA3, 18) != 1) {
+    print("[FAIL] Branch A3 validation mismatch")
+} else {
+    print("  Branch A independently verified: keys [5, 12, 15, 18, 20, 25], sum = 950")
+}
+
+// Verify Branch B3
+keysB = treeToKeys(arena1, branchB3)
+sumB = getSum(arena1, branchB3)
+if (keysB.size() != 6 or sumB != 1520 or containsKey(arena1, branchB3, 25) != 0 or containsKey(arena1, branchB3, 2) != 1 or containsKey(arena1, branchB3, 100) != 1) {
+    print("[FAIL] Branch B3 validation mismatch")
+} else {
+    print("  Branch B independently verified: keys [2, 5, 10, 15, 20, 100], sum = 1520")
+}
+
+// Verify Branch C1
+sumC = getSum(arena1, branchC1)
+if (getSize(arena1, branchC1) != 7 or sumC != 1940 or containsKey(arena1, branchC1, 99) != 1) {
+    print("[FAIL] Branch C1 validation mismatch")
+} else {
+    print("  Branch C (derived from Branch A) verified: size = 7, sum = 1940")
+}
+
+// Cross-isolation checks
+if (containsKey(arena1, branchA3, 2) != 0 or containsKey(arena1, branchA3, 100) != 0 or containsKey(arena1, branchB3, 12) != 0 or containsKey(arena1, branchB3, 18) != 0 or containsKey(arena1, branchA3, 99) != 0) {
+    print("[FAIL] Cross-branch isolation leak detected")
+} else {
+    print("  Cross-branch isolation verified between Branch A, Branch B, and Branch C")
+}
+
+print("  Test Case 2 Passed timeline forking and branching verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Range Aggregates and Order Statistics Verification
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Range Aggregates and Order Statistics...")
+arena3 = createTreapArena()
+rng3 = [777]
+root3 = -1
+
+// Insert 15 items: keys [10, 20, 30, ..., 150] with vals [1, 2, 3, ..., 15]
+itemCount = 15
+idx = 1
+while (idx <= itemCount) {
+    k = idx * 10
+    v = idx
+    p = nextRand(rng3) % 100000
+    root3 = insertKey(arena3, root3, k, v, p)
+    idx = idx + 1
+}
+
+if (getSize(arena3, root3) != 15 or getSum(arena3, root3) != 120) {
+    print("[FAIL] Range test dataset build mismatch")
+}
+
+// Subtest 3.1: Range [30, 90] -> keys 30, 40, 50, 60, 70, 80, 90
+// Values: 3, 4, 5, 6, 7, 8, 9 -> count: 7, sum: 42, min: 3, max: 9
+trip1 = [-1, -1, -1]
+splitRange(arena3, root3, 30, 90, trip1)
+subTreap1 = trip1[1]
+
+qSum1 = queryRangeSum(arena3, root3, 30, 90)
+qMin1 = queryRangeMin(arena3, root3, 30, 90)
+qMax1 = queryRangeMax(arena3, root3, 30, 90)
+qCnt1 = queryRangeCount(arena3, root3, 30, 90)
+
+if (getSize(arena3, subTreap1) != 7 or getSum(arena3, subTreap1) != 42 or getMin(arena3, subTreap1) != 3 or getMax(arena3, subTreap1) != 9) {
+    print("[FAIL] splitRange [30, 90] subtreap aggregate mismatch")
+}
+if (qSum1 != 42 or qMin1 != 3 or qMax1 != 9 or qCnt1 != 7) {
+    print("[FAIL] Direct queryRange [30, 90] mismatch")
+}
+print("  Range [30, 90] verified: count = 7, sum = 42, min = 3, max = 9")
+
+// Subtest 3.2: Edge range [5, 25] -> keys 10, 20 -> count: 2, sum: 3, min: 1, max: 2
+trip2 = [-1, -1, -1]
+splitRange(arena3, root3, 5, 25, trip2)
+subTreap2 = trip2[1]
+if (getSize(arena3, subTreap2) != 2 or getSum(arena3, subTreap2) != 3 or getMin(arena3, subTreap2) != 1 or getMax(arena3, subTreap2) != 2) {
+    print("[FAIL] splitRange [5, 25] mismatch")
+}
+if (queryRangeSum(arena3, root3, 5, 25) != 3 or queryRangeCount(arena3, root3, 5, 25) != 2) {
+    print("[FAIL] Direct queryRange [5, 25] mismatch")
+}
+print("  Prefix Range [5, 25] verified: count = 2, sum = 3, min = 1, max = 2")
+
+// Subtest 3.3: Empty range between keys [52, 58]
+trip3 = [-1, -1, -1]
+splitRange(arena3, root3, 52, 58, trip3)
+subTreap3 = trip3[1]
+if (subTreap3 != -1 or getSize(arena3, subTreap3) != 0 or getSum(arena3, subTreap3) != 0) {
+    print("[FAIL] Empty subtreap range mismatch")
+}
+if (queryRangeSum(arena3, root3, 52, 58) != 0 or queryRangeCount(arena3, root3, 52, 58) != 0) {
+    print("[FAIL] Direct empty range query mismatch")
+}
+print("  Empty Range [52, 58] correctly evaluated to neutral identity")
+
+// Subtest 3.4: Disjoint out-of-bounds range [200, 300]
+trip4 = [-1, -1, -1]
+splitRange(arena3, root3, 200, 300, trip4)
+if (trip4[1] != -1 or queryRangeSum(arena3, root3, 200, 300) != 0) {
+    print("[FAIL] Out of bounds range query mismatch")
+}
+print("  Out-of-bounds Range [200, 300] verified: count = 0, sum = 0")
+
+// Subtest 3.5: Order Statistics: findKthSmallest
+pairKth = [-1, -1]
+findKthSmallest(arena3, root3, 1, pairKth)
+if (pairKth[0] != 10 or pairKth[1] != 1) {
+    print("[FAIL] 1st smallest element mismatch")
+}
+findKthSmallest(arena3, root3, 5, pairKth)
+if (pairKth[0] != 50 or pairKth[1] != 5) {
+    print("[FAIL] 5th smallest element mismatch")
+}
+findKthSmallest(arena3, root3, 15, pairKth)
+if (pairKth[0] != 150 or pairKth[1] != 15) {
+    print("[FAIL] 15th smallest element mismatch")
+}
+print("  Order Statistics findKthSmallest verified: k=1 -> 10, k=5 -> 50, k=15 -> 150")
+
+// Subtest 3.6: Order Statistics: findRank
+if (findRank(arena3, root3, 10) != 1) {
+    print("[FAIL] Rank of key 10 mismatch")
+}
+if (findRank(arena3, root3, 50) != 5) {
+    print("[FAIL] Rank of key 50 mismatch")
+}
+if (findRank(arena3, root3, 150) != 15) {
+    print("[FAIL] Rank of key 150 mismatch")
+}
+if (findRank(arena3, root3, 45) != 5) {
+    print("[FAIL] Rank of non-existent key 45 mismatch")
+}
+if (findRank(arena3, root3, 5) != 1) {
+    print("[FAIL] Rank of non-existent key 5 mismatch")
+}
+if (findRank(arena3, root3, 200) != 16) {
+    print("[FAIL] Rank of non-existent key 200 mismatch")
+}
+print("  Order Statistics findRank verified for boundary and non-existent keys")
+
+print("  Test Case 3 Passed range aggregates and order statistics verification")
 
 elapsed = t.millis() - suiteStartTime
 print("[PASS] Persistent Treap Snapshot Suite executed successfully in", elapsed, "ms")
