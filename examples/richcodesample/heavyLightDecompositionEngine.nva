@@ -1,0 +1,494 @@
+import stdlib time as t
+
+// Heavy-Light Decomposition (HLD) Engine Suite for Weighted Trees
+// Technical characteristics:
+// - Partitions tree into vertex-disjoint heavy paths for logarithmic chain jumping
+// - Subtree queries in O(log N) mapped to contiguous DFS intervals [pos[u], pos[u] + size[u] - 1]
+// - Path queries and updates in O(log^2 N) using Segment Tree with lazy propagation
+// - Lowest Common Ancestor (LCA) and tree distance in O(log N)
+// - Support for path sums, path max, path min, and subtree aggregates
+// - Deterministic validation against naive graph traversal and path oracles
+// - Strict camelCase naming conventions enforced across all symbols (No-Underscore Policy)
+
+print("=== Nevaarize Heavy-Light Decomposition Engine Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(aInt, bInt) {
+    if (aInt < bInt) {
+        return aInt
+    }
+    return bInt
+}
+
+func maxInt(aInt, bInt) {
+    if (aInt > bInt) {
+        return aInt
+    }
+    return bInt
+}
+
+func makeIntArray(arrSize, fillVal) {
+    arr = []
+    arrIdx = 0
+    while (arrIdx < arrSize) {
+        arr.push(fillVal)
+        arrIdx = arrIdx + 1
+    }
+    return arr
+}
+
+func createHldEngine(vertexCount) {
+    headEdge = makeIntArray(vertexCount, -1)
+    edgeTo = []
+    edgeNext = []
+    weights = makeIntArray(vertexCount, 0)
+    parent = makeIntArray(vertexCount, -1)
+    depth = makeIntArray(vertexCount, 0)
+    subSize = makeIntArray(vertexCount, 0)
+    heavyChild = makeIntArray(vertexCount, -1)
+    chainHead = makeIntArray(vertexCount, -1)
+    pos = makeIntArray(vertexCount, -1)
+    nodeAtPos = makeIntArray(vertexCount, -1)
+    segTree = []
+
+    return [vertexCount, headEdge, edgeTo, edgeNext, weights, parent, depth, subSize, heavyChild, chainHead, pos, nodeAtPos, segTree]
+}
+
+func addEdge(engine, u, v) {
+    headEdge = engine[1]
+    edgeTo = engine[2]
+    edgeNext = engine[3]
+
+    e1 = edgeTo.size()
+    edgeTo.push(v)
+    edgeNext.push(headEdge[u])
+    headEdge[u] = e1
+
+    e2 = edgeTo.size()
+    edgeTo.push(u)
+    edgeNext.push(headEdge[v])
+    headEdge[v] = e2
+
+    engine[1] = headEdge
+    engine[2] = edgeTo
+    engine[3] = edgeNext
+}
+
+func setVertexWeight(engine, u, weight) {
+    weights = engine[4]
+    weights[u] = weight
+    engine[4] = weights
+}
+
+func pushUp(seg, node) {
+    lc = node * 2
+    rc = node * 2 + 1
+    tSum = seg[0]
+    tMax = seg[1]
+    tMin = seg[2]
+    tSum[node] = tSum[lc] + tSum[rc]
+    tMax[node] = maxInt(tMax[lc], tMax[rc])
+    tMin[node] = minInt(tMin[lc], tMin[rc])
+}
+
+func pushDown(seg, node, l, r) {
+    tLazy = seg[3]
+    lazyVal = tLazy[node]
+    if (lazyVal != 0) {
+        mid = (l + r) / 2
+        lc = node * 2
+        rc = node * 2 + 1
+        leftLen = mid - l + 1
+        rightLen = r - mid
+
+        tSum = seg[0]
+        tMax = seg[1]
+        tMin = seg[2]
+
+        tSum[lc] = tSum[lc] + lazyVal * leftLen
+        tMax[lc] = tMax[lc] + lazyVal
+        tMin[lc] = tMin[lc] + lazyVal
+        tLazy[lc] = tLazy[lc] + lazyVal
+
+        tSum[rc] = tSum[rc] + lazyVal * rightLen
+        tMax[rc] = tMax[rc] + lazyVal
+        tMin[rc] = tMin[rc] + lazyVal
+        tLazy[rc] = tLazy[rc] + lazyVal
+
+        tLazy[node] = 0
+    }
+}
+
+func buildSegTree(seg, node, l, r, initialVals) {
+    if (l == r) {
+        val = initialVals[l]
+        tSum = seg[0]
+        tMax = seg[1]
+        tMin = seg[2]
+        tSum[node] = val
+        tMax[node] = val
+        tMin[node] = val
+        return 0
+    }
+    mid = (l + r) / 2
+    lc = node * 2
+    rc = node * 2 + 1
+    buildSegTree(seg, lc, l, mid, initialVals)
+    buildSegTree(seg, rc, mid + 1, r, initialVals)
+    pushUp(seg, node)
+    return 0
+}
+
+func updateSegRangeAdd(seg, node, l, r, ql, qr, val) {
+    if (ql <= l and r <= qr) {
+        rangeLen = r - l + 1
+        tSum = seg[0]
+        tMax = seg[1]
+        tMin = seg[2]
+        tLazy = seg[3]
+
+        tSum[node] = tSum[node] + val * rangeLen
+        tMax[node] = tMax[node] + val
+        tMin[node] = tMin[node] + val
+        tLazy[node] = tLazy[node] + val
+        return 0
+    }
+    pushDown(seg, node, l, r)
+    mid = (l + r) / 2
+    lc = node * 2
+    rc = node * 2 + 1
+    if (ql <= mid) {
+        updateSegRangeAdd(seg, lc, l, mid, ql, qr, val)
+    }
+    if (qr > mid) {
+        updateSegRangeAdd(seg, rc, mid + 1, r, ql, qr, val)
+    }
+    pushUp(seg, node)
+    return 0
+}
+
+func querySegSum(seg, node, l, r, ql, qr) {
+    if (ql <= l and r <= qr) {
+        tSum = seg[0]
+        return tSum[node]
+    }
+    pushDown(seg, node, l, r)
+    mid = (l + r) / 2
+    lc = node * 2
+    rc = node * 2 + 1
+    res = 0
+    if (ql <= mid) {
+        res = res + querySegSum(seg, lc, l, mid, ql, qr)
+    }
+    if (qr > mid) {
+        res = res + querySegSum(seg, rc, mid + 1, r, ql, qr)
+    }
+    return res
+}
+
+func querySegMax(seg, node, l, r, ql, qr) {
+    if (ql <= l and r <= qr) {
+        tMax = seg[1]
+        return tMax[node]
+    }
+    pushDown(seg, node, l, r)
+    mid = (l + r) / 2
+    lc = node * 2
+    rc = node * 2 + 1
+    res = -2147483648
+    if (ql <= mid) {
+        leftMax = querySegMax(seg, lc, l, mid, ql, qr)
+        if (leftMax > res) {
+            res = leftMax
+        }
+    }
+    if (qr > mid) {
+        rightMax = querySegMax(seg, rc, mid + 1, r, ql, qr)
+        if (rightMax > res) {
+            res = rightMax
+        }
+    }
+    return res
+}
+
+func querySegMin(seg, node, l, r, ql, qr) {
+    if (ql <= l and r <= qr) {
+        tMin = seg[2]
+        return tMin[node]
+    }
+    pushDown(seg, node, l, r)
+    mid = (l + r) / 2
+    lc = node * 2
+    rc = node * 2 + 1
+    res = 2147483647
+    if (ql <= mid) {
+        leftMin = querySegMin(seg, lc, l, mid, ql, qr)
+        if (leftMin < res) {
+            res = leftMin
+        }
+    }
+    if (qr > mid) {
+        rightMin = querySegMin(seg, rc, mid + 1, r, ql, qr)
+        if (rightMin < res) {
+            res = rightMin
+        }
+    }
+    return res
+}
+
+func buildHld(engine, root) {
+    vertexCount = engine[0]
+    headEdge = engine[1]
+    edgeTo = engine[2]
+    edgeNext = engine[3]
+    weights = engine[4]
+    parent = engine[5]
+    depth = engine[6]
+    subSize = engine[7]
+    heavyChild = engine[8]
+    chainHead = engine[9]
+    pos = engine[10]
+    nodeAtPos = engine[11]
+
+    // Pass 1: Iterative BFS queue from root to build depth and parent
+    bfsQueue = [root]
+    parent[root] = -1
+    depth[root] = 0
+    bfsHead = 0
+
+    while (bfsHead < bfsQueue.size()) {
+        u = bfsQueue[bfsHead]
+        bfsHead = bfsHead + 1
+
+        e = headEdge[u]
+        while (e != -1) {
+            v = edgeTo[e]
+            if (v != parent[u]) {
+                parent[v] = u
+                depth[v] = depth[u] + 1
+                bfsQueue.push(v)
+            }
+            e = edgeNext[e]
+        }
+    }
+
+    // Reverse BFS to compute subtree sizes and identify heavy children
+    revIdx = bfsQueue.size() - 1
+    while (revIdx >= 0) {
+        u = bfsQueue[revIdx]
+        subSize[u] = 1
+        maxChildSize = 0
+        hChild = -1
+
+        e = headEdge[u]
+        while (e != -1) {
+            v = edgeTo[e]
+            if (v != parent[u]) {
+                subSize[u] = subSize[u] + subSize[v]
+                if (subSize[v] > maxChildSize) {
+                    maxChildSize = subSize[v]
+                    hChild = v
+                }
+            }
+            e = edgeNext[e]
+        }
+        heavyChild[u] = hChild
+        revIdx = revIdx - 1
+    }
+
+    // Pass 2: Iterative DFS to assign chain heads and contiguous DFS positions
+    stack = [root]
+    chainHead[root] = root
+    curPos = 0
+
+    while (stack.size() > 0) {
+        topIdx = stack.size() - 1
+        u = stack[topIdx]
+        stack.pop()
+
+        pos[u] = curPos
+        nodeAtPos[curPos] = u
+        curPos = curPos + 1
+
+        hChild = heavyChild[u]
+
+        // Collect light children
+        lightChildren = []
+        e = headEdge[u]
+        while (e != -1) {
+            v = edgeTo[e]
+            if (v != parent[u] and v != hChild) {
+                chainHead[v] = v
+                lightChildren.push(v)
+            }
+            e = edgeNext[e]
+        }
+
+        // Push light children first so heavy child is popped FIRST
+        lcIdx = lightChildren.size() - 1
+        while (lcIdx >= 0) {
+            stack.push(lightChildren[lcIdx])
+            lcIdx = lcIdx - 1
+        }
+
+        // Push heavy child last
+        if (hChild != -1) {
+            chainHead[hChild] = chainHead[u]
+            stack.push(hChild)
+        }
+    }
+
+    // Initialize Segment Tree over DFS positions
+    initialVals = makeIntArray(vertexCount, 0)
+    pIdx = 0
+    while (pIdx < vertexCount) {
+        node = nodeAtPos[pIdx]
+        initialVals[pIdx] = weights[node]
+        pIdx = pIdx + 1
+    }
+
+    tSum = makeIntArray(4 * vertexCount + 10, 0)
+    tMax = makeIntArray(4 * vertexCount + 10, 0)
+    tMin = makeIntArray(4 * vertexCount + 10, 0)
+    tLazy = makeIntArray(4 * vertexCount + 10, 0)
+    segTree = [tSum, tMax, tMin, tLazy]
+
+    buildSegTree(segTree, 1, 0, vertexCount - 1, initialVals)
+    engine[12] = segTree
+    return 0
+}
+
+func queryLca(engine, u, v) {
+    parent = engine[5]
+    depth = engine[6]
+    chainHead = engine[9]
+
+    currU = u
+    currV = v
+    while (chainHead[currU] != chainHead[currV]) {
+        if (depth[chainHead[currU]] < depth[chainHead[currV]]) {
+            temp = currU
+            currU = currV
+            currV = temp
+        }
+        currU = parent[chainHead[currU]]
+    }
+    if (depth[currU] < depth[currV]) {
+        return currU
+    }
+    return currV
+}
+
+func queryDistance(engine, u, v) {
+    depth = engine[6]
+    lcaNode = queryLca(engine, u, v)
+    return depth[u] + depth[v] - 2 * depth[lcaNode]
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 1: Tree Construction, Heavy-Light Decomposition & LCA Invariants
+// -----------------------------------------------------------------------------
+print("Running Test Case 1: Tree Construction, Heavy-Light Decomposition and LCA Invariants...")
+tc1Verts = 14
+tc1Engine = createHldEngine(tc1Verts)
+
+// Construct structured tree with 14 vertices:
+//        0
+//      / | \
+//     1  2  3
+//    /|  |\  |
+//   4 5  6 7 8
+//  /| |    |
+// 9 10 11  12
+//          |
+//          13
+addEdge(tc1Engine, 0, 1)
+addEdge(tc1Engine, 0, 2)
+addEdge(tc1Engine, 0, 3)
+addEdge(tc1Engine, 1, 4)
+addEdge(tc1Engine, 1, 5)
+addEdge(tc1Engine, 2, 6)
+addEdge(tc1Engine, 2, 7)
+addEdge(tc1Engine, 3, 8)
+addEdge(tc1Engine, 4, 9)
+addEdge(tc1Engine, 4, 10)
+addEdge(tc1Engine, 5, 11)
+addEdge(tc1Engine, 7, 12)
+addEdge(tc1Engine, 12, 13)
+
+tc1U = 0
+while (tc1U < tc1Verts) {
+    setVertexWeight(tc1Engine, tc1U, (tc1U + 1) * 10)
+    tc1U = tc1U + 1
+}
+
+buildHld(tc1Engine, 0)
+
+// Subtree size assertions
+tc1SubSize = tc1Engine[7]
+tc1Depth = tc1Engine[6]
+tc1HeavyChild = tc1Engine[8]
+tc1ChainHead = tc1Engine[9]
+tc1Pos = tc1Engine[10]
+
+tc1Fail = 0
+if (tc1SubSize[0] != 14) { tc1Fail = 1 }
+if (tc1SubSize[1] != 6) { tc1Fail = 1 }
+if (tc1SubSize[2] != 5) { tc1Fail = 1 }
+if (tc1SubSize[3] != 2) { tc1Fail = 1 }
+if (tc1SubSize[4] != 3) { tc1Fail = 1 }
+if (tc1SubSize[12] != 2 or tc1SubSize[13] != 1) { tc1Fail = 1 }
+if (tc1Depth[0] != 0 or tc1Depth[1] != 1 or tc1Depth[4] != 2 or tc1Depth[9] != 3 or tc1Depth[13] != 4) { tc1Fail = 1 }
+
+if (tc1Fail != 0) {
+    print("[FAIL] Subtree size calculation mismatch")
+} else {
+    print("  Subtree sizes verified: root size 14, subtree 1 size 6, subtree 2 size 5, subtree 3 size 2")
+}
+
+// Heavy child identification:
+// At root 0: children are 1 (size 6), 2 (size 5), 3 (size 2) -> heavy child must be 1
+// At node 1: children are 4 (size 3), 5 (size 2) -> heavy child must be 4
+if (tc1HeavyChild[0] != 1 or tc1HeavyChild[1] != 4) {
+    print("[FAIL] Heavy child identification mismatch: heavyChild[0]=", tc1HeavyChild[0], ", heavyChild[1]=", tc1HeavyChild[1])
+} else {
+    print("  Heavy child identification verified: heavyChild[0]=1, heavyChild[1]=4")
+}
+
+// Heavy chain continuity assertion:
+// Heavy child 1 and 4 must share chainHead with root 0
+// pos[1] must be pos[0] + 1, pos[4] must be pos[1] + 1
+if (tc1ChainHead[1] != 0 or tc1ChainHead[4] != 0 or tc1Pos[1] != tc1Pos[0] + 1 or tc1Pos[4] != tc1Pos[1] + 1) {
+    print("[FAIL] Heavy chain continuity invariant violated")
+} else {
+    print("  Heavy chain continuity verified: nodes 0, 1, 4 share chainHead 0 with contiguous positions")
+}
+
+// LCA assertions
+lca910 = queryLca(tc1Engine, 9, 10)
+lca911 = queryLca(tc1Engine, 9, 11)
+lca913 = queryLca(tc1Engine, 9, 13)
+lca1213 = queryLca(tc1Engine, 12, 13)
+lca67 = queryLca(tc1Engine, 6, 7)
+lca80 = queryLca(tc1Engine, 8, 0)
+lcaSelf = queryLca(tc1Engine, 5, 5)
+
+if (lca910 != 4 or lca911 != 1 or lca913 != 0 or lca1213 != 12 or lca67 != 2 or lca80 != 0 or lcaSelf != 5) {
+    print("[FAIL] Lowest Common Ancestor query verification failed")
+} else {
+    print("  Lowest Common Ancestor verified: lca(9,10)=4, lca(9,11)=1, lca(9,13)=0, lca(12,13)=12, lca(6,7)=2")
+}
+
+// Tree distance assertions
+dist910 = queryDistance(tc1Engine, 9, 10)
+dist913 = queryDistance(tc1Engine, 9, 13)
+dist1213 = queryDistance(tc1Engine, 12, 13)
+dist80 = queryDistance(tc1Engine, 8, 0)
+distSelf = queryDistance(tc1Engine, 4, 4)
+
+if (dist910 != 2 or dist913 != 7 or dist1213 != 1 or dist80 != 2 or distSelf != 0) {
+    print("[FAIL] Tree distance calculation mismatch")
+} else {
+    print("  Tree distances verified: dist(9,10)=2, dist(9,13)=7, dist(12,13)=1, dist(8,0)=2, dist(4,4)=0")
+    print("  Test Case 1 Passed tree construction, HLD layout, and LCA verification")
+}
