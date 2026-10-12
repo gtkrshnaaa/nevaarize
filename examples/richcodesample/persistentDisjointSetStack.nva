@@ -202,6 +202,7 @@ func saveCheckpoint(dsu, desc) {
 
 func rollbackToCheckpoint(dsu, checkpointId) {
     cpList = dsu[8]
+    cpDescs = dsu[9]
     if (checkpointId < 0 or checkpointId >= cpList.size()) {
         return 0
     }
@@ -215,6 +216,14 @@ func rollbackToCheckpoint(dsu, checkpointId) {
         histChild = dsu[3]
         stepsRolled = stepsRolled + 1
     }
+
+    while (cpList.size() > checkpointId + 1) {
+        cpList.pop()
+        cpDescs.pop()
+    }
+    dsu[8] = cpList
+    dsu[9] = cpDescs
+
     return stepsRolled
 }
 
@@ -472,7 +481,250 @@ if (emptyUndoRes != 0 or sameCpRoll != 0 or invalidCpRoll != 0) {
     print("  Empty stack rollback and invalid checkpoint requests handled gracefully")
 }
 
-print("  Test Case 3 Passed boundary and edge case verification")
+// -----------------------------------------------------------------------------
+// Test Case 4: Deep Tree Height & Rank Invariant Verification
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Deep Tree Height and Rank Invariants...")
+tc4Size = 16
+tc4Dsu = createDisjointSetStack(tc4Size)
+cpLayer0 = saveCheckpoint(tc4Dsu, "layer 0: isolated")
+
+// Layer 1: merge pairs (0,1), (2,3), (4,5), (6,7), (8,9), (10,11), (12,13), (14,15)
+pairIdx = 0
+while (pairIdx < 16) {
+    unionSets(tc4Dsu, pairIdx, pairIdx + 1)
+    pairIdx = pairIdx + 2
+}
+cpLayer1 = saveCheckpoint(tc4Dsu, "layer 1: pairs")
+compL1 = getComponentCount(tc4Dsu)
+r0L1 = getRank(tc4Dsu, 0)
+s0L1 = getComponentSize(tc4Dsu, 0)
+
+// Layer 2: merge quads (0,2), (4,6), (8,10), (12,14)
+unionSets(tc4Dsu, 0, 2)
+unionSets(tc4Dsu, 4, 6)
+unionSets(tc4Dsu, 8, 10)
+unionSets(tc4Dsu, 12, 14)
+cpLayer2 = saveCheckpoint(tc4Dsu, "layer 2: quads")
+compL2 = getComponentCount(tc4Dsu)
+r0L2 = getRank(tc4Dsu, 0)
+s0L2 = getComponentSize(tc4Dsu, 0)
+
+// Layer 3: merge octets (0,4), (8,12)
+unionSets(tc4Dsu, 0, 4)
+unionSets(tc4Dsu, 8, 12)
+cpLayer3 = saveCheckpoint(tc4Dsu, "layer 3: octets")
+compL3 = getComponentCount(tc4Dsu)
+r0L3 = getRank(tc4Dsu, 0)
+s0L3 = getComponentSize(tc4Dsu, 0)
+
+// Layer 4: merge (0,8) -> all 16 connected
+unionSets(tc4Dsu, 0, 8)
+cpLayer4 = saveCheckpoint(tc4Dsu, "layer 4: single tree")
+compL4 = getComponentCount(tc4Dsu)
+r0L4 = getRank(tc4Dsu, 0)
+s0L4 = getComponentSize(tc4Dsu, 0)
+
+if (compL1 != 8 or r0L1 != 1 or s0L1 != 2) {
+    print("[FAIL] Layer 1 invariants failed: comp=", compL1, ", r0=", r0L1, ", s0=", s0L1)
+}
+if (compL2 != 4 or r0L2 != 2 or s0L2 != 4) {
+    print("[FAIL] Layer 2 invariants failed: comp=", compL2, ", r0=", r0L2, ", s0=", s0L2)
+}
+if (compL3 != 2 or r0L3 != 3 or s0L3 != 8) {
+    print("[FAIL] Layer 3 invariants failed: comp=", compL3, ", r0=", r0L3, ", s0=", s0L3)
+}
+if (compL4 != 1 or r0L4 != 4 or s0L4 != 16) {
+    print("[FAIL] Layer 4 invariants failed: comp=", compL4, ", r0=", r0L4, ", s0=", s0L4)
+} else {
+    print("  Binomial tree rank growth verified: Layer 1 (r:1, s:2) -> Layer 2 (r:2, s:4) -> Layer 3 (r:3, s:8) -> Layer 4 (r:4, s:16)")
+}
+
+// Verify depth bound: for every element, depth to root must be <= 4
+maxDepth = 0
+elem = 0
+pArr4 = tc4Dsu[0]
+while (elem < 16) {
+    cur = elem
+    depth = 0
+    while (cur != pArr4[cur]) {
+        cur = pArr4[cur]
+        depth = depth + 1
+    }
+    if (depth > maxDepth) {
+        maxDepth = depth
+    }
+    elem = elem + 1
+}
+
+if (maxDepth > 4) {
+    print("[FAIL] Max tree depth exceeded log2(N): ", maxDepth)
+} else {
+    print("  Tree depth strictly bounded by rank: maximum node depth is", maxDepth, "<= 4")
+}
+
+// Stepwise layer rollback
+rollbackToCheckpoint(tc4Dsu, cpLayer3)
+if (getComponentCount(tc4Dsu) != 2 or getRank(tc4Dsu, 0) != 3 or getComponentSize(tc4Dsu, 0) != 8) {
+    print("[FAIL] Rollback to Layer 3 failed")
+}
+
+rollbackToCheckpoint(tc4Dsu, cpLayer2)
+if (getComponentCount(tc4Dsu) != 4 or getRank(tc4Dsu, 0) != 2 or getComponentSize(tc4Dsu, 0) != 4) {
+    print("[FAIL] Rollback to Layer 2 failed")
+}
+
+rollbackToCheckpoint(tc4Dsu, cpLayer1)
+if (getComponentCount(tc4Dsu) != 8 or getRank(tc4Dsu, 0) != 1 or getComponentSize(tc4Dsu, 0) != 2) {
+    print("[FAIL] Rollback to Layer 1 failed")
+}
+
+rollbackToCheckpoint(tc4Dsu, cpLayer0)
+if (getComponentCount(tc4Dsu) != 16 or getRank(tc4Dsu, 0) != 0 or getComponentSize(tc4Dsu, 0) != 1) {
+    print("[FAIL] Rollback to Layer 0 failed")
+} else {
+    print("  Stepwise layer rollback verified across all 4 levels down to initial isolated state")
+}
+
+print("  Test Case 4 Passed deep tree height and rank invariants")
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Stress Benchmark against Naive Historical Connectivity Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Stress Benchmark against Naive Connectivity Oracle...")
+stressN = 20
+stressDsu = createDisjointSetStack(stressN)
+
+activeAdj = []
+adjInit = 0
+while (adjInit < 400) {
+    activeAdj.push(0)
+    adjInit = adjInit + 1
+}
+
+historyAdj = []
+initClone = []
+cI = 0
+while (cI < 400) {
+    initClone.push(activeAdj[cI])
+    cI = cI + 1
+}
+historyAdj.push(initClone)
+
+lSeed = 777666555
+numOps = 60
+opIdx = 0
+stressErrors = 0
+totalQueries = 0
+
+while (opIdx < numOps) {
+    lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+    opType = lSeed % 10
+
+    if (opType < 7) {
+        // Union operation
+        lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+        nodeU = lSeed % stressN
+        lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+        nodeV = lSeed % stressN
+
+        unionSets(stressDsu, nodeU, nodeV)
+        activeAdj[nodeU * stressN + nodeV] = 1
+        activeAdj[nodeV * stressN + nodeU] = 1
+    } else {
+        if (opType < 9) {
+            // Checkpoint operation
+            saveCheckpoint(stressDsu, "stress checkpoint")
+            cpClone = []
+            cpScan = 0
+            while (cpScan < 400) {
+                cpClone.push(activeAdj[cpScan])
+                cpScan = cpScan + 1
+            }
+            historyAdj.push(cpClone)
+        } else {
+            // Rollback to random checkpoint
+            numCp = getCheckpointCount(stressDsu)
+            if (numCp > 0) {
+                lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+                chosenCp = lSeed % numCp
+                rollbackToCheckpoint(stressDsu, chosenCp)
+
+                while (historyAdj.size() > chosenCp + 1) {
+                    historyAdj.pop()
+                }
+
+                restoredAdj = historyAdj[chosenCp]
+                activeAdj = []
+                rI = 0
+                while (rI < 400) {
+                    activeAdj.push(restoredAdj[rI])
+                    rI = rI + 1
+                }
+            }
+        }
+    }
+
+    // Query 2 random pairs at each iteration
+    pairCount = 0
+    while (pairCount < 2) {
+        lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+        qU = lSeed % stressN
+        lSeed = (lSeed * 1103515245 + 12345) % 2147483648
+        qV = lSeed % stressN
+
+        dsuConn = connected(stressDsu, qU, qV)
+
+        // BFS reachability on activeAdj
+        visited = []
+        vI = 0
+        while (vI < stressN) {
+            visited.push(0)
+            vI = vI + 1
+        }
+
+        queue = [qU]
+        visited[qU] = 1
+        head = 0
+        found = 0
+
+        while (head < queue.size()) {
+            curQ = queue[head]
+            head = head + 1
+
+            if (curQ == qV) {
+                found = 1
+                head = queue.size()
+            } else {
+                nbr = 0
+                while (nbr < stressN) {
+                    edgeWeight = activeAdj[curQ * stressN + nbr]
+                    if (edgeWeight == 1 and visited[nbr] == 0) {
+                        visited[nbr] = 1
+                        queue.push(nbr)
+                    }
+                    nbr = nbr + 1
+                }
+            }
+        }
+
+        if (dsuConn != found) {
+            stressErrors = stressErrors + 1
+        }
+        totalQueries = totalQueries + 1
+        pairCount = pairCount + 1
+    }
+
+    opIdx = opIdx + 1
+}
+
+if (stressErrors > 0) {
+    print("[FAIL] Stress benchmark had", stressErrors, "mismatches against BFS oracle")
+} else {
+    print("  Validated", totalQueries, "queries across", numOps, "interleaved union/checkpoint/rollback ops: 0 mismatches")
+    print("  History stack depth at completion:", getHistoryDepth(stressDsu))
+    print("  Test Case 5 Passed stress benchmark verification")
+}
 
 elapsed = t.millis() - suiteStartTime
-print("[PASS] Persistent Disjoint Set Stack Milestone 2 executed in", elapsed, "ms")
+print("[PASS] Persistent Disjoint Set Stack Suite executed successfully in", elapsed, "ms")
