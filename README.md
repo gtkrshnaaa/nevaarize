@@ -112,22 +112,47 @@ make
 ./bin/nevaarize examples/basics.nva
 ```
 
-### Development Testing (Isolated Docker Sandbox)
+### Mandatory Execution Policy: Isolated Docker Sandbox
 
-During core language development, unverified scripts and memory allocators can be tested inside an isolated container sandbox enforcing a 50% CPU and physical RAM boundary:
+To protect developer workstation stability from memory exhaustion, swap thrashing, or thermal shutdowns during language and algorithm development, **all test runs and script verifications must execute inside the Docker sandbox**. Unverified JIT scripts, custom allocators, and complex dynamic structures can trigger unbounded memory growth. Running in the isolated sandbox guarantees that runaway memory usage is intercepted cleanly by container cgroups (exit code 137: OOMKilled) without impacting host OS responsiveness.
+
+The sandbox runner (`test.sh`) automatically probes host capacity and enforces a hard resource ceiling:
+- **CPU Core Cap**: 50% of physical host CPU cores (`nproc / 2`).
+- **RAM Cap**: 50% of physical host memory.
+- **Swap Thrash Guard**: Swap limit equals physical memory limit (prevents disk thrashing).
+
+#### Standard Verification Commands
 
 ```bash
-# Clean build and run smoke tests inside sandbox
-./test.sh all
-
-# Run specific script inside sandbox
+# Run any script inside the isolated container sandbox
 ./test.sh run examples/basics.nva
 
-# Memory leak detection via AddressSanitizer & LeakSanitizer
+# Run with AddressSanitizer and LeakSanitizer for memory safety
 ./test.sh asan examples/basics.nva
 
-# Heap validation via Valgrind memcheck
+# Run Valgrind memcheck for byte-level heap and pointer diagnostics
 ./test.sh valgrind examples/basics.nva
+
+# Clean build and run regression smoke suite inside sandbox
+./test.sh all
+
+# Compile release binary safely inside container
+./test.sh build
+```
+
+#### Alternative Docker Compose Invocations
+
+You can also run tests directly with Docker Compose:
+
+```bash
+# Interactive shell inside test container
+docker compose run --rm test
+
+# Execute a specific script via Docker Compose
+docker compose run --rm test bash -c "./bin/nevaarize examples/basics.nva"
+
+# Valgrind memory inspection service
+docker compose run --rm valgrind
 ```
 
 ---
