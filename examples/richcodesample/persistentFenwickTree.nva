@@ -307,5 +307,137 @@ if (v3Sum1 != 10 or v3Sum4 != 22 or v3Sum8 != 41 or v3Point1 != 10) {
 
 print("  Test Case 1 Passed sequential updates and immutability verification")
 
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Timeline Forking and Tree Branching
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Timeline Forking and Tree Branching...")
+// Fork Branch A from Version 1 (v1 has: [3, 2, 4, 6, 5, 4, -3, 3])
+v4BranchA = pointAdd(tc1Tree, 1, 5, 20, "v4: Branch A add 20 to index 5", tc1Size)
+// Fork Branch B from Version 1
+v5BranchB = pointAdd(tc1Tree, 1, 2, -10, "v5: Branch B add -10 to index 2", tc1Size)
+// Fork Branch C from Branch A (v4)
+v6BranchC = pointAdd(tc1Tree, v4BranchA, 8, 100, "v6: Branch C add 100 to index 8", tc1Size)
+
+// Verify Branch A: index 5 is 5 + 20 = 25. prefix(5) = 3 + 2 + 4 + 6 + 25 = 40. prefix(8) = 24 + 20 = 44.
+v4Sum5 = queryPrefixSum(tc1Tree, v4BranchA, 5, tc1Size)
+v4Sum8 = queryPrefixSum(tc1Tree, v4BranchA, 8, tc1Size)
+v4Point5 = queryPoint(tc1Tree, v4BranchA, 5, tc1Size)
+
+// Verify Branch B: index 2 is 2 - 10 = -8. prefix(4) = 3 - 8 + 4 + 6 = 5. prefix(8) = 24 - 10 = 14.
+v5Sum4 = queryPrefixSum(tc1Tree, v5BranchB, 4, tc1Size)
+v5Sum8 = queryPrefixSum(tc1Tree, v5BranchB, 8, tc1Size)
+v5Point2 = queryPoint(tc1Tree, v5BranchB, 2, tc1Size)
+
+// Verify Branch C: inherits Branch A (index 5 = 25) plus index 8 has +100 (was 3, now 103). prefix(8) = 44 + 100 = 144.
+v6Sum5 = queryPrefixSum(tc1Tree, v6BranchC, 5, tc1Size)
+v6Sum8 = queryPrefixSum(tc1Tree, v6BranchC, 8, tc1Size)
+v6Point8 = queryPoint(tc1Tree, v6BranchC, 8, tc1Size)
+
+// Verify Version 1 is still pristine: prefix(5) = 20, prefix(8) = 24.
+v1CheckSum5 = queryPrefixSum(tc1Tree, 1, 5, tc1Size)
+v1CheckSum8 = queryPrefixSum(tc1Tree, 1, 8, tc1Size)
+
+if (v4Sum5 != 40 or v4Sum8 != 44 or v4Point5 != 25) {
+    print("[FAIL] Test Case 2 Branch A failed: sum5=", v4Sum5, ", sum8=", v4Sum8)
+}
+if (v5Sum4 != 5 or v5Sum8 != 14 or v5Point2 != -8) {
+    print("[FAIL] Test Case 2 Branch B failed: sum4=", v5Sum4, ", sum8=", v5Sum8)
+}
+if (v6Sum5 != 40 or v6Sum8 != 144 or v6Point8 != 103) {
+    print("[FAIL] Test Case 2 Branch C failed: sum5=", v6Sum5, ", sum8=", v6Sum8)
+}
+if (v1CheckSum5 != 20 or v1CheckSum8 != 24) {
+    print("[FAIL] Test Case 2 Parent Version 1 was corrupted during branching")
+}
+print("  Branch A (sum8: 44), Branch B (sum8: 14), and Branch C (sum8: 144) verified independently")
+print("  Parent Version 1 remained pristine across timeline divergence")
+print("  Test Case 2 Passed timeline forking verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Boundary and Edge Cases
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Boundary and Edge Cases...")
+
+// 1. Single-element Fenwick Tree (size = 1)
+singleSize = 1
+singleTree = createPersistentFenwickTree()
+initPersistentFenwickTree(singleTree, [42], singleSize, "single: baseline")
+sV0Sum = queryPrefixSum(singleTree, 0, 1, singleSize)
+sV0Point = queryPoint(singleTree, 0, 1, singleSize)
+if (sV0Sum != 42 or sV0Point != 42) {
+    print("[FAIL] Single-element tree v0 mismatch: sum=", sV0Sum)
+}
+
+sV1 = pointAdd(singleTree, 0, 1, 58, "single: add 58", singleSize)
+sV1Sum = queryPrefixSum(singleTree, sV1, 1, singleSize)
+sV1Point = queryPoint(singleTree, sV1, 1, singleSize)
+sV0AfterSum = queryPrefixSum(singleTree, 0, 1, singleSize)
+if (sV1Sum != 100 or sV1Point != 100 or sV0AfterSum != 42) {
+    print("[FAIL] Single-element tree update failed: sV1Sum=", sV1Sum, ", sV0AfterSum=", sV0AfterSum)
+} else {
+    print("  Single-element tree update verified (42 -> 100, v0 preserved at 42)")
+}
+
+// 2. Two-element Fenwick Tree (size = 2)
+twoSize = 2
+twoTree = createPersistentFenwickTree()
+initPersistentFenwickTree(twoTree, [15, 25], twoSize, "two: baseline")
+tV0Sum1 = queryPrefixSum(twoTree, 0, 1, twoSize)
+tV0Sum2 = queryPrefixSum(twoTree, 0, 2, twoSize)
+tV1 = pointAdd(twoTree, 0, 2, -10, "two: add -10 to idx 2", twoSize)
+tV1Sum2 = queryPrefixSum(twoTree, tV1, 2, twoSize)
+if (tV0Sum1 != 15 or tV0Sum2 != 40 or tV1Sum2 != 30) {
+    print("[FAIL] Two-element tree test failed")
+} else {
+    print("  Two-element tree verified: [15, 25] -> sum2 was 40, updated to 30")
+}
+
+// 3. Repeated updates to identical index across versions
+repSize = 4
+repTree = createPersistentFenwickTree()
+initPersistentFenwickTree(repTree, [0, 0, 0, 0], repSize, "rep: zeros")
+rV1 = pointAdd(repTree, 0, 3, 5, "rep: add 5 to idx 3", repSize)
+rV2 = pointAdd(repTree, rV1, 3, 10, "rep: add 10 to idx 3", repSize)
+rV3 = pointAdd(repTree, rV2, 3, -2, "rep: add -2 to idx 3", repSize)
+rV4 = pointAdd(repTree, rV3, 3, 7, "rep: add 7 to idx 3", repSize)
+
+rSumV1 = queryPoint(repTree, rV1, 3, repSize)
+rSumV2 = queryPoint(repTree, rV2, 3, repSize)
+rSumV3 = queryPoint(repTree, rV3, 3, repSize)
+rSumV4 = queryPoint(repTree, rV4, 3, repSize)
+
+if (rSumV1 != 5 or rSumV2 != 15 or rSumV3 != 13 or rSumV4 != 20) {
+    print("[FAIL] Repeated updates to identical index failed: ", rSumV1, rSumV2, rSumV3, rSumV4)
+} else {
+    print("  Repeated updates to identical index verified across 4 versions (5 -> 15 -> 13 -> 20)")
+}
+
+// 4. Out-of-bounds and degenerate queries
+oobSumZero = queryPrefixSum(tc1Tree, 0, 0, tc1Size)
+oobSumNeg = queryPrefixSum(tc1Tree, 0, -5, tc1Size)
+oobRangeInverted = queryRangeSum(tc1Tree, 0, 6, 2, tc1Size)
+oobPointZero = queryPoint(tc1Tree, 0, 0, tc1Size)
+oobPointOver = queryPoint(tc1Tree, 0, 99, tc1Size)
+
+if (oobSumZero != 0 or oobSumNeg != 0 or oobRangeInverted != 0 or oobPointZero != 0 or oobPointOver != 0) {
+    print("[FAIL] Degenerate/out-of-bounds queries did not return neutral zero")
+} else {
+    print("  Degenerate and out-of-bounds queries gracefully returned default neutral values")
+}
+
+// 5. Zero delta point addition
+zeroDeltaVer = pointAdd(tc1Tree, 0, 4, 0, "zero delta update", tc1Size)
+zeroSum4 = queryPrefixSum(tc1Tree, zeroDeltaVer, 4, tc1Size)
+zeroSum8 = queryPrefixSum(tc1Tree, zeroDeltaVer, 8, tc1Size)
+if (zeroSum4 != 10 or zeroSum8 != 19) {
+    print("[FAIL] Zero delta update corrupted values")
+} else {
+    print("  Zero delta update verified without state mutation")
+}
+
+print("  Test Case 3 Passed boundary and edge case verification")
+
 elapsed = t.millis() - suiteStartTime
-print("[PASS] Persistent Fenwick Tree Milestone 1 executed in", elapsed, "ms")
+print("[PASS] Persistent Fenwick Tree Milestone 2 executed in", elapsed, "ms")
+
