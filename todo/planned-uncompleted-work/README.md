@@ -9,8 +9,8 @@ This directory tracks algorithmic test cases and features from the 1000-case mas
 
 ## Backlog Overview
 - **Total Master Roadmap Cases**: 1000
-- **Currently Provisioned on GitHub**: 754
-- **Pending Provisioning in this Backlog**: 246
+- **Currently Provisioned on GitHub**: 755
+- **Pending Provisioning in this Backlog**: 245
 - **Target Implementation Directory**: `examples/richcodesample/`
 
 See [UNPROVISIONED_ALGORITHM_CASES.md](./UNPROVISIONED_ALGORITHM_CASES.md) for the full detailed task list.

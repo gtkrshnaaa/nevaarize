@@ -1,6 +1,6 @@
 # Unprovisioned Algorithm Cases Backlog
 
-This document lists all 246 algorithm cases that are planned for implementation in `examples/richcodesample/` and pending official GitHub issue provisioning.
+This document lists all 245 algorithm cases that are planned for implementation in `examples/richcodesample/` and pending official GitHub issue provisioning.
 
 ---
 
@@ -8,10 +8,6 @@ This document lists all 246 algorithm cases that are planned for implementation 
 
 ### Domain: Concurrency Models, OS & Distributed Systems
 
-- [ ] **#755** `feat(algorithms): implement crdtGCounterCommutativeStateMerge in richcodesamples`
-  - **Target File**: `examples/richcodesample/crdtGCounterCommutativeStateMerge.nva`
-  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
-  - **Objective**: Conflict-Free Replicated Data Type (CRDT) Grow-Only Counter (G-Counter) with commutative state merge.
 - [ ] **#756** `feat(algorithms): implement crdtPNCounterIncrementDecrementMerge in richcodesamples`
   - **Target File**: `examples/richcodesample/crdtPNCounterIncrementDecrementMerge.nva`
   - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
