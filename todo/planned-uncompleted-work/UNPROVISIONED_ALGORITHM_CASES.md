@@ -1,0 +1,1000 @@
+# Unprovisioned Algorithm Cases Backlog
+
+This document lists all 246 algorithm cases that are planned for implementation in `examples/richcodesample/` and pending official GitHub issue provisioning.
+
+---
+
+## Task Inventory
+
+### Domain: Concurrency Models, OS & Distributed Systems
+
+- [ ] **#755** `feat(algorithms): implement crdtGCounterCommutativeStateMerge in richcodesamples`
+  - **Target File**: `examples/richcodesample/crdtGCounterCommutativeStateMerge.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Conflict-Free Replicated Data Type (CRDT) Grow-Only Counter (G-Counter) with commutative state merge.
+- [ ] **#756** `feat(algorithms): implement crdtPNCounterIncrementDecrementMerge in richcodesamples`
+  - **Target File**: `examples/richcodesample/crdtPNCounterIncrementDecrementMerge.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CRDT Positive-Negative Counter (PN-Counter) supporting increments and decrements.
+- [ ] **#757** `feat(algorithms): implement crdtGSetMonotonicUnionMerge in richcodesamples`
+  - **Target File**: `examples/richcodesample/crdtGSetMonotonicUnionMerge.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CRDT Grow-Only Set (G-Set) with monotonically growing set union merges.
+- [ ] **#758** `feat(algorithms): implement crdtTwoPhaseSetTombstoneVerification in richcodesamples`
+  - **Target File**: `examples/richcodesample/crdtTwoPhaseSetTombstoneVerification.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CRDT Two-Phase Set (2P-Set) with add-set and remove-set tombstone verification.
+- [ ] **#759** `feat(algorithms): implement crdtLwwElementSetTimestampResolution in richcodesamples`
+  - **Target File**: `examples/richcodesample/crdtLwwElementSetTimestampResolution.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CRDT Last-Write-Wins Element Set (LWW-Element-Set) resolving concurrent adds/removes via timestamps.
+- [ ] **#760** `feat(algorithms): implement crdtORSetUniqueElementTagsDisambiguate in richcodesamples`
+  - **Target File**: `examples/richcodesample/crdtORSetUniqueElementTagsDisambiguate.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CRDT Observed-Remove Set (OR-Set) utilizing unique element tags for concurrent add/delete disambiguation.
+- [ ] **#761** `feat(algorithms): implement crdtRgaReplicatedGrowableTextBuffer in richcodesamples`
+  - **Target File**: `examples/richcodesample/crdtRgaReplicatedGrowableTextBuffer.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CRDT Replicated Growable Array (RGA) supporting collaborative text buffer insertions and tombstones.
+- [ ] **#762** `feat(algorithms): implement operationalTransformationJupiterAlgorithm in richcodesamples`
+  - **Target File**: `examples/richcodesample/operationalTransformationJupiterAlgorithm.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Operational Transformation (OT) Jupiter algorithm transforming concurrent character insertions and deletions.
+- [ ] **#763** `feat(algorithms): implement gossipProtocolAntiEntropyExchanges in richcodesamples`
+  - **Target File**: `examples/richcodesample/gossipProtocolAntiEntropyExchanges.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Gossip protocol peer-to-peer membership dissemination using anti-entropy state exchanges.
+- [ ] **#764** `feat(algorithms): implement swimFailureDetectorPingSuspicion in richcodesamples`
+  - **Target File**: `examples/richcodesample/swimFailureDetectorPingSuspicion.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: SWIM protocol failure detector combining ping, ping-req, and suspicion mechanisms.
+- [ ] **#765** `feat(algorithms): implement chordDHTRingRoutingFingerTables in richcodesamples`
+  - **Target File**: `examples/richcodesample/chordDHTRingRoutingFingerTables.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Chord Distributed Hash Table (DHT) ring lookup with m-bit finger tables in O(log N) hops.
+- [ ] **#766** `feat(algorithms): implement kademliaDHTXorDistanceKBuckets in richcodesamples`
+  - **Target File**: `examples/richcodesample/kademliaDHTXorDistanceKBuckets.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Kademlia DHT routing using XOR metric and k-buckets for node routing tables.
+- [ ] **#767** `feat(algorithms): implement consistentHashingRingVirtualNodesUniform in richcodesamples`
+  - **Target File**: `examples/richcodesample/consistentHashingRingVirtualNodesUniform.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Consistent Hashing ring with virtual nodes distributing keys uniformly across cache servers.
+- [ ] **#768** `feat(algorithms): implement jumpConsistentHashMinimalMemoryOverhead in richcodesamples`
+  - **Target File**: `examples/richcodesample/jumpConsistentHashMinimalMemoryOverhead.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Jump Consistent Hash algorithm mapping 64-bit keys to buckets with minimal memory overhead.
+- [ ] **#769** `feat(algorithms): implement rendezvousHighestRandomWeightNoCoord in richcodesamples`
+  - **Target File**: `examples/richcodesample/rendezvousHighestRandomWeightNoCoord.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Rendezvous Hashing (Highest Random Weight Hashing) distributing keys without central ring coordination.
+- [ ] **#770** `feat(algorithms): implement lruCacheHashMapDoublyLinkedListConstant in richcodesamples`
+  - **Target File**: `examples/richcodesample/lruCacheHashMapDoublyLinkedListConstant.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LRU (Least Recently Used) cache operating in O(1) time via hash map and doubly-linked list.
+- [ ] **#771** `feat(algorithms): implement lfuCacheFrequencyBucketsDualListsConstant in richcodesamples`
+  - **Target File**: `examples/richcodesample/lfuCacheFrequencyBucketsDualListsConstant.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LFU (Least Frequently Used) cache operating in O(1) time via frequency buckets and linked lists.
+- [ ] **#772** `feat(algorithms): implement twoQueue2QCachingSingleMultiPages in richcodesamples`
+  - **Target File**: `examples/richcodesample/twoQueue2QCachingSingleMultiPages.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: 2Q caching algorithm separating single-access and multi-access pages to prevent scan thrashing.
+- [ ] **#773** `feat(algorithms): implement arcAdaptiveReplacementRecencyFrequency in richcodesamples`
+  - **Target File**: `examples/richcodesample/arcAdaptiveReplacementRecencyFrequency.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Adaptive Replacement Cache (ARC) self-tuning dynamically between recency and frequency caches.
+- [ ] **#774** `feat(algorithms): implement clockProPageReplacementHotColdPages in richcodesamples`
+  - **Target File**: `examples/richcodesample/clockProPageReplacementHotColdPages.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CLOCK-Pro page replacement algorithm distinguishing hot and cold pages without lock contention.
+- [ ] **#775** `feat(algorithms): implement secondChanceClockPageReplacementBits in richcodesamples`
+  - **Target File**: `examples/richcodesample/secondChanceClockPageReplacementBits.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Second-Chance (Clock) page replacement algorithm utilizing reference bits for page evictions.
+- [ ] **#776** `feat(algorithms): implement beladyOptimalFuturePageReplacementModel in richcodesamples`
+  - **Target File**: `examples/richcodesample/beladyOptimalFuturePageReplacementModel.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Belady's optimal page replacement algorithm looking into the future as theoretical benchmark.
+- [ ] **#777** `feat(algorithms): implement buddySystemMemoryFragmentationTracker in richcodesamples`
+  - **Target File**: `examples/richcodesample/buddySystemMemoryFragmentationTracker.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Buddy system memory allocation simulation tracking internal and external fragmentation metrics.
+- [ ] **#778** `feat(algorithms): implement freeListAllocatorPlacementStrategies in richcodesamples`
+  - **Target File**: `examples/richcodesample/freeListAllocatorPlacementStrategies.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Free-list memory allocator comparing First-Fit, Best-Fit, and Worst-Fit placement strategies.
+- [ ] **#779** `feat(algorithms): implement lisp2TwoFingerCompactorLinearPointers in richcodesamples`
+  - **Target File**: `examples/richcodesample/lisp2TwoFingerCompactorLinearPointers.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LISP 2 two-finger mark-compact memory compaction algorithm updating pointers in linear time.
+- [ ] **#780** `feat(algorithms): implement invertedPageTableVirtualMemoryHashing in richcodesamples`
+  - **Target File**: `examples/richcodesample/invertedPageTableVirtualMemoryHashing.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Inverted page table virtual memory translation using hash anchor tables and collision chains.
+- [ ] **#781** `feat(algorithms): implement tlbHardwareCacheHitsMissesFaults in richcodesamples`
+  - **Target File**: `examples/richcodesample/tlbHardwareCacheHitsMissesFaults.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Translation Lookaside Buffer (TLB) hardware cache model simulating hits, misses, and page faults.
+- [ ] **#782** `feat(algorithms): implement inodeAllocationBitmapBlocksPointers in richcodesamples`
+  - **Target File**: `examples/richcodesample/inodeAllocationBitmapBlocksPointers.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: File system inode allocation bitmap model tracking free blocks, direct pointers, and indirect blocks.
+- [ ] **#783** `feat(algorithms): implement extentBasedFileAllocationContiguousRuns in richcodesamples`
+  - **Target File**: `examples/richcodesample/extentBasedFileAllocationContiguousRuns.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Extent-based file allocation tracking contiguous block runs to minimize metadata fragmentation.
+- [ ] **#784** `feat(algorithms): implement fat32DirectoryClusterChainTraversal in richcodesamples`
+  - **Target File**: `examples/richcodesample/fat32DirectoryClusterChainTraversal.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: FAT32 file allocation table simulation parsing cluster chains, directories, and free clusters.
+- [ ] **#785** `feat(algorithms): implement logStructuredFileSystemSegmentCleaner in richcodesamples`
+  - **Target File**: `examples/richcodesample/logStructuredFileSystemSegmentCleaner.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Log-Structured File System (LFS) segment cleaner writing updates sequentially and collecting dead blocks.
+- [ ] **#786** `feat(algorithms): implement copyOnWriteBTreeStorageImmutableRoots in richcodesamples`
+  - **Target File**: `examples/richcodesample/copyOnWriteBTreeStorageImmutableRoots.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Copy-on-Write (CoW) B-tree storage engine creating immutable root snapshots on updates.
+- [ ] **#787** `feat(algorithms): implement writeAheadLoggingRecordScanRecovery in richcodesamples`
+  - **Target File**: `examples/richcodesample/writeAheadLoggingRecordScanRecovery.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Write-Ahead Logging (WAL) record append engine scanning and replaying logs on recovery.
+- [ ] **#788** `feat(algorithms): implement ariesCrashRecoveryAnalysisRedoUndo in richcodesamples`
+  - **Target File**: `examples/richcodesample/ariesCrashRecoveryAnalysisRedoUndo.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: ARIES database recovery algorithm executing Analysis, Redo, and Undo phases.
+- [ ] **#789** `feat(algorithms): implement strictTwoPhaseLockingPreventCascading in richcodesamples`
+  - **Target File**: `examples/richcodesample/strictTwoPhaseLockingPreventCascading.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Strict Two-Phase Locking (S2PL) holding all exclusive and shared locks until commit to prevent cascades.
+- [ ] **#790** `feat(algorithms): implement mvccSnapshotIsolationReadViewTimestamps in richcodesamples`
+  - **Target File**: `examples/richcodesample/mvccSnapshotIsolationReadViewTimestamps.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Multi-Version Concurrency Control (MVCC) snapshot isolation managing transaction read views and version visibility.
+- [ ] **#791** `feat(algorithms): implement optimisticConcurrencyControlReadValidate in richcodesamples`
+  - **Target File**: `examples/richcodesample/optimisticConcurrencyControlReadValidate.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Optimistic Concurrency Control (OCC) validating transaction read-sets against concurrent write-sets.
+- [ ] **#792** `feat(algorithms): implement timestampOrderingThomasWriteRule in richcodesamples`
+  - **Target File**: `examples/richcodesample/timestampOrderingThomasWriteRule.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Timestamp ordering concurrency control executing Thomas Write Rule for outdated write ignoring.
+- [ ] **#793** `feat(algorithms): implement deadlockCycleDetectorWaitForGraph in richcodesamples`
+  - **Target File**: `examples/richcodesample/deadlockCycleDetectorWaitForGraph.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Deadlock detection engine constructing Wait-For Graphs and identifying deadlocks via cycle checks.
+- [ ] **#794** `feat(algorithms): implement bankersAlgorithmSafeStateAllocation in richcodesamples`
+  - **Target File**: `examples/richcodesample/bankersAlgorithmSafeStateAllocation.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Banker's algorithm for deadlock avoidance verifying system safety states before resource allocation.
+- [ ] **#795** `feat(algorithms): implement tokenRingDeterministicChannelAccess in richcodesamples`
+  - **Target File**: `examples/richcodesample/tokenRingDeterministicChannelAccess.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Token Ring network protocol simulation granting channel transmit rights via circulating token.
+- [ ] **#796** `feat(algorithms): implement slottedAlohaCollisionBackoffModel in richcodesamples`
+  - **Target File**: `examples/richcodesample/slottedAlohaCollisionBackoffModel.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Slotted ALOHA protocol simulating packet transmission time slots and exponential backoff collisions.
+- [ ] **#797** `feat(algorithms): implement csmaCdCarrierSenseCollisionBackoff in richcodesamples`
+  - **Target File**: `examples/richcodesample/csmaCdCarrierSenseCollisionBackoff.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CSMA/CD protocol simulating carrier sensing, collision detection, and truncated binary exponential backoff.
+- [ ] **#798** `feat(algorithms): implement distanceVectorRoutingCountToInfinity in richcodesamples`
+  - **Target File**: `examples/richcodesample/distanceVectorRoutingCountToInfinity.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Distance Vector routing protocol simulation demonstrating split horizon and poison reverse against count-to-infinity.
+- [ ] **#799** `feat(algorithms): implement linkStateRoutingDijkstraLSAFlooding in richcodesamples`
+  - **Target File**: `examples/richcodesample/linkStateRoutingDijkstraLSAFlooding.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Link State routing protocol simulating reliable LSA flooding and Dijkstra shortest path tree calculations.
+- [ ] **#800** `feat(algorithms): implement chandyLamportDistributedSnapshotState in richcodesamples`
+  - **Target File**: `examples/richcodesample/chandyLamportDistributedSnapshotState.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Chandy-Lamport distributed snapshot algorithm recording global system state via marker messages.
+
+### Domain: Database Engines, Storage & Search
+
+- [ ] **#801** `feat(algorithms): implement bPlusTreeLeafNodeBidirectionalLinking in richcodesamples`
+  - **Target File**: `examples/richcodesample/bPlusTreeLeafNodeBidirectionalLinking.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: B+ Tree index with leaf node bidirectional linking, root promotion, and sibling borrowing.
+- [ ] **#802** `feat(algorithms): implement bPlusTreeRangeScanBoundaryKeys in richcodesamples`
+  - **Target File**: `examples/richcodesample/bPlusTreeRangeScanBoundaryKeys.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: B+ Tree range scan iterator traversing linked leaves between boundary keys.
+- [ ] **#803** `feat(algorithms): implement bPlusTreeConcurrentLatchCrabbingTraversal in richcodesamples`
+  - **Target File**: `examples/richcodesample/bPlusTreeConcurrentLatchCrabbingTraversal.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: B+ Tree concurrent traversal simulation utilizing lock/latch crabbing down the tree.
+- [ ] **#804** `feat(algorithms): implement lsmTreeMemtableConcurrentSkipList in richcodesamples`
+  - **Target File**: `examples/richcodesample/lsmTreeMemtableConcurrentSkipList.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LSM-Tree Memtable component implemented via concurrent skip list with write-ahead logging.
+- [ ] **#805** `feat(algorithms): implement lsmTreeWalReplayCrashRecoveryBoot in richcodesamples`
+  - **Target File**: `examples/richcodesample/lsmTreeWalReplayCrashRecoveryBoot.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LSM-Tree Write-Ahead Log (WAL) recovery replaying un-flushed inserts on system boot.
+- [ ] **#806** `feat(algorithms): implement lsmTreeSSTableBinarySearchBloomFilter in richcodesamples`
+  - **Target File**: `examples/richcodesample/lsmTreeSSTableBinarySearchBloomFilter.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LSM-Tree immutable SSTable block layout with binary search index and bloom filters.
+- [ ] **#807** `feat(algorithms): implement lsmTreeMinorCompactionFlushingL0 in richcodesamples`
+  - **Target File**: `examples/richcodesample/lsmTreeMinorCompactionFlushingL0.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LSM-Tree minor compaction flushing full Memtables to Level 0 SSTable files.
+- [ ] **#808** `feat(algorithms): implement lsmTreeLeveledCompactionMergeLiPlus1 in richcodesamples`
+  - **Target File**: `examples/richcodesample/lsmTreeLeveledCompactionMergeLiPlus1.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LSM-Tree leveled compaction merging overlapping SSTable files between levels Li and Li+1.
+- [ ] **#809** `feat(algorithms): implement lsmTreeSizeTieredCompactionSimilarSizes in richcodesamples`
+  - **Target File**: `examples/richcodesample/lsmTreeSizeTieredCompactionSimilarSizes.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: LSM-Tree size-tiered compaction merging multiple similar-sized SSTables into larger files.
+- [ ] **#810** `feat(algorithms): implement invertedIndexTermDictionaryPostings in richcodesamples`
+  - **Target File**: `examples/richcodesample/invertedIndexTermDictionaryPostings.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Inverted index engine building term dictionaries and document posting lists.
+- [ ] **#811** `feat(algorithms): implement postingListVarintDeltaByteCompression in richcodesamples`
+  - **Target File**: `examples/richcodesample/postingListVarintDeltaByteCompression.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Inverted index posting list delta compression using Variable Byte (Varint) integer encoding.
+- [ ] **#812** `feat(algorithms): implement postingListEliasGammaDeltaBitwiseCodes in richcodesamples`
+  - **Target File**: `examples/richcodesample/postingListEliasGammaDeltaBitwiseCodes.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Posting list integer compression using Elias-Gamma and Elias-Delta bitwise codes.
+- [ ] **#813** `feat(algorithms): implement blockMaxWandTopKQueryOptimization in richcodesamples`
+  - **Target File**: `examples/richcodesample/blockMaxWandTopKQueryOptimization.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Block-Max WAND (Weak AND) algorithm for fast top-k retrieval bypassing unpromising posting blocks.
+- [ ] **#814** `feat(algorithms): implement tfIdfDocumentTermFrequencyRanking in richcodesamples`
+  - **Target File**: `examples/richcodesample/tfIdfDocumentTermFrequencyRanking.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: TF-IDF (Term Frequency - Inverse Document Frequency) scoring engine for document search ranking.
+- [ ] **#815** `feat(algorithms): implement bm25RankingLengthNormalizationSaturation in richcodesamples`
+  - **Target File**: `examples/richcodesample/bm25RankingLengthNormalizationSaturation.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Okapi BM25 ranking function implementation with document length normalization and term saturation.
+- [ ] **#816** `feat(algorithms): implement columnarRowTranspositionContiguousVectors in richcodesamples`
+  - **Target File**: `examples/richcodesample/columnarRowTranspositionContiguousVectors.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Row-to-columnar storage engine transposing tuple batches into contiguous column vectors.
+- [ ] **#817** `feat(algorithms): implement columnarRunLengthEncodingSortedValues in richcodesamples`
+  - **Target File**: `examples/richcodesample/columnarRunLengthEncodingSortedValues.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Columnar compression using Run-Length Encoding (RLE) on sorted column values.
+- [ ] **#818** `feat(algorithms): implement columnarDictionaryEncodingDistinctStrings in richcodesamples`
+  - **Target File**: `examples/richcodesample/columnarDictionaryEncodingDistinctStrings.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Columnar dictionary encoding replacing repeated string values with integer keys.
+- [ ] **#819** `feat(algorithms): implement columnarBitPackingMinimalWidths in richcodesamples`
+  - **Target File**: `examples/richcodesample/columnarBitPackingMinimalWidths.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Columnar bit-packing compression packing integer columns into minimal bit widths.
+- [ ] **#820** `feat(algorithms): implement columnarVectorizedFiltersSIMDFriendly in richcodesamples`
+  - **Target File**: `examples/richcodesample/columnarVectorizedFiltersSIMDFriendly.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Vectorized query projection and selection filters evaluating contiguous primitive SIMD-friendly arrays.
+- [ ] **#821** `feat(algorithms): implement volcanoIteratorStreamingInterface in richcodesamples`
+  - **Target File**: `examples/richcodesample/volcanoIteratorStreamingInterface.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Volcano iterator query execution model implementing open(), next(), and close() streaming interfaces.
+- [ ] **#822** `feat(algorithms): implement relationalNestedLoopJoinPredicateScan in richcodesamples`
+  - **Target File**: `examples/richcodesample/relationalNestedLoopJoinPredicateScan.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Relational Nested Loop Join query operator evaluating join predicates across tuple streams.
+- [ ] **#823** `feat(algorithms): implement relationalBlockNestedLoopJoinBuffered in richcodesamples`
+  - **Target File**: `examples/richcodesample/relationalBlockNestedLoopJoinBuffered.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Block Nested Loop Join operator buffering outer tuples in memory blocks to minimize inner scans.
+- [ ] **#824** `feat(algorithms): implement relationalIndexNestedLoopJoinLookups in richcodesamples`
+  - **Target File**: `examples/richcodesample/relationalIndexNestedLoopJoinLookups.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Index Nested Loop Join operator querying inner relation via index lookups in O(N log M).
+- [ ] **#825** `feat(algorithms): implement relationalGraceHashJoinDiskBuckets in richcodesamples`
+  - **Target File**: `examples/richcodesample/relationalGraceHashJoinDiskBuckets.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Grace Hash Join algorithm partitioning relations into hash buckets and probing matching pairs.
+- [ ] **#826** `feat(algorithms): implement relationalHybridHashJoinInMemoryPartition in richcodesamples`
+  - **Target File**: `examples/richcodesample/relationalHybridHashJoinInMemoryPartition.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Hybrid Hash Join retaining first partition in memory to avoid redundant disk bucket writes.
+- [ ] **#827** `feat(algorithms): implement relationalSortMergeJoinLinearStreams in richcodesamples`
+  - **Target File**: `examples/richcodesample/relationalSortMergeJoinLinearStreams.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Sort-Merge Join operator joining pre-sorted relations in linear time O(N + M).
+- [ ] **#828** `feat(algorithms): implement relationalFilterProjectAggregateEngine in richcodesamples`
+  - **Target File**: `examples/richcodesample/relationalFilterProjectAggregateEngine.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Relational query execution engine combining Filter, Project, and Group-By Aggregate operators.
+- [ ] **#829** `feat(algorithms): implement hashVsSortAggregateCardinalityBenchmark in richcodesamples`
+  - **Target File**: `examples/richcodesample/hashVsSortAggregateCardinalityBenchmark.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Comparative evaluation of hash-based aggregation versus sort-based aggregation across group cardinalities.
+- [ ] **#830** `feat(algorithms): implement selingerCostBasedJoinDynamicProgramming in richcodesamples`
+  - **Target File**: `examples/richcodesample/selingerCostBasedJoinDynamicProgramming.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Selinger cost-based query optimizer searching optimal join orders and access paths via dynamic programming.
+- [ ] **#831** `feat(algorithms): implement predicatePushdownRuleOptimizerPass in richcodesamples`
+  - **Target File**: `examples/richcodesample/predicatePushdownRuleOptimizerPass.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Rule-based optimizer pass pushing filter predicates below join and project operators.
+- [ ] **#832** `feat(algorithms): implement projectionPruningRuleOptimizerPass in richcodesamples`
+  - **Target File**: `examples/richcodesample/projectionPruningRuleOptimizerPass.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Rule-based optimizer pass pruning unreferenced columns down the relational operator tree.
+- [ ] **#833** `feat(algorithms): implement joinReorderingGreedySelectivityHeuristic in richcodesamples`
+  - **Target File**: `examples/richcodesample/joinReorderingGreedySelectivityHeuristic.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Greedy join enumeration heuristic reordering joins based on selectivity estimates.
+- [ ] **#834** `feat(algorithms): implement bitmapIndexCreationBitwiseQueryEngine in richcodesamples`
+  - **Target File**: `examples/richcodesample/bitmapIndexCreationBitwiseQueryEngine.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Bitmap index creation and query engine evaluating bitwise AND/OR/NOT operations.
+- [ ] **#835** `feat(algorithms): implement sparseVsDenseIndexLookupOverheadCompare in richcodesamples`
+  - **Target File**: `examples/richcodesample/sparseVsDenseIndexLookupOverheadCompare.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Evaluation of sparse index and dense index storage overhead and lookup latency.
+- [ ] **#836** `feat(algorithms): implement extendibleHashingDynamicDirectoryBits in richcodesamples`
+  - **Target File**: `examples/richcodesample/extendibleHashingDynamicDirectoryBits.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Extendible Hashing dynamic directory hashing with local and global depth bit doubling.
+- [ ] **#837** `feat(algorithms): implement linearHashingDynamicBucketSplitsSequential in richcodesamples`
+  - **Target File**: `examples/richcodesample/linearHashingDynamicBucketSplitsSequential.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Linear Hashing dynamic hash table splitting buckets sequentially without full directory doubling.
+- [ ] **#838** `feat(algorithms): implement spatialRTreeBoundingBoxesLatLong in richcodesamples`
+  - **Target File**: `examples/richcodesample/spatialRTreeBoundingBoxesLatLong.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: R-Tree spatial index storing latitude/longitude bounding boxes with range queries.
+- [ ] **#839** `feat(algorithms): implement geohashBase32NeighborhoodPrecision in richcodesamples`
+  - **Target File**: `examples/richcodesample/geohashBase32NeighborhoodPrecision.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Geohash encoder/decoder encoding coordinates into Base32 strings with prefix neighborhood queries.
+- [ ] **#840** `feat(algorithms): implement googleS2QuadtreeHilbertCellHierarchy in richcodesamples`
+  - **Target File**: `examples/richcodesample/googleS2QuadtreeHilbertCellHierarchy.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Google S2 geometry cell model projecting sphere coordinates to quadtree Hilbert curve cells.
+- [ ] **#841** `feat(algorithms): implement uberH3HexagonalHierarchicalCellModel in richcodesamples`
+  - **Target File**: `examples/richcodesample/uberH3HexagonalHierarchicalCellModel.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Uber H3 hexagonal spatial index toy model calculating hierarchical cell resolutions.
+- [ ] **#842** `feat(algorithms): implement protobufVarintZigZagBinaryCodec in richcodesamples`
+  - **Target File**: `examples/richcodesample/protobufVarintZigZagBinaryCodec.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Protocol Buffers Varint (Variable-length zigzag and unsigned) binary encoder and decoder.
+- [ ] **#843** `feat(algorithms): implement protobufBinaryWireFormatTypeParser in richcodesamples`
+  - **Target File**: `examples/richcodesample/protobufBinaryWireFormatTypeParser.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Protocol Buffers binary wire format parser decoding wire types (varint, 64-bit, length-delimited, 32-bit).
+- [ ] **#844** `feat(algorithms): implement avroBinarySchemaBasedDecoderRecords in richcodesamples`
+  - **Target File**: `examples/richcodesample/avroBinarySchemaBasedDecoderRecords.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Apache Avro binary encoding parser reading data records without embedded field tags via schema.
+- [ ] **#845** `feat(algorithms): implement cborBinaryObjectParserRFC7049Types in richcodesamples`
+  - **Target File**: `examples/richcodesample/cborBinaryObjectParserRFC7049Types.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: CBOR (Concise Binary Object Representation) RFC 7049 parser handling major types and byte strings.
+- [ ] **#846** `feat(algorithms): implement messagePackBinaryPackUnpackTokens in richcodesamples`
+  - **Target File**: `examples/richcodesample/messagePackBinaryPackUnpackTokens.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: MessagePack binary serializer and deserializer handling fixint, fixstr, fixarray, and fixmap tokens.
+- [ ] **#847** `feat(algorithms): implement bsonBinaryJsonElementParserLengths in richcodesamples`
+  - **Target File**: `examples/richcodesample/bsonBinaryJsonElementParserLengths.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: BSON (Binary JSON) parser validating document length prefixes, element types, and null-terminated keys.
+- [ ] **#848** `feat(algorithms): implement dremelRecordShreddingDefinitionLevels in richcodesamples`
+  - **Target File**: `examples/richcodesample/dremelRecordShreddingDefinitionLevels.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Dremel record shredding and assembly algorithm computing definition levels and repetition levels.
+- [ ] **#849** `feat(algorithms): implement snappyLz4BlockDecompressorOffsets in richcodesamples`
+  - **Target File**: `examples/richcodesample/snappyLz4BlockDecompressorOffsets.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Snappy/LZ4 block frame decompressor handling byte-level literal runs and back-reference offsets.
+- [ ] **#850** `feat(algorithms): implement databaseBufferPoolClockSweepEviction in richcodesamples`
+  - **Target File**: `examples/richcodesample/databaseBufferPoolClockSweepEviction.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Database buffer pool manager utilizing Clock sweep page eviction algorithm with dirty flags.
+- [ ] **#851** `feat(algorithms): implement databaseSlottedPagePhysicalStorage in richcodesamples`
+  - **Target File**: `examples/richcodesample/databaseSlottedPagePhysicalStorage.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Database slotted-page physical storage layout managing header slots and variable records from page bottom.
+- [ ] **#852** `feat(algorithms): implement variableLengthRecordNullBitmapsPayload in richcodesamples`
+  - **Target File**: `examples/richcodesample/variableLengthRecordNullBitmapsPayload.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Variable-length record serialization with null bitmaps, column offsets, and payload bytes.
+- [ ] **#853** `feat(algorithms): implement freeSpaceMapBinaryTreePageTracking in richcodesamples`
+  - **Target File**: `examples/richcodesample/freeSpaceMapBinaryTreePageTracking.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Free Space Map (FSM) tracking available space across database pages using multi-level binary trees.
+- [ ] **#854** `feat(algorithms): implement visibilityMapAllVisibleFrozenPages in richcodesamples`
+  - **Target File**: `examples/richcodesample/visibilityMapAllVisibleFrozenPages.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Visibility Map tracking all-visible and all-frozen pages to skip vacuum overhead.
+- [ ] **#855** `feat(algorithms): implement mvccTupleHeaderXminXmaxVisibility in richcodesamples`
+  - **Target File**: `examples/richcodesample/mvccTupleHeaderXminXmaxVisibility.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: MVCC tuple header evaluation verifying xmin and xmax transaction visibility against active snapshots.
+- [ ] **#856** `feat(algorithms): implement databaseDeadTupleVacuumReclaimSpace in richcodesamples`
+  - **Target File**: `examples/richcodesample/databaseDeadTupleVacuumReclaimSpace.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Database dead tuple vacuum engine removing dead tuples and reclaiming slotted page space.
+- [ ] **#857** `feat(algorithms): implement transactionUndoLogRollbackMutations in richcodesamples`
+  - **Target File**: `examples/richcodesample/transactionUndoLogRollbackMutations.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Transaction undo log generation and rollback engine reversing uncommitted transaction mutations.
+- [ ] **#858** `feat(algorithms): implement transactionRedoLogStartupRollforward in richcodesamples`
+  - **Target File**: `examples/richcodesample/transactionRedoLogStartupRollforward.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Transaction redo log engine rolling forward committed mutations during system startup.
+- [ ] **#859** `feat(algorithms): implement fuzzyCheckpointingDirtyPagesTable in richcodesamples`
+  - **Target File**: `examples/richcodesample/fuzzyCheckpointingDirtyPagesTable.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Fuzzy checkpointing algorithm recording dirty pages and active transaction tables without stopping writes.
+- [ ] **#860** `feat(algorithms): implement distributed2PLShardedNodesCoordinator in richcodesamples`
+  - **Target File**: `examples/richcodesample/distributed2PLShardedNodesCoordinator.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Distributed Two-Phase Locking (2PL) coordinator managing locks across sharded database partitions.
+- [ ] **#861** `feat(algorithms): implement shardedRoutingConsistentHashRingKeys in richcodesamples`
+  - **Target File**: `examples/richcodesample/shardedRoutingConsistentHashRingKeys.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Sharded database query router routing keys to partition nodes via consistent hashing rings.
+- [ ] **#862** `feat(algorithms): implement rangeBasedShardingSplitManager in richcodesamples`
+  - **Target File**: `examples/richcodesample/rangeBasedShardingSplitManager.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Range-based sharding partition manager tracking key boundaries and triggering shard splits.
+- [ ] **#863** `feat(algorithms): implement scatterGatherQueryMergedResults in richcodesamples`
+  - **Target File**: `examples/richcodesample/scatterGatherQueryMergedResults.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Scatter-gather query aggregator scattering queries to all shards and merging partial results.
+- [ ] **#864** `feat(algorithms): implement tsdbGorillaDeltaOfDeltaTimestamps in richcodesamples`
+  - **Target File**: `examples/richcodesample/tsdbGorillaDeltaOfDeltaTimestamps.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Gorilla Time-Series Database (TSDB) delta-of-delta integer compression on timestamp sequences.
+- [ ] **#865** `feat(algorithms): implement tsdbGorillaXorFloatLeadingTrailingZeros in richcodesamples`
+  - **Target File**: `examples/richcodesample/tsdbGorillaXorFloatLeadingTrailingZeros.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Gorilla TSDB XOR floating-point value compression encoding leading and trailing zeros.
+- [ ] **#866** `feat(algorithms): implement eventSourcingStreamEntitySnapshots in richcodesamples`
+  - **Target File**: `examples/richcodesample/eventSourcingStreamEntitySnapshots.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Event-sourcing event stream replay engine generating point-in-time entity state with periodic snapshots.
+- [ ] **#867** `feat(algorithms): implement cqrsProjectionQueryReadModelBuilder in richcodesamples`
+  - **Target File**: `examples/richcodesample/cqrsProjectionQueryReadModelBuilder.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Command Query Responsibility Segregation (CQRS) projection engine reading event logs and populating read models.
+- [ ] **#868** `feat(algorithms): implement bitcaskAppendOnlyDirectoryHashOffsets in richcodesamples`
+  - **Target File**: `examples/richcodesample/bitcaskAppendOnlyDirectoryHashOffsets.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Bitcask append-only storage engine with in-memory key directory (hash table pointing to file offsets).
+- [ ] **#869** `feat(algorithms): implement bitcaskHintFileDenseDataCompaction in richcodesamples`
+  - **Target File**: `examples/richcodesample/bitcaskHintFileDenseDataCompaction.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Bitcask compaction process generating dense datafiles and hint files for fast directory rebuilding.
+- [ ] **#870** `feat(algorithms): implement sqliteBtreeCellBinaryPayloadRowids in richcodesamples`
+  - **Target File**: `examples/richcodesample/sqliteBtreeCellBinaryPayloadRowids.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: SQLite-style B-tree leaf and interior cell binary structure parser with payload sizes and rowids.
+- [ ] **#871** `feat(algorithms): implement graphAdjacencyListRelationshipRecords in richcodesamples`
+  - **Target File**: `examples/richcodesample/graphAdjacencyListRelationshipRecords.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Graph database adjacency list storage model managing directed relationship records and properties.
+- [ ] **#872** `feat(algorithms): implement gremlinGraphTraversalStepPipeline in richcodesamples`
+  - **Target File**: `examples/richcodesample/gremlinGraphTraversalStepPipeline.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Gremlin-style graph traversal pipeline evaluating out(), in(), has(), and count() step operations.
+- [ ] **#873** `feat(algorithms): implement cypherGraphPatternMatcherBacktracking in richcodesamples`
+  - **Target File**: `examples/richcodesample/cypherGraphPatternMatcherBacktracking.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Cypher-style declarative graph pattern matcher finding matching subgraphs via backtracking.
+- [ ] **#874** `feat(algorithms): implement vectorFlatExhaustiveL2CosineSearch in richcodesamples`
+  - **Target File**: `examples/richcodesample/vectorFlatExhaustiveL2CosineSearch.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Flat vector index performing exhaustive L2 Euclidean and Cosine similarity nearest neighbor searches.
+- [ ] **#875** `feat(algorithms): implement vectorIvfVoronoiCentroidsIndex in richcodesamples`
+  - **Target File**: `examples/richcodesample/vectorIvfVoronoiCentroidsIndex.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Inverted File (IVF) vector index partitioning high-dimensional space into Voronoi centroid cells.
+- [ ] **#876** `feat(algorithms): implement hnswHierarchicalSmallWorldGraphSearch in richcodesamples`
+  - **Target File**: `examples/richcodesample/hnswHierarchicalSmallWorldGraphSearch.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Hierarchical Navigable Small World (HNSW) graph for approximate nearest neighbor vector search.
+- [ ] **#877** `feat(algorithms): implement productQuantizationSubvectorsPQIndex in richcodesamples`
+  - **Target File**: `examples/richcodesample/productQuantizationSubvectorsPQIndex.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Product Quantization (PQ) splitting vectors into sub-vectors and indexing with k-means centroids.
+- [ ] **#878** `feat(algorithms): implement lshCosineRandomHyperplanesHashFamily in richcodesamples`
+  - **Target File**: `examples/richcodesample/lshCosineRandomHyperplanesHashFamily.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Locality-Sensitive Hashing (LSH) for cosine similarity using random hyperplane hash families.
+- [ ] **#879** `feat(algorithms): implement lshJaccardMinHashTokensApproximation in richcodesamples`
+  - **Target File**: `examples/richcodesample/lshJaccardMinHashTokensApproximation.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: MinHash LSH algorithm approximating Jaccard similarity between document token sets.
+- [ ] **#880** `feat(algorithms): implement minHashSignatureMatrixSparseBinary in richcodesamples`
+  - **Target File**: `examples/richcodesample/minHashSignatureMatrixSparseBinary.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: MinHash signature matrix generator constructing compact sketch representations of sparse binary matrices.
+- [ ] **#881** `feat(algorithms): implement simHashNearDuplicateTextHammingBits in richcodesamples`
+  - **Target File**: `examples/richcodesample/simHashNearDuplicateTextHammingBits.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: SimHash algorithm computing 64-bit fingerprint hashes for near-duplicate text detection with Hamming distance.
+- [ ] **#882** `feat(algorithms): implement fullTextPrefixTrieTopKPopularityHeap in richcodesamples`
+  - **Target File**: `examples/richcodesample/fullTextPrefixTrieTopKPopularityHeap.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Autocomplete search index using prefix trie augmented with top-k popularity priority heaps.
+- [ ] **#883** `feat(algorithms): implement fastFuzzyLevenshteinAutomatonIntersection in richcodesamples`
+  - **Target File**: `examples/richcodesample/fastFuzzyLevenshteinAutomatonIntersection.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Fuzzy search engine compiling query strings into Levenshtein Automata for intersection with index tries.
+- [ ] **#884** `feat(algorithms): implement doubleMetaphonePhoneticDictionaryIndex in richcodesamples`
+  - **Target File**: `examples/richcodesample/doubleMetaphonePhoneticDictionaryIndex.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Double Metaphone phonetic index matching English and non-English name variations.
+- [ ] **#885** `feat(algorithms): implement nGramTokenizerSubstringFuzzyIndex in richcodesamples`
+  - **Target File**: `examples/richcodesample/nGramTokenizerSubstringFuzzyIndex.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: N-Gram tokenizer generating character n-grams (bigrams, trigrams) for substring and fuzzy indexing.
+- [ ] **#886** `feat(algorithms): implement porterStemmerMorphologicalRulesEngine in richcodesamples`
+  - **Target File**: `examples/richcodesample/porterStemmerMorphologicalRulesEngine.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Porter Stemmer algorithm reducing English words to morphological root forms via sequential rules.
+- [ ] **#887** `feat(algorithms): implement stopwordsCaseFoldingNormalization in richcodesamples`
+  - **Target File**: `examples/richcodesample/stopwordsCaseFoldingNormalization.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Text normalization pipeline performing Unicode case folding, accent stripping, and stopword filtering.
+- [ ] **#888** `feat(algorithms): implement facetedSearchAggregatorBucketCounts in richcodesamples`
+  - **Target File**: `examples/richcodesample/facetedSearchAggregatorBucketCounts.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Faceted search navigation engine aggregating filter counts across distinct document attributes.
+- [ ] **#889** `feat(algorithms): implement geoBoundingBoxSpatialGridFilter in richcodesamples`
+  - **Target File**: `examples/richcodesample/geoBoundingBoxSpatialGridFilter.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Geographic bounding box filter query evaluating spatial points against rectangular coordinate limits.
+- [ ] **#890** `feat(algorithms): implement haversineGreatCircleDistanceSpherical in richcodesamples`
+  - **Target File**: `examples/richcodesample/haversineGreatCircleDistanceSpherical.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Haversine formula calculating spherical great-circle distance between coordinate pairs.
+- [ ] **#891** `feat(algorithms): implement deadlockCycleDetectorTarjanDFSGraph in richcodesamples`
+  - **Target File**: `examples/richcodesample/deadlockCycleDetectorTarjanDFSGraph.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Deadlock cycle detection in lock wait-for graphs using Tarjan strongly connected components.
+- [ ] **#892** `feat(algorithms): implement conflictSerializabilityPrecedenceGraph in richcodesamples`
+  - **Target File**: `examples/richcodesample/conflictSerializabilityPrecedenceGraph.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Testing transaction conflict serializability via topological cycle checks on precedence graphs.
+- [ ] **#893** `feat(algorithms): implement viewSerializabilityBruteForceCheck in richcodesamples`
+  - **Target File**: `examples/richcodesample/viewSerializabilityBruteForceCheck.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: View serializability testing algorithm verifying equivalent final write states.
+- [ ] **#894** `feat(algorithms): implement readCommittedAnomalyTesterIsolation in richcodesamples`
+  - **Target File**: `examples/richcodesample/readCommittedAnomalyTesterIsolation.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Transaction isolation test harness detecting non-repeatable read anomalies under Read Committed.
+- [ ] **#895** `feat(algorithms): implement repeatableReadWriteSkewDetectorSnapshot in richcodesamples`
+  - **Target File**: `examples/richcodesample/repeatableReadWriteSkewDetectorSnapshot.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Snapshot isolation test harness detecting concurrent write skew anomalies.
+- [ ] **#896** `feat(algorithms): implement phantomReadRangeQueryAnomalyTester in richcodesamples`
+  - **Target File**: `examples/richcodesample/phantomReadRangeQueryAnomalyTester.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Test harness detecting phantom read anomalies on concurrent range insertions.
+- [ ] **#897** `feat(algorithms): implement lostUpdateConcurrentTransactionTester in richcodesamples`
+  - **Target File**: `examples/richcodesample/lostUpdateConcurrentTransactionTester.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Test harness verifying prevention of concurrent lost update anomalies via atomic locks.
+- [ ] **#898** `feat(algorithms): implement dirtyReadDirtyWritePreventionAudit in richcodesamples`
+  - **Target File**: `examples/richcodesample/dirtyReadDirtyWritePreventionAudit.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Verification test proving strict prevention of dirty reads and dirty writes under ACID guarantees.
+- [ ] **#899** `feat(algorithms): implement databaseCrashRecoveryCorruptedWALFrames in richcodesamples`
+  - **Target File**: `examples/richcodesample/databaseCrashRecoveryCorruptedWALFrames.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Database crash recovery engine validating checksums and handling corrupted trailing WAL frames.
+- [ ] **#900** `feat(algorithms): implement distributedTwoPhaseCommitNetworkPartition in richcodesamples`
+  - **Target File**: `examples/richcodesample/distributedTwoPhaseCommitNetworkPartition.nva`
+  - **Complexity**: Time `O(1) - O(N log N)` | Space `O(1) - O(N)`
+  - **Objective**: Distributed 2PC transaction coordinator handling participant network partitions and timeouts.
+
+### Domain: Simulations, Heuristics, Media & Extreme VM Limits
+
+- [ ] **#901** `feat(algorithms): implement verletPhysicsClothGridConstraints in richcodesamples`
+  - **Target File**: `examples/richcodesample/verletPhysicsClothGridConstraints.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Verlet Physics Cloth Simulator with grid distance constraints and relaxation steps.
+- [ ] **#902** `feat(algorithms): implement rigidBodyPhysics2DImpulseCollision in richcodesamples`
+  - **Target File**: `examples/richcodesample/rigidBodyPhysics2DImpulseCollision.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: 2D Rigid Body Physics: Impulse-based collision resolution and angular momentum updates.
+- [ ] **#903** `feat(algorithms): implement particleSystemGravityDragGroundBounce in richcodesamples`
+  - **Target File**: `examples/richcodesample/particleSystemGravityDragGroundBounce.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: 2D Particle System with gravity, air drag, wind forces, and coefficient of restitution ground bounces.
+- [ ] **#904** `feat(algorithms): implement fluidSimulationLBMD2Q9Model in richcodesamples`
+  - **Target File**: `examples/richcodesample/fluidSimulationLBMD2Q9Model.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Lattice Boltzmann Method (LBM D2Q9 model) simulating 2D fluid velocity and pressure streaming/collision.
+- [ ] **#905** `feat(algorithms): implement fluidSmoothedParticleHydrodynamics2D in richcodesamples`
+  - **Target File**: `examples/richcodesample/fluidSmoothedParticleHydrodynamics2D.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Smoothed Particle Hydrodynamics (SPH) 2D simulation calculating particle density and pressure forces.
+- [ ] **#906** `feat(algorithms): implement reynoldsBoidsFlockingSteeringRules in richcodesamples`
+  - **Target File**: `examples/richcodesample/reynoldsBoidsFlockingSteeringRules.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Reynolds' Boids flocking simulation computing separation, alignment, and cohesion steering forces.
+- [ ] **#907** `feat(algorithms): implement gameOfLifeToroidalGridWrapping in richcodesamples`
+  - **Target File**: `examples/richcodesample/gameOfLifeToroidalGridWrapping.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Conway's Game of Life on 2D finite grid with toroidal boundary coordinate wrapping.
+- [ ] **#908** `feat(algorithms): implement hashlifeGosperInfiniteCellularAutomata in richcodesamples`
+  - **Target File**: `examples/richcodesample/hashlifeGosperInfiniteCellularAutomata.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Hashlife Algorithm (Gosper's algorithm) using quadtree memoization for infinite cellular automata.
+- [ ] **#909** `feat(algorithms): implement wireworldCellularAutomatonLogicGates in richcodesamples`
+  - **Target File**: `examples/richcodesample/wireworldCellularAutomatonLogicGates.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Wireworld cellular automaton simulating electrical conduction, diodes, transistors, and logic gates.
+- [ ] **#910** `feat(algorithms): implement langtonsAntInfiniteGridHighways in richcodesamples`
+  - **Target File**: `examples/richcodesample/langtonsAntInfiniteGridHighways.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Langton's Ant simulation on 2D infinite grid tracking chaotic and emergent highway patterns.
+- [ ] **#911** `feat(algorithms): implement elementaryCellularAutomataRule30Gliders in richcodesamples`
+  - **Target File**: `examples/richcodesample/elementaryCellularAutomataRule30Gliders.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Elementary cellular automaton Rule 30 generating aperiodic pseudo-random patterns.
+- [ ] **#912** `feat(algorithms): implement sandpileModelBakTangCriticality in richcodesamples`
+  - **Target File**: `examples/richcodesample/sandpileModelBakTangCriticality.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Abelian sandpile model (Bak-Tang-Wiesenfeld) simulating critical toppling avalanches on 2D grids.
+- [ ] **#913** `feat(algorithms): implement lSystemBotanicalBranchingFractal in richcodesamples`
+  - **Target File**: `examples/richcodesample/lSystemBotanicalBranchingFractal.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: L-System (Lindenmayer System) string-rewriting procedural generator for botanical branching patterns.
+- [ ] **#914** `feat(algorithms): implement perlinNoiseFractalBrownianMotionTerrain in richcodesamples`
+  - **Target File**: `examples/richcodesample/perlinNoiseFractalBrownianMotionTerrain.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Procedural 2D heightmap terrain generator using octave fractal Brownian motion Perlin noise.
+- [ ] **#915** `feat(algorithms): implement diamondSquareFractalHeightmapGrid in richcodesamples`
+  - **Target File**: `examples/richcodesample/diamondSquareFractalHeightmapGrid.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Diamond-Square fractal heightmap generator recursively interpolating square and diamond grid steps.
+- [ ] **#916** `feat(algorithms): implement mazeKruskalRandomizedSpanningEdges in richcodesamples`
+  - **Target File**: `examples/richcodesample/mazeKruskalRandomizedSpanningEdges.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Randomized Kruskal's algorithm generating perfect mazes using randomized edge weights and DSU.
+- [ ] **#917** `feat(algorithms): implement mazePrimRandomizedCorridorGrowing in richcodesamples`
+  - **Target File**: `examples/richcodesample/mazePrimRandomizedCorridorGrowing.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Randomized Prim's algorithm generating mazes by growing corridors from frontier wall sets.
+- [ ] **#918** `feat(algorithms): implement mazeRecursiveBacktrackerDepthStack in richcodesamples`
+  - **Target File**: `examples/richcodesample/mazeRecursiveBacktrackerDepthStack.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Recursive backtracker maze generation creating long winding corridors using depth-first search.
+- [ ] **#919** `feat(algorithms): implement mazeWilsonUniformSpanningLoopErased in richcodesamples`
+  - **Target File**: `examples/richcodesample/mazeWilsonUniformSpanningLoopErased.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Wilson's algorithm generating uniform spanning tree mazes using loop-erased random walks.
+- [ ] **#920** `feat(algorithms): implement mazeDeadEndFillingPruningSolver in richcodesamples`
+  - **Target File**: `examples/richcodesample/mazeDeadEndFillingPruningSolver.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Dead-end filling algorithm iteratively pruning non-branching dead ends to solve mazes.
+- [ ] **#921** `feat(algorithms): implement rayMarchingSphereBoxSignedDistance in richcodesamples`
+  - **Target File**: `examples/richcodesample/rayMarchingSphereBoxSignedDistance.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Ray marching distance field renderer evaluating sphere and box Signed Distance Functions (SDF).
+- [ ] **#922** `feat(algorithms): implement rayMarchingSmoothMinimumPolynomialSmin in richcodesamples`
+  - **Target File**: `examples/richcodesample/rayMarchingSmoothMinimumPolynomialSmin.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Ray marching smooth blending between geometry using polynomial smooth-minimum (smin) operators.
+- [ ] **#923** `feat(algorithms): implement softwareScanlineBresenhamLineCircle in richcodesamples`
+  - **Target File**: `examples/richcodesample/softwareScanlineBresenhamLineCircle.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Bresenham's integer line and midpoint circle rasterization algorithms plotting pixel coordinates.
+- [ ] **#924** `feat(algorithms): implement softwareTriangleRasterizerBarycentricZBuffer in richcodesamples`
+  - **Target File**: `examples/richcodesample/softwareTriangleRasterizerBarycentricZBuffer.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Software triangle rasterizer using barycentric coordinates, bounding box clipping, and depth buffering.
+- [ ] **#925** `feat(algorithms): implement gouraudShadingVertexColorInterpolation in richcodesamples`
+  - **Target File**: `examples/richcodesample/gouraudShadingVertexColorInterpolation.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Gouraud shading rasterizer interpolating vertex color intensities across triangle faces.
+- [ ] **#926** `feat(algorithms): implement phongLightingAmbientDiffuseSpecularModel in richcodesamples`
+  - **Target File**: `examples/richcodesample/phongLightingAmbientDiffuseSpecularModel.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Phong reflection model calculating ambient, diffuse, and specular illumination with shininess exponents.
+- [ ] **#927** `feat(algorithms): implement colorSpaceConverterRgbHsvHslCielab in richcodesamples`
+  - **Target File**: `examples/richcodesample/colorSpaceConverterRgbHsvHslCielab.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Color space converter translating between RGB, HSV, HSL, and CIELAB color representations.
+- [ ] **#928** `feat(algorithms): implement floydSteinbergErrorDiffusionQuantization in richcodesamples`
+  - **Target File**: `examples/richcodesample/floydSteinbergErrorDiffusionQuantization.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Floyd-Steinberg error diffusion dithering algorithm distributing quantization errors to neighboring pixels.
+- [ ] **#929** `feat(algorithms): implement bayerMatrixOrderedDitheringThresholds in richcodesamples`
+  - **Target File**: `examples/richcodesample/bayerMatrixOrderedDitheringThresholds.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Ordered dithering using 4x4 and 8x8 Bayer threshold matrices for image quantization.
+- [ ] **#930** `feat(algorithms): implement medianCutColorPaletteQuantization in richcodesamples`
+  - **Target File**: `examples/richcodesample/medianCutColorPaletteQuantization.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Median cut color quantization algorithm recursively splitting RGB bounding boxes to build color palettes.
+- [ ] **#931** `feat(algorithms): implement octreeColorQuantizationLeafReduction in richcodesamples`
+  - **Target File**: `examples/richcodesample/octreeColorQuantizationLeafReduction.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Octree color quantization algorithm reducing image palettes by merging leaf nodes in a color octree.
+- [ ] **#932** `feat(algorithms): implement wavetableOscillatorLinearInterpolation in richcodesamples`
+  - **Target File**: `examples/richcodesample/wavetableOscillatorLinearInterpolation.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Wavetable oscillator synthesis reading band-limited wavetables with linear phase interpolation.
+- [ ] **#933** `feat(algorithms): implement adsrAudioEnvelopeStateAmplitudeTransitions in richcodesamples`
+  - **Target File**: `examples/richcodesample/adsrAudioEnvelopeStateAmplitudeTransitions.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: ADSR (Attack, Decay, Sustain, Release) audio envelope generator tracking amplitude state transitions.
+- [ ] **#934** `feat(algorithms): implement moogFourPoleResonantLadderFilterSim in richcodesamples`
+  - **Target File**: `examples/richcodesample/moogFourPoleResonantLadderFilterSim.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Moog 4-pole resonant ladder filter simulation with non-linear saturation and resonance feedback.
+- [ ] **#935** `feat(algorithms): implement discreteWaveletTransformHaarCoefficients in richcodesamples`
+  - **Target File**: `examples/richcodesample/discreteWaveletTransformHaarCoefficients.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Haar Wavelet 1D and 2D discrete transform decomposing signals into scaling and detail coefficients.
+- [ ] **#936** `feat(algorithms): implement minimaxGameTreeAlphaBetaPruning in richcodesamples`
+  - **Target File**: `examples/richcodesample/minimaxGameTreeAlphaBetaPruning.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Minimax game tree search algorithm with alpha-beta branch pruning for two-player zero-sum games.
+- [ ] **#937** `feat(algorithms): implement monteCarloTreeSearchUpperConfidenceTrees in richcodesamples`
+  - **Target File**: `examples/richcodesample/monteCarloTreeSearchUpperConfidenceTrees.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Monte Carlo Tree Search (MCTS) utilizing Upper Confidence bounds for Trees (UCT) selection.
+- [ ] **#938** `feat(algorithms): implement principalVariationSearchNegaScout in richcodesamples`
+  - **Target File**: `examples/richcodesample/principalVariationSearchNegaScout.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Principal Variation Search (PVS / NegaScout) game tree search with minimal window scouts.
+- [ ] **#939** `feat(algorithms): implement zobristHashingTranspositionTableGame in richcodesamples`
+  - **Target File**: `examples/richcodesample/zobristHashingTranspositionTableGame.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Zobrist Hashing state representation and transposition table cache for game evaluations.
+- [ ] **#940** `feat(algorithms): implement geneticAlgorithmKnapsackPopulationFitness in richcodesamples`
+  - **Target File**: `examples/richcodesample/geneticAlgorithmKnapsackPopulationFitness.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Genetic Algorithm with crossover, point mutations, and roulette-wheel selection for optimization.
+- [ ] **#941** `feat(algorithms): implement particleSwarmOptimizationSwarmVelocities in richcodesamples`
+  - **Target File**: `examples/richcodesample/particleSwarmOptimizationSwarmVelocities.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Particle Swarm Optimization (PSO) simulating swarm velocities and global/personal best positions.
+- [ ] **#942** `feat(algorithms): implement antColonyOptimizationPheromoneEvaporation in richcodesamples`
+  - **Target File**: `examples/richcodesample/antColonyOptimizationPheromoneEvaporation.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Ant Colony Optimization (ACO) using artificial pheromone trails and evaporation for TSP tours.
+- [ ] **#943** `feat(algorithms): implement simulatedAnnealingAdaptiveCoolingSchedule in richcodesamples`
+  - **Target File**: `examples/richcodesample/simulatedAnnealingAdaptiveCoolingSchedule.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Simulated Annealing optimization with geometric and adaptive cooling temperature schedules.
+- [ ] **#944** `feat(algorithms): implement tabuSearchShortTermMemoryTenure in richcodesamples`
+  - **Target File**: `examples/richcodesample/tabuSearchShortTermMemoryTenure.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Tabu Search metaheuristic maintaining short-term tabu memory tenure to escape local minima.
+- [ ] **#945** `feat(algorithms): implement hillClimbingRandomRestartsOptima in richcodesamples`
+  - **Target File**: `examples/richcodesample/hillClimbingRandomRestartsOptima.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Hill Climbing optimization algorithm with random restarts for multimodal surface exploration.
+- [ ] **#946** `feat(algorithms): implement nQueensBitmaskBacktrackingFast in richcodesamples`
+  - **Target File**: `examples/richcodesample/nQueensBitmaskBacktrackingFast.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: N-Queens puzzle solver using bitmask backtracking tracking diagonal and column conflicts.
+- [ ] **#947** `feat(algorithms): implement knightsTourWarnsdorffHeuristicTieBreaks in richcodesamples`
+  - **Target File**: `examples/richcodesample/knightsTourWarnsdorffHeuristicTieBreaks.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Knight's Tour on N x N chessboards solved using Warnsdorff's minimum onward degree heuristic.
+- [ ] **#948** `feat(algorithms): implement sudokuConstraintSatisfactionExactCover in richcodesamples`
+  - **Target File**: `examples/richcodesample/sudokuConstraintSatisfactionExactCover.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Sudoku solver formulating 9x9 constraints as exact cover matrix and backtracking solutions.
+- [ ] **#949** `feat(algorithms): implement nonogramLineConstraintPropagationSolver in richcodesamples`
+  - **Target File**: `examples/richcodesample/nonogramLineConstraintPropagationSolver.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Nonogram picture logic puzzle solver using line constraint overlapping block deductions.
+- [ ] **#950** `feat(algorithms): implement kakuroPuzzleBacktrackingConstraintSolver in richcodesamples`
+  - **Target File**: `examples/richcodesample/kakuroPuzzleBacktrackingConstraintSolver.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Kakuro cross-sum puzzle solver using partitioned sum combination pruning.
+- [ ] **#951** `feat(algorithms): implement deepRecursion10000CallStackUnwind in richcodesamples`
+  - **Target File**: `examples/richcodesample/deepRecursion10000CallStackUnwind.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Deep recursive call stack stress test verifying 10,000 frames without stack corruption.
+- [ ] **#952** `feat(algorithms): implement mutualTailRecursionStackNeutralityCheck in richcodesamples`
+  - **Target File**: `examples/richcodesample/mutualTailRecursionStackNeutralityCheck.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Mutual tail-recursive function calls verifying stack neutrality and bounded memory usage.
+- [ ] **#953** `feat(algorithms): implement nestedClosure10LayerLexicalScopeChain in richcodesamples`
+  - **Target File**: `examples/richcodesample/nestedClosure10LayerLexicalScopeChain.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: 10-layer nested closure scope chain mutating shared outer lexical variables across closures.
+- [ ] **#954** `feat(algorithms): implement upvalueSharingAcrossSiblingClosures in richcodesamples`
+  - **Target File**: `examples/richcodesample/upvalueSharingAcrossSiblingClosures.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Sibling closures sharing and mutating closed-over upvalues concurrently.
+- [ ] **#955** `feat(algorithms): implement arrayResizeCapacityDoublingShrinkStress in richcodesamples`
+  - **Target File**: `examples/richcodesample/arrayResizeCapacityDoublingShrinkStress.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: High-frequency dynamic array capacity doubling and shrinking stress test.
+- [ ] **#956** `feat(algorithms): implement sparseMultidimensionalArrayNestedGaps in richcodesamples`
+  - **Target File**: `examples/richcodesample/sparseMultidimensionalArrayNestedGaps.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Multidimensional sparse array simulation testing nested arrays with empty gaps.
+- [ ] **#957** `feat(algorithms): implement mapHashCollisionDegenerateAttackStress in richcodesamples`
+  - **Target File**: `examples/richcodesample/mapHashCollisionDegenerateAttackStress.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Hash map pathological collision stress test inserting 1,000 keys with identical hash prefixes.
+- [ ] **#958** `feat(algorithms): implement mapTombstoneRecyclingInterleavedInserts in richcodesamples`
+  - **Target File**: `examples/richcodesample/mapTombstoneRecyclingInterleavedInserts.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Hash map tombstone slot recycling stress test performing 50,000 interleaved inserts and deletes.
+- [ ] **#959** `feat(algorithms): implement exceptionNestedTryCatchFinallyRethrow in richcodesamples`
+  - **Target File**: `examples/richcodesample/exceptionNestedTryCatchFinallyRethrow.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Nested try-catch blocks verifying error re-throwing across multiple function boundaries.
+- [ ] **#960** `feat(algorithms): implement exceptionFinallyBlockReturnOverrideTrap in richcodesamples`
+  - **Target File**: `examples/richcodesample/exceptionFinallyBlockReturnOverrideTrap.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Exception handling edge case testing return value overrides inside finally blocks.
+- [ ] **#961** `feat(algorithms): implement complexBooleanShortCircuitEvaluationTrap in richcodesamples`
+  - **Target File**: `examples/richcodesample/complexBooleanShortCircuitEvaluationTrap.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Complex nested boolean expressions verifying short-circuit evaluation guarantees.
+- [ ] **#962** `feat(algorithms): implement dynamicTypeCoercionConversionsEdgeCases in richcodesamples`
+  - **Target File**: `examples/richcodesample/dynamicTypeCoercionConversionsEdgeCases.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Edge case validation for dynamic type conversions between ints, floats, booleans, and strings.
+- [ ] **#963** `feat(algorithms): implement floatIEEE754SubnormalDenormalsPrecision in richcodesamples`
+  - **Target File**: `examples/richcodesample/floatIEEE754SubnormalDenormalsPrecision.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: IEEE-754 subnormal/denormal floating point arithmetic stability and precision verification.
+- [ ] **#964** `feat(algorithms): implement floatDivisionByZeroInfinityNanPropagation in richcodesamples`
+  - **Target File**: `examples/richcodesample/floatDivisionByZeroInfinityNanPropagation.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Floating point division by zero verifying +Infinity, -Infinity, and NaN propagation rules.
+- [ ] **#965** `feat(algorithms): implement floatNegativeZeroEqualitySignBitExtraction in richcodesamples`
+  - **Target File**: `examples/richcodesample/floatNegativeZeroEqualitySignBitExtraction.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: IEEE-754 signed zero (-0.0 vs +0.0) equality comparisons and sign-bit extraction.
+- [ ] **#966** `feat(algorithms): implement int64SignedOverflowBoundaryBehavior in richcodesamples`
+  - **Target File**: `examples/richcodesample/int64SignedOverflowBoundaryBehavior.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: 64-bit signed integer boundary arithmetic testing wrap-around and maximum limits.
+- [ ] **#967** `feat(algorithms): implement bitwiseOperationsNegativeTwoComplement in richcodesamples`
+  - **Target File**: `examples/richcodesample/bitwiseOperationsNegativeTwoComplement.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Bitwise operations (AND, OR, XOR, NOT) on negative integers verifying two's complement.
+- [ ] **#968** `feat(algorithms): implement bitwiseShiftAmountsExceedWordLength in richcodesamples`
+  - **Target File**: `examples/richcodesample/bitwiseShiftAmountsExceedWordLength.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Bitwise shift operators verifying behavior when shift amounts exceed 32 or 64 bits.
+- [ ] **#969** `feat(algorithms): implement stringConcatenation50kSequentialAppends in richcodesamples`
+  - **Target File**: `examples/richcodesample/stringConcatenation50kSequentialAppends.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: String concatenation stress test executing 50,000 sequential appends with minimal memory bloat.
+- [ ] **#970** `feat(algorithms): implement substringMemoryIndependenceBoundsChecks in richcodesamples`
+  - **Target File**: `examples/richcodesample/substringMemoryIndependenceBoundsChecks.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: String slicing and substring isolation verifying memory independence and bounds checks.
+- [ ] **#971** `feat(algorithms): implement escapeAnalysisNonEscapingStackAlloc in richcodesamples`
+  - **Target File**: `examples/richcodesample/escapeAnalysisNonEscapingStackAlloc.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Escape analysis stress test verifying non-escaping objects avoid heap allocation overhead.
+- [ ] **#972** `feat(algorithms): implement garbageCollectionMillionsShortLivedCeiling in richcodesamples`
+  - **Target File**: `examples/richcodesample/garbageCollectionMillionsShortLivedCeiling.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Garbage collection stress test allocating millions of short-lived objects under tight ceilings.
+- [ ] **#973** `feat(algorithms): implement cyclicSelfReferentialGraphDropCleanup in richcodesamples`
+  - **Target File**: `examples/richcodesample/cyclicSelfReferentialGraphDropCleanup.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Cyclic self-referential graph object teardown verifying zero memory leaks upon reference drop.
+- [ ] **#974** `feat(algorithms): implement globalVariableAccessShadowedLocalLookup in richcodesamples`
+  - **Target File**: `examples/richcodesample/globalVariableAccessShadowedLocalLookup.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: High-frequency global variable access and shadowed local variable lookup performance.
+- [ ] **#975** `feat(algorithms): implement localVariableTableRegisterPressure256 in richcodesamples`
+  - **Target File**: `examples/richcodesample/localVariableTableRegisterPressure256.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Function utilizing 256 local variables verifying VM local register index table limits.
+- [ ] **#976** `feat(algorithms): implement instructionCacheHotLoopDispatchTightWhile in richcodesamples`
+  - **Target File**: `examples/richcodesample/instructionCacheHotLoopDispatchTightWhile.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Tight while-loop executing 10,000,000 iterations verifying VM dispatch loop stability.
+- [ ] **#977** `feat(algorithms): implement polymorphicCallSiteAlternatingTypes in richcodesamples`
+  - **Target File**: `examples/richcodesample/polymorphicCallSiteAlternatingTypes.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Function call site invoked alternately with integers, strings, arrays, and maps.
+- [ ] **#978** `feat(algorithms): implement moduleCrossImportCyclicDependencyResolution in richcodesamples`
+  - **Target File**: `examples/richcodesample/moduleCrossImportCyclicDependencyResolution.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Cross-module mutual import simulator testing cyclic dependency detection and resolution.
+- [ ] **#979** `feat(algorithms): implement jitLoopCompilationThresholdCrossing in richcodesamples`
+  - **Target File**: `examples/richcodesample/jitLoopCompilationThresholdCrossing.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Loop execution crossing JIT compilation thresholds and continuing in compiled native mode.
+- [ ] **#980** `feat(algorithms): implement jitDeoptimizationUnexpectedTypeFallback in richcodesamples`
+  - **Target File**: `examples/richcodesample/jitDeoptimizationUnexpectedTypeFallback.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: JIT de-optimization fallback triggered by sudden unexpected variable type mutation.
+- [ ] **#981** `feat(algorithms): implement multiMegabyteNumericArraySortRecursion in richcodesamples`
+  - **Target File**: `examples/richcodesample/multiMegabyteNumericArraySortRecursion.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Sorting large numeric arrays testing in-place algorithm stability and recursion depth.
+- [ ] **#982** `feat(algorithms): implement matrixMultiplicationColumnMajorCacheMiss in richcodesamples`
+  - **Target File**: `examples/richcodesample/matrixMultiplicationColumnMajorCacheMiss.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Large matrix multiplication traversing column-major orders testing cache miss resilience.
+- [ ] **#983** `feat(algorithms): implement sequentialArrayScanVsRandomPointerJump in richcodesamples`
+  - **Target File**: `examples/richcodesample/sequentialArrayScanVsRandomPointerJump.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Comparative memory access latency benchmark comparing sequential array scans and random pointer jumps.
+- [ ] **#984** `feat(algorithms): implement pseudoRandomSeedDeterministicReproduction in richcodesamples`
+  - **Target File**: `examples/richcodesample/pseudoRandomSeedDeterministicReproduction.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Pseudo-random number generator verifying strict deterministic seed reproduction across runs.
+- [ ] **#985** `feat(algorithms): implement nestedIfElseConditionLadder100Branches in richcodesamples`
+  - **Target File**: `examples/richcodesample/nestedIfElseConditionLadder100Branches.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: 100-branch nested if-else condition ladder verifying VM branch jump offset encoding.
+- [ ] **#986** `feat(algorithms): implement simulatedLargeSwitchSparseJumpTable in richcodesamples`
+  - **Target File**: `examples/richcodesample/simulatedLargeSwitchSparseJumpTable.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Simulated large jump table with sparse non-contiguous cases.
+- [ ] **#987** `feat(algorithms): implement higherOrderFunctionsMapFilterFoldZipPipeline in richcodesamples`
+  - **Target File**: `examples/richcodesample/higherOrderFunctionsMapFilterFoldZipPipeline.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Higher-order function pipeline composing map, filter, fold, and zip transforms.
+- [ ] **#988** `feat(algorithms): implement deepCurryingPartialApplicationChains in richcodesamples`
+  - **Target File**: `examples/richcodesample/deepCurryingPartialApplicationChains.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Deep currying and partial application stress creating chained single-argument closures.
+- [ ] **#989** `feat(algorithms): implement generatorIteratorYieldResumeLoops in richcodesamples`
+  - **Target File**: `examples/richcodesample/generatorIteratorYieldResumeLoops.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Generator/iterator state machine yielding and resuming across complex loops.
+- [ ] **#990** `feat(algorithms): implement trampolineUnboundedTailRecursionConstantStack in richcodesamples`
+  - **Target File**: `examples/richcodesample/trampolineUnboundedTailRecursionConstantStack.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Trampoline execution pattern executing unbounded tail-recursive functions in constant stack space.
+- [ ] **#991** `feat(algorithms): implement monadicEitherResultErrorShortCircuit in richcodesamples`
+  - **Target File**: `examples/richcodesample/monadicEitherResultErrorShortCircuit.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Monadic Either/Result error container chaining successful computations and short-circuiting errors.
+- [ ] **#992** `feat(algorithms): implement monadicOptionMaybeNullSafeUnwrap in richcodesamples`
+  - **Target File**: `examples/richcodesample/monadicOptionMaybeNullSafeUnwrap.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Monadic Option/Maybe container verifying null-safe value transformations and unwrap checks.
+- [ ] **#993** `feat(algorithms): implement functionalLensDeepImmutableFieldUpdates in richcodesamples`
+  - **Target File**: `examples/richcodesample/functionalLensDeepImmutableFieldUpdates.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Functional Lens pattern executing deep immutable record field updates without mutation.
+- [ ] **#994** `feat(algorithms): implement persistentVector32WayBranchingTreeIndex in richcodesamples`
+  - **Target File**: `examples/richcodesample/persistentVector32WayBranchingTreeIndex.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Persistent Vector 32-way branching tree bitmap index mutation benchmark.
+- [ ] **#995** `feat(algorithms): implement memoryFootprintHeapRetentionAfterAllocations in richcodesamples`
+  - **Target File**: `examples/richcodesample/memoryFootprintHeapRetentionAfterAllocations.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Memory footprint benchmark measuring heap retention after 100,000 temporary object lifecycles.
+- [ ] **#996** `feat(algorithms): implement monotonicClockMeasurementNeverDecreases in richcodesamples`
+  - **Target File**: `examples/richcodesample/monotonicClockMeasurementNeverDecreases.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Monotonic clock benchmark verifying stdlib time intervals never decrease across measurements.
+- [ ] **#997** `feat(algorithms): implement utf8MultiByteBoundarySlicingIntegrity in richcodesamples`
+  - **Target File**: `examples/richcodesample/utf8MultiByteBoundarySlicingIntegrity.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: UTF-8 multi-byte character boundary slicing verifying zero split surrogate byte corruption.
+- [ ] **#998** `feat(algorithms): implement selfReferentialCircularArraySerialization in richcodesamples`
+  - **Target File**: `examples/richcodesample/selfReferentialCircularArraySerialization.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Self-referential circular array serialization detector preventing infinite loops.
+- [ ] **#999** `feat(algorithms): implement alternatingBooleanBranchPredictionThrash in richcodesamples`
+  - **Target File**: `examples/richcodesample/alternatingBooleanBranchPredictionThrash.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Alternating deterministic boolean conditions stress-testing branch prediction counters.
+- [ ] **#1000** `feat(algorithms): implement grandUnifiedJITStressSuperSuiteAllFeatures in richcodesamples`
+  - **Target File**: `examples/richcodesample/grandUnifiedJITStressSuperSuiteAllFeatures.nva`
+  - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
+  - **Objective**: Grand unified JIT stress super-suite verifying end-to-end VM correctness across all core features.
