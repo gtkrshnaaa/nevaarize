@@ -1,30 +1,26 @@
 [
   {
     "id": "ISSUE-1",
-    "title": "feat(algorithms): implement persistentFenwickTree in richcodesamples",
-    "status": "closed",
-    "commit": "0aaba36",
-    "file": "ISSUE-1.md"
+    "title": "feat(algorithms): implement persistentDisjointSetStack in richcodesamples",
+    "status": "in-progress",
+    "file": "ISSUE-1-disjointSetStack.md"
   },
   {
     "id": "ISSUE-2",
-    "title": "feat(algorithms): implement persistentDisjointSetUnion in richcodesamples",
-    "status": "closed",
-    "commit": "36ac375",
-    "file": "ISSUE-2.md"
+    "title": "feat(algorithms): implement eulerTourTreeDynamicForest in richcodesamples",
+    "status": "open",
+    "file": "ISSUE-2-eulerTourTree.md"
   },
   {
     "id": "ISSUE-3",
-    "title": "feat(algorithms): implement persistentLeftistHeap in richcodesamples",
-    "status": "closed",
-    "commit": "90268df",
-    "file": "ISSUE-3.md"
+    "title": "feat(algorithms): implement heavyLightDecompositionEngine in richcodesamples",
+    "status": "open",
+    "file": "ISSUE-3-heavyLightDecomp.md"
   },
   {
     "id": "ISSUE-4",
     "title": "test(regression): execute containerized test suite and sanitizer audit",
-    "status": "closed",
-    "commit": "3c155d2",
-    "file": "ISSUE-4.md"
+    "status": "open",
+    "file": "ISSUE-4-sanitizerAudit.md"
   }
 ]
