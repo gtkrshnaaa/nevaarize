@@ -323,5 +323,156 @@ if (compAfterUndo2 != 6 or c67AfterUndo2 != 0 or sz6AfterUndo2 != 1 or sz7AfterU
 
 print("  Test Case 1 Passed sequential unions and single-step rollbacks")
 
+// -----------------------------------------------------------------------------
+// Test Case 2: Multi-Checkpoint Workflow and Timeline Forking
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Multi-Checkpoint Workflow and Timeline Forking...")
+tc2Size = 8
+tc2Dsu = createDisjointSetStack(tc2Size)
+cp0 = 0 // Base state
+
+// Step 1: Union (0, 1) and (2, 3)
+unionSets(tc2Dsu, 0, 1)
+unionSets(tc2Dsu, 2, 3)
+cp1 = saveCheckpoint(tc2Dsu, "cp1: pairs 0-1 and 2-3")
+
+// Step 2: Union (0, 2) and (4, 5) -> Component {0,1,2,3} and {4,5}
+unionSets(tc2Dsu, 0, 2)
+unionSets(tc2Dsu, 4, 5)
+cp2 = saveCheckpoint(tc2Dsu, "cp2: quad 0-3 and pair 4-5")
+
+// Branch A: Merge {0,1,2,3} with {4,5} and merge (6, 7)
+unionSets(tc2Dsu, 0, 4)
+unionSets(tc2Dsu, 6, 7)
+cp3BranchA = saveCheckpoint(tc2Dsu, "cp3: Branch A merged 0-4 and 6-7")
+
+c35BranchA = connected(tc2Dsu, 3, 5)
+c67BranchA = connected(tc2Dsu, 6, 7)
+compBranchA = getComponentCount(tc2Dsu)
+
+if (c35BranchA != 1 or c67BranchA != 1 or compBranchA != 2) {
+    print("[FAIL] Branch A verification failed: c35=", c35BranchA, ", c67=", c67BranchA, ", comp=", compBranchA)
+} else {
+    print("  Branch A verified: 2 components ({0,1,2,3,4,5} and {6,7})")
+}
+
+// Rollback to Checkpoint 2: should restore {0,1,2,3} and {4,5}, isolating 6 and 7
+rolledStepsA = rollbackToCheckpoint(tc2Dsu, cp2)
+c35AfterRoll = connected(tc2Dsu, 3, 5)
+c67AfterRoll = connected(tc2Dsu, 6, 7)
+c03AfterRoll = connected(tc2Dsu, 0, 3)
+c45AfterRoll = connected(tc2Dsu, 4, 5)
+compAfterRoll2 = getComponentCount(tc2Dsu)
+
+if (rolledStepsA != 2 or c35AfterRoll != 0 or c67AfterRoll != 0 or c03AfterRoll != 1 or c45AfterRoll != 1 or compAfterRoll2 != 4) {
+    print("[FAIL] Rollback to cp2 failed: rolled=", rolledStepsA, ", c35=", c35AfterRoll, ", comp=", compAfterRoll2)
+} else {
+    print("  Rollback to Checkpoint 2 verified: Branch A mutations undone, restored 4 components")
+}
+
+// Branch B: Merge {0,1,2,3} with 6 and merge {4,5} with 7
+unionSets(tc2Dsu, 0, 6)
+unionSets(tc2Dsu, 4, 7)
+cp4BranchB = saveCheckpoint(tc2Dsu, "cp4: Branch B merged 0-6 and 4-7")
+
+c36BranchB = connected(tc2Dsu, 3, 6)
+c57BranchB = connected(tc2Dsu, 5, 7)
+c35BranchB = connected(tc2Dsu, 3, 5)
+compBranchB = getComponentCount(tc2Dsu)
+
+if (c36BranchB != 1 or c57BranchB != 1 or c35BranchB != 0 or compBranchB != 2) {
+    print("[FAIL] Branch B verification failed: c36=", c36BranchB, ", c57=", c57BranchB, ", c35=", c35BranchB)
+} else {
+    print("  Branch B verified independently: {0,1,2,3,6} and {4,5,7}, cross-connected = 0")
+}
+
+// Rollback all the way to Checkpoint 0 (Base state)
+rolledStepsBase = rollbackToCheckpoint(tc2Dsu, cp0)
+compAtBase = getComponentCount(tc2Dsu)
+c01AtBase = connected(tc2Dsu, 0, 1)
+c23AtBase = connected(tc2Dsu, 2, 3)
+
+if (compAtBase != 8 or c01AtBase != 0 or c23AtBase != 0) {
+    print("[FAIL] Rollback to Base Checkpoint 0 failed: comp=", compAtBase)
+} else {
+    print("  Full rollback to Base Checkpoint 0 verified: all 8 elements completely restored to isolated state")
+}
+
+print("  Test Case 2 Passed multi-checkpoint workflow and timeline forking")
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Boundary and Edge Cases
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Boundary and Edge Cases...")
+
+// 1. Single-element DSU (size = 1)
+singleDsu = createDisjointSetStack(1)
+sRoot0 = findRoot(singleDsu, 0)
+sComp0 = getComponentCount(singleDsu)
+sSelfUnion = unionSets(singleDsu, 0, 0)
+sCompAfter = getComponentCount(singleDsu)
+rollbackStep(singleDsu)
+sCompFinal = getComponentCount(singleDsu)
+
+if (sRoot0 != 0 or sComp0 != 1 or sSelfUnion != 0 or sCompAfter != 1 or sCompFinal != 1) {
+    print("[FAIL] Single-element DSU failed")
+} else {
+    print("  Single-element DSU verified: find, self-loop union, and rollback preserved component count 1")
+}
+
+// 2. Redundant unions and cycle detection
+tc3Dsu = createDisjointSetStack(4)
+unionSets(tc3Dsu, 0, 1)
+unionSets(tc3Dsu, 1, 2)
+redUnion = unionSets(tc3Dsu, 0, 2)
+compBeforeUndo = getComponentCount(tc3Dsu)
+depthBeforeUndo = getHistoryDepth(tc3Dsu)
+
+if (redUnion != 0 or compBeforeUndo != 2 or depthBeforeUndo != 3) {
+    print("[FAIL] Redundant union tracking failed: redUnion=", redUnion, ", depth=", depthBeforeUndo)
+} else {
+    print("  Redundant union detected and tracked in history as no-op")
+}
+
+// Undo redundant union
+rollbackStep(tc3Dsu)
+compAfterUndoRed = getComponentCount(tc3Dsu)
+c02StillConnected = connected(tc3Dsu, 0, 2)
+
+if (compAfterUndoRed != 2 or c02StillConnected != 1) {
+    print("[FAIL] Undo redundant union failed: comp=", compAfterUndoRed, ", c02=", c02StillConnected)
+} else {
+    print("  Rollback of redundant union verified without altering active connectivity")
+}
+
+// 3. Out-of-bounds queries and operations
+oobFindNeg = findRoot(tc3Dsu, -1)
+oobFindHigh = findRoot(tc3Dsu, 100)
+oobConn = connected(tc3Dsu, -1, 0)
+oobUnion = unionSets(tc3Dsu, -1, 2)
+oobSize = getComponentSize(tc3Dsu, 999)
+oobRank = getRank(tc3Dsu, -5)
+
+if (oobFindNeg != -1 or oobFindHigh != -1 or oobConn != 0 or oobUnion != 0 or oobSize != 0 or oobRank != 0) {
+    print("[FAIL] Out-of-bounds guards failed")
+} else {
+    print("  Out-of-bounds indices gracefully rejected with safe default values")
+}
+
+// 4. Rollback on empty stack & rollback to current checkpoint
+emptyDsu = createDisjointSetStack(3)
+emptyUndoRes = rollbackStep(emptyDsu)
+currCp = saveCheckpoint(emptyDsu, "current cp")
+sameCpRoll = rollbackToCheckpoint(emptyDsu, currCp)
+invalidCpRoll = rollbackToCheckpoint(emptyDsu, 99)
+
+if (emptyUndoRes != 0 or sameCpRoll != 0 or invalidCpRoll != 0) {
+    print("[FAIL] Empty or no-op rollback checks failed")
+} else {
+    print("  Empty stack rollback and invalid checkpoint requests handled gracefully")
+}
+
+print("  Test Case 3 Passed boundary and edge case verification")
+
 elapsed = t.millis() - suiteStartTime
-print("[PASS] Persistent Disjoint Set Stack Milestone 1 executed in", elapsed, "ms")
+print("[PASS] Persistent Disjoint Set Stack Milestone 2 executed in", elapsed, "ms")
