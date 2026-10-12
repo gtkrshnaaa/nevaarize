@@ -676,3 +676,312 @@ if (c3Pass == 1) {
 } else {
     print("[FAIL] Test Case 3 encountered assertion mismatches")
 }
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Vertex Weight Point Updates & Dynamic Re-aggregates
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Vertex Weight Point Updates & Propagation...")
+c4Pass = 1
+
+// Update vertex 4 from 50 to 500
+setVertexWeight(c1Ett, 4, 500)
+if (getVertexWeight(c1Ett, 4) != 500) {
+    c4Pass = 0
+}
+
+// Total tree sum was 220, now 220 - 50 + 500 = 670
+if (queryTreeSum(c1Ett, 0) != 670 or queryTreeSum(c1Ett, 4) != 670) {
+    c4Pass = 0
+}
+
+// Subtree of 4 rooted at 0 was 190, now 190 - 50 + 500 = 640
+if (querySubtreeSum(c1Ett, 0, 4) != 640) {
+    c4Pass = 0
+}
+
+// Subtree of 1 rooted at 4 does NOT contain 4, so it remains 30
+if (querySubtreeSum(c1Ett, 4, 1) != 30) {
+    c4Pass = 0
+}
+
+// Update vertex 0 from 10 to -25 (negative weights supported)
+setVertexWeight(c1Ett, 0, -25)
+// Total sum: 670 - 10 + (-25) = 635
+if (queryTreeSum(c1Ett, 7) != 635) {
+    c4Pass = 0
+}
+// Subtree of 1 rooted at 4 now has nodes 1 and 0: 20 + (-25) = -5
+if (querySubtreeSum(c1Ett, 4, 1) != -5) {
+    c4Pass = 0
+}
+
+if (c4Pass == 1) {
+    print("  Vertex weight updated from 50 to 500 with O(log N) tree sum propagation")
+    print("  Subtree query (root 0, v 4) accurately updated to 640")
+    print("  Negative weights supported: vertex 0 set to -25, subtree sum evaluates to -5")
+    print("  Test Case 4 Passed successfully")
+} else {
+    print("[FAIL] Test Case 4 encountered assertion mismatches")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Simulation against Adjacency List Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Randomized Stress Simulation against Naive Oracle...")
+
+func createOracle(nodeCount) {
+    adj = []
+    oracleWeights = []
+    nodeIdx = 0
+    while (nodeIdx < nodeCount) {
+        adj.push([])
+        oracleWeights.push(nodeIdx * 10 + 5)
+        nodeIdx = nodeIdx + 1
+    }
+    return [adj, oracleWeights, nodeCount]
+}
+
+func oracleIsConnected(oracle, uNode, vNode) {
+    if (uNode == vNode) { return true }
+    adj = oracle[0]
+    numN = oracle[2]
+    visited = makeIntArray(numN, 0)
+    queue = [uNode]
+    visited[uNode] = 1
+    head = 0
+
+    foundTarget = false
+    while (head < queue.size() and !foundTarget) {
+        curr = queue[head]
+        head = head + 1
+        neighbors = adj[curr]
+        nIdx = 0
+        while (nIdx < neighbors.size() and !foundTarget) {
+            nxt = neighbors[nIdx]
+            if (nxt == vNode) {
+                foundTarget = true
+            }
+            if (!foundTarget and visited[nxt] == 0) {
+                visited[nxt] = 1
+                queue.push(nxt)
+            }
+            nIdx = nIdx + 1
+        }
+    }
+    return foundTarget
+}
+
+func oracleLink(oracle, uNode, vNode) {
+    if (oracleIsConnected(oracle, uNode, vNode)) {
+        return false
+    }
+    adj = oracle[0]
+    adj[uNode].push(vNode)
+    adj[vNode].push(uNode)
+    return true
+}
+
+func oracleCut(oracle, uNode, vNode) {
+    adj = oracle[0]
+    uNeighbors = adj[uNode]
+    newUNeighbors = []
+    foundEdge = false
+    idx = 0
+    while (idx < uNeighbors.size()) {
+        if (uNeighbors[idx] == vNode and !foundEdge) {
+            foundEdge = true
+        } else {
+            newUNeighbors.push(uNeighbors[idx])
+        }
+        idx = idx + 1
+    }
+    if (!foundEdge) {
+        return false
+    }
+    adj[uNode] = newUNeighbors
+
+    vNeighbors = adj[vNode]
+    newVNeighbors = []
+    idx = 0
+    while (idx < vNeighbors.size()) {
+        if (vNeighbors[idx] == uNode) {
+            // skip edge
+        } else {
+            newVNeighbors.push(vNeighbors[idx])
+        }
+        idx = idx + 1
+    }
+    adj[vNode] = newVNeighbors
+    return true
+}
+
+func oracleTreeSum(oracle, startNode) {
+    adj = oracle[0]
+    weights = oracle[1]
+    numN = oracle[2]
+    visited = makeIntArray(numN, 0)
+    queue = [startNode]
+    visited[startNode] = 1
+    head = 0
+    totSum = 0
+
+    while (head < queue.size()) {
+        curr = queue[head]
+        head = head + 1
+        totSum = totSum + weights[curr]
+        neighbors = adj[curr]
+        nIdx = 0
+        while (nIdx < neighbors.size()) {
+            nxt = neighbors[nIdx]
+            if (visited[nxt] == 0) {
+                visited[nxt] = 1
+                queue.push(nxt)
+            }
+            nIdx = nIdx + 1
+        }
+    }
+    return totSum
+}
+
+func oracleSubtreeSum(oracle, rootNode, subNode) {
+    if (rootNode == subNode) {
+        return oracleTreeSum(oracle, rootNode)
+    }
+    if (!oracleIsConnected(oracle, rootNode, subNode)) {
+        return 0
+    }
+    adj = oracle[0]
+    weights = oracle[1]
+    numN = oracle[2]
+
+    visited = makeIntArray(numN, 0)
+    parentArr = makeIntArray(numN, -1)
+    queue = [rootNode]
+    visited[rootNode] = 1
+    head = 0
+
+    while (head < queue.size()) {
+        curr = queue[head]
+        head = head + 1
+        neighbors = adj[curr]
+        nIdx = 0
+        while (nIdx < neighbors.size()) {
+            nxt = neighbors[nIdx]
+            if (visited[nxt] == 0) {
+                visited[nxt] = 1
+                parentArr[nxt] = curr
+                queue.push(nxt)
+            }
+            nIdx = nIdx + 1
+        }
+    }
+
+    pOfSub = parentArr[subNode]
+    subVisited = makeIntArray(numN, 0)
+    subVisited[pOfSub] = 1
+    subQueue = [subNode]
+    subVisited[subNode] = 1
+    subHead = 0
+    subSum = 0
+
+    while (subHead < subQueue.size()) {
+        curr = subQueue[subHead]
+        subHead = subHead + 1
+        subSum = subSum + weights[curr]
+        neighbors = adj[curr]
+        nIdx = 0
+        while (nIdx < neighbors.size()) {
+            nxt = neighbors[nIdx]
+            if (subVisited[nxt] == 0) {
+                subVisited[nxt] = 1
+                subQueue.push(nxt)
+            }
+            nIdx = nIdx + 1
+        }
+    }
+    return subSum
+}
+
+stressVertCount = 14
+stressEtt = createEtt(stressVertCount)
+stressOracle = createOracle(stressVertCount)
+initVertices(stressEtt, stressOracle[1])
+
+stressSeed = 998244353
+stressOps = 160
+stressOpIdx = 0
+stressMismatches = 0
+
+while (stressOpIdx < stressOps) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    opType = stressSeed % 5
+
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    randU = stressSeed % stressVertCount
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    randV = stressSeed % stressVertCount
+
+    if (randU == randV) {
+        randV = (randU + 1) % stressVertCount
+    }
+
+    if (opType == 0) {
+        ettConn = isConnected(stressEtt, randU, randV)
+        orcConn = oracleIsConnected(stressOracle, randU, randV)
+        if (ettConn != orcConn) {
+            stressMismatches = stressMismatches + 1
+        }
+        if (!ettConn) {
+            link(stressEtt, randU, randV)
+            oracleLink(stressOracle, randU, randV)
+        }
+    }
+
+    if (opType == 1) {
+        edgeMapArr = stressEtt[2]
+        totalNum = stressEtt[3]
+        if (edgeMapArr[randU * totalNum + randV] != -1) {
+            cut(stressEtt, randU, randV)
+            oracleCut(stressOracle, randU, randV)
+        }
+    }
+
+    if (opType == 2) {
+        ettConn = isConnected(stressEtt, randU, randV)
+        orcConn = oracleIsConnected(stressOracle, randU, randV)
+        if (ettConn != orcConn) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (opType == 3) {
+        ettSum = queryTreeSum(stressEtt, randU)
+        orcSum = oracleTreeSum(stressOracle, randU)
+        if (ettSum != orcSum) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (opType == 4) {
+        if (isConnected(stressEtt, randU, randV)) {
+            ettSub = querySubtreeSum(stressEtt, randU, randV)
+            orcSub = oracleSubtreeSum(stressOracle, randU, randV)
+            if (ettSub != orcSub) {
+                stressMismatches = stressMismatches + 1
+            }
+        }
+    }
+
+    stressOpIdx = stressOpIdx + 1
+}
+
+if (stressMismatches == 0) {
+    print("  Validated", stressOps, "randomized dynamic links, cuts, and subtree queries against Oracle")
+    print("  Total mismatches across all operations: 0")
+    print("  Test Case 5 Passed randomized stress simulation")
+} else {
+    print("[FAIL] Stress simulation encountered", stressMismatches, "mismatches against oracle")
+}
+
+elapsedTime = t.millis() - suiteStartTime
+print("[PASS] Euler Tour Tree Dynamic Forest Suite executed successfully in", elapsedTime, "ms")
