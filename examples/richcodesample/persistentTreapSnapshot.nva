@@ -445,6 +445,150 @@ func findRank(arena, root, key) {
     }
 }
 
+func verifyTreapInvariants(arena, root) {
+    if (root == -1) {
+        return 1
+    }
+    // Verify strict in-order key monotonicity (BST Invariant)
+    keys = treeToKeys(arena, root)
+    kIdx = 1
+    kLen = keys.size()
+    while (kIdx < kLen) {
+        if (keys[kIdx - 1] >= keys[kIdx]) {
+            return 0
+        }
+        kIdx = kIdx + 1
+    }
+
+    // Verify heap property, size consistency, and range aggregates
+    stack = []
+    stack.push(root)
+
+    tKey = arena[0]
+    tVal = arena[1]
+    tPrio = arena[2]
+    tSize = arena[3]
+    tLeft = arena[4]
+    tRight = arena[5]
+    tSum = arena[6]
+    tMin = arena[7]
+    tMax = arena[8]
+
+    while (stack.size() > 0) {
+        topIdx = stack.size() - 1
+        curr = stack[topIdx]
+        stack.pop()
+
+        v = tVal[curr]
+        p = tPrio[curr]
+        sz = tSize[curr]
+        s = tSum[curr]
+        mn = tMin[curr]
+        mx = tMax[curr]
+        lc = tLeft[curr]
+        rc = tRight[curr]
+
+        expectedSz = 1
+        expectedSum = v
+        expectedMin = v
+        expectedMax = v
+
+        if (lc != -1) {
+            // Max-Heap priority invariant
+            if (p < tPrio[lc]) {
+                return 0
+            }
+            expectedSz = expectedSz + tSize[lc]
+            expectedSum = expectedSum + tSum[lc]
+            expectedMin = minInt(expectedMin, tMin[lc])
+            expectedMax = maxInt(expectedMax, tMax[lc])
+            stack.push(lc)
+        }
+
+        if (rc != -1) {
+            // Max-Heap priority invariant
+            if (p < tPrio[rc]) {
+                return 0
+            }
+            expectedSz = expectedSz + tSize[rc]
+            expectedSum = expectedSum + tSum[rc]
+            expectedMin = minInt(expectedMin, tMin[rc])
+            expectedMax = maxInt(expectedMax, tMax[rc])
+            stack.push(rc)
+        }
+
+        if (sz != expectedSz or s != expectedSum or mn != expectedMin or mx != expectedMax) {
+            return 0
+        }
+    }
+    return 1
+}
+
+func naiveInsert(kList, vList, key, val) {
+    idx = 0
+    sz = kList.size()
+    found = 0
+    while (idx < sz) {
+        if (kList[idx] == key) {
+            vList[idx] = val
+            found = 1
+            idx = sz
+        } else {
+            idx = idx + 1
+        }
+    }
+    if (found == 0) {
+        insertPos = 0
+        while (insertPos < sz and kList[insertPos] < key) {
+            insertPos = insertPos + 1
+        }
+        newK = []
+        newV = []
+        i = 0
+        while (i < insertPos) {
+            newK.push(kList[i])
+            newV.push(vList[i])
+            i = i + 1
+        }
+        newK.push(key)
+        newV.push(val)
+        while (i < sz) {
+            newK.push(kList[i])
+            newV.push(vList[i])
+            i = i + 1
+        }
+        return [newK, newV]
+    }
+    return [kList, vList]
+}
+
+func naiveDelete(kList, vList, key) {
+    newK = []
+    newV = []
+    idx = 0
+    sz = kList.size()
+    while (idx < sz) {
+        if (kList[idx] != key) {
+            newK.push(kList[idx])
+            newV.push(vList[idx])
+        }
+        idx = idx + 1
+    }
+    return [newK, newV]
+}
+
+func cloneArray(src) {
+    dst = []
+    idx = 0
+    sz = src.size()
+    while (idx < sz) {
+        dst.push(src[idx])
+        idx = idx + 1
+    }
+    return dst
+}
+
+
 
 // -----------------------------------------------------------------------------
 // Test Case 1: Sequential Version Updates and Historical Immutability
@@ -752,6 +896,240 @@ if (findRank(arena3, root3, 200) != 16) {
 print("  Order Statistics findRank verified for boundary and non-existent keys")
 
 print("  Test Case 3 Passed range aggregates and order statistics verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Treap Invariant In-Depth Verification
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Comprehensive Invariant Verification...")
+
+// Verify all history roots from Test Case 1
+hIdx = 0
+hTotal = historyRoots.size()
+hErrors = 0
+while (hIdx < hTotal) {
+    r = historyRoots[hIdx]
+    if (verifyTreapInvariants(arena1, r) != 1) {
+        hErrors = hErrors + 1
+    }
+    hIdx = hIdx + 1
+}
+
+// Verify branches from Test Case 2
+if (verifyTreapInvariants(arena1, branchA3) != 1) {
+    hErrors = hErrors + 1
+}
+if (verifyTreapInvariants(arena1, branchB3) != 1) {
+    hErrors = hErrors + 1
+}
+if (verifyTreapInvariants(arena1, branchC1) != 1) {
+    hErrors = hErrors + 1
+}
+
+// Verify range test dataset from Test Case 3
+if (verifyTreapInvariants(arena3, root3) != 1) {
+    hErrors = hErrors + 1
+}
+if (verifyTreapInvariants(arena3, subTreap1) != 1) {
+    hErrors = hErrors + 1
+}
+if (verifyTreapInvariants(arena3, subTreap2) != 1) {
+    hErrors = hErrors + 1
+}
+
+if (hErrors > 0) {
+    print("[FAIL] Invariant verification failed on", hErrors, "treap roots")
+} else {
+    print("  All historical versions (v0..v9) verified: 100% BST, heap, and aggregate invariants satisfied")
+    print("  Forked branches A, B, and C verified: heap priority integrity intact")
+    print("  Isolated range subtreaps verified: independent tree invariant validity confirmed")
+    print("  Test Case 4 Passed comprehensive invariant verification")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Benchmark against Naive Historical Matrix
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Randomized Stress Benchmark against Historical Oracle...")
+stressArena = createTreapArena()
+stressRng = [1337]
+
+stressRoots = []
+stressNaiveK = []
+stressNaiveV = []
+
+// Version 0: Empty tree
+stressRoots.push(-1)
+stressNaiveK.push([])
+stressNaiveV.push([])
+
+numVersions = 40
+verIdx = 1
+stressAllocErrors = 0
+
+while (verIdx <= numVersions) {
+    // Pick base version: either previous version or random branch from history
+    randBranch = nextRand(stressRng) % 100
+    baseVersion = verIdx - 1
+    if (randBranch < 30 and verIdx > 3) {
+        baseVersion = nextRand(stressRng) % verIdx
+    }
+
+    baseRoot = stressRoots[baseVersion]
+    baseKList = cloneArray(stressNaiveK[baseVersion])
+    baseVList = cloneArray(stressNaiveV[baseVersion])
+
+    randOp = nextRand(stressRng) % 100
+    newRoot = -1
+    newKList = []
+    newVList = []
+
+    if (randOp < 70 or baseKList.size() == 0) {
+        // Insert or update operation
+        genKey = (nextRand(stressRng) % 150) + 1
+        genVal = (nextRand(stressRng) % 1000) + 1
+        genPrio = nextRand(stressRng) % 1000000
+
+        newRoot = insertKey(stressArena, baseRoot, genKey, genVal, genPrio)
+        naiveRes = naiveInsert(baseKList, baseVList, genKey, genVal)
+        newKList = naiveRes[0]
+        newVList = naiveRes[1]
+    } else {
+        // Delete operation
+        delIdx = nextRand(stressRng) % baseKList.size()
+        delKey = baseKList[delIdx]
+
+        newRoot = deleteKey(stressArena, baseRoot, delKey)
+        naiveRes = naiveDelete(baseKList, baseVList, delKey)
+        newKList = naiveRes[0]
+        newVList = naiveRes[1]
+    }
+
+    if (verifyTreapInvariants(stressArena, newRoot) != 1) {
+        stressAllocErrors = stressAllocErrors + 1
+    }
+
+    stressRoots.push(newRoot)
+    stressNaiveK.push(newKList)
+    stressNaiveV.push(newVList)
+
+    verIdx = verIdx + 1
+}
+
+// Perform 120 randomized queries across all versions
+numQueries = 120
+qIdx = 0
+stressQueryErrors = 0
+
+while (qIdx < numQueries) {
+    chosenVer = nextRand(stressRng) % (numVersions + 1)
+    qRoot = stressRoots[chosenVer]
+    curK = stressNaiveK[chosenVer]
+    curV = stressNaiveV[chosenVer]
+    kSize = curK.size()
+
+    qType = nextRand(stressRng) % 4
+
+    if (qType == 0) {
+        // Range query test
+        k1 = (nextRand(stressRng) % 160) + 1
+        k2 = (nextRand(stressRng) % 160) + 1
+        lowK = minInt(k1, k2)
+        highK = maxInt(k1, k2)
+
+        expSum = 0
+        expMin = 2147483647
+        expMax = -2147483648
+        expCnt = 0
+
+        sIdx = 0
+        while (sIdx < kSize) {
+            kItem = curK[sIdx]
+            if (kItem >= lowK and kItem <= highK) {
+                vItem = curV[sIdx]
+                expCnt = expCnt + 1
+                expSum = expSum + vItem
+                expMin = minInt(expMin, vItem)
+                expMax = maxInt(expMax, vItem)
+            }
+            sIdx = sIdx + 1
+        }
+
+        actSum = queryRangeSum(stressArena, qRoot, lowK, highK)
+        actMin = queryRangeMin(stressArena, qRoot, lowK, highK)
+        actMax = queryRangeMax(stressArena, qRoot, lowK, highK)
+        actCnt = queryRangeCount(stressArena, qRoot, lowK, highK)
+
+        sTrip = [-1, -1, -1]
+        splitRange(stressArena, qRoot, lowK, highK, sTrip)
+        splitMid = sTrip[1]
+
+        if (actSum != expSum or actMin != expMin or actMax != expMax or actCnt != expCnt) {
+            stressQueryErrors = stressQueryErrors + 1
+        }
+        if (getSize(stressArena, splitMid) != expCnt or getSum(stressArena, splitMid) != expSum) {
+            stressQueryErrors = stressQueryErrors + 1
+        }
+    } else {
+        if (qType == 1) {
+            // Point lookup test
+            searchKey = (nextRand(stressRng) % 160) + 1
+            expVal = -1
+            sIdx = 0
+            while (sIdx < kSize) {
+                if (curK[sIdx] == searchKey) {
+                    expVal = curV[sIdx]
+                    sIdx = kSize
+                } else {
+                    sIdx = sIdx + 1
+                }
+            }
+
+            actVal = lookupKey(stressArena, qRoot, searchKey)
+            if (actVal != expVal) {
+                stressQueryErrors = stressQueryErrors + 1
+            }
+        } else {
+            if (qType == 2 and kSize > 0) {
+                // Order statistics: findKthSmallest
+                pickK = (nextRand(stressRng) % kSize) + 1
+                expKthKey = curK[pickK - 1]
+                expKthVal = curV[pickK - 1]
+
+                actPair = [-1, -1]
+                findKthSmallest(stressArena, qRoot, pickK, actPair)
+                if (actPair[0] != expKthKey or actPair[1] != expKthVal) {
+                    stressQueryErrors = stressQueryErrors + 1
+                }
+            } else {
+                // Order statistics: findRank
+                queryRankKey = (nextRand(stressRng) % 160) + 1
+                expRank = 1
+                sIdx = 0
+                while (sIdx < kSize) {
+                    if (curK[sIdx] < queryRankKey) {
+                        expRank = expRank + 1
+                    }
+                    sIdx = sIdx + 1
+                }
+
+                actRank = findRank(stressArena, qRoot, queryRankKey)
+                if (actRank != expRank) {
+                    stressQueryErrors = stressQueryErrors + 1
+                }
+            }
+        }
+    }
+
+    qIdx = qIdx + 1
+}
+
+if (stressAllocErrors > 0 or stressQueryErrors > 0) {
+    print("[FAIL] Stress test had", stressAllocErrors, "invariant errors and", stressQueryErrors, "query mismatches")
+} else {
+    print("  Validated", numQueries, "random historical queries across", numVersions, "versions: 0 mismatches")
+    tAlloc = stressArena[0]
+    print("  Total allocated persistent treap arena nodes:", tAlloc.size())
+    print("  Test Case 5 Passed stress benchmark verification")
+}
 
 elapsed = t.millis() - suiteStartTime
 print("[PASS] Persistent Treap Snapshot Suite executed successfully in", elapsed, "ms")
