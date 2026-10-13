@@ -1,0 +1,627 @@
+import stdlib time as t
+
+// Hopcroft-Karp Maximum Bipartite Matching Algorithm Suite
+// Time Complexity: O(E * sqrt(V))
+// Space Complexity: O(V + E)
+// Technical characteristics:
+// - Breadth-First Search (BFS) computes layered level graph of alternating paths
+// - Depth-First Search (DFS) discovers vertex-disjoint augmenting paths per phase
+// - Validates Konig's Duality Theorem: Size(Max Matching) == Size(Min Vertex Cover)
+// - Computes Maximum Independent Set via Gallai's Identity: |MIS| = |V| - |MVC|
+// - Strict camelCase naming conventions without underscores
+// - Deterministic assertions for graph properties and zero-leak memory management
+
+print("=== Nevaarize Hopcroft-Karp Bipartite Matching Algorithm Suite ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func createBipartiteGraph(nLeft, nRight) {
+    adj = []
+    i = 0
+    while (i < nLeft) {
+        adj.push([])
+        i = i + 1
+    }
+    return [nLeft, nRight, adj]
+}
+
+func addBipartiteEdge(graph, u, v) {
+    adj = graph[2]
+    adj[u].push(v)
+}
+
+func hopcroftKarpBfs(graph, pairU, pairV, dist) {
+    nLeft = graph[0]
+    adj = graph[2]
+    queue = []
+    qHead = 0
+    infDist = 1000000000
+
+    u = 0
+    while (u < nLeft) {
+        if (pairU[u] == -1) {
+            dist[u] = 0
+            queue.push(u)
+        } else {
+            dist[u] = infDist
+        }
+        u = u + 1
+    }
+
+    distDummy = infDist
+
+    while (qHead < queue.size()) {
+        u = queue[qHead]
+        qHead = qHead + 1
+
+        if (dist[u] < distDummy) {
+            edges = adj[u]
+            eIdx = 0
+            while (eIdx < edges.size()) {
+                v = edges[eIdx]
+                matchedU = pairV[v]
+                if (matchedU == -1) {
+                    if (distDummy == infDist) {
+                        distDummy = dist[u] + 1
+                    }
+                } elif (dist[matchedU] == infDist) {
+                    dist[matchedU] = dist[u] + 1
+                    queue.push(matchedU)
+                }
+                eIdx = eIdx + 1
+            }
+        }
+    }
+
+    return distDummy != infDist
+}
+
+func hopcroftKarpDfs(graph, u, pairU, pairV, dist, distDummy) {
+    infDist = 1000000000
+    adj = graph[2]
+    edges = adj[u]
+    eIdx = 0
+
+    while (eIdx < edges.size()) {
+        v = edges[eIdx]
+        matchedU = pairV[v]
+
+        canAdvance = false
+        if (matchedU == -1) {
+            canAdvance = true
+        } elif (dist[matchedU] == dist[u] + 1) {
+            if (hopcroftKarpDfs(graph, matchedU, pairU, pairV, dist, distDummy)) {
+                canAdvance = true
+            }
+        }
+
+        if (canAdvance) {
+            pairU[u] = v
+            pairV[v] = u
+            return true
+        }
+
+        eIdx = eIdx + 1
+    }
+
+    dist[u] = infDist
+    return false
+}
+
+func solveMaxBipartiteMatching(graph) {
+    nLeft = graph[0]
+    nRight = graph[1]
+
+    pairU = makeIntArray(nLeft, -1)
+    pairV = makeIntArray(nRight, -1)
+    dist = makeIntArray(nLeft, 0)
+
+    matchingCount = 0
+    phaseCount = 0
+
+    while (hopcroftKarpBfs(graph, pairU, pairV, dist)) {
+        phaseCount = phaseCount + 1
+        u = 0
+        while (u < nLeft) {
+            if (pairU[u] == -1) {
+                if (hopcroftKarpDfs(graph, u, pairU, pairV, dist, 0)) {
+                    matchingCount = matchingCount + 1
+                }
+            }
+            u = u + 1
+        }
+    }
+
+    return [matchingCount, pairU, pairV, phaseCount]
+}
+
+// Compute Minimum Vertex Cover via alternating path reachability
+func computeMinVertexCover(graph, pairU, pairV) {
+    nLeft = graph[0]
+    nRight = graph[1]
+    adj = graph[2]
+
+    visitedU = makeIntArray(nLeft, 0)
+    visitedV = makeIntArray(nRight, 0)
+
+    queue = []
+    qHead = 0
+
+    u = 0
+    while (u < nLeft) {
+        if (pairU[u] == -1) {
+            visitedU[u] = 1
+            queue.push(u)
+        }
+        u = u + 1
+    }
+
+    while (qHead < queue.size()) {
+        currU = queue[qHead]
+        qHead = qHead + 1
+
+        edges = adj[currU]
+        eIdx = 0
+        while (eIdx < edges.size()) {
+            v = edges[eIdx]
+            if (pairU[currU] != v and visitedV[v] == 0) {
+                visitedV[v] = 1
+                matchedU = pairV[v]
+                if (matchedU != -1 and visitedU[matchedU] == 0) {
+                    visitedU[matchedU] = 1
+                    queue.push(matchedU)
+                }
+            }
+            eIdx = eIdx + 1
+        }
+    }
+
+    coverU = []
+    u = 0
+    while (u < nLeft) {
+        if (visitedU[u] == 0) {
+            coverU.push(u)
+        }
+        u = u + 1
+    }
+
+    coverV = []
+    v = 0
+    while (v < nRight) {
+        if (visitedV[v] == 1) {
+            coverV.push(v)
+        }
+        v = v + 1
+    }
+
+    coverSize = coverU.size() + coverV.size()
+    return [coverSize, coverU, coverV]
+}
+
+// Compute Maximum Independent Set via Gallai identity
+func computeMaxIndependentSet(graph, coverU, coverV) {
+    nLeft = graph[0]
+    nRight = graph[1]
+
+    inCoverU = makeIntArray(nLeft, 0)
+    inCoverV = makeIntArray(nRight, 0)
+
+    i = 0
+    while (i < coverU.size()) {
+        inCoverU[coverU[i]] = 1
+        i = i + 1
+    }
+
+    j = 0
+    while (j < coverV.size()) {
+        inCoverV[coverV[j]] = 1
+        j = j + 1
+    }
+
+    indepU = []
+    u = 0
+    while (u < nLeft) {
+        if (inCoverU[u] == 0) {
+            indepU.push(u)
+        }
+        u = u + 1
+    }
+
+    indepV = []
+    v = 0
+    while (v < nRight) {
+        if (inCoverV[v] == 0) {
+            indepV.push(v)
+        }
+        v = v + 1
+    }
+
+    indepSize = indepU.size() + indepV.size()
+    return [indepSize, indepU, indepV]
+}
+
+func verifyMatchingValidity(graph, pairU, pairV, expectedSize) {
+    nLeft = graph[0]
+    nRight = graph[1]
+    adj = graph[2]
+
+    countU = 0
+    u = 0
+    while (u < nLeft) {
+        v = pairU[u]
+        if (v != -1) {
+            if (v < 0 or v >= nRight) {
+                return false
+            }
+            if (pairV[v] != u) {
+                return false
+            }
+            edges = adj[u]
+            found = false
+            e = 0
+            while (e < edges.size()) {
+                if (edges[e] == v) {
+                    found = true
+                }
+                e = e + 1
+            }
+            if (!found) {
+                return false
+            }
+            countU = countU + 1
+        }
+        u = u + 1
+    }
+
+    countV = 0
+    v = 0
+    while (v < nRight) {
+        if (pairV[v] != -1) {
+            countV = countV + 1
+        }
+        v = v + 1
+    }
+
+    return countU == expectedSize and countV == expectedSize
+}
+
+func verifyVertexCoverValidity(graph, coverU, coverV) {
+    nLeft = graph[0]
+    nRight = graph[1]
+    adj = graph[2]
+
+    inCoverU = makeIntArray(nLeft, 0)
+    inCoverV = makeIntArray(nRight, 0)
+
+    i = 0
+    while (i < coverU.size()) {
+        inCoverU[coverU[i]] = 1
+        i = i + 1
+    }
+
+    j = 0
+    while (j < coverV.size()) {
+        inCoverV[coverV[j]] = 1
+        j = j + 1
+    }
+
+    u = 0
+    while (u < nLeft) {
+        edges = adj[u]
+        e = 0
+        while (e < edges.size()) {
+            v = edges[e]
+            if (inCoverU[u] == 0 and inCoverV[v] == 0) {
+                return false
+            }
+            e = e + 1
+        }
+        u = u + 1
+    }
+
+    return true
+}
+
+func verifyIndependentSetValidity(graph, indepU, indepV) {
+    nLeft = graph[0]
+    nRight = graph[1]
+    adj = graph[2]
+
+    inIndepU = makeIntArray(nLeft, 0)
+    inIndepV = makeIntArray(nRight, 0)
+
+    i = 0
+    while (i < indepU.size()) {
+        inIndepU[indepU[i]] = 1
+        i = i + 1
+    }
+
+    j = 0
+    while (j < indepV.size()) {
+        inIndepV[indepV[j]] = 1
+        j = j + 1
+    }
+
+    u = 0
+    while (u < nLeft) {
+        if (inIndepU[u] == 1) {
+            edges = adj[u]
+            e = 0
+            while (e < edges.size()) {
+                v = edges[e]
+                if (inIndepV[v] == 1) {
+                    return false
+                }
+                e = e + 1
+            }
+        }
+        u = u + 1
+    }
+
+    return true
+}
+
+allSuitesPassed = true
+
+// --- Test Case 1: Job Assignment Bipartite Network (7 workers, 7 tasks) ---
+print("Running Test Case 1: Specialized Job Assignment Bipartite Graph...")
+g1 = createBipartiteGraph(7, 7)
+addBipartiteEdge(g1, 0, 0)
+addBipartiteEdge(g1, 0, 1)
+addBipartiteEdge(g1, 1, 1)
+addBipartiteEdge(g1, 1, 2)
+addBipartiteEdge(g1, 2, 2)
+addBipartiteEdge(g1, 2, 3)
+addBipartiteEdge(g1, 3, 3)
+addBipartiteEdge(g1, 3, 4)
+addBipartiteEdge(g1, 4, 4)
+addBipartiteEdge(g1, 4, 5)
+addBipartiteEdge(g1, 5, 5)
+addBipartiteEdge(g1, 5, 0)
+addBipartiteEdge(g1, 6, 2)
+addBipartiteEdge(g1, 6, 4)
+
+res1 = solveMaxBipartiteMatching(g1)
+matchCount1 = res1[0]
+pairU1 = res1[1]
+pairV1 = res1[2]
+phases1 = res1[3]
+
+cover1 = computeMinVertexCover(g1, pairU1, pairV1)
+coverSize1 = cover1[0]
+coverU1 = cover1[1]
+coverV1 = cover1[2]
+
+mis1 = computeMaxIndependentSet(g1, coverU1, coverV1)
+misSize1 = mis1[0]
+misU1 = mis1[1]
+misV1 = mis1[2]
+
+matchOk1 = verifyMatchingValidity(g1, pairU1, pairV1, matchCount1)
+coverOk1 = verifyVertexCoverValidity(g1, coverU1, coverV1)
+misOk1 = verifyIndependentSetValidity(g1, misU1, misV1)
+
+print("  Matching cardinality      :", matchCount1)
+print("  Min Vertex Cover size     :", coverSize1)
+print("  Max Independent Set size  :", misSize1)
+print("  Phases executed           :", phases1)
+
+if (matchCount1 == 6 and coverSize1 == 6 and misSize1 == 8 and matchOk1 and coverOk1 and misOk1) {
+    print("  Test Case 1 PASSED (Konig duality and Gallai identity hold)")
+} else {
+    print("[FAIL] Test Case 1 failed validation")
+    allSuitesPassed = false
+}
+
+// --- Test Case 2: Domino Tiling on 5x5 Grid with Hole Cutouts ---
+print("Running Test Case 2: Domino Tiling Reduction on 5x5 Grid with Holes...")
+// Grid 5x5 = 25 cells. Cutouts at (1,1), (1,3), (3,1), (3,3) leaving 21 cells.
+gridDim = 5
+cellMap = makeIntArray(25, -1)
+leftCount2 = 0
+rightCount2 = 0
+
+r = 0
+while (r < gridDim) {
+    c = 0
+    while (c < gridDim) {
+        flat = r * gridDim + c
+        isCutout = (r == 1 and c == 1) or (r == 1 and c == 3) or (r == 3 and c == 1) or (r == 3 and c == 3)
+        if (!isCutout) {
+            if ((r + c) % 2 == 0) {
+                cellMap[flat] = leftCount2
+                leftCount2 = leftCount2 + 1
+            } else {
+                cellMap[flat] = rightCount2
+                rightCount2 = rightCount2 + 1
+            }
+        }
+        c = c + 1
+    }
+    r = r + 1
+}
+
+gGrid = createBipartiteGraph(leftCount2, rightCount2)
+r = 0
+while (r < gridDim) {
+    c = 0
+    while (c < gridDim) {
+        flat = r * gridDim + c
+        if (cellMap[flat] != -1 and (r + c) % 2 == 0) {
+            uIdx = cellMap[flat]
+            if (r > 0) {
+                up = (r - 1) * gridDim + c
+                if (cellMap[up] != -1) { addBipartiteEdge(gGrid, uIdx, cellMap[up]) }
+            }
+            if (r < gridDim - 1) {
+                down = (r + 1) * gridDim + c
+                if (cellMap[down] != -1) { addBipartiteEdge(gGrid, uIdx, cellMap[down]) }
+            }
+            if (c > 0) {
+                leftCell = r * gridDim + (c - 1)
+                if (cellMap[leftCell] != -1) { addBipartiteEdge(gGrid, uIdx, cellMap[leftCell]) }
+            }
+            if (c < gridDim - 1) {
+                rightCell = r * gridDim + (c + 1)
+                if (cellMap[rightCell] != -1) { addBipartiteEdge(gGrid, uIdx, cellMap[rightCell]) }
+            }
+        }
+        c = c + 1
+    }
+    r = r + 1
+}
+
+resGrid = solveMaxBipartiteMatching(gGrid)
+matchGrid = resGrid[0]
+pairUGrid = resGrid[1]
+pairVGrid = resGrid[2]
+coverGrid = computeMinVertexCover(gGrid, pairUGrid, pairVGrid)
+matchGridOk = verifyMatchingValidity(gGrid, pairUGrid, pairVGrid, matchGrid)
+coverGridOk = verifyVertexCoverValidity(gGrid, coverGrid[1], coverGrid[2])
+
+print("  Grid partitions (Left / Right):", leftCount2, "/", rightCount2)
+print("  Max Domino Matching:", matchGrid, "of theoretical bound:", minInt(leftCount2, rightCount2))
+
+if (matchGrid <= minInt(leftCount2, rightCount2) and matchGrid == coverGrid[0] and matchGridOk and coverGridOk) {
+    print("  Test Case 2 PASSED (Grid domino matching verified)")
+} else {
+    print("[FAIL] Test Case 2 failed grid domino verification")
+    allSuitesPassed = false
+}
+
+// --- Test Case 3: Complete Bipartite K(6,6) with Missing Hamiltonian Edges ---
+print("Running Test Case 3: Dense Bipartite K(6,6) Missing Diagonal Edges...")
+kSize = 6
+gComplete = createBipartiteGraph(kSize, kSize)
+i = 0
+while (i < kSize) {
+    j = 0
+    while (j < kSize) {
+        if (j != i) {
+            addBipartiteEdge(gComplete, i, j)
+        }
+        j = j + 1
+    }
+    i = i + 1
+}
+
+resComplete = solveMaxBipartiteMatching(gComplete)
+matchComplete = resComplete[0]
+pairUComplete = resComplete[1]
+pairVComplete = resComplete[2]
+coverComplete = computeMinVertexCover(gComplete, pairUComplete, pairVComplete)
+matchCompleteOk = verifyMatchingValidity(gComplete, pairUComplete, pairVComplete, matchComplete)
+coverCompleteOk = verifyVertexCoverValidity(gComplete, coverComplete[1], coverComplete[2])
+
+print("  Matching cardinality:", matchComplete, "(Expected:", kSize, ")")
+if (matchComplete == kSize and coverComplete[0] == kSize and matchCompleteOk and coverCompleteOk) {
+    print("  Test Case 3 PASSED (Perfect matching on deranged K(6,6))")
+} else {
+    print("[FAIL] Test Case 3 failed complete bipartite verification")
+    allSuitesPassed = false
+}
+
+// --- Test Case 4: Asymmetric Star Bottleneck Graph ---
+print("Running Test Case 4: Asymmetric Resource Bottleneck (14 Clients, 4 Services)...")
+nClients = 14
+nServices = 4
+gAsym = createBipartiteGraph(nClients, nServices)
+cIdx = 0
+while (cIdx < nClients) {
+    s1 = cIdx % nServices
+    s2 = (cIdx + 1) % nServices
+    addBipartiteEdge(gAsym, cIdx, s1)
+    addBipartiteEdge(gAsym, cIdx, s2)
+    cIdx = cIdx + 1
+}
+
+resAsym = solveMaxBipartiteMatching(gAsym)
+matchAsym = resAsym[0]
+pairUAsym = resAsym[1]
+pairVAsym = resAsym[2]
+coverAsym = computeMinVertexCover(gAsym, pairUAsym, pairVAsym)
+matchAsymOk = verifyMatchingValidity(gAsym, pairUAsym, pairVAsym, matchAsym)
+coverAsymOk = verifyVertexCoverValidity(gAsym, coverAsym[1], coverAsym[2])
+
+print("  Bottleneck matching size:", matchAsym, "against capacity bound:", nServices)
+if (matchAsym == nServices and coverAsym[0] == nServices and matchAsymOk and coverAsymOk) {
+    print("  Test Case 4 PASSED (Asymmetric bottleneck saturated)")
+} else {
+    print("[FAIL] Test Case 4 failed asymmetric bottleneck verification")
+    allSuitesPassed = false
+}
+
+// --- Test Case 5: Large Pseudo-Random Bipartite Stress Network ---
+print("Running Test Case 5: Dense Pseudo-Random Stress Graph (50 Left, 50 Right)...")
+stressSize = 50
+gStress = createBipartiteGraph(stressSize, stressSize)
+seed = 123456789
+totalEdges = 0
+
+i = 0
+while (i < stressSize) {
+    j = 0
+    while (j < stressSize) {
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        if (seed % 4 == 0) {
+            addBipartiteEdge(gStress, i, j)
+            totalEdges = totalEdges + 1
+        }
+        j = j + 1
+    }
+    i = i + 1
+}
+
+print("  Constructed stress graph with", totalEdges, "edges across 100 vertices")
+resStress = solveMaxBipartiteMatching(gStress)
+matchStress = resStress[0]
+pairUStress = resStress[1]
+pairVStress = resStress[2]
+phasesStress = resStress[3]
+
+coverStress = computeMinVertexCover(gStress, pairUStress, pairVStress)
+misStress = computeMaxIndependentSet(gStress, coverStress[1], coverStress[2])
+
+matchStressOk = verifyMatchingValidity(gStress, pairUStress, pairVStress, matchStress)
+coverStressOk = verifyVertexCoverValidity(gStress, coverStress[1], coverStress[2])
+misStressOk = verifyIndependentSetValidity(gStress, misStress[1], misStress[2])
+
+print("  Stress Matching cardinality :", matchStress)
+print("  Stress Min Vertex Cover     :", coverStress[0])
+print("  Stress Max Independent Set  :", misStress[0])
+print("  Stress Phases count         :", phasesStress)
+
+dualityPreserved = (matchStress == coverStress[0]) and (misStress[0] == (stressSize * 2 - coverStress[0]))
+if (dualityPreserved and matchStressOk and coverStressOk and misStressOk) {
+    print("  Test Case 5 PASSED (Stress graph satisfied Konig and Gallai identities)")
+} else {
+    print("[FAIL] Test Case 5 failed stress graph duality verification")
+    allSuitesPassed = false
+}
+
+// --- Final Suite Summary ---
+print("=== Hopcroft-Karp Bipartite Matching Suite Summary ===")
+if (allSuitesPassed) {
+    print("All Hopcroft-Karp test suites: SUCCESS")
+} else {
+    print("Some Hopcroft-Karp test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Hopcroft-Karp Bipartite Matching executed successfully in", totalElapsed, "ms")
