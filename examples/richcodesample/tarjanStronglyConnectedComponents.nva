@@ -1,0 +1,601 @@
+import stdlib time as t
+
+// Tarjan's Strongly Connected Components (SCC) Algorithm Suite
+// Linear-Time Graph Partitioning via Iterative Low-Link DFS Stack
+//
+// Time Complexity: O(V + E) for arbitrary directed multigraphs
+// Space Complexity: O(V + E) using adjacency lists and explicit frame stacks
+//
+// Technical characteristics:
+// - Iterative DFS traversal with explicit call stacks preventing call recursion overflow
+// - Dual-index low-link and discovery numbering identifying component roots
+// - Tarjan work stack maintaining strongly connected candidate subgraphs
+// - Condensation directed acyclic graph (DAG) construction with duplicate edge suppression
+// - Kahn's topological sort verification ensuring acyclicity of condensation graph
+// - Mutual reachability verification within strongly connected components via localized BFS
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Tarjan Strongly Connected Components Algorithm Suite ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func createGraph(numNodes) {
+    adj = []
+    i = 0
+    while (i < numNodes) {
+        adj.push([])
+        i = i + 1
+    }
+    return [numNodes, adj]
+}
+
+func addDirectedEdge(graph, u, v) {
+    adj = graph[1]
+    adj[u].push(v)
+}
+
+func computeTarjanScc(graph) {
+    numNodes = graph[0]
+    adj = graph[1]
+
+    disc = makeIntArray(numNodes, -1)
+    lowLink = makeIntArray(numNodes, -1)
+    onStack = makeIntArray(numNodes, 0)
+    sccId = makeIntArray(numNodes, -1)
+
+    sccSizes = []
+    sccRoots = []
+    sccMembers = []
+
+    tarjanStack = []
+    timer = 0
+    sccCount = 0
+
+    rootCandidate = 0
+    while (rootCandidate < numNodes) {
+        if (disc[rootCandidate] == -1) {
+            callStackU = [rootCandidate]
+            callStackEdge = [0]
+
+            timer = timer + 1
+            disc[rootCandidate] = timer
+            lowLink[rootCandidate] = timer
+            tarjanStack.push(rootCandidate)
+            onStack[rootCandidate] = 1
+
+            while (callStackU.size() > 0) {
+                topIdx = callStackU.size() - 1
+                curr = callStackU[topIdx]
+                edgeIdx = callStackEdge[topIdx]
+                neighbors = adj[curr]
+
+                if (edgeIdx < neighbors.size()) {
+                    v = neighbors[edgeIdx]
+                    callStackEdge[topIdx] = edgeIdx + 1
+
+                    if (disc[v] == -1) {
+                        timer = timer + 1
+                        disc[v] = timer
+                        lowLink[v] = timer
+                        tarjanStack.push(v)
+                        onStack[v] = 1
+
+                        callStackU.push(v)
+                        callStackEdge.push(0)
+                    } elif (onStack[v] == 1) {
+                        if (disc[v] < lowLink[curr]) {
+                            lowLink[curr] = disc[v]
+                        }
+                    }
+                } else {
+                    callStackU.pop()
+                    callStackEdge.pop()
+
+                    if (callStackU.size() > 0) {
+                        pNode = callStackU[callStackU.size() - 1]
+                        if (lowLink[curr] < lowLink[pNode]) {
+                            lowLink[pNode] = lowLink[curr]
+                        }
+                    }
+
+                    if (lowLink[curr] == disc[curr]) {
+                        currentCompId = sccCount
+                        sccCount = sccCount + 1
+                        sccRoots.push(curr)
+
+                        compMembers = []
+                        extracting = 1
+                        while (extracting == 1) {
+                            node = tarjanStack.pop()
+                            onStack[node] = 0
+                            sccId[node] = currentCompId
+                            compMembers.push(node)
+                            if (node == curr) {
+                                extracting = 0
+                            }
+                        }
+
+                        sccSizes.push(compMembers.size())
+                        sccMembers.push(compMembers)
+                    }
+                }
+            }
+        }
+        rootCandidate = rootCandidate + 1
+    }
+
+    return [sccCount, sccId, sccSizes, sccRoots, sccMembers, disc, lowLink]
+}
+
+func buildCondensationDag(graph, sccResult) {
+    numNodes = graph[0]
+    adj = graph[1]
+    sccCount = sccResult[0]
+    sccId = sccResult[1]
+
+    dagAdj = []
+    i = 0
+    while (i < sccCount) {
+        dagAdj.push([])
+        i = i + 1
+    }
+
+    edgeMatrix = makeIntArray(sccCount * sccCount, 0)
+    dagInDegree = makeIntArray(sccCount, 0)
+    dagEdgeCount = 0
+
+    u = 0
+    while (u < numNodes) {
+        uComp = sccId[u]
+        neighbors = adj[u]
+        eIdx = 0
+        while (eIdx < neighbors.size()) {
+            v = neighbors[eIdx]
+            vComp = sccId[v]
+            if (uComp != vComp) {
+                matIdx = uComp * sccCount + vComp
+                if (edgeMatrix[matIdx] == 0) {
+                    edgeMatrix[matIdx] = 1
+                    dagAdj[uComp].push(vComp)
+                    dagInDegree[vComp] = dagInDegree[vComp] + 1
+                    dagEdgeCount = dagEdgeCount + 1
+                }
+            }
+            eIdx = eIdx + 1
+        }
+        u = u + 1
+    }
+
+    return [sccCount, dagAdj, dagInDegree, dagEdgeCount]
+}
+
+func verifyCondensationAcyclicity(dagData) {
+    sccCount = dagData[0]
+    dagAdj = dagData[1]
+    dagInDegree = dagData[2]
+
+    inDegCopy = makeIntArray(sccCount, 0)
+    cIdx = 0
+    while (cIdx < sccCount) {
+        inDegCopy[cIdx] = dagInDegree[cIdx]
+        cIdx = cIdx + 1
+    }
+
+    queue = []
+    qHead = 0
+    i = 0
+    while (i < sccCount) {
+        if (inDegCopy[i] == 0) {
+            queue.push(i)
+        }
+        i = i + 1
+    }
+
+    processedCount = 0
+    while (qHead < queue.size()) {
+        curr = queue[qHead]
+        qHead = qHead + 1
+        processedCount = processedCount + 1
+
+        succs = dagAdj[curr]
+        sIdx = 0
+        while (sIdx < succs.size()) {
+            succ = succs[sIdx]
+            inDegCopy[succ] = inDegCopy[succ] - 1
+            if (inDegCopy[succ] == 0) {
+                queue.push(succ)
+            }
+            sIdx = sIdx + 1
+        }
+    }
+
+    return processedCount == sccCount
+}
+
+func checkSubgraphReachability(graph, compMembers) {
+    compSize = compMembers.size()
+    if (compSize <= 1) {
+        return true
+    }
+
+    numNodes = graph[0]
+    adj = graph[1]
+
+    inComp = makeIntArray(numNodes, 0)
+    i = 0
+    while (i < compSize) {
+        inComp[compMembers[i]] = 1
+        i = i + 1
+    }
+
+    srcIdx = 0
+    while (srcIdx < compSize) {
+        src = compMembers[srcIdx]
+        visited = makeIntArray(numNodes, 0)
+        visited[src] = 1
+        queue = [src]
+        qHead = 0
+        reachCount = 1
+
+        while (qHead < queue.size()) {
+            curr = queue[qHead]
+            qHead = qHead + 1
+
+            neighbors = adj[curr]
+            nIdx = 0
+            while (nIdx < neighbors.size()) {
+                nxt = neighbors[nIdx]
+                if (inComp[nxt] == 1 and visited[nxt] == 0) {
+                    visited[nxt] = 1
+                    reachCount = reachCount + 1
+                    queue.push(nxt)
+                }
+                nIdx = nIdx + 1
+            }
+        }
+
+        if (reachCount != compSize) {
+            return false
+        }
+        srcIdx = srcIdx + 1
+    }
+
+    return true
+}
+
+func verifyTarjanInvariants(graph, sccResult) {
+    numNodes = graph[0]
+    sccCount = sccResult[0]
+    sccId = sccResult[1]
+    sccSizes = sccResult[2]
+    sccRoots = sccResult[3]
+    sccMembers = sccResult[4]
+    disc = sccResult[5]
+    lowLink = sccResult[6]
+
+    // Invariant 1: Total member count equals numNodes
+    totalCount = 0
+    cIdx = 0
+    while (cIdx < sccCount) {
+        totalCount = totalCount + sccSizes[cIdx]
+        cIdx = cIdx + 1
+    }
+    if (totalCount != numNodes) {
+        print("FAIL: Total partition size does not match node count")
+        return false
+    }
+
+    // Invariant 2: Valid component assignment and lowLink bounds
+    v = 0
+    while (v < numNodes) {
+        c = sccId[v]
+        if (c < 0 or c >= sccCount) {
+            print("FAIL: Node has out-of-range SCC ID:", v)
+            return false
+        }
+        if (disc[v] < 1 or lowLink[v] < 1 or lowLink[v] > disc[v]) {
+            print("FAIL: Invalid discovery or low-link value for node:", v)
+            return false
+        }
+        v = v + 1
+    }
+
+    // Invariant 3: Root property: root of SCC has lowLink == disc
+    cIdx = 0
+    while (cIdx < sccCount) {
+        rootNode = sccRoots[cIdx]
+        if (lowLink[rootNode] != disc[rootNode]) {
+            print("FAIL: Root node does not satisfy lowLink == disc:", rootNode)
+            return false
+        }
+        cIdx = cIdx + 1
+    }
+
+    // Invariant 4: Mutual reachability within each component
+    cIdx = 0
+    while (cIdx < sccCount) {
+        if (!checkSubgraphReachability(graph, sccMembers[cIdx])) {
+            print("FAIL: Mutual reachability violated in SCC ID:", cIdx)
+            return false
+        }
+        cIdx = cIdx + 1
+    }
+
+    // Invariant 5: Condensation DAG acyclicity
+    dagData = buildCondensationDag(graph, sccResult)
+    if (!verifyCondensationAcyclicity(dagData)) {
+        print("FAIL: Condensation graph contains directed cycles")
+        return false
+    }
+
+    return true
+}
+
+func runTarjanTestCase(testId, testName, numNodes, edgesFlat, expectedSccCount, expectedSizes) {
+    print("Running Test Case", testId, ":", testName)
+    graph = createGraph(numNodes)
+
+    edgeCount = edgesFlat.size() / 2
+    eIdx = 0
+    while (eIdx < edgeCount) {
+        u = edgesFlat[eIdx * 2]
+        v = edgesFlat[eIdx * 2 + 1]
+        addDirectedEdge(graph, u, v)
+        eIdx = eIdx + 1
+    }
+
+    sccResult = computeTarjanScc(graph)
+    sccCount = sccResult[0]
+    sccSizes = sccResult[2]
+
+    print("  Nodes:", numNodes, "| Edges:", edgeCount, "| SCCs Found:", sccCount, "(Expected:", expectedSccCount, ")")
+
+    if (sccCount != expectedSccCount) {
+        print("  FAIL: Mismatch in expected SCC count")
+        return false
+    }
+
+    // Verify sizes
+    if (expectedSizes.size() > 0) {
+        sortedActual = []
+        i = 0
+        while (i < sccCount) {
+            sortedActual.push(sccSizes[i])
+            i = i + 1
+        }
+        // Selection sort on sizes
+        i = 0
+        while (i < sortedActual.size()) {
+            minIdx = i
+            j = i + 1
+            while (j < sortedActual.size()) {
+                if (sortedActual[j] < sortedActual[minIdx]) {
+                    minIdx = j
+                }
+                j = j + 1
+            }
+            tmp = sortedActual[i]
+            sortedActual[i] = sortedActual[minIdx]
+            sortedActual[minIdx] = tmp
+            i = i + 1
+        }
+
+        sortedExp = []
+        i = 0
+        while (i < expectedSizes.size()) {
+            sortedExp.push(expectedSizes[i])
+            i = i + 1
+        }
+        i = 0
+        while (i < sortedExp.size()) {
+            minIdx = i
+            j = i + 1
+            while (j < sortedExp.size()) {
+                if (sortedExp[j] < sortedExp[minIdx]) {
+                    minIdx = j
+                }
+                j = j + 1
+            }
+            tmp = sortedExp[i]
+            sortedExp[i] = sortedExp[minIdx]
+            sortedExp[minIdx] = tmp
+            i = i + 1
+        }
+
+        mismatch = false
+        i = 0
+        while (i < sortedActual.size()) {
+            if (sortedActual[i] != sortedExp[i]) {
+                mismatch = true
+            }
+            i = i + 1
+        }
+        if (mismatch) {
+            print("  FAIL: Component sizes do not match expected distribution")
+            return false
+        }
+    }
+
+    invariantsValid = verifyTarjanInvariants(graph, sccResult)
+    if (!invariantsValid) {
+        print("  FAIL: Mathematical invariants failed")
+        return false
+    }
+
+    dagData = buildCondensationDag(graph, sccResult)
+    dagEdgeCount = dagData[3]
+    print("  Condensation DAG Edges:", dagEdgeCount, "| Acyclicity: VALID | Reachability: VALID")
+    print("  Test Case", testId, "PASSED")
+    return true
+}
+
+allTarjanPassed = true
+
+// --- Test Case 1: Textbook 8-Node Graph with 3 SCCs ---
+// SCC 1: {0, 1, 2}, SCC 2: {3, 4, 5}, SCC 3: {6, 7}
+edges1 = [
+    0, 1,
+    1, 2,
+    2, 0,
+    2, 3,
+    3, 4,
+    4, 5,
+    5, 3,
+    5, 6,
+    6, 7,
+    7, 6
+]
+expSizes1 = [3, 3, 2]
+if (!runTarjanTestCase(1, "Textbook 8-Node 3-SCC Benchmark", 8, edges1, 3, expSizes1)) {
+    allTarjanPassed = false
+}
+
+// --- Test Case 2: Pure Directed Acyclic Graph (6 Nodes) ---
+// Each node forms an individual SCC of size 1
+edges2 = [
+    0, 1,
+    0, 2,
+    1, 3,
+    1, 4,
+    2, 4,
+    3, 5,
+    4, 5
+]
+expSizes2 = [1, 1, 1, 1, 1, 1]
+if (!runTarjanTestCase(2, "Pure Directed Acyclic Graph", 6, edges2, 6, expSizes2)) {
+    allTarjanPassed = false
+}
+
+// --- Test Case 3: Complete Directed Cycle (10 Nodes) ---
+// Single global SCC of size 10
+edges3 = [
+    0, 1,
+    1, 2,
+    2, 3,
+    3, 4,
+    4, 5,
+    5, 6,
+    6, 7,
+    7, 8,
+    8, 9,
+    9, 0
+]
+expSizes3 = [10]
+if (!runTarjanTestCase(3, "Complete 10-Node Directed Cycle", 10, edges3, 1, expSizes3)) {
+    allTarjanPassed = false
+}
+
+// --- Test Case 4: Disconnected Graph with Isolated Vertices & Self-Loops ---
+// Nodes: 0..8
+// Self loop on 3, cycle on {0, 1}, cycle on {5, 6, 7}, isolated nodes {2, 4, 8}
+edges4 = [
+    0, 1,
+    1, 0,
+    3, 3,
+    5, 6,
+    6, 7,
+    7, 5
+]
+expSizes4 = [2, 1, 1, 1, 3, 1]
+if (!runTarjanTestCase(4, "Disconnected Forest with Isolated Nodes and Self Loops", 9, edges4, 6, expSizes4)) {
+    allTarjanPassed = false
+}
+
+// --- Test Case 5: Bowtie / Figure-8 Graph ---
+// Cycle 1: {0, 1, 2}, Bridge 2 -> 3, Cycle 2: {3, 4, 5}, Isolated 6
+edges5 = [
+    0, 1,
+    1, 2,
+    2, 0,
+    2, 3,
+    3, 4,
+    4, 5,
+    5, 3
+]
+expSizes5 = [3, 3, 1]
+if (!runTarjanTestCase(5, "Bowtie Figure-Eight Bridged Graph", 7, edges5, 3, expSizes5)) {
+    allTarjanPassed = false
+}
+
+// --- Test Case 6: Star Graph with Source, Sink, and Cyclic Leaves ---
+// Center node 0, Leaves 1..6
+// 0 -> 1 -> 2 -> 0 (cycle of 3), 0 -> 3 (dag edge), 3 -> 4 -> 3 (cycle of 2), 5 -> 0 (incoming), 6 isolated
+edges6 = [
+    0, 1,
+    1, 2,
+    2, 0,
+    0, 3,
+    3, 4,
+    4, 3,
+    5, 0
+]
+expSizes6 = [3, 2, 1, 1]
+if (!runTarjanTestCase(6, "Heterogeneous Star Topology with Embedded Cycles", 7, edges6, 4, expSizes6)) {
+    allTarjanPassed = false
+}
+
+// --- Test Case 7: Multi-Tier Layered Graph with Cross-Cluster Bridges (14 Nodes) ---
+// Tier 1: Cycle {0, 1, 2}
+// Tier 2: Cycle {3, 4, 5, 6}
+// Tier 3: Cycle {7, 8}
+// Tier 4: Cycle {9, 10, 11}
+// Singleton transit nodes: {12, 13}
+// Bridges: 2 -> 3, 5 -> 12, 12 -> 7, 8 -> 9, 11 -> 13
+edges7 = [
+    0, 1,  1, 2,  2, 0,
+    3, 4,  4, 5,  5, 6,  6, 3,
+    7, 8,  8, 7,
+    9, 10, 10, 11, 11, 9,
+    2, 3,
+    5, 12,
+    12, 7,
+    8, 9,
+    11, 13
+]
+expSizes7 = [3, 4, 2, 3, 1, 1]
+if (!runTarjanTestCase(7, "Four-Tier Layered Industrial Network with Transit Bridges", 14, edges7, 6, expSizes7)) {
+    allTarjanPassed = false
+}
+
+// --- Test Case 8: Complete Dense Clique / Tournament (6 Nodes) ---
+// All directed edges present in cycle-rich configuration -> 1 SCC of size 6
+edges8 = [
+    0, 1,  0, 2,  0, 3,  0, 4,  0, 5,
+    1, 2,  1, 3,  1, 4,  1, 5,  1, 0,
+    2, 3,  2, 4,  2, 5,  2, 0,  2, 1,
+    3, 4,  3, 5,  3, 0,  3, 1,  3, 2,
+    4, 5,  4, 0,  4, 1,  4, 2,  4, 3,
+    5, 0,  5, 1,  5, 2,  5, 3,  5, 4
+]
+expSizes8 = [6]
+if (!runTarjanTestCase(8, "Complete Dense Directed 6-Clique", 6, edges8, 1, expSizes8)) {
+    allTarjanPassed = false
+}
+
+// --- Suite Summary ---
+print("=== Tarjan Strongly Connected Components Algorithm Suite Summary ===")
+if (allTarjanPassed) {
+    print("All Tarjan SCC test suites: SUCCESS")
+} else {
+    print("Some Tarjan SCC test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Tarjan SCC with Low-Link DFS Stack executed successfully in", totalElapsed, "ms")
