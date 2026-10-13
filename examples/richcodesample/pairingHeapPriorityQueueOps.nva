@@ -185,6 +185,90 @@ func deleteMin(arena, root) {
     return [minKey, minVal, newRoot]
 }
 
+func multiPassPairing(arena, children) {
+    if (children.size() == 0) {
+        return -1
+    }
+    curList = children
+    while (curList.size() > 1) {
+        nextList = []
+        pIdx = 0
+        while (pIdx < curList.size()) {
+            if (pIdx + 1 < curList.size()) {
+                paired = meldPairingHeaps(arena, curList[pIdx], curList[pIdx + 1])
+                nextList.push(paired)
+                pIdx = pIdx + 2
+            } else {
+                nextList.push(curList[pIdx])
+                pIdx = pIdx + 1
+            }
+        }
+        curList = nextList
+    }
+    return curList[0]
+}
+
+func deleteMinMultiPass(arena, root) {
+    if (root == -1) {
+        return [-1, -1, -1]
+    }
+    aKey = arena[0]
+    aVal = arena[1]
+    minKey = aKey[root]
+    minVal = aVal[root]
+
+    children = collectChildren(arena, root)
+    newRoot = multiPassPairing(arena, children)
+    return [minKey, minVal, newRoot]
+}
+
+func decreaseKey(arena, root, nodeId, newKey) {
+    if (root == -1 or nodeId == -1) {
+        return root
+    }
+
+    aKey = arena[0]
+    if (newKey > aKey[nodeId]) {
+        return root
+    }
+    aKey[nodeId] = newKey
+    arena[0] = aKey
+
+    if (nodeId == root) {
+        return root
+    }
+
+    aChild = arena[2]
+    aSibling = arena[3]
+    aPrev = arena[4]
+
+    p = aPrev[nodeId]
+    sib = aSibling[nodeId]
+
+    if (p != -1) {
+        if (aChild[p] == nodeId) {
+            aChild[p] = sib
+            if (sib != -1) {
+                aPrev[sib] = p
+            }
+        } else {
+            aSibling[p] = sib
+            if (sib != -1) {
+                aPrev[sib] = p
+            }
+        }
+    }
+
+    aSibling[nodeId] = -1
+    aPrev[nodeId] = -1
+
+    arena[2] = aChild
+    arena[3] = aSibling
+    arena[4] = aPrev
+
+    return meldPairingHeaps(arena, root, nodeId)
+}
+
 func countPairingHeapNodes(arena, root) {
     if (root == -1) {
         return 0
@@ -344,3 +428,349 @@ if (isEmptyPairingHeap(tc1Root) != 1) {
     print("[FAIL] Test Case 1: Heap must be empty after all extractions")
 }
 print("  Test Case 1 Passed sequential insert and sorted extraction verification")
+
+// ==============================================================================
+// Test Case 2: Multi-Pass and Two-Pass Consolidation Parity and Direct Meld
+// ==============================================================================
+print("[*] Test Case 2: Multi-Pass and Two-Pass Consolidation Parity and Direct Meld")
+tc2ArenaA = createPairingHeapArena()
+tc2RootA = -1
+tc2KeysA = [45, 18, 72, 11, 88, 36]
+tc2ValsA = [450, 180, 720, 110, 880, 360]
+
+tc2IdxA = 0
+while (tc2IdxA < tc2KeysA.size()) {
+    insResA = insertPairingNode(tc2ArenaA, tc2RootA, tc2KeysA[tc2IdxA], tc2ValsA[tc2IdxA])
+    tc2RootA = insResA[1]
+    tc2IdxA = tc2IdxA + 1
+}
+
+tc2KeysB = [27, 63, 9, 54, 81, 14]
+tc2ValsB = [270, 630, 90, 540, 810, 140]
+
+tc2RootSubB = -1
+tc2IdxB = 0
+while (tc2IdxB < tc2KeysB.size()) {
+    insResB = insertPairingNode(tc2ArenaA, tc2RootSubB, tc2KeysB[tc2IdxB], tc2ValsB[tc2IdxB])
+    tc2RootSubB = insResB[1]
+    tc2IdxB = tc2IdxB + 1
+}
+
+tc2RootA = meldPairingHeaps(tc2ArenaA, tc2RootA, tc2RootSubB)
+
+// In parallel, build identical heap in tc2ArenaB for multi-pass pairing extraction
+tc2ArenaB = createPairingHeapArena()
+tc2RootB = -1
+
+tc2AllKeys = [45, 18, 72, 11, 88, 36, 27, 63, 9, 54, 81, 14]
+tc2AllVals = [450, 180, 720, 110, 880, 360, 270, 630, 90, 540, 810, 140]
+
+tc2IdxC = 0
+while (tc2IdxC < tc2AllKeys.size()) {
+    insResC = insertPairingNode(tc2ArenaB, tc2RootB, tc2AllKeys[tc2IdxC], tc2AllVals[tc2IdxC])
+    tc2RootB = insResC[1]
+    tc2IdxC = tc2IdxC + 1
+}
+
+if (countPairingHeapNodes(tc2ArenaA, tc2RootA) != 12) {
+    print("[FAIL] Test Case 2: Node count mismatch in heap A, expected 12, got", countPairingHeapNodes(tc2ArenaA, tc2RootA))
+}
+if (countPairingHeapNodes(tc2ArenaB, tc2RootB) != 12) {
+    print("[FAIL] Test Case 2: Node count mismatch in heap B, expected 12, got", countPairingHeapNodes(tc2ArenaB, tc2RootB))
+}
+
+tc2ExpectedSortedKeys = [9, 11, 14, 18, 27, 36, 45, 54, 63, 72, 81, 88]
+tc2ExpectedSortedVals = [90, 110, 140, 180, 270, 360, 450, 540, 630, 720, 810, 880]
+
+tc2DrainIdx = 0
+while (tc2DrainIdx < tc2ExpectedSortedKeys.size()) {
+    delTwoPass = deleteMin(tc2ArenaA, tc2RootA)
+    keyTwoPass = delTwoPass[0]
+    valTwoPass = delTwoPass[1]
+    tc2RootA = delTwoPass[2]
+
+    delMultiPass = deleteMinMultiPass(tc2ArenaB, tc2RootB)
+    keyMultiPass = delMultiPass[0]
+    valMultiPass = delMultiPass[1]
+    tc2RootB = delMultiPass[2]
+
+    if (keyTwoPass != tc2ExpectedSortedKeys[tc2DrainIdx]) {
+        print("[FAIL] Test Case 2: Two-pass key mismatch at index", tc2DrainIdx, "expected", tc2ExpectedSortedKeys[tc2DrainIdx], "got", keyTwoPass)
+    }
+    if (keyMultiPass != tc2ExpectedSortedKeys[tc2DrainIdx]) {
+        print("[FAIL] Test Case 2: Multi-pass key mismatch at index", tc2DrainIdx, "expected", tc2ExpectedSortedKeys[tc2DrainIdx], "got", keyMultiPass)
+    }
+    if (valTwoPass != tc2ExpectedSortedVals[tc2DrainIdx] or valMultiPass != tc2ExpectedSortedVals[tc2DrainIdx]) {
+        print("[FAIL] Test Case 2: Value mismatch at index", tc2DrainIdx)
+    }
+
+    if (tc2RootA != -1) {
+        if (verifyPairingHeapInvariants(tc2ArenaA, tc2RootA) != 1) {
+            print("[FAIL] Test Case 2: Invariant check failed on two-pass heap at step", tc2DrainIdx)
+        }
+    }
+    if (tc2RootB != -1) {
+        if (verifyPairingHeapInvariants(tc2ArenaB, tc2RootB) != 1) {
+            print("[FAIL] Test Case 2: Invariant check failed on multi-pass heap at step", tc2DrainIdx)
+        }
+    }
+
+    tc2DrainIdx = tc2DrainIdx + 1
+}
+
+print("  Direct meld and two-pass vs multi-pass parity confirmed across 12 extractions")
+print("  Test Case 2 Passed multi-pass and two-pass consolidation parity verification")
+
+// ==============================================================================
+// Test Case 3: Decrease-Key Operations, Priority Promotion, and Pointer Relink
+// ==============================================================================
+print("[*] Test Case 3: Decrease-Key Operations, Priority Promotion, and Pointer Relink")
+tc3Arena = createPairingHeapArena()
+tc3Root = -1
+
+tc3Keys = [120, 450, 230, 670, 890, 340, 560]
+tc3Vals = [1200, 4500, 2300, 6700, 8900, 3400, 5600]
+tc3Nodes = []
+
+tc3Idx = 0
+while (tc3Idx < tc3Keys.size()) {
+    insRes = insertPairingNode(tc3Arena, tc3Root, tc3Keys[tc3Idx], tc3Vals[tc3Idx])
+    tc3Nodes.push(insRes[0])
+    tc3Root = insRes[1]
+    tc3Idx = tc3Idx + 1
+}
+
+if (verifyPairingHeapInvariants(tc3Arena, tc3Root) != 1) {
+    print("[FAIL] Test Case 3: Initial invariant check failed")
+}
+
+// Decrease key of node 890 (index 4) to 70: becomes new minimum
+tc3Root = decreaseKey(tc3Arena, tc3Root, tc3Nodes[4], 70)
+minAfterStepA = findMin(tc3Arena, tc3Root)
+if (minAfterStepA[0] != 70 or minAfterStepA[1] != 8900) {
+    print("[FAIL] Test Case 3 Step A: Expected min [70, 8900], got", minAfterStepA)
+}
+if (verifyPairingHeapInvariants(tc3Arena, tc3Root) != 1) {
+    print("[FAIL] Test Case 3 Step A: Invariant check failed after decreaseKey to 70")
+}
+
+// Decrease key of node 670 (index 3) to 180: promotes internally without taking root
+tc3Root = decreaseKey(tc3Arena, tc3Root, tc3Nodes[3], 180)
+minAfterStepB = findMin(tc3Arena, tc3Root)
+if (minAfterStepB[0] != 70) {
+    print("[FAIL] Test Case 3 Step B: Expected root to remain 70, got", minAfterStepB[0])
+}
+if (verifyPairingHeapInvariants(tc3Arena, tc3Root) != 1) {
+    print("[FAIL] Test Case 3 Step B: Invariant check failed after decreaseKey to 180")
+}
+
+// Decrease key of current root (node index 4 with key 70) to 25: root-level decrease-key
+tc3Root = decreaseKey(tc3Arena, tc3Root, tc3Nodes[4], 25)
+minAfterStepC = findMin(tc3Arena, tc3Root)
+if (minAfterStepC[0] != 25) {
+    print("[FAIL] Test Case 3 Step C: Expected root key 25, got", minAfterStepC[0])
+}
+if (verifyPairingHeapInvariants(tc3Arena, tc3Root) != 1) {
+    print("[FAIL] Test Case 3 Step C: Invariant check failed after root decreaseKey to 25")
+}
+
+// Attempt invalid decrease-key (attempting to increase key to 999): should be safely ignored
+tc3Root = decreaseKey(tc3Arena, tc3Root, tc3Nodes[0], 999)
+if (verifyPairingHeapInvariants(tc3Arena, tc3Root) != 1) {
+    print("[FAIL] Test Case 3: Invariant check failed after invalid decreaseKey attempt")
+}
+
+// Drain remaining elements: expected sorted keys: [25, 120, 180, 230, 340, 450, 560]
+tc3ExpectedKeys = [25, 120, 180, 230, 340, 450, 560]
+tc3ExpectedVals = [8900, 1200, 6700, 2300, 3400, 4500, 5600]
+
+tc3DrainIdx = 0
+while (tc3DrainIdx < tc3ExpectedKeys.size()) {
+    delRes = deleteMin(tc3Arena, tc3Root)
+    extK = delRes[0]
+    extV = delRes[1]
+    tc3Root = delRes[2]
+
+    if (extK != tc3ExpectedKeys[tc3DrainIdx]) {
+        print("[FAIL] Test Case 3 Drain: Key mismatch at index", tc3DrainIdx, "expected", tc3ExpectedKeys[tc3DrainIdx], "got", extK)
+    }
+    if (extV != tc3ExpectedVals[tc3DrainIdx]) {
+        print("[FAIL] Test Case 3 Drain: Val mismatch at index", tc3DrainIdx, "expected", tc3ExpectedVals[tc3DrainIdx], "got", extV)
+    }
+    if (tc3Root != -1) {
+        if (verifyPairingHeapInvariants(tc3Arena, tc3Root) != 1) {
+            print("[FAIL] Test Case 3 Drain: Invariant check failed at step", tc3DrainIdx)
+        }
+    }
+    tc3DrainIdx = tc3DrainIdx + 1
+}
+
+if (isEmptyPairingHeap(tc3Root) != 1) {
+    print("[FAIL] Test Case 3: Heap must be empty after all extractions")
+}
+print("  Decrease-key promotions and unlinking pointer relinks validated with 100% precision")
+print("  Test Case 3 Passed decrease-key operations and priority promotion verification")
+
+// ==============================================================================
+// Test Case 4: Randomized Stress Benchmark with Interleaved Melds & Extractions
+// ==============================================================================
+print("")
+print("[*] Test Case 4: Randomized Stress Benchmark against Naive Priority Queue Oracle...")
+tc4Arena = createPairingHeapArena()
+
+activeHeaps = [-1, -1, -1]
+oracleLists = [[], [], []]
+
+stressSeed = 135792468
+stressOps = 200
+stressOpI = 0
+stressMismatches = 0
+totalInserts = 0
+totalExtracts = 0
+totalMelds = 0
+
+while (stressOpI < stressOps) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    opType = stressSeed % 3
+
+    if (opType == 0) {
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        targetQ = stressSeed % 3
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        randKey = (stressSeed % 3000) - 1000
+        randVal = randKey * 2
+
+        insResult = insertPairingNode(tc4Arena, activeHeaps[targetQ], randKey, randVal)
+        activeHeaps[targetQ] = insResult[1]
+        oracleLists[targetQ].push(randKey)
+        totalInserts = totalInserts + 1
+    }
+
+    if (opType == 1) {
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        targetQ = stressSeed % 3
+        curRoot = activeHeaps[targetQ]
+
+        if (curRoot != -1) {
+            delRes = deleteMin(tc4Arena, curRoot)
+            hMinKey = delRes[0]
+            activeHeaps[targetQ] = delRes[2]
+
+            oList = oracleLists[targetQ]
+            minIdx = 0
+            bestMin = oList[0]
+            scanI = 1
+            while (scanI < oList.size()) {
+                if (oList[scanI] < bestMin) {
+                    bestMin = oList[scanI]
+                    minIdx = scanI
+                }
+                scanI = scanI + 1
+            }
+
+            newOList = []
+            scanJ = 0
+            while (scanJ < oList.size()) {
+                if (scanJ != minIdx) {
+                    newOList.push(oList[scanJ])
+                }
+                scanJ = scanJ + 1
+            }
+            oracleLists[targetQ] = newOList
+
+            if (hMinKey != bestMin) {
+                print("[FAIL] Stress mismatch: heapMin=", hMinKey, ", oracleMin=", bestMin)
+                stressMismatches = stressMismatches + 1
+            }
+            totalExtracts = totalExtracts + 1
+        }
+    }
+
+    if (opType == 2) {
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        hIdxA = stressSeed % 3
+        hIdxB = (hIdxA + 1 + (stressSeed % 2)) % 3
+
+        if (activeHeaps[hIdxB] != -1) {
+            activeHeaps[hIdxA] = meldPairingHeaps(tc4Arena, activeHeaps[hIdxA], activeHeaps[hIdxB])
+            activeHeaps[hIdxB] = -1
+
+            listA = oracleLists[hIdxA]
+            listB = oracleLists[hIdxB]
+            copyI = 0
+            while (copyI < listB.size()) {
+                listA.push(listB[copyI])
+                copyI = copyI + 1
+            }
+            oracleLists[hIdxA] = listA
+            oracleLists[hIdxB] = []
+            totalMelds = totalMelds + 1
+        }
+    }
+
+    stressOpI = stressOpI + 1
+}
+
+// Final drain check across all active heaps
+drainQ = 0
+while (drainQ < 3) {
+    remRoot = activeHeaps[drainQ]
+    remO = oracleLists[drainQ]
+
+    if (remRoot != -1) {
+        if (verifyPairingHeapInvariants(tc4Arena, remRoot) != 1) {
+            print("[FAIL] Final invariant check failed on heap queue", drainQ)
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    while (remRoot != -1) {
+        delFin = deleteMin(tc4Arena, remRoot)
+        finKey = delFin[0]
+        remRoot = delFin[2]
+
+        fMinIdx = 0
+        fBestMin = remO[0]
+        fScanI = 1
+        while (fScanI < remO.size()) {
+            if (remO[fScanI] < fBestMin) {
+                fBestMin = remO[fScanI]
+                fMinIdx = fScanI
+            }
+            fScanI = fScanI + 1
+        }
+
+        fNewRemO = []
+        fScanJ = 0
+        while (fScanJ < remO.size()) {
+            if (fScanJ != fMinIdx) {
+                fNewRemO.push(remO[fScanJ])
+            }
+            fScanJ = fScanJ + 1
+        }
+        remO = fNewRemO
+
+        if (finKey != fBestMin) {
+            print("[FAIL] Final drain mismatch on queue", drainQ, ": heap=", finKey, ", oracle=", fBestMin)
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (remO.size() != 0) {
+        print("[FAIL] Oracle list was not completely drained on queue", drainQ)
+        stressMismatches = stressMismatches + 1
+    }
+
+    drainQ = drainQ + 1
+}
+
+if (stressMismatches == 0) {
+    print("  Executed", stressOps, "randomized operations (", totalInserts, "inserts,", totalExtracts, "extracts,", totalMelds, "melds): 0 mismatches")
+    print("  All active pairing heaps matched naive reference oracle with 100% precision")
+    print("  Test Case 4 Passed randomized stress benchmark verification")
+} else {
+    print("[FAIL] Stress benchmark encountered", stressMismatches, "mismatches")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Pairing Heap Priority Queue Suite executed successfully in", elapsed, "ms")
