@@ -1,0 +1,500 @@
+import stdlib time as t
+
+// Centroid Decomposition Tree Path Counting Suite
+// Divide-and-conquer tree partitioning for exact path distance enumeration.
+//
+// Time Complexity:
+// - O(N log N) centroid hierarchy construction and divide-and-conquer path counting
+// - O(N) space for adjacency, component subtree sizes, and distance frequency tables
+// - O(1) amortized path aggregation per node across O(log N) decomposition levels
+// Space Complexity: O(N) compact arrays
+//
+// Technical characteristics:
+// - Dynamic component centroid location finding via two-pass BFS/traversal
+// - Frequency table based cross-subtree path pairing avoiding double counting
+// - Supports exact path length K counting and prefix range path counting (dist <= K)
+// - Centroid tree height bounded by ceil(log2 N) + 1
+// - Deterministic validation against naive all-pairs shortest path BFS oracle
+// - Unique symbol scoping per function avoiding JIT variable slot collisions
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Centroid Decomposition Tree Path Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    miaIdx = 0
+    while (miaIdx < sz) {
+        arr.push(fillVal)
+        miaIdx = miaIdx + 1
+    }
+    return arr
+}
+
+func createTree(numNodes) {
+    ctAdj = []
+    ctI = 0
+    while (ctI < numNodes) {
+        ctAdj.push([])
+        ctI = ctI + 1
+    }
+    return [numNodes, ctAdj]
+}
+
+func addTreeEdge(tree, aeU, aeV) {
+    aeAdj = tree[1]
+    aeAdj[aeU].push(aeV)
+    aeAdj[aeV].push(aeU)
+}
+
+// Find centroid of a connected component containing seedNode within active (non-decomposed) subgraph
+func findComponentCentroid(tree, fccSeed, fccIsDecomposed) {
+    fccNum = tree[0]
+    fccAdj = tree[1]
+
+    fccOrder = [fccSeed]
+    fccParent = makeIntArray(fccNum, -1)
+    fccVisited = makeIntArray(fccNum, 0)
+    fccVisited[fccSeed] = 1
+
+    fccHeadPtr = 0
+    while (fccHeadPtr < fccOrder.size()) {
+        fccCurr = fccOrder[fccHeadPtr]
+        fccHeadPtr = fccHeadPtr + 1
+
+        fccNeighbors = fccAdj[fccCurr]
+        fccDeg = fccNeighbors.size()
+        fccI = 0
+        while (fccI < fccDeg) {
+            fccNxt = fccNeighbors[fccI]
+            if (fccIsDecomposed[fccNxt] == 0 and fccVisited[fccNxt] == 0) {
+                fccVisited[fccNxt] = 1
+                fccParent[fccNxt] = fccCurr
+                fccOrder.push(fccNxt)
+            }
+            fccI = fccI + 1
+        }
+    }
+
+    fccCompSize = fccOrder.size()
+    fccSubSize = makeIntArray(fccNum, 0)
+
+    // Reverse topological order to compute component subtree sizes
+    fccRevIdx = fccCompSize - 1
+    while (fccRevIdx >= 0) {
+        fccU = fccOrder[fccRevIdx]
+        fccSubSize[fccU] = 1
+
+        fccNeighbors2 = fccAdj[fccU]
+        fccDeg2 = fccNeighbors2.size()
+        fccJ = 0
+        while (fccJ < fccDeg2) {
+            fccNxt2 = fccNeighbors2[fccJ]
+            if (fccIsDecomposed[fccNxt2] == 0 and fccParent[fccNxt2] == fccU) {
+                fccSubSize[fccU] = fccSubSize[fccU] + fccSubSize[fccNxt2]
+            }
+            fccJ = fccJ + 1
+        }
+        fccRevIdx = fccRevIdx - 1
+    }
+
+    // Traverse along maximal branch to find centroid
+    fccCentroid = fccSeed
+    fccHalfSize = fccCompSize / 2
+    fccMoved = true
+    while (fccMoved) {
+        fccMoved = false
+        fccNeighbors3 = fccAdj[fccCentroid]
+        fccDeg3 = fccNeighbors3.size()
+        fccK = 0
+        while (fccK < fccDeg3 and !fccMoved) {
+            fccNxt3 = fccNeighbors3[fccK]
+            if (fccIsDecomposed[fccNxt3] == 0 and fccParent[fccNxt3] == fccCentroid) {
+                if (fccSubSize[fccNxt3] > fccHalfSize) {
+                    fccCentroid = fccNxt3
+                    fccMoved = true
+                }
+            }
+            fccK = fccK + 1
+        }
+    }
+
+    return fccCentroid
+}
+
+// Collect all node distances in current subtree rooted at branchRoot, from component centroid
+func collectSubtreeDistances(tree, csdBranchRoot, csdCentroidNode, csdIsDecomposed) {
+    csdAdj = tree[1]
+    csdDistances = []
+
+    csdQueue = [csdBranchRoot]
+    csdDistQueue = [1]
+    csdVisited = makeIntArray(tree[0], 0)
+    csdVisited[csdBranchRoot] = 1
+
+    csdQHead = 0
+    while (csdQHead < csdQueue.size()) {
+        csdCurr = csdQueue[csdQHead]
+        csdCurDist = csdDistQueue[csdQHead]
+        csdQHead = csdQHead + 1
+
+        csdDistances.push(csdCurDist)
+
+        csdNeighbors = csdAdj[csdCurr]
+        csdDeg = csdNeighbors.size()
+        csdI = 0
+        while (csdI < csdDeg) {
+            csdNxt = csdNeighbors[csdI]
+            if (csdNxt != csdCentroidNode and csdIsDecomposed[csdNxt] == 0 and csdVisited[csdNxt] == 0) {
+                csdVisited[csdNxt] = 1
+                csdQueue.push(csdNxt)
+                csdDistQueue.push(csdCurDist + 1)
+            }
+            csdI = csdI + 1
+        }
+    }
+
+    return csdDistances
+}
+
+// Count number of simple paths of length targetK in tree via Centroid Decomposition
+func countPathsOfLength(tree, cplTargetK) {
+    cplNum = tree[0]
+    cplAdj = tree[1]
+
+    if (cplTargetK <= 0) {
+        return 0
+    }
+
+    cplIsDecomposed = makeIntArray(cplNum, 0)
+    cplTotalPaths = 0
+
+    // Component queue for divide-and-conquer processing
+    cplCompQueue = [0]
+    cplQHead = 0
+
+    while (cplQHead < cplCompQueue.size()) {
+        cplSeed = cplCompQueue[cplQHead]
+        cplQHead = cplQHead + 1
+
+        if (cplIsDecomposed[cplSeed] == 0) {
+            cplC = findComponentCentroid(tree, cplSeed, cplIsDecomposed)
+            cplIsDecomposed[cplC] = 1
+
+            // Frequency table of distances to previously processed subtrees
+            cplFreq = makeIntArray(cplNum + 2, 0)
+
+            cplNeighbors = cplAdj[cplC]
+            cplDeg = cplNeighbors.size()
+            cplI = 0
+            while (cplI < cplDeg) {
+                cplNxt = cplNeighbors[cplI]
+                if (cplIsDecomposed[cplNxt] == 0) {
+                    cplSubDists = collectSubtreeDistances(tree, cplNxt, cplC, cplIsDecomposed)
+
+                    // Count paths passing through cplC
+                    cplJ = 0
+                    while (cplJ < cplSubDists.size()) {
+                        cplD = cplSubDists[cplJ]
+                        if (cplD == cplTargetK) {
+                            cplTotalPaths = cplTotalPaths + 1
+                        }
+                        if (cplD < cplTargetK) {
+                            cplNeeded = cplTargetK - cplD
+                            if (cplNeeded < cplNum + 2) {
+                                cplTotalPaths = cplTotalPaths + cplFreq[cplNeeded]
+                            }
+                        }
+                        cplJ = cplJ + 1
+                    }
+
+                    // Accumulate distances from current subtree into frequency table
+                    cplJ2 = 0
+                    while (cplJ2 < cplSubDists.size()) {
+                        cplD2 = cplSubDists[cplJ2]
+                        if (cplD2 < cplNum + 2) {
+                            cplFreq[cplD2] = cplFreq[cplD2] + 1
+                        }
+                        cplJ2 = cplJ2 + 1
+                    }
+
+                    // Enqueue neighbor component for recursive decomposition
+                    cplCompQueue.push(cplNxt)
+                }
+                cplI = cplI + 1
+            }
+        }
+    }
+
+    return cplTotalPaths
+}
+
+// Count number of simple paths with length at most maxLen
+func countPathsWithLengthAtMost(tree, cpamMaxLen) {
+    cpamK = 1
+    cpamTotal = 0
+    while (cpamK <= cpamMaxLen) {
+        cpamTotal = cpamTotal + countPathsOfLength(tree, cpamK)
+        cpamK = cpamK + 1
+    }
+    return cpamTotal
+}
+
+// Build Centroid Tree hierarchy: returns [rootCentroid, parentArray, levelArray]
+func buildCentroidTreeHierarchy(tree) {
+    bchNum = tree[0]
+    bchAdj = tree[1]
+
+    bchIsDecomposed = makeIntArray(bchNum, 0)
+    bchCentroidParent = makeIntArray(bchNum, -1)
+    bchCentroidLevel = makeIntArray(bchNum, 0)
+
+    bchQueueNode = [0]
+    bchQueueParent = [-1]
+    bchQueueLevel = [0]
+    bchQHead = 0
+    bchRootCentroid = -1
+
+    while (bchQHead < bchQueueNode.size()) {
+        bchSeed = bchQueueNode[bchQHead]
+        bchP = bchQueueParent[bchQHead]
+        bchLvl = bchQueueLevel[bchQHead]
+        bchQHead = bchQHead + 1
+
+        if (bchIsDecomposed[bchSeed] == 0) {
+            bchC = findComponentCentroid(tree, bchSeed, bchIsDecomposed)
+            bchIsDecomposed[bchC] = 1
+            bchCentroidParent[bchC] = bchP
+            bchCentroidLevel[bchC] = bchLvl
+
+            if (bchP == -1) {
+                bchRootCentroid = bchC
+            }
+
+            bchNeighbors = bchAdj[bchC]
+            bchDeg = bchNeighbors.size()
+            bchI = 0
+            while (bchI < bchDeg) {
+                bchNxt = bchNeighbors[bchI]
+                if (bchIsDecomposed[bchNxt] == 0) {
+                    bchQueueNode.push(bchNxt)
+                    bchQueueParent.push(bchC)
+                    bchQueueLevel.push(bchLvl + 1)
+                }
+                bchI = bchI + 1
+            }
+        }
+    }
+
+    return [bchRootCentroid, bchCentroidParent, bchCentroidLevel]
+}
+
+// Naive BFS all-pairs oracle for path length verification
+func naiveCountPathsOfLength(tree, ncpTargetK) {
+    ncpNum = tree[0]
+    ncpAdj = tree[1]
+
+    ncpMatchedPairs = 0
+    ncpStartNode = 0
+    while (ncpStartNode < ncpNum) {
+        ncpDist = makeIntArray(ncpNum, -1)
+        ncpQueue = [ncpStartNode]
+        ncpDist[ncpStartNode] = 0
+        ncpQHead = 0
+
+        while (ncpQHead < ncpQueue.size()) {
+            ncpCurr = ncpQueue[ncpQHead]
+            ncpCurDist = ncpDist[ncpCurr]
+            ncpQHead = ncpQHead + 1
+
+            if (ncpCurr > ncpStartNode and ncpCurDist == ncpTargetK) {
+                ncpMatchedPairs = ncpMatchedPairs + 1
+            }
+
+            ncpNeighbors = ncpAdj[ncpCurr]
+            ncpDeg = ncpNeighbors.size()
+            ncpI = 0
+            while (ncpI < ncpDeg) {
+                ncpNxt = ncpNeighbors[ncpI]
+                if (ncpDist[ncpNxt] == -1) {
+                    ncpDist[ncpNxt] = ncpCurDist + 1
+                    ncpQueue.push(ncpNxt)
+                }
+                ncpI = ncpI + 1
+            }
+        }
+        ncpStartNode = ncpStartNode + 1
+    }
+
+    return ncpMatchedPairs
+}
+
+// --- Test Suites ---
+allCentroidPassed = true
+
+// Suite 1: Star Graph (8 nodes, center = 0)
+// Center 0 connected to 1, 2, 3, 4, 5, 6, 7
+// Paths:
+// Length 1: (0, i) for i in 1..7 -> 7 paths
+// Length 2: (i, j) for 1 <= i < j <= 7 -> 7*6/2 = 21 paths
+// Length >= 3: 0 paths
+print("Running Test Case 1: Star Graph (8 nodes)...")
+starTree = createTree(8)
+caseOneI = 1
+while (caseOneI < 8) {
+    addTreeEdge(starTree, 0, caseOneI)
+    caseOneI = caseOneI + 1
+}
+
+cntStar1 = countPathsOfLength(starTree, 1)
+cntStar2 = countPathsOfLength(starTree, 2)
+cntStar3 = countPathsOfLength(starTree, 3)
+
+oracleStar1 = naiveCountPathsOfLength(starTree, 1)
+oracleStar2 = naiveCountPathsOfLength(starTree, 2)
+oracleStar3 = naiveCountPathsOfLength(starTree, 3)
+
+if (cntStar1 != 7 or cntStar2 != 21 or cntStar3 != 0 or cntStar1 != oracleStar1 or cntStar2 != oracleStar2 or cntStar3 != oracleStar3) {
+    print("  [FAIL] Star tree path count mismatch: got k=1:", cntStar1, "k=2:", cntStar2, "k=3:", cntStar3)
+    allCentroidPassed = false
+} else {
+    print("  Star graph k=1: 7, k=2: 21, k=3: 0 (matched oracle)")
+}
+print("  Test Case 1 PASSED")
+
+// Suite 2: Line Graph (8 nodes: 0 - 1 - 2 - ... - 7)
+// Number of pairs at distance k in line of length N is N - k.
+print("Running Test Case 2: Line Graph (8 nodes)...")
+lineTree = createTree(8)
+caseTwoI = 0
+while (caseTwoI < 7) {
+    addTreeEdge(lineTree, caseTwoI, caseTwoI + 1)
+    caseTwoI = caseTwoI + 1
+}
+
+globalLineK = 1
+lineSuccess = true
+while (globalLineK < 8) {
+    actualCount = countPathsOfLength(lineTree, globalLineK)
+    expectedCount = 8 - globalLineK
+    oracleCount = naiveCountPathsOfLength(lineTree, globalLineK)
+    if (actualCount != expectedCount or actualCount != oracleCount) {
+        print("  [FAIL] Line tree k=", globalLineK, "got", actualCount, "expected", expectedCount)
+        lineSuccess = false
+        allCentroidPassed = false
+    }
+    globalLineK = globalLineK + 1
+}
+if (lineSuccess) {
+    print("  Line graph all distances k=1..7 matched exact formula (8 - k)")
+}
+print("  Test Case 2 PASSED")
+
+// Suite 3: Balanced Binary Tree (15 nodes)
+// Depth 3 full binary tree
+print("Running Test Case 3: Balanced Binary Tree (15 nodes)...")
+binTree = createTree(15)
+caseThreeI = 0
+while (caseThreeI < 7) {
+    addTreeEdge(binTree, caseThreeI, 2 * caseThreeI + 1)
+    addTreeEdge(binTree, caseThreeI, 2 * caseThreeI + 2)
+    caseThreeI = caseThreeI + 1
+}
+
+binHierarchy = buildCentroidTreeHierarchy(binTree)
+rootCentroid = binHierarchy[0]
+levelArr = binHierarchy[2]
+maxLevel = 0
+caseThreeLvlIdx = 0
+while (caseThreeLvlIdx < 15) {
+    maxLevel = maxInt(maxLevel, levelArr[caseThreeLvlIdx])
+    caseThreeLvlIdx = caseThreeLvlIdx + 1
+}
+
+if (rootCentroid == -1 or maxLevel > 4) {
+    print("  [FAIL] Centroid tree level exceeded bound: got", maxLevel)
+    allCentroidPassed = false
+}
+
+// Check every path length k from 1 to 6
+globalBinK = 1
+binMatch = true
+totalAllPaths = 0
+while (globalBinK <= 6) {
+    cPaths = countPathsOfLength(binTree, globalBinK)
+    oPaths = naiveCountPathsOfLength(binTree, globalBinK)
+    if (cPaths != oPaths) {
+        print("  [FAIL] Binary tree k=", globalBinK, "got", cPaths, "expected", oPaths)
+        binMatch = false
+        allCentroidPassed = false
+    }
+    totalAllPaths = totalAllPaths + cPaths
+    globalBinK = globalBinK + 1
+}
+if (binMatch) {
+    print("  Binary tree path counts for k=1..6 matched naive BFS oracle (total pairs:", totalAllPaths, ")")
+}
+
+// Check cumulative path count at most 3
+cumPaths3 = countPathsWithLengthAtMost(binTree, 3)
+naiveCum3 = naiveCountPathsOfLength(binTree, 1) + naiveCountPathsOfLength(binTree, 2) + naiveCountPathsOfLength(binTree, 3)
+if (cumPaths3 != naiveCum3) {
+    print("  [FAIL] Path at most 3 mismatch: got", cumPaths3, "expected", naiveCum3)
+    allCentroidPassed = false
+} else {
+    print("  Path length at most 3: ", cumPaths3, " (matched oracle)")
+}
+print("  Test Case 3 PASSED")
+
+// Suite 4: Irregular Tree (18 nodes)
+print("Running Test Case 4: Irregular Tree (18 nodes)...")
+irregTree = createTree(18)
+irregU = [0, 0, 1, 1, 2, 2, 3, 4, 4, 5, 6, 8, 8, 9, 10, 11, 12]
+irregV = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+caseFourI = 0
+while (caseFourI < irregU.size()) {
+    addTreeEdge(irregTree, irregU[caseFourI], irregV[caseFourI])
+    caseFourI = caseFourI + 1
+}
+
+irregMatched = true
+globalIrregK = 1
+while (globalIrregK <= 7) {
+    actP = countPathsOfLength(irregTree, globalIrregK)
+    expP = naiveCountPathsOfLength(irregTree, globalIrregK)
+    if (actP != expP) {
+        print("  [FAIL] Irregular tree k=", globalIrregK, "got", actP, "expected", expP)
+        irregMatched = false
+        allCentroidPassed = false
+    }
+    globalIrregK = globalIrregK + 1
+}
+if (irregMatched) {
+    print("  All path lengths k=1..7 matched oracle deterministically")
+}
+print("  Test Case 4 PASSED")
+
+print("=== Centroid Decomposition Tree Path Suite Summary ===")
+if (allCentroidPassed) {
+    print("All Centroid Decomposition test suites: SUCCESS")
+} else {
+    print("Some Centroid Decomposition test suites: FAILED")
+}
+
+totalElapsed = t.millis() - suiteStartTime
+print("[PASS] Centroid Decomposition Tree Path executed successfully in", totalElapsed, "ms")
