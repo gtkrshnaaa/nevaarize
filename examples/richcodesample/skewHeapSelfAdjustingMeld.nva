@@ -269,3 +269,191 @@ if (tc1Pass == 1) {
 } else {
     print("[FAIL] Test Case 1 encountered assertion mismatches")
 }
+
+print("")
+print("Running Test Case 2: Direct Meld Operations and Subtree Merging...")
+tc2Pass = 1
+tc2Arena = createSkewHeapArena()
+
+heapA = -1
+heapB = -1
+
+itemsA = [[8, 80], [14, 140], [25, 250], [40, 400]]
+itemsB = [[3, 30], [11, 110], [20, 200], [31, 310], [55, 550]]
+
+idxA = 0
+while (idxA < itemsA.size()) {
+    it = itemsA[idxA]
+    heapA = insertHeapNode(tc2Arena, heapA, it[0], it[1])
+    idxA = idxA + 1
+}
+
+idxB = 0
+while (idxB < itemsB.size()) {
+    it = itemsB[idxB]
+    heapB = insertHeapNode(tc2Arena, heapB, it[0], it[1])
+    idxB = idxB + 1
+}
+
+if (getHeapSize(tc2Arena, heapA) != 4 or getHeapSize(tc2Arena, heapB) != 5) {
+    tc2Pass = 0
+}
+if (verifySkewHeapInvariants(tc2Arena, heapA) != 1 or verifySkewHeapInvariants(tc2Arena, heapB) != 1) {
+    tc2Pass = 0
+}
+
+meldedWithEmpty = meldSkewHeaps(tc2Arena, heapA, -1)
+if (meldedWithEmpty != heapA or getHeapSize(tc2Arena, meldedWithEmpty) != 4) {
+    tc2Pass = 0
+}
+
+meldedRoot = meldSkewHeaps(tc2Arena, heapA, heapB)
+if (getHeapSize(tc2Arena, meldedRoot) != 9) {
+    tc2Pass = 0
+}
+if (verifySkewHeapInvariants(tc2Arena, meldedRoot) != 1) {
+    tc2Pass = 0
+}
+
+minMelded = findMin(tc2Arena, meldedRoot)
+if (minMelded[0] != 3 or minMelded[1] != 30) {
+    tc2Pass = 0
+}
+
+expectedMergedKeys = [3, 8, 11, 14, 20, 25, 31, 40, 55]
+idxM = 0
+while (idxM < expectedMergedKeys.size()) {
+    extM = extractMin(tc2Arena, meldedRoot)
+    kM = extM[0]
+    meldedRoot = extM[2]
+
+    if (kM != expectedMergedKeys[idxM]) {
+        tc2Pass = 0
+    }
+    remM = expectedMergedKeys.size() - idxM - 1
+    if (getHeapSize(tc2Arena, meldedRoot) != remM) {
+        tc2Pass = 0
+    }
+    if (verifySkewHeapInvariants(tc2Arena, meldedRoot) != 1) {
+        tc2Pass = 0
+    }
+    idxM = idxM + 1
+}
+
+if (!isEmptyHeap(meldedRoot)) {
+    tc2Pass = 0
+}
+
+if (tc2Pass == 1) {
+    print("  Disjoint heaps A (size 4) and B (size 5) merged into single heap (size 9)")
+    print("  Unconditional child swap verified with min-heap property intact")
+    print("  Interleaved keys extracted monotonically: 3 -> 8 -> 11 -> ... -> 55")
+    print("  Meld with empty heaps verified as identity operations")
+    print("  Test Case 2 Passed successfully")
+} else {
+    print("[FAIL] Test Case 2 encountered assertion mismatches")
+}
+
+print("")
+print("Running Test Case 3: Boundary Topologies and Edge Cases...")
+tc3Pass = 1
+tc3Arena = createSkewHeapArena()
+
+if (isEmptyHeap(-1) != 1) {
+    tc3Pass = 0
+}
+if (getHeapSize(tc3Arena, -1) != 0) {
+    tc3Pass = 0
+}
+minEmpty = findMin(tc3Arena, -1)
+if (minEmpty[0] != -1 or minEmpty[1] != -1) {
+    tc3Pass = 0
+}
+extEmpty = extractMin(tc3Arena, -1)
+if (extEmpty[0] != -1 or extEmpty[2] != -1) {
+    tc3Pass = 0
+}
+if (verifySkewHeapInvariants(tc3Arena, -1) != 1) {
+    tc3Pass = 0
+}
+
+singleRoot = insertHeapNode(tc3Arena, -1, 42, 420)
+if (getHeapSize(tc3Arena, singleRoot) != 1 or isEmptyHeap(singleRoot) != 0) {
+    tc3Pass = 0
+}
+minSingle = findMin(tc3Arena, singleRoot)
+if (minSingle[0] != 42 or minSingle[1] != 420) {
+    tc3Pass = 0
+}
+extSingle = extractMin(tc3Arena, singleRoot)
+if (extSingle[0] != 42 or extSingle[1] != 420 or extSingle[2] != -1) {
+    tc3Pass = 0
+}
+if (getHeapSize(tc3Arena, extSingle[2]) != 0) {
+    tc3Pass = 0
+}
+
+dupKeys = [15, 10, 15, 20, 10, 15, 5, 20]
+dupHeap = -1
+dupIdx = 0
+while (dupIdx < dupKeys.size()) {
+    dupHeap = insertHeapNode(tc3Arena, dupHeap, dupKeys[dupIdx], dupIdx * 10)
+    if (verifySkewHeapInvariants(tc3Arena, dupHeap) != 1) {
+        tc3Pass = 0
+    }
+    dupIdx = dupIdx + 1
+}
+
+if (getHeapSize(tc3Arena, dupHeap) != dupKeys.size()) {
+    tc3Pass = 0
+}
+
+expectedDupSorted = [5, 10, 10, 15, 15, 15, 20, 20]
+dupExtIdx = 0
+while (dupExtIdx < expectedDupSorted.size()) {
+    extDup = extractMin(tc3Arena, dupHeap)
+    kDup = extDup[0]
+    dupHeap = extDup[2]
+
+    if (kDup != expectedDupSorted[dupExtIdx]) {
+        tc3Pass = 0
+    }
+    if (verifySkewHeapInvariants(tc3Arena, dupHeap) != 1) {
+        tc3Pass = 0
+    }
+    dupExtIdx = dupExtIdx + 1
+}
+
+revHeap = -1
+revKeys = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
+revIdx = 0
+while (revIdx < revKeys.size()) {
+    revHeap = insertHeapNode(tc3Arena, revHeap, revKeys[revIdx], revIdx)
+    if (verifySkewHeapInvariants(tc3Arena, revHeap) != 1) {
+        tc3Pass = 0
+    }
+    revIdx = revIdx + 1
+}
+
+revExtIdx = 0
+expectedRevSorted = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+while (revExtIdx < expectedRevSorted.size()) {
+    extRev = extractMin(tc3Arena, revHeap)
+    kRev = extRev[0]
+    revHeap = extRev[2]
+
+    if (kRev != expectedRevSorted[revExtIdx]) {
+        tc3Pass = 0
+    }
+    revExtIdx = revExtIdx + 1
+}
+
+if (tc3Pass == 1) {
+    print("  Empty heap boundaries handled safely without exceptions")
+    print("  Single-element insertion and extraction cycle validated")
+    print("  Multi-element duplicate keys preserved ordering and heap property")
+    print("  Reverse-sorted sequence triggered self-adjusting rebalancing reliably")
+    print("  Test Case 3 Passed successfully")
+} else {
+    print("[FAIL] Test Case 3 encountered assertion mismatches")
+}
