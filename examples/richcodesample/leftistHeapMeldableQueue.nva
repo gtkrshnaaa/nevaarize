@@ -525,5 +525,274 @@ if (negMatch == 1 and negExtracted.size() == 6) {
     print("[FAIL] Negative keys extraction mismatch: ", negExtracted)
 }
 
+// -----------------------------------------------------------------------------
+// Multi-Heap Tournament Meld Function
+// -----------------------------------------------------------------------------
+func multiMeld(arena, heapRoots) {
+    if (heapRoots.size() == 0) {
+        return -1
+    }
+    mmQueue = []
+    mmI = 0
+    while (mmI < heapRoots.size()) {
+        if (heapRoots[mmI] != -1) {
+            mmQueue.push(heapRoots[mmI])
+        }
+        mmI = mmI + 1
+    }
+    if (mmQueue.size() == 0) {
+        return -1
+    }
+
+    // Pairwise reduction (tournament reduction)
+    while (mmQueue.size() > 1) {
+        nextQueue = []
+        mmPairIdx = 0
+        while (mmPairIdx < mmQueue.size()) {
+            if (mmPairIdx + 1 < mmQueue.size()) {
+                mergedPair = meldHeaps(arena, mmQueue[mmPairIdx], mmQueue[mmPairIdx + 1])
+                nextQueue.push(mergedPair)
+                mmPairIdx = mmPairIdx + 2
+            } else {
+                nextQueue.push(mmQueue[mmPairIdx])
+                mmPairIdx = mmPairIdx + 1
+            }
+        }
+        mmQueue = nextQueue
+    }
+    return mmQueue[0]
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Multi-Heap Meld (Tournament Reduction)
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Multi-Heap Tournament Meld across Multiple Channels...")
+arena4 = createLeftistHeapArena()
+channelCount = 8
+channelRoots = []
+elementsPerChannel = 5
+totalExpectedTasks = channelCount * elementsPerChannel
+
+chIdx = 0
+while (chIdx < channelCount) {
+    curChanRoot = -1
+    eIdx = 0
+    while (eIdx < elementsPerChannel) {
+        taskKey = (chIdx * 10) + ((eIdx * 7 + 3) % 10)
+        taskPayload = (chIdx * 100) + eIdx
+        curChanRoot = insertElement(arena4, curChanRoot, taskKey, taskPayload)
+        eIdx = eIdx + 1
+    }
+    if (getHeapSize(arena4, curChanRoot) != elementsPerChannel or verifyLeftistInvariants(arena4, curChanRoot) != 1) {
+        print("[FAIL] Channel heap initialization failed for channel=", chIdx)
+    }
+    channelRoots.push(curChanRoot)
+    chIdx = chIdx + 1
+}
+
+print("  Initialized 8 independent priority queue channels with 5 elements each")
+
+unifiedRoot = multiMeld(arena4, channelRoots)
+unifiedSize = getHeapSize(arena4, unifiedRoot)
+unifiedInv = verifyLeftistInvariants(arena4, unifiedRoot)
+unifiedSpine = getRightSpineLength(arena4, unifiedRoot)
+
+if (unifiedSize != totalExpectedTasks or unifiedInv != 1 or unifiedSpine > 5) {
+    print("[FAIL] Tournament multiMeld failed: size=", unifiedSize, ", inv=", unifiedInv, ", spine=", unifiedSpine)
+} else {
+    print("  Unified heap verified: size 40, right spine length", unifiedSpine, "<= 5, leftist invariants intact")
+}
+
+// Drain the unified queue and verify monotonically non-decreasing sorted order
+tc4ExtractedCount = 0
+tc4PrevKey = -999999
+tc4SortFail = 0
+
+while (unifiedRoot != -1) {
+    uInfo = extractMin(arena4, unifiedRoot)
+    uKey = uInfo[0]
+    unifiedRoot = uInfo[2]
+
+    if (uKey < tc4PrevKey) {
+        print("[FAIL] Priority inversion in unified multiMeld queue: prev=", tc4PrevKey, ", cur=", uKey)
+        tc4SortFail = 1
+    }
+    tc4PrevKey = uKey
+    tc4ExtractedCount = tc4ExtractedCount + 1
+}
+
+if (tc4SortFail == 0 and tc4ExtractedCount == totalExpectedTasks) {
+    print("  Extracted all 40 elements from unified tournament queue in verified sorted priority order")
+    print("  Test Case 4 Passed multi-heap tournament meld verification")
+} else {
+    print("[FAIL] Test Case 4 tournament extraction validation failed: count=", tc4ExtractedCount)
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Benchmark against Naive Priority Queue Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Randomized Stress Benchmark against Naive Priority Queue Oracle...")
+arena5 = createLeftistHeapArena()
+
+// 3 active heaps and corresponding naive oracle arrays
+activeHeaps = [-1, -1, -1]
+oracleLists = [[], [], []]
+
+stressSeed = 987654321
+stressOps = 250
+stressOpI = 0
+stressMismatches = 0
+totalInserts = 0
+totalExtracts = 0
+totalMelds = 0
+
+while (stressOpI < stressOps) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    opType = stressSeed % 3
+
+    if (opType == 0) {
+        // Operation 0: Insert random key into random active heap
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        targetQueue = stressSeed % 3
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        randKey = (stressSeed % 2000) - 500
+        randVal = randKey * 3
+
+        activeHeaps[targetQueue] = insertElement(arena5, activeHeaps[targetQueue], randKey, randVal)
+        oracleLists[targetQueue].push(randKey)
+        totalInserts = totalInserts + 1
+    }
+
+    if (opType == 1) {
+        // Operation 1: ExtractMin from random active heap
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        targetQueue = stressSeed % 3
+        curH = activeHeaps[targetQueue]
+
+        if (curH != -1) {
+            hMinInfo = extractMin(arena5, curH)
+            hMinKey = hMinInfo[0]
+            activeHeaps[targetQueue] = hMinInfo[2]
+
+            // Naive oracle extractMin: find min in oracleLists[targetQueue]
+            oList = oracleLists[targetQueue]
+            minIdx = 0
+            bestMin = oList[0]
+            scanI = 1
+            while (scanI < oList.size()) {
+                if (oList[scanI] < bestMin) {
+                    bestMin = oList[scanI]
+                    minIdx = scanI
+                }
+                scanI = scanI + 1
+            }
+
+            // Remove bestMin from oracle list by shift
+            newOList = []
+            scanJ = 0
+            while (scanJ < oList.size()) {
+                if (scanJ != minIdx) {
+                    newOList.push(oList[scanJ])
+                }
+                scanJ = scanJ + 1
+            }
+            oracleLists[targetQueue] = newOList
+
+            if (hMinKey != bestMin) {
+                print("[FAIL] Stress mismatch: heapMin=", hMinKey, ", oracleMin=", bestMin)
+                stressMismatches = stressMismatches + 1
+            }
+            totalExtracts = totalExtracts + 1
+        }
+    }
+
+    if (opType == 2) {
+        // Operation 2: Meld two distinct active heaps
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        hIdxA = stressSeed % 3
+        hIdxB = (hIdxA + 1 + (stressSeed % 2)) % 3
+
+        if (activeHeaps[hIdxB] != -1) {
+            activeHeaps[hIdxA] = meldHeaps(arena5, activeHeaps[hIdxA], activeHeaps[hIdxB])
+            activeHeaps[hIdxB] = -1
+
+            // Merge oracle lists
+            listA = oracleLists[hIdxA]
+            listB = oracleLists[hIdxB]
+            copyI = 0
+            while (copyI < listB.size()) {
+                listA.push(listB[copyI])
+                copyI = copyI + 1
+            }
+            oracleLists[hIdxA] = listA
+            oracleLists[hIdxB] = []
+            totalMelds = totalMelds + 1
+        }
+    }
+
+    stressOpI = stressOpI + 1
+}
+
+// Drain remaining elements from all active queues and verify complete oracle consistency
+qScan = 0
+while (qScan < 3) {
+    remH = activeHeaps[qScan]
+    remO = oracleLists[qScan]
+    if (remH != -1) {
+        if (verifyLeftistInvariants(arena5, remH) != 1) {
+            print("[FAIL] Final active heap invariant check failed on queue=", qScan)
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    while (remH != -1) {
+        finInfo = extractMin(arena5, remH)
+        finKey = finInfo[0]
+        remH = finInfo[2]
+
+        // Find min in remO
+        minIdx = 0
+        bestMin = remO[0]
+        scanI = 1
+        while (scanI < remO.size()) {
+            if (remO[scanI] < bestMin) {
+                bestMin = remO[scanI]
+                minIdx = scanI
+            }
+            scanI = scanI + 1
+        }
+
+        newRemO = []
+        scanJ = 0
+        while (scanJ < remO.size()) {
+            if (scanJ != minIdx) {
+                newRemO.push(remO[scanJ])
+            }
+            scanJ = scanJ + 1
+        }
+        remO = newRemO
+
+        if (finKey != bestMin) {
+            print("[FAIL] Final drain mismatch on queue", qScan, ": heap=", finKey, ", oracle=", bestMin)
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (remO.size() != 0) {
+        print("[FAIL] Oracle list was not completely drained on queue=", qScan)
+        stressMismatches = stressMismatches + 1
+    }
+
+    qScan = qScan + 1
+}
+
+if (stressMismatches == 0) {
+    print("  Executed", stressOps, "randomized operations (", totalInserts, "inserts,", totalExtracts, "extracts,", totalMelds, "melds): 0 mismatches")
+    print("  All active priority queues matched naive reference oracle with 100% precision")
+    print("  Test Case 5 Passed randomized stress benchmark verification")
+} else {
+    print("[FAIL] Stress benchmark encountered", stressMismatches, "mismatches")
+}
+
 elapsed = t.millis() - suiteStartTime
-print("[PASS] Leftist Heap Milestone 2 executed in", elapsed, "ms")
+print("[PASS] Leftist Heap Meldable Priority Queue Suite executed successfully in", elapsed, "ms")
