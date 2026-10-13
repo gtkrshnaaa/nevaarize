@@ -9,7 +9,8 @@
   {
     "id": "ISSUE-2",
     "title": "feat(algorithms): implement skewHeapSelfAdjustingMeld in richcodesamples",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "d6cef3e",
     "file": "ISSUE-2-skewHeap.md"
   },
   {
