@@ -16,7 +16,8 @@
   {
     "id": "ISSUE-3",
     "title": "feat(algorithms): implement waveletMatrixLargeAlphabet in richcodesamples",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "ec70d32",
     "file": "ISSUE-3-waveletMatrix.md"
   },
   {
