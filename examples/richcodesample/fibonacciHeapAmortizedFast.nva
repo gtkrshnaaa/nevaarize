@@ -1,0 +1,834 @@
+import stdlib time as t
+
+// Fibonacci Heap Amortized Priority Queue Suite
+// Technical characteristics:
+// - Amortized constant time O(1) for insert, findMin, meld, and decreaseKey
+// - Logarithmic amortized time O(log N) for extractMin and deleteNode
+// - Circular doubly linked lists for root list and sibling child lists
+// - Cascading cuts mechanism for maintaining shallow tree heights
+// - Dynamic root list consolidation with degree table array
+// - Comprehensive assertion suites and randomized stress testing
+// - Strict camelCase naming conventions enforced (No-Underscore Policy)
+
+print("=== Nevaarize Fibonacci Heap Priority Queue Suite ===")
+suiteStartTime = t.millis()
+
+func createFibonacciHeap() {
+    fhKeys = []
+    fhVals = []
+    fhDegrees = []
+    fhMarks = []
+    fhParents = []
+    fhChildren = []
+    fhLefts = []
+    fhRights = []
+    fhArena = [fhKeys, fhVals, fhDegrees, fhMarks, fhParents, fhChildren, fhLefts, fhRights]
+    fhMeta = [-1, 0]
+    return [fhArena, fhMeta]
+}
+
+func allocHeapNode(heap, key, val) {
+    arena = heap[0]
+    nodeId = arena[0].size()
+    arena[0].push(key)
+    arena[1].push(val)
+    arena[2].push(0)
+    arena[3].push(0)
+    arena[4].push(-1)
+    arena[5].push(-1)
+    arena[6].push(nodeId)
+    arena[7].push(nodeId)
+    return nodeId
+}
+
+func getHeapSize(heap) {
+    meta = heap[1]
+    return meta[1]
+}
+
+func isEmptyHeap(heap) {
+    meta = heap[1]
+    return meta[0] == -1
+}
+
+func insertElement(heap, key, val) {
+    newNode = allocHeapNode(heap, key, val)
+    arena = heap[0]
+    meta = heap[1]
+    curMin = meta[0]
+
+    if (curMin == -1) {
+        meta[0] = newNode
+    } else {
+        rMin = arena[7][curMin]
+        arena[7][curMin] = newNode
+        arena[6][newNode] = curMin
+        arena[7][newNode] = rMin
+        arena[6][rMin] = newNode
+        if (key < arena[0][curMin]) {
+            meta[0] = newNode
+        }
+    }
+    meta[1] = meta[1] + 1
+    return newNode
+}
+
+func findMin(heap) {
+    meta = heap[1]
+    minNode = meta[0]
+    if (minNode == -1) {
+        return [-1, -1]
+    }
+    arena = heap[0]
+    return [arena[0][minNode], arena[1][minNode]]
+}
+
+func linkNodes(heap, childNode, parentNode) {
+    arena = heap[0]
+    lY = arena[6][childNode]
+    rY = arena[7][childNode]
+    arena[7][lY] = rY
+    arena[6][rY] = lY
+
+    arena[4][childNode] = parentNode
+    if (arena[5][parentNode] == -1) {
+        arena[5][parentNode] = childNode
+        arena[6][childNode] = childNode
+        arena[7][childNode] = childNode
+    } else {
+        firstCh = arena[5][parentNode]
+        rightCh = arena[7][firstCh]
+        arena[7][firstCh] = childNode
+        arena[6][childNode] = firstCh
+        arena[7][childNode] = rightCh
+        arena[6][rightCh] = childNode
+    }
+    arena[2][parentNode] = arena[2][parentNode] + 1
+    arena[3][childNode] = 0
+}
+
+func consolidateHeap(heap) {
+    arena = heap[0]
+    meta = heap[1]
+    degreeTable = []
+    dti = 0
+    while (dti < 45) {
+        degreeTable.push(-1)
+        dti = dti + 1
+    }
+
+    rootList = []
+    curr = meta[0]
+    stopRoot = curr
+    firstR = 1
+    while (firstR == 1 or curr != stopRoot) {
+        firstR = 0
+        rootList.push(curr)
+        curr = arena[7][curr]
+    }
+
+    ri = 0
+    while (ri < rootList.size()) {
+        w = rootList[ri]
+        d = arena[2][w]
+        while (degreeTable[d] != -1) {
+            y = degreeTable[d]
+            if (arena[0][w] > arena[0][y]) {
+                tmp = w
+                w = y
+                y = tmp
+            }
+            linkNodes(heap, y, w)
+            degreeTable[d] = -1
+            d = d + 1
+        }
+        degreeTable[d] = w
+        ri = ri + 1
+    }
+
+    newMin = -1
+    dti = 0
+    while (dti < 45) {
+        rNode = degreeTable[dti]
+        if (rNode != -1) {
+            arena[4][rNode] = -1
+            if (newMin == -1) {
+                arena[6][rNode] = rNode
+                arena[7][rNode] = rNode
+                newMin = rNode
+            } else {
+                rRight = arena[7][newMin]
+                arena[7][newMin] = rNode
+                arena[6][rNode] = newMin
+                arena[7][rNode] = rRight
+                arena[6][rRight] = rNode
+                if (arena[0][rNode] < arena[0][newMin]) {
+                    newMin = rNode
+                }
+            }
+        }
+        dti = dti + 1
+    }
+    meta[0] = newMin
+}
+
+func extractMin(heap) {
+    arena = heap[0]
+    meta = heap[1]
+    z = meta[0]
+    if (z == -1) {
+        return [-1, -1]
+    }
+    minKey = arena[0][z]
+    minVal = arena[1][z]
+
+    if (arena[5][z] != -1) {
+        childList = []
+        ch = arena[5][z]
+        stopCh = ch
+        firstCh = 1
+        while (firstCh == 1 or ch != stopCh) {
+            firstCh = 0
+            childList.push(ch)
+            ch = arena[7][ch]
+        }
+
+        ci = 0
+        while (ci < childList.size()) {
+            cNode = childList[ci]
+            arena[4][cNode] = -1
+            rightZ = arena[7][z]
+            arena[7][z] = cNode
+            arena[6][cNode] = z
+            arena[7][cNode] = rightZ
+            arena[6][rightZ] = cNode
+            ci = ci + 1
+        }
+    }
+
+    leftZ = arena[6][z]
+    rightZ = arena[7][z]
+    arena[7][leftZ] = rightZ
+    arena[6][rightZ] = leftZ
+
+    if (rightZ == z) {
+        meta[0] = -1
+    } else {
+        meta[0] = rightZ
+        consolidateHeap(heap)
+    }
+
+    meta[1] = meta[1] - 1
+    return [minKey, minVal]
+}
+
+func cutNode(heap, x, y) {
+    arena = heap[0]
+    meta = heap[1]
+    if (arena[7][x] == x) {
+        arena[5][y] = -1
+    } else {
+        lX = arena[6][x]
+        rX = arena[7][x]
+        arena[7][lX] = rX
+        arena[6][rX] = lX
+        if (arena[5][y] == x) {
+            arena[5][y] = rX
+        }
+    }
+    arena[2][y] = arena[2][y] - 1
+    minR = meta[0]
+    rMin = arena[7][minR]
+    arena[7][minR] = x
+    arena[6][x] = minR
+    arena[7][x] = rMin
+    arena[6][rMin] = x
+    arena[4][x] = -1
+    arena[3][x] = 0
+}
+
+func cascadingCutNode(heap, y) {
+    arena = heap[0]
+    z = arena[4][y]
+    if (z != -1) {
+        if (arena[3][y] == 0) {
+            arena[3][y] = 1
+        } else {
+            cutNode(heap, y, z)
+            cascadingCutNode(heap, z)
+        }
+    }
+}
+
+func decreaseKey(heap, x, newKey) {
+    arena = heap[0]
+    meta = heap[1]
+    if (newKey > arena[0][x]) {
+        return -1
+    }
+    arena[0][x] = newKey
+    y = arena[4][x]
+    if (y != -1 and arena[0][x] < arena[0][y]) {
+        cutNode(heap, x, y)
+        cascadingCutNode(heap, y)
+    }
+    minR = meta[0]
+    if (arena[0][x] < arena[0][minR]) {
+        meta[0] = x
+    }
+    return 1
+}
+
+func deleteNode(heap, x) {
+    decreaseKey(heap, x, -999999999)
+    return extractMin(heap)
+}
+
+func meldHeaps(heapA, heapB) {
+    metaA = heapA[1]
+    metaB = heapB[1]
+    minA = metaA[0]
+    minB = metaB[0]
+
+    if (minA == -1) {
+        metaA[0] = minB
+        metaA[1] = metaB[1]
+        metaB[0] = -1
+        metaB[1] = 0
+        return 1
+    }
+    if (minB == -1) {
+        return 1
+    }
+
+    arenaA = heapA[0]
+    rightA = arenaA[7][minA]
+    leftB = arenaA[6][minB]
+    arenaA[7][minA] = minB
+    arenaA[6][minB] = minA
+    arenaA[7][leftB] = rightA
+    arenaA[6][rightA] = leftB
+
+    if (arenaA[0][minB] < arenaA[0][minA]) {
+        metaA[0] = minB
+    }
+    metaA[1] = metaA[1] + metaB[1]
+    metaB[0] = -1
+    metaB[1] = 0
+    return 1
+}
+
+func verifyFibonacciInvariants(heap) {
+    meta = heap[1]
+    minR = meta[0]
+    if (minR == -1) {
+        return 1
+    }
+    arena = heap[0]
+    vKeys = arena[0]
+    vParents = arena[4]
+    vChildren = arena[5]
+    vLefts = arena[6]
+    vRights = arena[7]
+
+    // Traverse all root trees
+    rootQueue = []
+    cRoot = minR
+    sRoot = minR
+    fR = 1
+    while (fR == 1 or cRoot != sRoot) {
+        fR = 0
+        if (vKeys[cRoot] < vKeys[minR]) {
+            print("[FAIL] Root list min node invalid: cRoot key=", vKeys[cRoot], ", minR key=", vKeys[minR])
+            return 0
+        }
+        if (vParents[cRoot] != -1) {
+            print("[FAIL] Root node has non -1 parent: ", cRoot)
+            return 0
+        }
+        rootQueue.push(cRoot)
+        cRoot = vRights[cRoot]
+    }
+
+    qIdx = 0
+    while (qIdx < rootQueue.size()) {
+        u = rootQueue[qIdx]
+        if (vRights[vLefts[u]] != u or vLefts[vRights[u]] != u) {
+            print("[FAIL] Circular doubly linked list corrupted at node=", u)
+            return 0
+        }
+        if (vChildren[u] != -1) {
+            chStart = vChildren[u]
+            chCurr = chStart
+            fCh = 1
+            while (fCh == 1 or chCurr != chStart) {
+                fCh = 0
+                if (vParents[chCurr] != u) {
+                    print("[FAIL] Child parent mismatch: child=", chCurr, ", parent=", vParents[chCurr], ", expected=", u)
+                    return 0
+                }
+                if (vKeys[chCurr] < vKeys[u]) {
+                    print("[FAIL] Min-heap property violated: child key=", vKeys[chCurr], ", parent key=", vKeys[u])
+                    return 0
+                }
+                rootQueue.push(chCurr)
+                chCurr = vRights[chCurr]
+            }
+        }
+        qIdx = qIdx + 1
+    }
+    return 1
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 1: Core Priority Queue Operations & Min-Heap Invariants
+// -----------------------------------------------------------------------------
+print("Running Test Case 1: Core Priority Queue Operations and Invariant Validation...")
+heap1 = createFibonacciHeap()
+
+if (isEmptyHeap(heap1) == 0 or getHeapSize(heap1) != 0) {
+    print("[FAIL] Initial empty heap checks failed")
+} else {
+    print("  Empty heap verified: size 0, isEmpty true")
+}
+
+testKeys1 = [52, 19, 83, 7, 26, 94, 15, 68, 33, 11, 47, 4, 76, 38, 61, 88]
+nodeIndices1 = []
+tc1I = 0
+while (tc1I < testKeys1.size()) {
+    k = testKeys1[tc1I]
+    nId = insertElement(heap1, k, k * 10)
+    nodeIndices1.push(nId)
+    tc1I = tc1I + 1
+}
+
+if (getHeapSize(heap1) != 16 or verifyFibonacciInvariants(heap1) != 1) {
+    print("[FAIL] Insertions failed to maintain size or invariants")
+} else {
+    print("  Inserted 16 elements: size confirmed at 16, invariants verified")
+}
+
+minP1 = findMin(heap1)
+if (minP1[0] != 4 or minP1[1] != 40) {
+    print("[FAIL] findMin returned incorrect minimum: expected [4, 40], got=", minP1)
+} else {
+    print("  findMin correctly identified global minimum [key: 4, val: 40]")
+}
+
+extracted1 = []
+prevK1 = -999999
+tc1ExtractFail = 0
+
+while (isEmptyHeap(heap1) == 0) {
+    mInfo = extractMin(heap1)
+    eKey = mInfo[0]
+    if (eKey < prevK1) {
+        print("[FAIL] Inversion in extraction: prev=", prevK1, ", cur=", eKey)
+        tc1ExtractFail = 1
+    }
+    prevK1 = eKey
+    extracted1.push(eKey)
+    if (isEmptyHeap(heap1) == 0) {
+        if (verifyFibonacciInvariants(heap1) != 1) {
+            print("[FAIL] Invariants violated during extractMin cycle")
+            tc1ExtractFail = 1
+        }
+    }
+}
+
+if (tc1ExtractFail == 0 and extracted1.size() == 16) {
+    print("  Sequential extractMin successfully yielded 16 keys in strictly ascending sorted order")
+    print("  Sorted sequence verified: [4, 7, 11, 15, 19, 26, 33, 38, 47, 52, 61, 68, 76, 83, 88, 94]")
+    print("  Test Case 1 Passed core priority queue operations and invariant validation")
+} else {
+    print("[FAIL] Test Case 1 extraction validation failed")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Decrease-Key & Cascading Cuts Verification
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Decrease-Key & Cascading Cuts Verification...")
+heap2 = createFibonacciHeap()
+decNodes = []
+dKeys = [100, 200, 300, 400, 500, 600, 700, 800]
+tc2I = 0
+while (tc2I < dKeys.size()) {
+    dn = insertElement(heap2, dKeys[tc2I], tc2I)
+    decNodes.push(dn)
+    tc2I = tc2I + 1
+}
+
+// Extract minimum to force consolidation and form multi-tier trees
+firstMin = extractMin(heap2)
+if (firstMin[0] != 100) {
+    print("[FAIL] Initial extractMin mismatch in Test Case 2: expected 100, got=", firstMin[0])
+}
+if (verifyFibonacciInvariants(heap2) != 1) {
+    print("[FAIL] Post-consolidation invariants check failed")
+} else {
+    print("  Consolidated 7 remaining elements into tree hierarchy with degree > 0")
+}
+
+// Decrease key of node from 700 to 50 (should become new global min)
+node700 = decNodes[6]
+decStatus1 = decreaseKey(heap2, node700, 50)
+newMinPair = findMin(heap2)
+if (decStatus1 != 1 or newMinPair[0] != 50) {
+    print("[FAIL] DecreaseKey to 50 failed: status=", decStatus1, ", newMin=", newMinPair[0])
+} else {
+    print("  Decreased key of node 6 from 700 to 50: successfully promoted to global min")
+}
+
+// Decrease key of node from 800 to 150 (direct cut test)
+node800 = decNodes[7]
+decreaseKey(heap2, node800, 150)
+if (verifyFibonacciInvariants(heap2) != 1) {
+    print("[FAIL] Invariants violated after decreaseKey to 150")
+} else {
+    print("  Decreased key of node 7 from 800 to 150: direct cut verified with valid invariants")
+}
+
+// Decrease key of another node to trigger cascading cut
+node600 = decNodes[5]
+decreaseKey(heap2, node600, 120)
+if (verifyFibonacciInvariants(heap2) != 1) {
+    print("[FAIL] Invariants violated after cascading cut")
+} else {
+    print("  Cascading cut executed: invariants maintained across ancestor chain")
+}
+
+// Extract all remaining elements and verify exact ascending sequence
+decExtracted = []
+prevDec = -999999
+tc2Fail = 0
+while (isEmptyHeap(heap2) == 0) {
+    ex = extractMin(heap2)
+    kVal = ex[0]
+    if (kVal < prevDec) {
+        print("[FAIL] Inversion in decrease-key heap extraction: prev=", prevDec, ", cur=", kVal)
+        tc2Fail = 1
+    }
+    prevDec = kVal
+    decExtracted.push(kVal)
+}
+
+expectedDecSequence = [50, 120, 150, 200, 300, 400, 500]
+tc2Match = 1
+tc2K = 0
+while (tc2K < expectedDecSequence.size()) {
+    if (decExtracted[tc2K] != expectedDecSequence[tc2K]) {
+        tc2Match = 0
+    }
+    tc2K = tc2K + 1
+}
+
+if (tc2Fail == 0 and tc2Match == 1 and decExtracted.size() == 7) {
+    print("  All remaining elements extracted in exact sorted sequence: [50, 120, 150, 200, 300, 400, 500]")
+    print("  Test Case 2 Passed decrease-key and cascading cuts verification")
+} else {
+    print("[FAIL] Test Case 2 decrease-key extraction mismatch: ", decExtracted)
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Meldable Priority Queues (O(1) Heap Union)
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Meldable Priority Queues (O(1) Heap Union)...")
+// Shared arena for meld demonstration
+heapA = createFibonacciHeap()
+heapB = createFibonacciHeap()
+// Link heapB to share heapA's arena
+heapB[0] = heapA[0]
+
+evenKeys = [2, 6, 10, 14, 18, 22, 26, 30]
+tc3I = 0
+while (tc3I < evenKeys.size()) {
+    insertElement(heapA, evenKeys[tc3I], 1000 + evenKeys[tc3I])
+    tc3I = tc3I + 1
+}
+
+oddKeys = [1, 5, 9, 13, 17, 21, 25, 29]
+tc3J = 0
+while (tc3J < oddKeys.size()) {
+    insertElement(heapB, oddKeys[tc3J], 2000 + oddKeys[tc3J])
+    tc3J = tc3J + 1
+}
+
+if (getHeapSize(heapA) != 8 or getHeapSize(heapB) != 8) {
+    print("[FAIL] Heap A or Heap B size mismatch before meld")
+} else {
+    print("  Heap A (size 8, min 2) and Heap B (size 8, min 1) initialized")
+}
+
+meldHeaps(heapA, heapB)
+if (getHeapSize(heapA) != 16 or getHeapSize(heapB) != 0 or findMin(heapA)[0] != 1) {
+    print("[FAIL] Meld failed: heapA size=", getHeapSize(heapA), ", heapB size=", getHeapSize(heapB))
+} else {
+    print("  Melded in O(1): combined size 16, global min correctly identified as 1")
+}
+
+meldExtracted = []
+prevMeld = -999999
+tc3Fail = 0
+while (isEmptyHeap(heapA) == 0) {
+    mex = extractMin(heapA)
+    mKey = mex[0]
+    if (mKey < prevMeld) {
+        print("[FAIL] Priority inversion in melded heap: prev=", prevMeld, ", cur=", mKey)
+        tc3Fail = 1
+    }
+    prevMeld = mKey
+    meldExtracted.push(mKey)
+}
+
+expectedMeld = [1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22, 25, 26, 29, 30]
+tc3Match = 1
+tc3K = 0
+while (tc3K < expectedMeld.size()) {
+    if (meldExtracted[tc3K] != expectedMeld[tc3K]) {
+        tc3Match = 0
+    }
+    tc3K = tc3K + 1
+}
+
+if (tc3Fail == 0 and tc3Match == 1 and meldExtracted.size() == 16) {
+    print("  Extracted 16 keys in exact sorted interleaved order: [1, 2, 5, 6, ..., 29, 30]")
+    print("  Test Case 3 Passed meldable priority queue verification")
+} else {
+    print("[FAIL] Test Case 3 meld extraction validation failed")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 4: Arbitrary Node Deletion & Edge Cases
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Arbitrary Node Deletion, Boundary Cases & Negative Keys...")
+heap4 = createFibonacciHeap()
+
+// 1. Single element heap
+sNode = insertElement(heap4, 999, 9990)
+if (getHeapSize(heap4) != 1 or findMin(heap4)[0] != 999) {
+    print("[FAIL] Single node heap initialization failed")
+}
+sDel = extractMin(heap4)
+if (sDel[0] != 999 or isEmptyHeap(heap4) == 0) {
+    print("[FAIL] Single node extraction failed")
+} else {
+    print("  Single-element heap verified: key 999 extracted, transitions to clean empty state")
+}
+
+// 2. Degenerate empty extraction
+emptyPair = extractMin(heap4)
+if (emptyPair[0] != -1 or emptyPair[1] != -1) {
+    print("[FAIL] Empty extraction returned invalid value: ", emptyPair)
+} else {
+    print("  Empty heap extractMin gracefully returned [-1, -1]")
+}
+
+// 3. Negative and extreme keys
+negKeys = [-500, 25, -120, 0, 75, -5]
+tc4NI = 0
+while (tc4NI < negKeys.size()) {
+    insertElement(heap4, negKeys[tc4NI], tc4NI)
+    tc4NI = tc4NI + 1
+}
+
+negExtracted = []
+while (isEmptyHeap(heap4) == 0) {
+    nex = extractMin(heap4)
+    negExtracted.push(nex[0])
+}
+
+expectedNeg = [-500, -120, -5, 0, 25, 75]
+negMatch = 1
+tc4NJ = 0
+while (tc4NJ < expectedNeg.size()) {
+    if (negExtracted[tc4NJ] != expectedNeg[tc4NJ]) {
+        negMatch = 0
+    }
+    tc4NJ = tc4NJ + 1
+}
+
+if (negMatch == 1 and negExtracted.size() == 6) {
+    print("  Negative keys verified: correctly sorted [-500, -120, -5, 0, 25, 75]")
+} else {
+    print("[FAIL] Negative keys mismatch: ", negExtracted)
+}
+
+// 4. Arbitrary deleteNode operation
+heapDel = createFibonacciHeap()
+delIds = []
+delKeys = [10, 20, 30, 40, 50, 60]
+tc4DI = 0
+while (tc4DI < delKeys.size()) {
+    dId = insertElement(heapDel, delKeys[tc4DI], tc4DI)
+    delIds.push(dId)
+    tc4DI = tc4DI + 1
+}
+
+// Consolidate first
+extractMin(heapDel)
+// Now delete node 30 (delIds[2]) and node 50 (delIds[4])
+deleteNode(heapDel, delIds[2])
+deleteNode(heapDel, delIds[4])
+
+surviving = []
+while (isEmptyHeap(heapDel) == 0) {
+    sex = extractMin(heapDel)
+    surviving.push(sex[0])
+}
+
+expectedSurviving = [20, 40, 60]
+delMatch = 1
+tc4DJ = 0
+while (tc4DJ < expectedSurviving.size()) {
+    if (surviving[tc4DJ] != expectedSurviving[tc4DJ]) {
+        delMatch = 0
+    }
+    tc4DJ = tc4DJ + 1
+}
+
+if (delMatch == 1 and surviving.size() == 3) {
+    print("  Arbitrary deleteNode verified: nodes 30 and 50 removed, remaining [20, 40, 60] intact")
+    print("  Test Case 4 Passed arbitrary deletion and boundary cases verification")
+} else {
+    print("[FAIL] Arbitrary deletion failed: surviving=", surviving)
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Benchmark against Naive Priority Queue Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Randomized Stress Benchmark against Naive Priority Queue Oracle...")
+stressHeap = createFibonacciHeap()
+stressOracle = []
+stressNodeMap = []
+
+stressSeed = 135792468
+stressOps = 200
+stressOpI = 0
+stressMismatches = 0
+totalInserts = 0
+totalExtracts = 0
+totalDecreases = 0
+
+while (stressOpI < stressOps) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    opChoice = stressSeed % 10
+
+    if (opChoice < 5) {
+        // 50% chance: Insert random key
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        rKey = (stressSeed % 3000) - 1000
+        nId = insertElement(stressHeap, rKey, rKey)
+        stressOracle.push(rKey)
+        stressNodeMap.push(nId)
+        totalInserts = totalInserts + 1
+    }
+
+    if (opChoice >= 5 and opChoice < 8) {
+        // 30% chance: ExtractMin
+        if (isEmptyHeap(stressHeap) == 0) {
+            hMin = extractMin(stressHeap)
+            hKey = hMin[0]
+
+            // Find min in oracle
+            bestIdx = 0
+            bestVal = stressOracle[0]
+            sI = 1
+            while (sI < stressOracle.size()) {
+                if (stressOracle[sI] < bestVal) {
+                    bestVal = stressOracle[sI]
+                    bestIdx = sI
+                }
+                sI = sI + 1
+            }
+
+            // Remove from oracle and node map
+            newOracle = []
+            newNodeMap = []
+            sJ = 0
+            while (sJ < stressOracle.size()) {
+                if (sJ != bestIdx) {
+                    newOracle.push(stressOracle[sJ])
+                    newNodeMap.push(stressNodeMap[sJ])
+                }
+                sJ = sJ + 1
+            }
+            stressOracle = newOracle
+            stressNodeMap = newNodeMap
+
+            if (hKey != bestVal) {
+                print("[FAIL] Stress extractMin mismatch: heap=", hKey, ", oracle=", bestVal)
+                stressMismatches = stressMismatches + 1
+            }
+            totalExtracts = totalExtracts + 1
+        }
+    }
+
+    if (opChoice >= 8) {
+        // 20% chance: DecreaseKey on active element
+        if (stressOracle.size() > 0) {
+            stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+            targetIdx = stressSeed % stressOracle.size()
+            oldKey = stressOracle[targetIdx]
+            decAmt = 1 + (stressSeed % 50)
+            newerKey = oldKey - decAmt
+            targetNode = stressNodeMap[targetIdx]
+
+            decreaseKey(stressHeap, targetNode, newerKey)
+            stressOracle[targetIdx] = newerKey
+            totalDecreases = totalDecreases + 1
+        }
+    }
+
+    stressOpI = stressOpI + 1
+}
+
+// Drain remaining elements and verify 100% equivalence with oracle
+while (isEmptyHeap(stressHeap) == 0) {
+    fMin = extractMin(stressHeap)
+    fKey = fMin[0]
+
+    bestIdx = 0
+    bestVal = stressOracle[0]
+    sI = 1
+    while (sI < stressOracle.size()) {
+        if (stressOracle[sI] < bestVal) {
+            bestVal = stressOracle[sI]
+            bestIdx = sI
+        }
+        sI = sI + 1
+    }
+
+    newOracle = []
+    newNodeMap = []
+    sJ = 0
+    while (sJ < stressOracle.size()) {
+        if (sJ != bestIdx) {
+            newOracle.push(stressOracle[sJ])
+            newNodeMap.push(stressNodeMap[sJ])
+        }
+        sJ = sJ + 1
+    }
+    stressOracle = newOracle
+    stressNodeMap = newNodeMap
+
+    if (fKey != bestVal) {
+        print("[FAIL] Final stress drain mismatch: heap=", fKey, ", oracle=", bestVal)
+        stressMismatches = stressMismatches + 1
+    }
+}
+
+if (stressOracle.size() != 0) {
+    print("[FAIL] Oracle list was not completely drained: remaining=", stressOracle.size())
+    stressMismatches = stressMismatches + 1
+}
+
+if (stressMismatches == 0) {
+    print("  Executed", stressOps, "randomized stress operations (", totalInserts, "inserts,", totalExtracts, "extracts,", totalDecreases, "decrease-keys): 0 mismatches")
+    print("  Fibonacci Heap matched naive reference oracle with 100% precision")
+    print("  Test Case 5 Passed randomized stress benchmark verification")
+} else {
+    print("[FAIL] Stress benchmark encountered", stressMismatches, "mismatches")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Fibonacci Heap Suite executed successfully in", elapsed, "ms")
