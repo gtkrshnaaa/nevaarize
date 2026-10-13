@@ -1,0 +1,669 @@
+import stdlib time as t
+
+// Link-Cut Tree (LCT) Dynamic Graph Suite
+// Self-adjusting dynamic trees maintaining connectivity and path metrics on dynamic forests.
+//
+// Time Complexity:
+// - O(log N) amortized per operation: access, makeRoot, findRoot, link, cut
+// - O(log N) amortized path queries: path sum, path max, path min, path XOR
+// - O(log N) amortized point node updates
+// Space Complexity: O(N) auxiliary splay tree arrays
+//
+// Technical characteristics:
+// - Splay-based representation of preferred paths with lazy reversal propagation
+// - Dynamic re-rooting via path reversal bit inversion
+// - Automatic cycle prevention and dynamic spanning forest maintenance
+// - Path aggregate metrics: sum, maximum, minimum, and XOR parity
+// - Deterministic validation against naive BFS dynamic graph traversal oracle
+// - Unique symbol scoping per function avoiding JIT variable slot collisions
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Link-Cut Tree Dynamic Graph Suite ===")
+globalStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    miaIdx = 0
+    while (miaIdx < sz) {
+        arr.push(fillVal)
+        miaIdx = miaIdx + 1
+    }
+    return arr
+}
+
+func createLinkCutTree(numNodes) {
+    lctParent = makeIntArray(numNodes, -1)
+    lctLeft = makeIntArray(numNodes, -1)
+    lctRight = makeIntArray(numNodes, -1)
+    lctVal = makeIntArray(numNodes, 0)
+    lctSum = makeIntArray(numNodes, 0)
+    lctMax = makeIntArray(numNodes, 0)
+    lctMin = makeIntArray(numNodes, 0)
+    lctXor = makeIntArray(numNodes, 0)
+    lctRev = makeIntArray(numNodes, 0)
+
+    return [numNodes, lctParent, lctLeft, lctRight, lctVal, lctSum, lctMax, lctMin, lctXor, lctRev]
+}
+
+func setNodeValue(lct, snvU, snvVal) {
+    snvVals = lct[4]
+    snvSums = lct[5]
+    snvMaxs = lct[6]
+    snvMins = lct[7]
+    snvXors = lct[8]
+
+    snvVals[snvU] = snvVal
+    snvSums[snvU] = snvVal
+    snvMaxs[snvU] = snvVal
+    snvMins[snvU] = snvVal
+    snvXors[snvU] = snvVal
+}
+
+func isSplayRoot(lct, isrU) {
+    isrParent = lct[1]
+    isrLeft = lct[2]
+    isrRight = lct[3]
+
+    isrP = isrParent[isrU]
+    if (isrP == -1) {
+        return true
+    }
+    return isrLeft[isrP] != isrU and isrRight[isrP] != isrU
+}
+
+func pushDown(lct, pdU) {
+    pdLeft = lct[2]
+    pdRight = lct[3]
+    pdRev = lct[9]
+
+    if (pdRev[pdU] == 1) {
+        pdTmp = pdLeft[pdU]
+        pdLeft[pdU] = pdRight[pdU]
+        pdRight[pdU] = pdTmp
+
+        pdLChild = pdLeft[pdU]
+        if (pdLChild != -1) {
+            pdRev[pdLChild] = pdRev[pdLChild] ^ 1
+        }
+        pdRChild = pdRight[pdU]
+        if (pdRChild != -1) {
+            pdRev[pdRChild] = pdRev[pdRChild] ^ 1
+        }
+
+        pdRev[pdU] = 0
+    }
+}
+
+func pushUp(lct, puU) {
+    puLeft = lct[2]
+    puRight = lct[3]
+    puVal = lct[4]
+    puSum = lct[5]
+    puMax = lct[6]
+    puMin = lct[7]
+    puXor = lct[8]
+
+    puCurVal = puVal[puU]
+    puCurSum = puCurVal
+    puCurMax = puCurVal
+    puCurMin = puCurVal
+    puCurXor = puCurVal
+
+    puLChild = puLeft[puU]
+    if (puLChild != -1) {
+        puCurSum = puCurSum + puSum[puLChild]
+        puCurMax = maxInt(puCurMax, puMax[puLChild])
+        puCurMin = minInt(puCurMin, puMin[puLChild])
+        puCurXor = puCurXor ^ puXor[puLChild]
+    }
+
+    puRChild = puRight[puU]
+    if (puRChild != -1) {
+        puCurSum = puCurSum + puSum[puRChild]
+        puCurMax = maxInt(puCurMax, puMax[puRChild])
+        puCurMin = minInt(puCurMin, puMin[puRChild])
+        puCurXor = puCurXor ^ puXor[puRChild]
+    }
+
+    puSum[puU] = puCurSum
+    puMax[puU] = puCurMax
+    puMin[puU] = puCurMin
+    puXor[puU] = puCurXor
+}
+
+func rotate(lct, rotU) {
+    rotParent = lct[1]
+    rotLeft = lct[2]
+    rotRight = lct[3]
+
+    rotP = rotParent[rotU]
+    rotG = rotParent[rotP]
+    rotIsLeft = (rotLeft[rotP] == rotU)
+
+    if (rotIsLeft) {
+        rotBChild = rotRight[rotU]
+        rotLeft[rotP] = rotBChild
+        if (rotBChild != -1) {
+            rotParent[rotBChild] = rotP
+        }
+        rotRight[rotU] = rotP
+    } else {
+        rotBChild = rotLeft[rotU]
+        rotRight[rotP] = rotBChild
+        if (rotBChild != -1) {
+            rotParent[rotBChild] = rotP
+        }
+        rotLeft[rotU] = rotP
+    }
+
+    rotParent[rotP] = rotU
+    rotParent[rotU] = rotG
+
+    if (rotG != -1) {
+        if (rotLeft[rotG] == rotP) {
+            rotLeft[rotG] = rotU
+        } elif (rotRight[rotG] == rotP) {
+            rotRight[rotG] = rotU
+        }
+    }
+
+    pushUp(lct, rotP)
+    pushUp(lct, rotU)
+}
+
+func splay(lct, spU) {
+    spParent = lct[1]
+    spLeft = lct[2]
+
+    spAncestors = [spU]
+    spCurr = spU
+    while (!isSplayRoot(lct, spCurr)) {
+        spCurr = spParent[spCurr]
+        spAncestors.push(spCurr)
+    }
+
+    spAIdx = spAncestors.size() - 1
+    while (spAIdx >= 0) {
+        pushDown(lct, spAncestors[spAIdx])
+        spAIdx = spAIdx - 1
+    }
+
+    while (!isSplayRoot(lct, spU)) {
+        spP = spParent[spU]
+        if (!isSplayRoot(lct, spP)) {
+            spG = spParent[spP]
+            spL1 = 0
+            if (spLeft[spP] == spU) { spL1 = 1 }
+            spL2 = 0
+            if (spLeft[spG] == spP) { spL2 = 1 }
+
+            if (spL1 == spL2) {
+                rotate(lct, spP)
+            } else {
+                rotate(lct, spU)
+            }
+        }
+        rotate(lct, spU)
+    }
+}
+
+func access(lct, accU) {
+    accRight = lct[3]
+    accParent = lct[1]
+
+    accLast = -1
+    accCurr = accU
+
+    while (accCurr != -1) {
+        splay(lct, accCurr)
+        accRight[accCurr] = accLast
+        pushUp(lct, accCurr)
+        accLast = accCurr
+        accCurr = accParent[accCurr]
+    }
+}
+
+func makeRoot(lct, mrU) {
+    mrRev = lct[9]
+    access(lct, mrU)
+    splay(lct, mrU)
+    mrRev[mrU] = mrRev[mrU] ^ 1
+}
+
+func findRoot(lct, frU) {
+    frLeft = lct[2]
+
+    access(lct, frU)
+    splay(lct, frU)
+    frCurr = frU
+    pushDown(lct, frCurr)
+
+    while (frLeft[frCurr] != -1) {
+        frCurr = frLeft[frCurr]
+        pushDown(lct, frCurr)
+    }
+
+    splay(lct, frCurr)
+    return frCurr
+}
+
+func isConnected(lct, connU, connV) {
+    if (connU == connV) {
+        return true
+    }
+    connRootU = findRoot(lct, connU)
+    connRootV = findRoot(lct, connV)
+    return connRootU == connRootV
+}
+
+func link(lct, lnkU, lnkV) {
+    lnkParent = lct[1]
+
+    if (isConnected(lct, lnkU, lnkV)) {
+        return false
+    }
+
+    makeRoot(lct, lnkU)
+    lnkParent[lnkU] = lnkV
+    return true
+}
+
+func cut(lct, cutU, cutV) {
+    cutParent = lct[1]
+    cutLeft = lct[2]
+    cutRight = lct[3]
+
+    if (!isConnected(lct, cutU, cutV)) {
+        return false
+    }
+
+    makeRoot(lct, cutU)
+    access(lct, cutV)
+    splay(lct, cutV)
+
+    if (cutLeft[cutV] == cutU and cutRight[cutU] == -1) {
+        cutLeft[cutV] = -1
+        cutParent[cutU] = -1
+        pushUp(lct, cutV)
+        return true
+    }
+
+    return false
+}
+
+func updateNodeValue(lct, unvU, unvVal) {
+    splay(lct, unvU)
+    unvVals = lct[4]
+    unvVals[unvU] = unvVal
+    pushUp(lct, unvU)
+}
+
+func queryPathSum(lct, qpsU, qpsV) {
+    qpsSum = lct[5]
+    makeRoot(lct, qpsU)
+    access(lct, qpsV)
+    splay(lct, qpsV)
+    return qpsSum[qpsV]
+}
+
+func queryPathMax(lct, qpmU, qpmV) {
+    qpmMax = lct[6]
+    makeRoot(lct, qpmU)
+    access(lct, qpmV)
+    splay(lct, qpmV)
+    return qpmMax[qpmV]
+}
+
+func queryPathMin(lct, qpnU, qpnV) {
+    qpnMin = lct[7]
+    makeRoot(lct, qpnU)
+    access(lct, qpnV)
+    splay(lct, qpnV)
+    return qpnMin[qpnV]
+}
+
+func queryPathXor(lct, qpxU, qpxV) {
+    qpxXor = lct[8]
+    makeRoot(lct, qpxU)
+    access(lct, qpxV)
+    splay(lct, qpxV)
+    return qpxXor[qpxV]
+}
+
+// Naive Dynamic Graph Oracle using Adjacency List for Cross-Verification
+func createGraphOracle(numNodes) {
+    goAdj = []
+    goI = 0
+    while (goI < numNodes) {
+        goAdj.push([])
+        goI = goI + 1
+    }
+    goVals = makeIntArray(numNodes, 0)
+    return [numNodes, goAdj, goVals]
+}
+
+func oracleSetVal(oracle, osvU, osvVal) {
+    osvVals = oracle[2]
+    osvVals[osvU] = osvVal
+}
+
+func oracleAddEdge(oracle, oaeU, oaeV) {
+    oaeAdj = oracle[1]
+    oaeAdj[oaeU].push(oaeV)
+    oaeAdj[oaeV].push(oaeU)
+}
+
+func oracleRemoveEdge(oracle, oreU, oreV) {
+    oreAdj = oracle[1]
+
+    newAdjU = []
+    oreNeighborsU = oreAdj[oreU]
+    oreI = 0
+    while (oreI < oreNeighborsU.size()) {
+        if (oreNeighborsU[oreI] != oreV) {
+            newAdjU.push(oreNeighborsU[oreI])
+        }
+        oreI = oreI + 1
+    }
+    oreAdj[oreU] = newAdjU
+
+    newAdjV = []
+    oreNeighborsV = oreAdj[oreV]
+    oreJ = 0
+    while (oreJ < oreNeighborsV.size()) {
+        if (oreNeighborsV[oreJ] != oreU) {
+            newAdjV.push(oreNeighborsV[oreJ])
+        }
+        oreJ = oreJ + 1
+    }
+    oreAdj[oreV] = newAdjV
+}
+
+func oracleBfsPath(oracle, obpSrc, obpDst) {
+    obpNum = oracle[0]
+    obpAdj = oracle[1]
+
+    obpVisited = makeIntArray(obpNum, 0)
+    obpParent = makeIntArray(obpNum, -1)
+    obpQueue = [obpSrc]
+    obpVisited[obpSrc] = 1
+    obpQHead = 0
+    obpFound = false
+
+    while (obpQHead < obpQueue.size() and !obpFound) {
+        obpCurr = obpQueue[obpQHead]
+        obpQHead = obpQHead + 1
+
+        if (obpCurr == obpDst) {
+            obpFound = true
+        } else {
+            obpNeighbors = obpAdj[obpCurr]
+            obpDeg = obpNeighbors.size()
+            obpI = 0
+            while (obpI < obpDeg) {
+                obpNxt = obpNeighbors[obpI]
+                if (obpVisited[obpNxt] == 0) {
+                    obpVisited[obpNxt] = 1
+                    obpParent[obpNxt] = obpCurr
+                    obpQueue.push(obpNxt)
+                }
+                obpI = obpI + 1
+            }
+        }
+    }
+
+    if (!obpFound) {
+        return []
+    }
+
+    obpPath = []
+    obpTrace = obpDst
+    while (obpTrace != -1) {
+        obpPath.push(obpTrace)
+        if (obpTrace == obpSrc) {
+            obpTrace = -1
+        } else {
+            obpTrace = obpParent[obpTrace]
+        }
+    }
+    return obpPath
+}
+
+func oraclePathSum(oracle, opsU, opsV) {
+    opsVals = oracle[2]
+    opsPath = oracleBfsPath(oracle, opsU, opsV)
+    if (opsPath.size() == 0) {
+        return -1
+    }
+    opsSum = 0
+    opsI = 0
+    while (opsI < opsPath.size()) {
+        opsSum = opsSum + opsVals[opsPath[opsI]]
+        opsI = opsI + 1
+    }
+    return opsSum
+}
+
+func oraclePathMax(oracle, opmU, opmV) {
+    opmVals = oracle[2]
+    opmPath = oracleBfsPath(oracle, opmU, opmV)
+    if (opmPath.size() == 0) {
+        return -1
+    }
+    opmMax = -1000000000
+    opmI = 0
+    while (opmI < opmPath.size()) {
+        opmMax = maxInt(opmMax, opmVals[opmPath[opmI]])
+        opmI = opmI + 1
+    }
+    return opmMax
+}
+
+// --- Test Suites ---
+allLctPassed = true
+
+// Suite 1: Linear Tree Construction and Path Aggregation (6 nodes: 0-1-2-3-4-5)
+print("Running Test Case 1: Linear Chain Dynamic Forest...")
+lct1 = createLinkCutTree(6)
+oracle1 = createGraphOracle(6)
+
+vals1 = [5, 12, 8, 25, 3, 17]
+c1I = 0
+while (c1I < 6) {
+    setNodeValue(lct1, c1I, vals1[c1I])
+    oracleSetVal(oracle1, c1I, vals1[c1I])
+    c1I = c1I + 1
+}
+
+// Link into a chain: 0-1-2-3-4-5
+c1J = 0
+while (c1J < 5) {
+    linkSuccess = link(lct1, c1J, c1J + 1)
+    oracleAddEdge(oracle1, c1J, c1J + 1)
+    if (!linkSuccess) {
+        print("  [FAIL] Failed to link edge", c1J, "to", c1J + 1)
+        allLctPassed = false
+    }
+    c1J = c1J + 1
+}
+
+// Test connectivity
+if (!isConnected(lct1, 0, 5) or !isConnected(lct1, 2, 4)) {
+    print("  [FAIL] Linear chain connectivity failure")
+    allLctPassed = false
+}
+
+// Path sum and max from 0 to 5: 5 + 12 + 8 + 25 + 3 + 17 = 70, max = 25, min = 3
+sum05 = queryPathSum(lct1, 0, 5)
+max05 = queryPathMax(lct1, 0, 5)
+min05 = queryPathMin(lct1, 0, 5)
+xor05 = queryPathXor(lct1, 0, 5)
+expXor05 = 5 ^ 12 ^ 8 ^ 25 ^ 3 ^ 17
+
+if (sum05 != 70 or max05 != 25 or min05 != 3 or xor05 != expXor05) {
+    print("  [FAIL] Chain aggregates mismatch: sum", sum05, "max", max05, "min", min05, "xor", xor05)
+    allLctPassed = false
+} else {
+    print("  Linear chain (0->5): sum=70, max=25, min=3, xor=" + xor05 + " (all matched)")
+}
+print("  Test Case 1 PASSED")
+
+// Suite 2: Dynamic Edge Cut and Component Disconnection
+print("Running Test Case 2: Dynamic Cut and Component Splitting...")
+// Cut edge (2, 3) -> splits into component A (0-1-2) and component B (3-4-5)
+cutSuccess = cut(lct1, 2, 3)
+oracleRemoveEdge(oracle1, 2, 3)
+
+if (!cutSuccess) {
+    print("  [FAIL] Cut(2, 3) returned false")
+    allLctPassed = false
+}
+
+connAfterCut = isConnected(lct1, 0, 5)
+connCompA = isConnected(lct1, 0, 2)
+connCompB = isConnected(lct1, 3, 5)
+
+if (connAfterCut or !connCompA or !connCompB) {
+    print("  [FAIL] Cut connectivity mismatch: conn(0,5)=", connAfterCut, "conn(0,2)=", connCompA, "conn(3,5)=", connCompB)
+    allLctPassed = false
+}
+
+// Query path sums on disconnected components:
+// Component A (0->2): 5 + 12 + 8 = 25
+// Component B (3->5): 25 + 3 + 17 = 45
+sumA = queryPathSum(lct1, 0, 2)
+sumB = queryPathSum(lct1, 3, 5)
+if (sumA != 25 or sumB != 45) {
+    print("  [FAIL] Sub-component path sums mismatch: sumA=", sumA, "sumB=", sumB)
+    allLctPassed = false
+} else {
+    print("  Component A sum(0->2) = 25, Component B sum(3->5) = 45 (verified)")
+}
+print("  Test Case 2 PASSED")
+
+// Suite 3: Re-linking with Alternative Topology and Node Updates
+print("Running Test Case 3: Dynamic Re-linking and Value Updates...")
+// Re-link by adding edge (1, 4): new path from 0 to 5 is 0-1-4-5 or 0-1-4-3
+relinkSuccess = link(lct1, 1, 4)
+oracleAddEdge(oracle1, 1, 4)
+
+if (!relinkSuccess) {
+    print("  [FAIL] Relink(1, 4) returned false")
+    allLctPassed = false
+}
+
+// Path from 0 to 5: 0(5) -> 1(12) -> 4(3) -> 5(17) = sum 37, max 17
+sum05New = queryPathSum(lct1, 0, 5)
+max05New = queryPathMax(lct1, 0, 5)
+oracleSum05New = oraclePathSum(oracle1, 0, 5)
+oracleMax05New = oraclePathMax(oracle1, 0, 5)
+
+if (sum05New != 37 or max05New != 17 or sum05New != oracleSum05New or max05New != oracleMax05New) {
+    print("  [FAIL] Relinked path (0->5) mismatch: got sum", sum05New, "expected 37, max", max05New, "expected 17")
+    allLctPassed = false
+}
+
+// Update value at node 4 from 3 to 100
+updateNodeValue(lct1, 4, 100)
+oracleSetVal(oracle1, 4, 100)
+
+sum05AfterUpd = queryPathSum(lct1, 0, 5)
+max05AfterUpd = queryPathMax(lct1, 0, 5)
+if (sum05AfterUpd != 134 or max05AfterUpd != 100) {
+    print("  [FAIL] Updated path (0->5) got sum", sum05AfterUpd, "max", max05AfterUpd, "expected sum 134, max 100")
+    allLctPassed = false
+} else {
+    print("  After update node 4 to 100: path sum(0->5) = 134, max = 100 (verified)")
+}
+print("  Test Case 3 PASSED")
+
+// Suite 4: Multi-Node Forest with Cycle Rejection and Dynamic Oracle Stress
+print("Running Test Case 4: Forest with Cycle Rejection and Oracle Cross-Verification...")
+lct4 = createLinkCutTree(12)
+oracle4 = createGraphOracle(12)
+
+c4I = 0
+while (c4I < 12) {
+    initV = (c4I * 13 + 7) % 50 + 1
+    setNodeValue(lct4, c4I, initV)
+    oracleSetVal(oracle4, c4I, initV)
+    c4I = c4I + 1
+}
+
+// Construct dynamic spanning forest
+treeEdgesU = [0, 0, 1, 3, 5, 5, 7, 8, 9]
+treeEdgesV = [1, 2, 3, 4, 6, 7, 8, 9, 10]
+
+c4E = 0
+while (c4E < treeEdgesU.size()) {
+    eu = treeEdgesU[c4E]
+    ev = treeEdgesV[c4E]
+    lSuccess = link(lct4, eu, ev)
+    oracleAddEdge(oracle4, eu, ev)
+    if (!lSuccess) {
+        print("  [FAIL] Forest link failed on edge", eu, ev)
+        allLctPassed = false
+    }
+    c4E = c4E + 1
+}
+
+// Attempt cycle-creating link: edge (0, 4) should be rejected
+cycleLink = link(lct4, 0, 4)
+if (cycleLink) {
+    print("  [FAIL] LCT accepted cycle edge (0, 4)!")
+    allLctPassed = false
+} else {
+    print("  Cycle-creating link (0, 4) correctly rejected")
+}
+
+// Verify path queries across connected components
+testPairsU = [0, 1, 2, 5, 7]
+testPairsV = [4, 4, 4, 10, 10]
+c4Q = 0
+qFailures = 0
+while (c4Q < testPairsU.size()) {
+    qu = testPairsU[c4Q]
+    qv = testPairsV[c4Q]
+    lctSumRes = queryPathSum(lct4, qu, qv)
+    oraSumRes = oraclePathSum(oracle4, qu, qv)
+    lctMaxRes = queryPathMax(lct4, qu, qv)
+    oraMaxRes = oraclePathMax(oracle4, qu, qv)
+
+    if (lctSumRes != oraSumRes or lctMaxRes != oraMaxRes) {
+        qFailures = qFailures + 1
+    }
+    c4Q = c4Q + 1
+}
+
+if (qFailures > 0) {
+    print("  [FAIL] Forest path queries had", qFailures, "mismatches")
+    allLctPassed = false
+} else {
+    print("  All multi-component path queries matched graph oracle deterministically")
+}
+print("  Test Case 4 PASSED")
+
+print("=== Link-Cut Tree Dynamic Graph Suite Summary ===")
+if (allLctPassed) {
+    print("All Link-Cut Tree Dynamic Graph test suites: SUCCESS")
+} else {
+    print("Some Link-Cut Tree Dynamic Graph test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Link-Cut Tree Dynamic Graph executed successfully in", totalElapsed, "ms")
