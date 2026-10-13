@@ -448,3 +448,172 @@ if (tc1Pass == 1) {
 } else {
     print("[FAIL] Test Case 1 encountered assertion mismatches")
 }
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Multi-Block Cactus and Chain of Biconnected Components
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Multi-Block Cactus and Chain of Biconnected Components...")
+
+tc2Graph = createGraph(8)
+// Cycle 1: 0 - 1 - 2 - 0
+addEdge(tc2Graph, 0, 1)
+addEdge(tc2Graph, 1, 2)
+addEdge(tc2Graph, 2, 0)
+// Bridge: 2 - 3
+addEdge(tc2Graph, 2, 3)
+// Cycle 2: 3 - 4 - 5 - 3
+addEdge(tc2Graph, 3, 4)
+addEdge(tc2Graph, 4, 5)
+addEdge(tc2Graph, 5, 3)
+// Cycle 3: 5 - 6 - 7 - 5
+addEdge(tc2Graph, 5, 6)
+addEdge(tc2Graph, 6, 7)
+addEdge(tc2Graph, 7, 5)
+
+tc2Bct = buildBlockCutTree(tc2Graph)
+
+tc2NumBlocks = getBlockCount(tc2Bct)
+tc2NumCuts = getCutCount(tc2Bct)
+tc2IsCut2 = isArticulationPoint(tc2Bct, 2)
+tc2IsCut3 = isArticulationPoint(tc2Bct, 3)
+tc2IsCut5 = isArticulationPoint(tc2Bct, 5)
+tc2IsCut0 = isArticulationPoint(tc2Bct, 0)
+tc2IsCut4 = isArticulationPoint(tc2Bct, 4)
+tc2IsCut6 = isArticulationPoint(tc2Bct, 6)
+
+tc2Pass = 1
+if (tc2NumBlocks != 4 or tc2NumCuts != 3 or tc2IsCut2 != 1 or tc2IsCut3 != 1 or tc2IsCut5 != 1) {
+    tc2Pass = 0
+}
+if (tc2IsCut0 != 0 or tc2IsCut4 != 0 or tc2IsCut6 != 0) {
+    tc2Pass = 0
+}
+
+// Path from 0 to 7: should traverse cut vertices 2, 3, 5
+tc2Cuts07 = findCutVerticesOnPath(tc2Bct, 0, 7)
+if (tc2Cuts07.size() != 3) {
+    tc2Pass = 0
+} else {
+    found2 = 0
+    found3 = 0
+    found5 = 0
+    cIdx = 0
+    while (cIdx < tc2Cuts07.size()) {
+        valC = tc2Cuts07[cIdx]
+        if (valC == 2) { found2 = 1 }
+        if (valC == 3) { found3 = 1 }
+        if (valC == 5) { found5 = 1 }
+        cIdx = cIdx + 1
+    }
+    if (found2 != 1 or found3 != 1 or found5 != 1) {
+        tc2Pass = 0
+    }
+}
+
+// Path from 4 to 6: separated only by cut vertex 5
+tc2Cuts46 = findCutVerticesOnPath(tc2Bct, 4, 6)
+if (tc2Cuts46.size() != 1 or tc2Cuts46[0] != 5) {
+    tc2Pass = 0
+}
+
+// Path within same cycle: 3 to 4 (in cycle 2)
+tc2Cuts34 = findCutVerticesOnPath(tc2Bct, 3, 4)
+if (tc2Cuts34.size() != 0) {
+    tc2Pass = 0
+}
+
+if (tc2Pass == 1) {
+    print("  Multi-block cactus verified: 4 blocks and 3 articulation points (vertices 2, 3, 5)")
+    print("  Path query verified: vertices 0 and 7 separated by all 3 articulation points")
+    print("  Sub-chain path query verified: vertices 4 and 6 separated only by vertex 5")
+    print("  Test Case 2 Passed successfully")
+} else {
+    print("[FAIL] Test Case 2 encountered assertion mismatches")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Boundary Topologies and Edge Cases
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Boundary Topologies and Edge Cases...")
+tc3Pass = 1
+
+// 3.1: Complete Graph K4 (4 vertices, 6 edges)
+tc3K4 = createGraph(4)
+addEdge(tc3K4, 0, 1)
+addEdge(tc3K4, 0, 2)
+addEdge(tc3K4, 0, 3)
+addEdge(tc3K4, 1, 2)
+addEdge(tc3K4, 1, 3)
+addEdge(tc3K4, 2, 3)
+
+tc3BctK4 = buildBlockCutTree(tc3K4)
+k4Blocks = getBlockCount(tc3BctK4)
+k4Cuts = getCutCount(tc3BctK4)
+k4Biconn = isGraphBiconnected(tc3BctK4)
+k4Same03 = areInSameBlock(tc3BctK4, 0, 3)
+
+if (k4Blocks != 1 or k4Cuts != 0 or k4Biconn != 1 or k4Same03 != 1) {
+    tc3Pass = 0
+}
+
+// 3.2: Line Tree: 0 - 1 - 2 - 3 - 4 (5 vertices, 4 edges)
+tc3Line = createGraph(5)
+addEdge(tc3Line, 0, 1)
+addEdge(tc3Line, 1, 2)
+addEdge(tc3Line, 2, 3)
+addEdge(tc3Line, 3, 4)
+
+tc3BctLine = buildBlockCutTree(tc3Line)
+lineBlocks = getBlockCount(tc3BctLine)
+lineCuts = getCutCount(tc3BctLine)
+lineIsCut0 = isArticulationPoint(tc3BctLine, 0)
+lineIsCut1 = isArticulationPoint(tc3BctLine, 1)
+lineIsCut2 = isArticulationPoint(tc3BctLine, 2)
+lineIsCut3 = isArticulationPoint(tc3BctLine, 3)
+lineIsCut4 = isArticulationPoint(tc3BctLine, 4)
+
+if (lineBlocks != 4 or lineCuts != 3 or lineIsCut0 != 0 or lineIsCut1 != 1 or lineIsCut2 != 1 or lineIsCut3 != 1 or lineIsCut4 != 0) {
+    tc3Pass = 0
+}
+
+// 3.3: Star Tree: Center 0 with leaves 1, 2, 3, 4
+tc3Star = createGraph(5)
+addEdge(tc3Star, 0, 1)
+addEdge(tc3Star, 0, 2)
+addEdge(tc3Star, 0, 3)
+addEdge(tc3Star, 0, 4)
+
+tc3BctStar = buildBlockCutTree(tc3Star)
+starBlocks = getBlockCount(tc3BctStar)
+starCuts = getCutCount(tc3BctStar)
+starIsCut0 = isArticulationPoint(tc3BctStar, 0)
+starIsCut1 = isArticulationPoint(tc3BctStar, 1)
+
+if (starBlocks != 4 or starCuts != 1 or starIsCut0 != 1 or starIsCut1 != 0) {
+    tc3Pass = 0
+}
+
+// 3.4: Disconnected Graph: Triangle (0, 1, 2) + Isolated Vertex 3
+tc3Disc = createGraph(4)
+addEdge(tc3Disc, 0, 1)
+addEdge(tc3Disc, 1, 2)
+addEdge(tc3Disc, 2, 0)
+
+tc3BctDisc = buildBlockCutTree(tc3Disc)
+discBlocks = getBlockCount(tc3BctDisc)
+discCuts = getCutCount(tc3BctDisc)
+discSame03 = areInSameBlock(tc3BctDisc, 0, 3)
+
+if (discBlocks != 2 or discCuts != 0 or discSame03 != 0) {
+    tc3Pass = 0
+}
+
+if (tc3Pass == 1) {
+    print("  Complete Graph K4 verified: 1 block, 0 cut vertices, fully biconnected")
+    print("  Line Tree verified: 4 blocks and 3 internal articulation points (1, 2, 3)")
+    print("  Star Tree verified: 4 blocks and unique central articulation point (0)")
+    print("  Disconnected graph verified: 2 components with isolated vertex preserved")
+    print("  Test Case 3 Passed successfully")
+} else {
+    print("[FAIL] Test Case 3 encountered assertion mismatches")
+}
