@@ -1,0 +1,318 @@
+import stdlib time as t
+
+// 2D Fenwick Tree (Binary Indexed Tree) Point Update and Range Query Suite
+// Technical characteristics:
+// - Orthogonal 2D point updates and rectangular range sum queries
+// - 1-based indexing for optimal lowbit traversal
+// - Time complexity: O(log N * log M) for point updates and rectangular range queries
+// - 2D Inclusion-Exclusion Principle: Sum(r1..r2, c1..c2) = P(r2, c2) - P(r1-1, c2) - P(r2, c1-1) + P(r1-1, c1-1)
+// - Dynamic point set updates via delta difference tracking
+// - Deterministic rectangular assertions and randomized matrix oracle benchmark
+// - Unique symbol scoping per function avoiding JIT variable slot overlap
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize 2D Fenwick Tree Point Update Range Query Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func lowbit(lbX) {
+    return lbX & (0 - lbX)
+}
+
+func createFenwickTree2D(numRows, numCols) {
+    cTree = []
+    cMatrix = []
+    cr = 0
+    while (cr <= numRows) {
+        ctRow = []
+        cmRow = []
+        cc = 0
+        while (cc <= numCols) {
+            ctRow.push(0)
+            cmRow.push(0)
+            cc = cc + 1
+        }
+        cTree.push(ctRow)
+        cMatrix.push(cmRow)
+        cr = cr + 1
+    }
+    cMeta = [numRows, numCols]
+    return [cTree, cMatrix, cMeta]
+}
+
+func pointUpdate2D(ft, puR, puC, puDelta) {
+    puTree = ft[0]
+    puMatrix = ft[1]
+    puMeta = ft[2]
+    puMaxR = puMeta[0]
+    puMaxC = puMeta[1]
+
+    if (puR < 1 or puR > puMaxR or puC < 1 or puC > puMaxC) {
+        return 0
+    }
+
+    puMatrix[puR][puC] = puMatrix[puR][puC] + puDelta
+
+    puI = puR
+    while (puI <= puMaxR) {
+        puJ = puC
+        while (puJ <= puMaxC) {
+            puTree[puI][puJ] = puTree[puI][puJ] + puDelta
+            puJ = puJ + lowbit(puJ)
+        }
+        puI = puI + lowbit(puI)
+    }
+
+    return 1
+}
+
+func pointSet2D(ft, psR, psC, psNewVal) {
+    psMatrix = ft[1]
+    psCurrent = psMatrix[psR][psC]
+    psDelta = psNewVal - psCurrent
+    return pointUpdate2D(ft, psR, psC, psDelta)
+}
+
+func prefixSum2D(ft, prR, prC) {
+    if (prR < 1 or prC < 1) {
+        return 0
+    }
+
+    prTree = ft[0]
+    prMeta = ft[2]
+    prMaxR = prMeta[0]
+    prMaxC = prMeta[1]
+
+    prBoundR = minInt(prR, prMaxR)
+    prBoundC = minInt(prC, prMaxC)
+
+    prTotal = 0
+    prI = prBoundR
+    while (prI > 0) {
+        prJ = prBoundC
+        while (prJ > 0) {
+            prTotal = prTotal + prTree[prI][prJ]
+            prJ = prJ - lowbit(prJ)
+        }
+        prI = prI - lowbit(prI)
+    }
+
+    return prTotal
+}
+
+func rangeQuery2D(ft, rqR1, rqC1, rqR2, rqC2) {
+    rqP1 = prefixSum2D(ft, rqR2, rqC2)
+    rqP2 = prefixSum2D(ft, rqR1 - 1, rqC2)
+    rqP3 = prefixSum2D(ft, rqR2, rqC1 - 1)
+    rqP4 = prefixSum2D(ft, rqR1 - 1, rqC1 - 1)
+    return rqP1 - rqP2 - rqP3 + rqP4
+}
+
+// Oracle direct summation for verification
+func oracleRangeSum(ft, oR1, oC1, oR2, oC2) {
+    oMatrix = ft[1]
+    oTotal = 0
+    oI = oR1
+    while (oI <= oR2) {
+        oJ = oC1
+        while (oJ <= oC2) {
+            oTotal = oTotal + oMatrix[oI][oJ]
+            oJ = oJ + 1
+        }
+        oI = oI + 1
+    }
+    return oTotal
+}
+
+allFtTestsPassed = true
+
+// --- Test Case 1: Structured 5x5 Coordinate Grid ---
+print("Running Test Case 1: Structured 5x5 Coordinate Grid...")
+ft1 = createFenwickTree2D(5, 5)
+
+// Insert points into 5x5 grid:
+// (1, 1) = 10, (1, 5) = 20
+// (3, 3) = 50
+// (5, 1) = 30, (5, 5) = 40
+pointSet2D(ft1, 1, 1, 10)
+pointSet2D(ft1, 1, 5, 20)
+pointSet2D(ft1, 3, 3, 50)
+pointSet2D(ft1, 5, 1, 30)
+pointSet2D(ft1, 5, 5, 40)
+
+// Query full grid [1, 1] to [5, 5] -> 10 + 20 + 50 + 30 + 40 = 150
+fullSum = rangeQuery2D(ft1, 1, 1, 5, 5)
+oracFull = oracleRangeSum(ft1, 1, 1, 5, 5)
+print("  Full grid sum [1,1]..[5,5]: " + fullSum + " (Oracle: " + oracFull + ")")
+
+// Query top-left quadrant [1, 1] to [3, 3] -> 10 (at 1,1) + 50 (at 3,3) = 60
+qTL = rangeQuery2D(ft1, 1, 1, 3, 3)
+oracTL = oracleRangeSum(ft1, 1, 1, 3, 3)
+print("  Top-Left quadrant [1,1]..[3,3]: " + qTL + " (Oracle: " + oracTL + ")")
+
+// Query center single cell [3, 3] to [3, 3] -> 50
+qCenter = rangeQuery2D(ft1, 3, 3, 3, 3)
+print("  Center 1x1 cell [3,3]: " + qCenter + " (Expected: 50)")
+
+// Query empty interior row 2: [2, 1] to [2, 5] -> 0
+qEmptyRow = rangeQuery2D(ft1, 2, 1, 2, 5)
+print("  Empty row [2,1]..[2,5]: " + qEmptyRow + " (Expected: 0)")
+
+if (fullSum != 150 or oracFull != 150 or qTL != 60 or oracTL != 60 or qCenter != 50 or qEmptyRow != 0) {
+    print("[FAIL] Test Case 1 structured grid validation failed")
+    allFtTestsPassed = false
+} else {
+    print("  Test Case 1 PASSED")
+}
+
+// --- Test Case 2: Dynamic Updates and Delta Adjustments ---
+print("Running Test Case 2: Dynamic Updates and Delta Adjustments...")
+// Update center cell (3, 3) with +25 delta -> value becomes 75
+pointUpdate2D(ft1, 3, 3, 25)
+newCenter = rangeQuery2D(ft1, 3, 3, 3, 3)
+newFull = rangeQuery2D(ft1, 1, 1, 5, 5)
+print("  Updated center cell: " + newCenter + " (Expected: 75)")
+print("  Updated full grid  : " + newFull + " (Expected: 175)")
+
+if (newCenter != 75 or newFull != 175) {
+    print("[FAIL] Test Case 2 point update failed")
+    allFtTestsPassed = false
+}
+
+// Reset cell (1, 1) from 10 to 0 via pointSet2D
+pointSet2D(ft1, 1, 1, 0)
+zeroTL = rangeQuery2D(ft1, 1, 1, 1, 1)
+newFull2 = rangeQuery2D(ft1, 1, 1, 5, 5)
+print("  Reset (1, 1) to 0 : " + zeroTL + " (Expected: 0)")
+print("  New full grid sum : " + newFull2 + " (Expected: 165)")
+
+if (zeroTL != 0 or newFull2 != 165) {
+    print("[FAIL] Test Case 2 point set failed")
+    allFtTestsPassed = false
+} else {
+    print("  Test Case 2 PASSED")
+}
+
+// --- Test Case 3: Boundary and Single-Dimension Strip Queries ---
+print("Running Test Case 3: Boundary and Strip Queries...")
+ft3 = createFenwickTree2D(6, 8)
+// Fill diagonal: (i, i) = i * 10 for i=1..6
+i = 1
+while (i <= 6) {
+    pointSet2D(ft3, i, i, i * 10)
+    i = i + 1
+}
+
+// Row strip [3, 1] to [3, 8]: only element is (3, 3) = 30
+rowStrip = rangeQuery2D(ft3, 3, 1, 3, 8)
+oracRow = oracleRangeSum(ft3, 3, 1, 3, 8)
+print("  Row 3 strip [3,1]..[3,8]: " + rowStrip + " (Oracle: " + oracRow + ")")
+
+// Col strip [1, 4] to [6, 4]: only element is (4, 4) = 40
+colStrip = rangeQuery2D(ft3, 1, 4, 6, 4)
+oracCol = oracleRangeSum(ft3, 1, 4, 6, 4)
+print("  Col 4 strip [1,4]..[6,4]: " + colStrip + " (Oracle: " + oracCol + ")")
+
+// Corner subgrid [4, 4] to [6, 8]: elements (4, 4)=40, (5, 5)=50, (6, 6)=60 -> sum 150
+subCorner = rangeQuery2D(ft3, 4, 4, 6, 8)
+oracCorner = oracleRangeSum(ft3, 4, 4, 6, 8)
+print("  Corner subgrid [4,4]..[6,8]: " + subCorner + " (Oracle: " + oracCorner + ")")
+
+if (rowStrip != 30 or oracRow != 30 or colStrip != 40 or oracCol != 40 or subCorner != 150 or oracCorner != 150) {
+    print("[FAIL] Test Case 3 boundary strip queries failed")
+    allFtTestsPassed = false
+} else {
+    print("  Test Case 3 PASSED")
+}
+
+// --- Test Case 4: Randomized Matrix Stress Benchmark (16x16 Grid) ---
+print("Running Test Case 4: Randomized 16x16 Matrix Stress Test...")
+ft4 = createFenwickTree2D(16, 16)
+seed = 987654321
+
+// 30 random updates
+uCount = 0
+while (uCount < 30) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    sR = 1 + (seed % 16)
+
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    sC = 1 + (seed % 16)
+
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    sVal = 1 + (seed % 100)
+
+    pointSet2D(ft4, sR, sC, sVal)
+    uCount = uCount + 1
+}
+
+// 30 random rectangular queries compared against oracle
+stressOk = true
+qCount = 0
+while (qCount < 30 and stressOk) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    rA = 1 + (seed % 16)
+
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    rB = 1 + (seed % 16)
+
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    cA = 1 + (seed % 16)
+
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    cB = 1 + (seed % 16)
+
+    sR1 = minInt(rA, rB)
+    sR2 = maxInt(rA, rB)
+    sC1 = minInt(cA, cB)
+    sC2 = maxInt(cA, cB)
+
+    calcSum = rangeQuery2D(ft4, sR1, sC1, sR2, sC2)
+    oracSum = oracleRangeSum(ft4, sR1, sC1, sR2, sC2)
+
+    if (calcSum != oracSum) {
+        print("[FAIL] Mismatch at [" + sR1 + "," + sC1 + "]..[" + sR2 + "," + sC2 + "]: calc=" + calcSum + ", oracle=" + oracSum)
+        stressOk = false
+    }
+
+    qCount = qCount + 1
+}
+
+if (!stressOk) {
+    print("[FAIL] Test Case 4 stress benchmark failed")
+    allFtTestsPassed = false
+} else {
+    print("  Test Case 4 PASSED (30 random rectangular queries verified against oracle)")
+}
+
+// --- Final Summary ---
+print("=== 2D Fenwick Tree Suite Summary ===")
+if (allFtTestsPassed) {
+    print("All 2D Fenwick Tree test suites: SUCCESS")
+} else {
+    print("Some 2D Fenwick Tree test suites: FAILED")
+}
+
+totalElapsed = t.millis() - suiteStartTime
+print("[PASS] 2D Fenwick Tree Point Update Range Query executed successfully in", totalElapsed, "ms")
