@@ -9,7 +9,8 @@
   {
     "id": "ISSUE-2",
     "title": "feat(algorithms): implement blockCutTreeBiconnectivityDecomp in richcodesamples",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "82fe60f",
     "file": "ISSUE-2-blockCutTree.md"
   },
   {
