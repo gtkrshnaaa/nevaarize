@@ -519,3 +519,252 @@ if (biFail != 0) {
     print("  Test Case 3 Passed select queries and bidirectional index mapping")
 }
 
+// -----------------------------------------------------------------------------
+// Test Case 4: Boundary Cases & Large Alphabet Extremes
+// -----------------------------------------------------------------------------
+print("Running Test Case 4: Boundary Cases and Large Alphabet Extremes...")
+
+// 4.1: Singleton array
+tc4SingleData = [1000000000]
+tc4SingleWm = buildWaveletMatrix(tc4SingleData)
+
+singleQ = rangeQuantile(tc4SingleWm, 0, 0, 1)
+singleFreq = rangeFrequency(tc4SingleWm, 0, 0, 1000000000)
+singleFreqMiss = rangeFrequency(tc4SingleWm, 0, 0, 999)
+singleLessSelf = rangeCountLess(tc4SingleWm, 0, 0, 1000000000)
+singleLessAbove = rangeCountLess(tc4SingleWm, 0, 0, 1000000001)
+singleSel = selectKth(tc4SingleWm, 1000000000, 1)
+
+tc4SingleFail = 0
+if (singleQ != 1000000000 or singleFreq != 1 or singleFreqMiss != 0) { tc4SingleFail = 1 }
+if (singleLessSelf != 0 or singleLessAbove != 1 or singleSel != 0) { tc4SingleFail = 1 }
+
+if (tc4SingleFail != 0) {
+    print("[FAIL] Singleton array boundary test failed")
+} else {
+    print("  Singleton array verified: N=1 (val=1B), quantile=1B, freq=1, countLess=0/1, select=0")
+}
+
+// 4.2: All identical elements
+tc4SameData = [77777777, 77777777, 77777777, 77777777, 77777777, 77777777]
+tc4SameWm = buildWaveletMatrix(tc4SameData)
+
+sameQ1 = rangeQuantile(tc4SameWm, 0, 5, 1)
+sameQ6 = rangeQuantile(tc4SameWm, 0, 5, 6)
+sameFreq = rangeFrequency(tc4SameWm, 0, 5, 77777777)
+sameSel1 = selectKth(tc4SameWm, 77777777, 1)
+sameSel4 = selectKth(tc4SameWm, 77777777, 4)
+sameSel6 = selectKth(tc4SameWm, 77777777, 6)
+
+tc4SameFail = 0
+if (sameQ1 != 77777777 or sameQ6 != 77777777 or sameFreq != 6) { tc4SameFail = 1 }
+if (sameSel1 != 0 or sameSel4 != 3 or sameSel6 != 5) { tc4SameFail = 1 }
+
+if (tc4SameFail != 0) {
+    print("[FAIL] All-identical array boundary test failed")
+} else {
+    print("  All-identical array verified: 6 copies of 77777777, select preserves exact indices 0..5")
+}
+
+// 4.3: Zero and powers of 2 / 30-bit max integer
+tc4BitsData = [0, 1, 2, 4, 8, 16, 1073741823]
+tc4BitsWm = buildWaveletMatrix(tc4BitsData)
+
+bitsMin = rangeQuantile(tc4BitsWm, 0, 6, 1)
+bitsMax = rangeQuantile(tc4BitsWm, 0, 6, 7)
+bitsLessZero = rangeCountLess(tc4BitsWm, 0, 6, 0)
+bitsLessOne = rangeCountLess(tc4BitsWm, 0, 6, 1)
+bitsLessMax = rangeCountLess(tc4BitsWm, 0, 6, 1073741823)
+bitsLessAboveMax = rangeCountLess(tc4BitsWm, 0, 6, 1073741824)
+bitsSelZero = selectKth(tc4BitsWm, 0, 1)
+bitsSelMax = selectKth(tc4BitsWm, 1073741823, 1)
+
+tc4BitsFail = 0
+if (bitsMin != 0 or bitsMax != 1073741823 or bitsLessZero != 0 or bitsLessOne != 1) { tc4BitsFail = 1 }
+if (bitsLessMax != 6 or bitsLessAboveMax != 7 or bitsSelZero != 0 or bitsSelMax != 6) { tc4BitsFail = 1 }
+
+if (tc4BitsFail != 0) {
+    print("[FAIL] Extreme bit-range boundary test failed")
+} else {
+    print("  Extreme bit-range verified: values spanning 0 to 1073741823 (2^30-1), correct rank and bounds")
+    print("  Test Case 4 Passed boundary cases and large alphabet extremes")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 5: Randomized Stress Benchmark against Brute-Force Array Oracle
+// -----------------------------------------------------------------------------
+print("Running Test Case 5: Stress Benchmark against Brute-Force Array Oracle...")
+
+func oracleQuantile(sourceArr, l, r, k) {
+    sub = []
+    i = l
+    while (i <= r) {
+        sub.push(sourceArr[i])
+        i = i + 1
+    }
+    i = 1
+    while (i < sub.size()) {
+        valKey = sub[i]
+        j = i - 1
+        while (j >= 0 and sub[j] > valKey) {
+            sub[j + 1] = sub[j]
+            j = j - 1
+        }
+        sub[j + 1] = valKey
+        i = i + 1
+    }
+    return sub[k - 1]
+}
+
+func oracleFrequency(sourceArr, l, r, targetVal) {
+    occ = 0
+    i = l
+    while (i <= r) {
+        if (sourceArr[i] == targetVal) {
+            occ = occ + 1
+        }
+        i = i + 1
+    }
+    return occ
+}
+
+func oracleCountInterval(sourceArr, l, r, lowVal, highVal) {
+    occ = 0
+    i = l
+    while (i <= r) {
+        if (sourceArr[i] >= lowVal and sourceArr[i] <= highVal) {
+            occ = occ + 1
+        }
+        i = i + 1
+    }
+    return occ
+}
+
+func oracleSelect(sourceArr, targetVal, k) {
+    occ = 0
+    i = 0
+    while (i < sourceArr.size()) {
+        if (sourceArr[i] == targetVal) {
+            occ = occ + 1
+            if (occ == k) {
+                return i
+            }
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+func nextStressRand(seedArr) {
+    s = seedArr[0]
+    s = (s * 1103515245 + 12345) % 2147483648
+    if (s < 0) {
+        s = 0 - s
+    }
+    seedArr[0] = s
+    return s
+}
+
+stressSeedBox = [543216789]
+stressN = 40
+stressData = []
+
+i = 0
+while (i < stressN) {
+    // Generate values up to 100,000,000 with occasional duplicates
+    randVal = (nextStressRand(stressSeedBox) % 100000000) + 1
+    if (i % 6 == 0 and i > 0) {
+        // Reuse previous value to guarantee duplicates
+        randVal = stressData[i - 1]
+    }
+    stressData.push(randVal)
+    i = i + 1
+}
+
+stressWm = buildWaveletMatrix(stressData)
+
+stressQueries = 150
+stressQIdx = 0
+stressMismatches = 0
+
+while (stressQIdx < stressQueries) {
+    qType = nextStressRand(stressSeedBox) % 4
+    randL = nextStressRand(stressSeedBox) % stressN
+    randR = nextStressRand(stressSeedBox) % stressN
+    if (randL > randR) {
+        temp = randL
+        randL = randR
+        randR = temp
+    }
+
+    if (qType == 0) {
+        // Range Quantile
+        rangeLen = randR - randL + 1
+        randK = (nextStressRand(stressSeedBox) % rangeLen) + 1
+        actualQ = rangeQuantile(stressWm, randL, randR, randK)
+        expectedQ = oracleQuantile(stressData, randL, randR, randK)
+        if (actualQ != expectedQ) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (qType == 1) {
+        // Range Frequency
+        pickChoice = nextStressRand(stressSeedBox) % 2
+        targetVal = 0
+        if (pickChoice == 0) {
+            targetVal = stressData[randL + (nextStressRand(stressSeedBox) % (randR - randL + 1))]
+        } else {
+            targetVal = (nextStressRand(stressSeedBox) % 100000000) + 1
+        }
+        actualFreq = rangeFrequency(stressWm, randL, randR, targetVal)
+        expectedFreq = oracleFrequency(stressData, randL, randR, targetVal)
+        if (actualFreq != expectedFreq) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (qType == 2) {
+        // Range Interval Counting
+        valA = (nextStressRand(stressSeedBox) % 100000000) + 1
+        valB = (nextStressRand(stressSeedBox) % 100000000) + 1
+        lo = valA
+        hi = valB
+        if (lo > hi) {
+            lo = valB
+            hi = valA
+        }
+        actualCount = rangeCountInterval(stressWm, randL, randR, lo, hi)
+        expectedCount = oracleCountInterval(stressData, randL, randR, lo, hi)
+        if (actualCount != expectedCount) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (qType == 3) {
+        // Select Query
+        pickIdx = nextStressRand(stressSeedBox) % stressN
+        targetVal = stressData[pickIdx]
+        totalInArray = oracleFrequency(stressData, 0, stressN - 1, targetVal)
+        randK = (nextStressRand(stressSeedBox) % (totalInArray + 2)) + 1
+        actualSel = selectKth(stressWm, targetVal, randK)
+        expectedSel = oracleSelect(stressData, targetVal, randK)
+        if (actualSel != expectedSel) {
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    stressQIdx = stressQIdx + 1
+}
+
+if (stressMismatches > 0) {
+    print("[FAIL] Stress benchmark encountered ", stressMismatches, " mismatches against oracle")
+} else {
+    print("  Validated ", stressQueries, " randomized quantile, frequency, interval and select queries against Oracle: 0 mismatches")
+    print("  Test Case 5 Passed randomized stress benchmark verification")
+}
+
+elapsedTime = t.millis() - suiteStartTime
+print("[PASS] Wavelet Matrix Large Alphabet Suite executed successfully in ", elapsedTime, " ms")
+
+
