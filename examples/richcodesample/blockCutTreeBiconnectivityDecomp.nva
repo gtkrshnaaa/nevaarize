@@ -1,0 +1,450 @@
+import stdlib time as t
+
+// Block-Cut Tree (BCT) Data Structure & 2-Connected Components Decomposition
+// Technical characteristics:
+// - Tarjan's biconnected components algorithm with iterative explicit stack frames
+// - Decomposition of arbitrary undirected graphs into 2-vertex-connected blocks
+// - Construction of bipartite Block-Cut Tree linking blocks and articulation points
+// - Articulation point identification and cut vertex path queries
+// - Bridge edge detection and 2-edge-connected component analysis
+// - Deterministic assertions and runtime performance benchmarks
+// - Strict camelCase naming conventions enforced across all symbols (No-Underscore Policy)
+
+print("=== Nevaarize Block-Cut Tree Biconnectivity Decomposition Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(aInt, bInt) {
+    if (aInt < bInt) { return aInt }
+    return bInt
+}
+
+func createGraph(numVertices) {
+    adj = []
+    i = 0
+    while (i < numVertices) {
+        adj.push([])
+        i = i + 1
+    }
+    edgeList = []
+    return [numVertices, adj, edgeList]
+}
+
+func addEdge(graph, u, v) {
+    adj = graph[1]
+    edgeList = graph[2]
+
+    adj[u].push(v)
+    adj[v].push(u)
+    edgeList.push([u, v])
+
+    graph[1] = adj
+    graph[2] = edgeList
+}
+
+func buildBlockCutTree(graph) {
+    numVertices = graph[0]
+    adj = graph[1]
+
+    dfn = []
+    low = []
+    isCut = []
+    i = 0
+    while (i < numVertices) {
+        dfn.push(-1)
+        low.push(-1)
+        isCut.push(0)
+        i = i + 1
+    }
+
+    timer = 0
+    stk = []
+    blocks = []
+
+    rootCand = 0
+    while (rootCand < numVertices) {
+        if (dfn[rootCand] == -1) {
+            callU = [rootCand]
+            callP = [-1]
+            callEdge = [0]
+            callChildCount = [0]
+
+            timer = timer + 1
+            dfn[rootCand] = timer
+            low[rootCand] = timer
+            stk.push(rootCand)
+
+            while (callU.size() > 0) {
+                topIdx = callU.size() - 1
+                u = callU[topIdx]
+                p = callP[topIdx]
+                edgeIdx = callEdge[topIdx]
+                uNeighbors = adj[u]
+
+                if (edgeIdx < uNeighbors.size()) {
+                    callEdge[topIdx] = edgeIdx + 1
+                    v = uNeighbors[edgeIdx]
+                    if (v == p) {
+                        // Skip parent tree edge
+                    } else {
+                        if (dfn[v] != -1) {
+                            low[u] = minInt(low[u], dfn[v])
+                        } else {
+                            callChildCount[topIdx] = callChildCount[topIdx] + 1
+                            timer = timer + 1
+                            dfn[v] = timer
+                            low[v] = timer
+                            stk.push(v)
+
+                            callU.push(v)
+                            callP.push(u)
+                            callEdge.push(0)
+                            callChildCount.push(0)
+                        }
+                    }
+                } else {
+                    chCount = callChildCount[topIdx]
+                    callU.pop()
+                    callP.pop()
+                    callEdge.pop()
+                    callChildCount.pop()
+
+                    if (callU.size() > 0) {
+                        parentIdx = callU.size() - 1
+                        parentU = callU[parentIdx]
+                        low[parentU] = minInt(low[parentU], low[u])
+
+                        if (low[u] >= dfn[parentU]) {
+                            if (parentU != rootCand) {
+                                isCut[parentU] = 1
+                            }
+
+                            newBlock = []
+                            keepPopping = 1
+                            while (keepPopping == 1) {
+                                topNode = stk.pop()
+                                newBlock.push(topNode)
+                                if (topNode == u) {
+                                    keepPopping = 0
+                                }
+                            }
+                            newBlock.push(parentU)
+                            blocks.push(newBlock)
+                        }
+                    } else {
+                        if (chCount >= 2) {
+                            isCut[rootCand] = 1
+                        }
+                        if (uNeighbors.size() == 0) {
+                            blocks.push([rootCand])
+                        }
+                    }
+                }
+            }
+        }
+        rootCand = rootCand + 1
+    }
+
+    cutList = []
+    cutIndex = []
+    i = 0
+    while (i < numVertices) {
+        cutIndex.push(-1)
+        if (isCut[i] == 1) {
+            cutIndex[i] = cutList.size()
+            cutList.push(i)
+        }
+        i = i + 1
+    }
+
+    numBlocks = blocks.size()
+    numCuts = cutList.size()
+    bctTotalNodes = numBlocks + numCuts
+
+    bctAdj = []
+    i = 0
+    while (i < bctTotalNodes) {
+        bctAdj.push([])
+        i = i + 1
+    }
+
+    vertexBlocks = []
+    i = 0
+    while (i < numVertices) {
+        vertexBlocks.push([])
+        i = i + 1
+    }
+
+    bIdx = 0
+    while (bIdx < numBlocks) {
+        blk = blocks[bIdx]
+        vIdx = 0
+        while (vIdx < blk.size()) {
+            v = blk[vIdx]
+            vertexBlocks[v].push(bIdx)
+            if (isCut[v] == 1) {
+                cutNodeId = numBlocks + cutIndex[v]
+                bctAdj[bIdx].push(cutNodeId)
+                bctAdj[cutNodeId].push(bIdx)
+            }
+            vIdx = vIdx + 1
+        }
+        bIdx = bIdx + 1
+    }
+
+    return [numVertices, isCut, cutList, blocks, bctTotalNodes, bctAdj, vertexBlocks, cutIndex]
+}
+
+func isArticulationPoint(bct, u) {
+    numVertices = bct[0]
+    if (u < 0 or u >= numVertices) { return 0 }
+    isCut = bct[1]
+    return isCut[u]
+}
+
+func getBlockCount(bct) {
+    blocks = bct[3]
+    return blocks.size()
+}
+
+func getCutCount(bct) {
+    cutList = bct[2]
+    return cutList.size()
+}
+
+func getBlockVertices(bct, blockId) {
+    blocks = bct[3]
+    if (blockId < 0 or blockId >= blocks.size()) { return [] }
+    return blocks[blockId]
+}
+
+func getVertexBlocks(bct, u) {
+    numVertices = bct[0]
+    if (u < 0 or u >= numVertices) { return [] }
+    vertexBlocks = bct[6]
+    return vertexBlocks[u]
+}
+
+func areInSameBlock(bct, u, v) {
+    numVertices = bct[0]
+    if (u < 0 or u >= numVertices or v < 0 or v >= numVertices) { return 0 }
+    if (u == v) { return 1 }
+    blocksU = getVertexBlocks(bct, u)
+    blocksV = getVertexBlocks(bct, v)
+
+    i = 0
+    while (i < blocksU.size()) {
+        bU = blocksU[i]
+        j = 0
+        while (j < blocksV.size()) {
+            if (bU == blocksV[j]) {
+                return 1
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+func isGraphBiconnected(bct) {
+    numVertices = bct[0]
+    if (numVertices <= 1) { return 1 }
+    if (getBlockCount(bct) == 1 and getCutCount(bct) == 0) {
+        return 1
+    }
+    return 0
+}
+
+func findBridgeEdges(graph, bct) {
+    blocks = bct[3]
+    adj = graph[1]
+    bridges = []
+
+    bIdx = 0
+    while (bIdx < blocks.size()) {
+        blk = blocks[bIdx]
+        if (blk.size() == 2) {
+            u = blk[0]
+            v = blk[1]
+            // Verify u and v share an edge in original graph
+            uNeighbors = adj[u]
+            found = 0
+            nIdx = 0
+            while (nIdx < uNeighbors.size() and found == 0) {
+                if (uNeighbors[nIdx] == v) {
+                    found = 1
+                }
+                nIdx = nIdx + 1
+            }
+            if (found == 1) {
+                if (u < v) {
+                    bridges.push([u, v])
+                } else {
+                    bridges.push([v, u])
+                }
+            }
+        }
+        bIdx = bIdx + 1
+    }
+    return bridges
+}
+
+func findCutVerticesOnPath(bct, u, v) {
+    numVertices = bct[0]
+    if (u < 0 or u >= numVertices or v < 0 or v >= numVertices) { return [] }
+    if (u == v) { return [] }
+
+    isCut = bct[1]
+    cutIndex = bct[7]
+    numBlocks = getBlockCount(bct)
+    totalBctNodes = bct[4]
+    bctAdj = bct[5]
+    vertexBlocks = bct[6]
+
+    uBlocks = vertexBlocks[u]
+    vBlocks = vertexBlocks[v]
+    if (uBlocks.size() == 0 or vBlocks.size() == 0) { return [] }
+
+    // Start node in BCT for u
+    startBctNode = -1
+    if (isCut[u] == 1) {
+        startBctNode = numBlocks + cutIndex[u]
+    } else {
+        startBctNode = uBlocks[0]
+    }
+
+    // Target node in BCT for v
+    targetBctNode = -1
+    if (isCut[v] == 1) {
+        targetBctNode = numBlocks + cutIndex[v]
+    } else {
+        targetBctNode = vBlocks[0]
+    }
+
+    if (startBctNode == targetBctNode) {
+        return []
+    }
+
+    // BFS on BCT from startBctNode to targetBctNode
+    parentInBct = []
+    visitedBct = []
+    i = 0
+    while (i < totalBctNodes) {
+        parentInBct.push(-1)
+        visitedBct.push(0)
+        i = i + 1
+    }
+
+    queue = [startBctNode]
+    visitedBct[startBctNode] = 1
+    qHead = 0
+    foundTarget = 0
+
+    while (qHead < queue.size() and foundTarget == 0) {
+        curr = queue[qHead]
+        qHead = qHead + 1
+        neighbors = bctAdj[curr]
+        nIdx = 0
+        while (nIdx < neighbors.size() and foundTarget == 0) {
+            nxt = neighbors[nIdx]
+            if (visitedBct[nxt] == 0) {
+                visitedBct[nxt] = 1
+                parentInBct[nxt] = curr
+                if (nxt == targetBctNode) {
+                    foundTarget = 1
+                } else {
+                    queue.push(nxt)
+                }
+            }
+            nIdx = nIdx + 1
+        }
+    }
+
+    if (foundTarget == 0) {
+        return []
+    }
+
+    // Reconstruct path in BCT
+    pathNodes = []
+    curr = targetBctNode
+    while (curr != -1) {
+        pathNodes.push(curr)
+        curr = parentInBct[curr]
+    }
+
+    cutList = bct[2]
+    separatingCuts = []
+    pIdx = 0
+    while (pIdx < pathNodes.size()) {
+        node = pathNodes[pIdx]
+        if (node >= numBlocks) {
+            cutId = node - numBlocks
+            origVert = cutList[cutId]
+            if (origVert != u and origVert != v) {
+                separatingCuts.push(origVert)
+            }
+        }
+        pIdx = pIdx + 1
+    }
+
+    return separatingCuts
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 1: Butterfly / Bowtie Graph and Single Cut Vertex Decomposition
+// -----------------------------------------------------------------------------
+print("Running Test Case 1: Butterfly Graph and Single Cut Vertex Decomposition...")
+
+tc1Graph = createGraph(5)
+// Triangle 1: 0 - 1 - 2 - 0
+addEdge(tc1Graph, 0, 1)
+addEdge(tc1Graph, 1, 2)
+addEdge(tc1Graph, 2, 0)
+// Triangle 2: 2 - 3 - 4 - 2
+addEdge(tc1Graph, 2, 3)
+addEdge(tc1Graph, 3, 4)
+addEdge(tc1Graph, 4, 2)
+
+tc1Bct = buildBlockCutTree(tc1Graph)
+
+tc1NumBlocks = getBlockCount(tc1Bct)
+tc1NumCuts = getCutCount(tc1Bct)
+tc1IsCut2 = isArticulationPoint(tc1Bct, 2)
+tc1IsCut0 = isArticulationPoint(tc1Bct, 0)
+tc1IsCut1 = isArticulationPoint(tc1Bct, 1)
+tc1IsCut3 = isArticulationPoint(tc1Bct, 3)
+tc1IsCut4 = isArticulationPoint(tc1Bct, 4)
+
+tc1Pass = 1
+if (tc1NumBlocks != 2 or tc1NumCuts != 1 or tc1IsCut2 != 1 or tc1IsCut0 != 0 or tc1IsCut1 != 0 or tc1IsCut3 != 0 or tc1IsCut4 != 0) {
+    tc1Pass = 0
+}
+
+// Block-membership queries
+tc1Same01 = areInSameBlock(tc1Bct, 0, 1)
+tc1Same34 = areInSameBlock(tc1Bct, 3, 4)
+tc1Same04 = areInSameBlock(tc1Bct, 0, 4)
+tc1Same13 = areInSameBlock(tc1Bct, 1, 3)
+tc1Same02 = areInSameBlock(tc1Bct, 0, 2)
+tc1Same42 = areInSameBlock(tc1Bct, 4, 2)
+
+if (tc1Same01 != 1 or tc1Same34 != 1 or tc1Same04 != 0 or tc1Same13 != 0 or tc1Same02 != 1 or tc1Same42 != 1) {
+    tc1Pass = 0
+}
+
+// Path queries: vertex 2 should separate 0 and 4
+tc1Cuts04 = findCutVerticesOnPath(tc1Bct, 0, 4)
+tc1Cuts01 = findCutVerticesOnPath(tc1Bct, 0, 1)
+
+if (tc1Cuts04.size() != 1 or tc1Cuts04[0] != 2 or tc1Cuts01.size() != 0) {
+    tc1Pass = 0
+}
+
+if (tc1Pass == 1) {
+    print("  Butterfly graph verified: exactly 2 blocks and 1 articulation point (vertex 2)")
+    print("  Block membership verified: {0,1,2} and {2,3,4} are 2-connected components")
+    print("  Path query verified: vertex 2 uniquely separates vertices 0 and 4")
+    print("  Test Case 1 Passed successfully")
+} else {
+    print("[FAIL] Test Case 1 encountered assertion mismatches")
+}
