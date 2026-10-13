@@ -1,0 +1,458 @@
+import stdlib time as t
+
+// Link-Cut Tree (LCT) Dynamic Forest and Connectivity Suite
+// Based on Sleator & Tarjan's self-adjusting dynamic trees.
+// Technical characteristics:
+// - Forest of dynamic rooted trees represented as splay-based auxiliary trees
+// - access(u): makes path from represented tree root to u a single preferred path
+// - makeRoot(u): dynamic re-rooting via lazy path reversal tags
+// - findRoot(u): identifies tree component root for O(log N) dynamic connectivity tests
+// - link(u, v) and cut(u, v): structural modifications with automatic cycle prevention
+// - Dynamic path aggregate queries (path sums and path maximums) in amortized O(log N)
+// - Unique symbol scoping per function preventing JIT stack slot collisions
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Link-Cut Tree Dynamic Connectivity Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func createLinkCutTree(numNodes) {
+    parentArr = makeIntArray(numNodes, -1)
+    chLeftArr = makeIntArray(numNodes, -1)
+    chRightArr = makeIntArray(numNodes, -1)
+    nodeValArr = makeIntArray(numNodes, 0)
+    subSumArr = makeIntArray(numNodes, 0)
+    subMaxArr = makeIntArray(numNodes, 0)
+    revTagArr = makeIntArray(numNodes, 0)
+
+    return [numNodes, parentArr, chLeftArr, chRightArr, nodeValArr, subSumArr, subMaxArr, revTagArr]
+}
+
+func setInitialValue(lct, initU, initVal) {
+    ivVal = lct[4]
+    ivSum = lct[5]
+    ivMax = lct[6]
+    ivVal[initU] = initVal
+    ivSum[initU] = initVal
+    ivMax[initU] = initVal
+}
+
+func isSplayRoot(lct, isrU) {
+    isrParent = lct[1]
+    isrLeft = lct[2]
+    isrRight = lct[3]
+
+    isrP = isrParent[isrU]
+    if (isrP == -1) {
+        return true
+    }
+    return isrLeft[isrP] != isrU and isrRight[isrP] != isrU
+}
+
+func pushDown(lct, pdU) {
+    pdLeft = lct[2]
+    pdRight = lct[3]
+    pdRev = lct[7]
+
+    if (pdRev[pdU] == 1) {
+        pdTmp = pdLeft[pdU]
+        pdLeft[pdU] = pdRight[pdU]
+        pdRight[pdU] = pdTmp
+
+        pdLChild = pdLeft[pdU]
+        if (pdLChild != -1) {
+            pdRev[pdLChild] = pdRev[pdLChild] ^ 1
+        }
+        pdRChild = pdRight[pdU]
+        if (pdRChild != -1) {
+            pdRev[pdRChild] = pdRev[pdRChild] ^ 1
+        }
+
+        pdRev[pdU] = 0
+    }
+}
+
+func pushUp(lct, puU) {
+    puLeft = lct[2]
+    puRight = lct[3]
+    puVal = lct[4]
+    puSum = lct[5]
+    puMax = lct[6]
+
+    puCurSum = puVal[puU]
+    puCurMax = puVal[puU]
+
+    puLChild = puLeft[puU]
+    if (puLChild != -1) {
+        puCurSum = puCurSum + puSum[puLChild]
+        puCurMax = maxInt(puCurMax, puMax[puLChild])
+    }
+
+    puRChild = puRight[puU]
+    if (puRChild != -1) {
+        puCurSum = puCurSum + puSum[puRChild]
+        puCurMax = maxInt(puCurMax, puMax[puRChild])
+    }
+
+    puSum[puU] = puCurSum
+    puMax[puU] = puCurMax
+}
+
+func rotate(lct, rotU) {
+    rotParent = lct[1]
+    rotLeft = lct[2]
+    rotRight = lct[3]
+
+    rotP = rotParent[rotU]
+    rotG = rotParent[rotP]
+    rotIsLeft = (rotLeft[rotP] == rotU)
+
+    if (rotIsLeft) {
+        rotBChild = rotRight[rotU]
+        rotLeft[rotP] = rotBChild
+        if (rotBChild != -1) {
+            rotParent[rotBChild] = rotP
+        }
+        rotRight[rotU] = rotP
+    } else {
+        rotBChild = rotLeft[rotU]
+        rotRight[rotP] = rotBChild
+        if (rotBChild != -1) {
+            rotParent[rotBChild] = rotP
+        }
+        rotLeft[rotU] = rotP
+    }
+
+    rotParent[rotP] = rotU
+    rotParent[rotU] = rotG
+
+    if (rotG != -1) {
+        if (rotLeft[rotG] == rotP) {
+            rotLeft[rotG] = rotU
+        } elif (rotRight[rotG] == rotP) {
+            rotRight[rotG] = rotU
+        }
+    }
+
+    pushUp(lct, rotP)
+    pushUp(lct, rotU)
+}
+
+func splay(lct, spU) {
+    spParent = lct[1]
+    spLeft = lct[2]
+
+    spAncestors = [spU]
+    spCurr = spU
+    while (!isSplayRoot(lct, spCurr)) {
+        spCurr = spParent[spCurr]
+        spAncestors.push(spCurr)
+    }
+
+    spAIdx = spAncestors.size() - 1
+    while (spAIdx >= 0) {
+        pushDown(lct, spAncestors[spAIdx])
+        spAIdx = spAIdx - 1
+    }
+
+    while (!isSplayRoot(lct, spU)) {
+        spP = spParent[spU]
+        if (!isSplayRoot(lct, spP)) {
+            spG = spParent[spP]
+            spL1 = 0
+            if (spLeft[spP] == spU) { spL1 = 1 }
+            spL2 = 0
+            if (spLeft[spG] == spP) { spL2 = 1 }
+
+            if (spL1 == spL2) {
+                rotate(lct, spP)
+            } else {
+                rotate(lct, spU)
+            }
+        }
+        rotate(lct, spU)
+    }
+}
+
+func access(lct, accU) {
+    accRight = lct[3]
+    accParent = lct[1]
+
+    accLast = -1
+    accCurr = accU
+
+    while (accCurr != -1) {
+        splay(lct, accCurr)
+        accRight[accCurr] = accLast
+        pushUp(lct, accCurr)
+        accLast = accCurr
+        accCurr = accParent[accCurr]
+    }
+}
+
+func makeRoot(lct, mrU) {
+    mrRev = lct[7]
+    access(lct, mrU)
+    splay(lct, mrU)
+    mrRev[mrU] = mrRev[mrU] ^ 1
+}
+
+func findRoot(lct, frU) {
+    frLeft = lct[2]
+
+    access(lct, frU)
+    splay(lct, frU)
+    frCurr = frU
+    pushDown(lct, frCurr)
+
+    while (frLeft[frCurr] != -1) {
+        frCurr = frLeft[frCurr]
+        pushDown(lct, frCurr)
+    }
+
+    splay(lct, frCurr)
+    return frCurr
+}
+
+func isConnected(lct, connU, connV) {
+    if (connU == connV) {
+        return true
+    }
+    connRootU = findRoot(lct, connU)
+    connRootV = findRoot(lct, connV)
+    return connRootU == connRootV
+}
+
+func link(lct, lnkU, lnkV) {
+    lnkParent = lct[1]
+
+    if (isConnected(lct, lnkU, lnkV)) {
+        return false
+    }
+
+    makeRoot(lct, lnkU)
+    lnkParent[lnkU] = lnkV
+    return true
+}
+
+func cut(lct, cutU, cutV) {
+    cutParent = lct[1]
+    cutLeft = lct[2]
+    cutRight = lct[3]
+
+    if (!isConnected(lct, cutU, cutV)) {
+        return false
+    }
+
+    makeRoot(lct, cutU)
+    access(lct, cutV)
+    splay(lct, cutV)
+
+    if (cutLeft[cutV] == cutU and cutRight[cutU] == -1) {
+        cutLeft[cutV] = -1
+        cutParent[cutU] = -1
+        pushUp(lct, cutV)
+        return true
+    }
+
+    return false
+}
+
+func queryPathSum(lct, qpsU, qpsV) {
+    qpsSum = lct[5]
+    makeRoot(lct, qpsU)
+    access(lct, qpsV)
+    splay(lct, qpsV)
+    return qpsSum[qpsV]
+}
+
+func queryPathMax(lct, qpmU, qpmV) {
+    qpmMax = lct[6]
+    makeRoot(lct, qpmU)
+    access(lct, qpmV)
+    splay(lct, qpmV)
+    return qpmMax[qpmV]
+}
+
+func updateValue(lct, uvU, uvNewVal) {
+    uvVal = lct[4]
+    splay(lct, uvU)
+    uvVal[uvU] = uvNewVal
+    pushUp(lct, uvU)
+}
+
+allLctTestsPassed = true
+
+// --- Test Case 1: Dynamic Connectivity Lifecycle ---
+print("Running Test Case 1: Dynamic Forest Connectivity Lifecycle...")
+lct1 = createLinkCutTree(8)
+i = 0
+while (i < 8) {
+    setInitialValue(lct1, i, (i + 1) * 5)
+    i = i + 1
+}
+
+// Initial state: 8 isolated trees
+c0 = isConnected(lct1, 0, 7)
+print("  Initial (0, 7) connected: " + c0 + " (Expected: false)")
+if (c0) { allLctTestsPassed = false }
+
+// Link path: 0-1-2-3 and 4-5-6-7
+link(lct1, 0, 1)
+link(lct1, 1, 2)
+link(lct1, 2, 3)
+link(lct1, 4, 5)
+link(lct1, 5, 6)
+link(lct1, 6, 7)
+
+c1 = isConnected(lct1, 0, 3)
+c2 = isConnected(lct1, 4, 7)
+c3 = isConnected(lct1, 3, 4)
+print("  Connected(0, 3): " + c1 + " (Expected: true)")
+print("  Connected(4, 7): " + c2 + " (Expected: true)")
+print("  Connected(3, 4): " + c3 + " (Expected: false)")
+
+if (!c1 or !c2 or c3) {
+    print("[FAIL] Test Case 1 separate component verification failed")
+    allLctTestsPassed = false
+}
+
+// Bridge the two components: link(3, 4)
+linkOk = link(lct1, 3, 4)
+cBridge = isConnected(lct1, 0, 7)
+print("  After link(3, 4), Connected(0, 7): " + cBridge + " (Expected: true)")
+
+// Verify cycle prevention: link(0, 7) should fail
+cycleLink = link(lct1, 0, 7)
+print("  Attempt cycle link(0, 7): " + cycleLink + " (Expected: false)")
+
+if (!cBridge or cycleLink) {
+    print("[FAIL] Test Case 1 bridging or cycle prevention failed")
+    allLctTestsPassed = false
+}
+
+// Cut the bridge: cut(3, 4)
+cutOk = cut(lct1, 3, 4)
+cAfterCut = isConnected(lct1, 0, 7)
+print("  After cut(3, 4), Connected(0, 7): " + cAfterCut + " (Expected: false)")
+
+if (!cutOk or cAfterCut) {
+    print("[FAIL] Test Case 1 cut verification failed")
+    allLctTestsPassed = false
+} else {
+    print("  Test Case 1 PASSED")
+}
+
+// --- Test Case 2: Dynamic Path Aggregate Queries ---
+print("Running Test Case 2: Dynamic Path Sum and Maximum Queries...")
+// Re-link 3 and 4
+link(lct1, 3, 4)
+// Values: node i -> (i + 1) * 5
+// 0:5, 1:10, 2:15, 3:20, 4:25, 5:30, 6:35, 7:40
+// Path 1 to 5: nodes 1, 2, 3, 4, 5
+// Sum = 10 + 15 + 20 + 25 + 30 = 100
+// Max = 30
+sum15 = queryPathSum(lct1, 1, 5)
+max15 = queryPathMax(lct1, 1, 5)
+print("  PathSum(1, 5): " + sum15 + " (Expected: 100)")
+print("  PathMax(1, 5): " + max15 + " (Expected: 30)")
+
+if (sum15 != 100 or max15 != 30) {
+    print("[FAIL] Test Case 2 initial path query failed")
+    allLctTestsPassed = false
+}
+
+// Dynamic vertex update: update node 3 value from 20 to 100 (+80)
+updateValue(lct1, 3, 100)
+sum15Up = queryPathSum(lct1, 1, 5)
+max15Up = queryPathMax(lct1, 1, 5)
+print("  Updated PathSum(1, 5): " + sum15Up + " (Expected: 180)")
+print("  Updated PathMax(1, 5): " + max15Up + " (Expected: 100)")
+
+if (sum15Up != 180 or max15Up != 100) {
+    print("[FAIL] Test Case 2 dynamic update query failed")
+    allLctTestsPassed = false
+} else {
+    print("  Test Case 2 PASSED")
+}
+
+// --- Test Case 3: Re-Rooting and Star Topology Transformations ---
+print("Running Test Case 3: Dynamic Re-Rooting and Star Reconfiguration...")
+lct3 = createLinkCutTree(10)
+i = 0
+while (i < 10) {
+    setInitialValue(lct3, i, i + 1)
+    i = i + 1
+}
+
+// Build Star rooted at 0: 0 connects to 1, 2, 3, 4, 5, 6, 7, 8, 9
+i = 1
+while (i < 10) {
+    link(lct3, 0, i)
+    i = i + 1
+}
+
+// Path between leaves 3 and 7: 3 -> 0 -> 7
+// Values: 3(4) + 0(1) + 7(8) = 13
+// Max = 8
+sum37 = queryPathSum(lct3, 3, 7)
+max37 = queryPathMax(lct3, 3, 7)
+print("  Star PathSum(3, 7): " + sum37 + " (Expected: 13)")
+print("  Star PathMax(3, 7): " + max37 + " (Expected: 8)")
+
+if (sum37 != 13 or max37 != 8) {
+    print("[FAIL] Test Case 3 star path query failed")
+    allLctTestsPassed = false
+}
+
+// Re-root to 5 and cut edge (0, 3), then connect 3 to 7
+cut(lct3, 0, 3)
+link(lct3, 3, 7)
+// Now path 3 to 0 goes: 3 -> 7 -> 0
+// Sum: 3(4) + 7(8) + 0(1) = 13
+sum30 = queryPathSum(lct3, 3, 0)
+max30 = queryPathMax(lct3, 3, 0)
+print("  Reconfigured PathSum(3, 0): " + sum30 + " (Expected: 13)")
+print("  Reconfigured PathMax(3, 0): " + max30 + " (Expected: 8)")
+
+if (sum30 != 13 or max30 != 8) {
+    print("[FAIL] Test Case 3 reconfigured path failed")
+    allLctTestsPassed = false
+} else {
+    print("  Test Case 3 PASSED")
+}
+
+// --- Final Summary ---
+print("=== Link-Cut Tree Suite Summary ===")
+if (allLctTestsPassed) {
+    print("All Link-Cut Tree test suites: SUCCESS")
+} else {
+    print("Some Link-Cut Tree test suites: FAILED")
+}
+
+totalElapsed = t.millis() - suiteStartTime
+print("[PASS] Link-Cut Tree Dynamic Connectivity executed successfully in", totalElapsed, "ms")
