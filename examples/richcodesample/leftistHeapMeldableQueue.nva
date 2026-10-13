@@ -78,57 +78,72 @@ func meldHeaps(arena, h1, h2) {
         return h1
     }
 
-    mKey = arena[0]
-    mLeft = arena[2]
-    mRight = arena[3]
-    mDist = arena[4]
-    mSize = arena[5]
+    mhKey = arena[0]
+    mhLeft = arena[2]
+    mhRight = arena[3]
+    mhDist = arena[4]
+    mhSize = arena[5]
 
-    rootA = h1
-    rootB = h2
-    if (mKey[rootA] > mKey[rootB]) {
-        rootA = h2
-        rootB = h1
+    // Phase 1: Merge right spines of h1 and h2
+    mhPath = []
+    mhP1 = h1
+    mhP2 = h2
+    while (mhP1 != -1 and mhP2 != -1) {
+        if (mhKey[mhP1] <= mhKey[mhP2]) {
+            mhPath.push(mhP1)
+            mhP1 = mhRight[mhP1]
+        } else {
+            mhPath.push(mhP2)
+            mhP2 = mhRight[mhP2]
+        }
     }
 
-    // Recursively meld right child of rootA with rootB along the right spine
-    rightA = mRight[rootA]
-    mergedRight = meldHeaps(arena, rightA, rootB)
-    mRight[rootA] = mergedRight
-
-    // Enforce leftist property: dist(left) >= dist(right)
-    curLeft = mLeft[rootA]
-    curRight = mRight[rootA]
-
-    leftDist = 0
-    leftSize = 0
-    if (curLeft != -1) {
-        leftDist = mDist[curLeft]
-        leftSize = mSize[curLeft]
+    mhLast = mhP1
+    if (mhP1 == -1) {
+        mhLast = mhP2
     }
 
-    rightDist = 0
-    rightSize = 0
-    if (curRight != -1) {
-        rightDist = mDist[curRight]
-        rightSize = mSize[curRight]
-    }
+    // Phase 2: Walk backwards up mhPath, enforcing leftist invariant and updating sizes
+    mhIdx = mhPath.size() - 1
+    while (mhIdx >= 0) {
+        mhCur = mhPath[mhIdx]
+        mhRight[mhCur] = mhLast
 
-    if (leftDist < rightDist) {
-        // Swap left and right children to preserve leftist property
-        mLeft[rootA] = curRight
-        mRight[rootA] = curLeft
-        tempDist = leftDist
-        leftDist = rightDist
-        rightDist = tempDist
-        tempSize = leftSize
-        leftSize = rightSize
-        rightSize = tempSize
-    }
+        mhL = mhLeft[mhCur]
+        mhR = mhRight[mhCur]
 
-    mDist[rootA] = rightDist + 1
-    mSize[rootA] = leftSize + rightSize + 1
-    return rootA
+        mhLDist = 0
+        mhLSize = 0
+        if (mhL != -1) {
+            mhLDist = mhDist[mhL]
+            mhLSize = mhSize[mhL]
+        }
+
+        mhRDist = 0
+        mhRSize = 0
+        if (mhR != -1) {
+            mhRDist = mhDist[mhR]
+            mhRSize = mhSize[mhR]
+        }
+
+        if (mhLDist < mhRDist) {
+            // Swap left and right children
+            mhLeft[mhCur] = mhR
+            mhRight[mhCur] = mhL
+            mhTmpDist = mhLDist
+            mhLDist = mhRDist
+            mhRDist = mhTmpDist
+            mhTmpSize = mhLSize
+            mhLSize = mhRSize
+            mhRSize = mhTmpSize
+        }
+
+        mhDist[mhCur] = mhRDist + 1
+        mhSize[mhCur] = mhLSize + mhRSize + 1
+        mhLast = mhCur
+        mhIdx = mhIdx - 1
+    }
+    return mhLast
 }
 
 func insertElement(arena, root, key, val) {
@@ -313,5 +328,202 @@ if (tc1ExtractFail == 0 and extracted1.size() == expectedTotal1) {
     print("[FAIL] Test Case 1 extraction validation failed")
 }
 
+// -----------------------------------------------------------------------------
+// Test Case 2: Logarithmic Meld Operation on Distinct Priority Queues
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Logarithmic Meld Operation on Distinct Priority Queues...")
+arena2 = createLeftistHeapArena()
+tc2RootA = -1
+tc2RootB = -1
+
+// Even keys for Heap A
+evenKeys = [2, 6, 10, 14, 18, 22, 26, 30]
+tc2I = 0
+while (tc2I < evenKeys.size()) {
+    k = evenKeys[tc2I]
+    tc2RootA = insertElement(arena2, tc2RootA, k, 1000 + k)
+    tc2I = tc2I + 1
+}
+
+// Odd keys for Heap B
+oddKeys = [1, 5, 9, 13, 17, 21, 25, 29]
+tc2J = 0
+while (tc2J < oddKeys.size()) {
+    k = oddKeys[tc2J]
+    tc2RootB = insertElement(arena2, tc2RootB, k, 2000 + k)
+    tc2J = tc2J + 1
+}
+
+if (getHeapSize(arena2, tc2RootA) != 8 or getHeapSize(arena2, tc2RootB) != 8) {
+    print("[FAIL] Heap A or Heap B size mismatch before meld")
+} else {
+    print("  Heap A (size 8, min 2) and Heap B (size 8, min 1) constructed successfully")
+}
+
+invA = verifyLeftistInvariants(arena2, tc2RootA)
+invB = verifyLeftistInvariants(arena2, tc2RootB)
+if (invA != 1 or invB != 1) {
+    print("[FAIL] Pre-meld invariants check failed: invA=", invA, ", invB=", invB)
+}
+
+// Perform logarithmic meld of Heap A and Heap B
+tc2RootC = meldHeaps(arena2, tc2RootA, tc2RootB)
+invC = verifyLeftistInvariants(arena2, tc2RootC)
+sizeC = getHeapSize(arena2, tc2RootC)
+spineC = getRightSpineLength(arena2, tc2RootC)
+
+if (invC != 1 or sizeC != 16 or spineC > 4) {
+    print("[FAIL] Merged Heap C invariant check failed: invC=", invC, ", size=", sizeC, ", spine=", spineC)
+} else {
+    print("  Merged Heap C verified: size 16, right spine length", spineC, "<= 4, leftist invariants intact")
+}
+
+// Extract all 16 elements and assert strictly interleaved sorted order
+expectedMeldSequence = [1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22, 25, 26, 29, 30]
+extractedMeldKeys = []
+tc2MeldFail = 0
+
+while (tc2RootC != -1) {
+    minInfoC = extractMin(arena2, tc2RootC)
+    extractedKeyC = minInfoC[0]
+    extractedValC = minInfoC[1]
+    tc2RootC = minInfoC[2]
+    extractedMeldKeys.push(extractedKeyC)
+
+    if (tc2RootC != -1) {
+        if (verifyLeftistInvariants(arena2, tc2RootC) != 1) {
+            print("[FAIL] Merged heap invariant violated during sequential extraction")
+            tc2MeldFail = 1
+        }
+    }
+}
+
+if (extractedMeldKeys.size() != 16) {
+    print("[FAIL] Extracted count mismatch from merged heap: got=", extractedMeldKeys.size(), ", expected=16")
+    tc2MeldFail = 1
+}
+
+tc2K = 0
+while (tc2K < 16) {
+    if (extractedMeldKeys[tc2K] != expectedMeldSequence[tc2K]) {
+        print("[FAIL] Mismatch at index", tc2K, ": got=", extractedMeldKeys[tc2K], ", expected=", expectedMeldSequence[tc2K])
+        tc2MeldFail = 1
+    }
+    tc2K = tc2K + 1
+}
+
+if (tc2MeldFail == 0) {
+    print("  Extracted 16 keys in exact sorted interleaved order: [1, 2, 5, 6, ..., 29, 30]")
+    print("  Test Case 2 Passed logarithmic meld operation verification")
+} else {
+    print("[FAIL] Test Case 2 logarithmic meld validation failed")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Boundary Edge Cases, Duplicates, and Extreme Keys
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Boundary Edge Cases, Duplicates, and Extreme Keys...")
+arena3 = createLeftistHeapArena()
+
+// 1. Meld identity with empty heaps
+dummyRoot = insertElement(arena3, -1, 42, 420)
+m1 = meldHeaps(arena3, dummyRoot, -1)
+m2 = meldHeaps(arena3, -1, dummyRoot)
+m3 = meldHeaps(arena3, -1, -1)
+if (m1 != dummyRoot or m2 != dummyRoot or m3 != -1) {
+    print("[FAIL] Empty heap meld identity properties failed")
+} else {
+    print("  Empty heap meld identity verified: meld(H, -1) == H, meld(-1, H) == H, meld(-1, -1) == -1")
+}
+
+// 2. Single-element heap
+singleRoot = insertElement(arena3, -1, 777, 7770)
+if (getHeapSize(arena3, singleRoot) != 1 or getHeapDist(arena3, singleRoot) != 1) {
+    print("[FAIL] Single-element heap initialization failed")
+}
+singleExtracted = extractMin(arena3, singleRoot)
+if (singleExtracted[0] != 777 or singleExtracted[1] != 7770 or singleExtracted[2] != -1) {
+    print("[FAIL] Single-element heap extractMin failed: ", singleExtracted)
+} else {
+    print("  Single-element heap verified: key 777 extracted, clean transition to empty root -1")
+}
+
+// 3. Degenerate empty extraction
+emptyExtracted = extractMin(arena3, -1)
+if (emptyExtracted[0] != -1 or emptyExtracted[1] != -1 or emptyExtracted[2] != -1) {
+    print("[FAIL] Empty heap extraction failed to return graceful default [-1, -1, -1]")
+} else {
+    print("  Empty heap extractMin gracefully returned [-1, -1, -1]")
+}
+
+// 4. Duplicate keys
+dupKeys = [42, 10, 42, 99, 10, 42, 10, 99, 42]
+dupRoot = -1
+tc3DI = 0
+while (tc3DI < dupKeys.size()) {
+    dupRoot = insertElement(arena3, dupRoot, dupKeys[tc3DI], tc3DI)
+    tc3DI = tc3DI + 1
+}
+
+if (getHeapSize(arena3, dupRoot) != 9) {
+    print("[FAIL] Duplicate keys heap size mismatch: ", getHeapSize(arena3, dupRoot))
+}
+
+dupExtracted = []
+while (dupRoot != -1) {
+    dInfo = extractMin(arena3, dupRoot)
+    dupExtracted.push(dInfo[0])
+    dupRoot = dInfo[2]
+}
+
+expectedDupSequence = [10, 10, 10, 42, 42, 42, 42, 99, 99]
+dupMatch = 1
+tc3DJ = 0
+while (tc3DJ < 9) {
+    if (dupExtracted[tc3DJ] != expectedDupSequence[tc3DJ]) {
+        dupMatch = 0
+    }
+    tc3DJ = tc3DJ + 1
+}
+
+if (dupMatch == 1 and dupExtracted.size() == 9) {
+    print("  Duplicate keys verified: 9 elements extracted in non-decreasing order [10, 10, 10, 42, 42, 42, 42, 99, 99]")
+} else {
+    print("[FAIL] Duplicate keys extraction mismatch: ", dupExtracted)
+}
+
+// 5. Negative and zero keys
+negKeys = [-100, 15, -45, 0, 80, -3]
+negRoot = -1
+tc3NI = 0
+while (tc3NI < negKeys.size()) {
+    negRoot = insertElement(arena3, negRoot, negKeys[tc3NI], tc3NI)
+    tc3NI = tc3NI + 1
+}
+
+negExtracted = []
+while (negRoot != -1) {
+    nInfo = extractMin(arena3, negRoot)
+    negExtracted.push(nInfo[0])
+    negRoot = nInfo[2]
+}
+
+expectedNegSequence = [-100, -45, -3, 0, 15, 80]
+negMatch = 1
+tc3NJ = 0
+while (tc3NJ < 6) {
+    if (negExtracted[tc3NJ] != expectedNegSequence[tc3NJ]) {
+        negMatch = 0
+    }
+    tc3NJ = tc3NJ + 1
+}
+
+if (negMatch == 1 and negExtracted.size() == 6) {
+    print("  Negative and zero keys verified: extracted in sorted order [-100, -45, -3, 0, 15, 80]")
+    print("  Test Case 3 Passed boundary edge cases, duplicates, and extreme keys verification")
+} else {
+    print("[FAIL] Negative keys extraction mismatch: ", negExtracted)
+}
+
 elapsed = t.millis() - suiteStartTime
-print("[PASS] Leftist Heap Milestone 1 executed in", elapsed, "ms")
+print("[PASS] Leftist Heap Milestone 2 executed in", elapsed, "ms")
