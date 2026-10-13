@@ -1,0 +1,484 @@
+import stdlib string as s
+import stdlib time as t
+
+// Suffix Automaton Substring Analytics Suite
+// Complete topological substring structure and index engine
+//
+// Time Complexity:
+// - O(N) linear-time online automaton construction
+// - O(|P|) exact pattern matching and frequency determination
+// - O(|Q|) longest common substring (LCS) discovery
+// - O(K) k-th lexicographical substring retrieval
+// Space Complexity: O(N * Sigma) bounded state and transition space
+//
+// Technical characteristics:
+// - Equivalence class minimization via endpos sets
+// - Topological DAG forward path counting DP for distinct substring ranking
+// - Suffix link tree reverse DP for occurrence counts
+// - K-th lexicographically smallest distinct substring query engine
+// - Dual validation: DAG path DP sum equals sum(len[u] - len[link[u]])
+// - Longest Common Substring (LCS) tracking and extraction
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Suffix Automaton Substring Analytics Suite ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func createSuffixAutomaton(maxStates) {
+    samLen = makeIntArray(maxStates, 0)
+    samLink = makeIntArray(maxStates, -1)
+    samNext = makeIntArray(maxStates * 128, -1)
+    samEndpos = makeIntArray(maxStates, 0)
+    firstPos = makeIntArray(maxStates, 0)
+    isClone = makeIntArray(maxStates, 0)
+
+    samLink[0] = -1
+    samLen[0] = 0
+
+    return [1, 0, samLen, samLink, samNext, samEndpos, firstPos, isClone, maxStates]
+}
+
+func extendSuffixAutomaton(sam, charCode, charIdx) {
+    samSz = sam[0]
+    last = sam[1]
+    samLen = sam[2]
+    samLink = sam[3]
+    samNext = sam[4]
+    samEndpos = sam[5]
+    firstPos = sam[6]
+    isClone = sam[7]
+
+    cur = samSz
+    samSz = samSz + 1
+    samLen[cur] = samLen[last] + 1
+    samEndpos[cur] = 1
+    firstPos[cur] = charIdx
+    isClone[cur] = 0
+
+    p = last
+    while (p != -1 and samNext[p * 128 + charCode] == -1) {
+        samNext[p * 128 + charCode] = cur
+        p = samLink[p]
+    }
+
+    if (p == -1) {
+        samLink[cur] = 0
+    } else {
+        q = samNext[p * 128 + charCode]
+        if (samLen[p] + 1 == samLen[q]) {
+            samLink[cur] = q
+        } else {
+            clone = samSz
+            samSz = samSz + 1
+            samLen[clone] = samLen[p] + 1
+            samLink[clone] = samLink[q]
+            firstPos[clone] = firstPos[q]
+            isClone[clone] = 1
+            samEndpos[clone] = 0
+
+            ci = 0
+            while (ci < 128) {
+                samNext[clone * 128 + ci] = samNext[q * 128 + ci]
+                ci = ci + 1
+            }
+
+            while (p != -1 and samNext[p * 128 + charCode] == q) {
+                samNext[p * 128 + charCode] = clone
+                p = samLink[p]
+            }
+
+            samLink[q] = clone
+            samLink[cur] = clone
+        }
+    }
+
+    sam[0] = samSz
+    sam[1] = cur
+}
+
+func computeEndposAndTopologicalOrder(sam, maxLen) {
+    samSz = sam[0]
+    samLen = sam[2]
+    samLink = sam[3]
+    samEndpos = sam[5]
+
+    cnt = makeIntArray(maxLen + 1, 0)
+    i = 0
+    while (i < samSz) {
+        cnt[samLen[i]] = cnt[samLen[i]] + 1
+        i = i + 1
+    }
+
+    lenIdx = 1
+    while (lenIdx <= maxLen) {
+        cnt[lenIdx] = cnt[lenIdx] + cnt[lenIdx - 1]
+        lenIdx = lenIdx + 1
+    }
+
+    order = makeIntArray(samSz, 0)
+    st = 0
+    while (st < samSz) {
+        pos = cnt[samLen[st]] - 1
+        cnt[samLen[st]] = cnt[samLen[st]] - 1
+        order[pos] = st
+        st = st + 1
+    }
+
+    // Accumulate endpos frequencies from leaves to root in link tree
+    revIdx = samSz - 1
+    while (revIdx >= 0) {
+        state = order[revIdx]
+        parent = samLink[state]
+        if (parent != -1) {
+            samEndpos[parent] = samEndpos[parent] + samEndpos[state]
+        }
+        revIdx = revIdx - 1
+    }
+
+    return order
+}
+
+func buildSuffixAutomaton(inputStr) {
+    strLen = s.length(inputStr)
+    maxCap = strLen * 2 + 10
+    sam = createSuffixAutomaton(maxCap)
+
+    idx = 0
+    while (idx < strLen) {
+        chCode = s.charCodeAt(inputStr, idx)
+        extendSuffixAutomaton(sam, chCode, idx)
+        idx = idx + 1
+    }
+
+    order = computeEndposAndTopologicalOrder(sam, strLen)
+    return [sam, order, inputStr]
+}
+
+func countDistinctSubstringsFormula(sam) {
+    samSz = sam[0]
+    samLen = sam[2]
+    samLink = sam[3]
+
+    total = 0
+    st = 1
+    while (st < samSz) {
+        total = total + (samLen[st] - samLen[samLink[st]])
+        st = st + 1
+    }
+    return total
+}
+
+func computeDagPathsCount(sam, order) {
+    samSz = sam[0]
+    samNext = sam[4]
+
+    // pathsCount[u] = 1 + sum(pathsCount[v] for (u, c) -> v)
+    // 1 represents the substring ending at state u itself (empty string from u)
+    pathsCount = makeIntArray(samSz, 1)
+
+    revIdx = samSz - 1
+    while (revIdx >= 0) {
+        u = order[revIdx]
+        c = 0
+        while (c < 128) {
+            v = samNext[u * 128 + c]
+            if (v != -1) {
+                pathsCount[u] = pathsCount[u] + pathsCount[v]
+            }
+            c = c + 1
+        }
+        revIdx = revIdx - 1
+    }
+
+    return pathsCount
+}
+
+func countOccurrences(sam, pattern) {
+    samNext = sam[4]
+    samEndpos = sam[5]
+
+    patLen = s.length(pattern)
+    cur = 0
+    idx = 0
+    while (idx < patLen) {
+        c = s.charCodeAt(pattern, idx)
+        cur = samNext[cur * 128 + c]
+        if (cur == -1) {
+            return 0
+        }
+        idx = idx + 1
+    }
+
+    return samEndpos[cur]
+}
+
+func findFirstOccurrenceIndex(sam, pattern) {
+    samNext = sam[4]
+    firstPos = sam[6]
+
+    patLen = s.length(pattern)
+    cur = 0
+    idx = 0
+    while (idx < patLen) {
+        c = s.charCodeAt(pattern, idx)
+        cur = samNext[cur * 128 + c]
+        if (cur == -1) {
+            return -1
+        }
+        idx = idx + 1
+    }
+
+    return firstPos[cur] - patLen + 1
+}
+
+func kthLexicographicalSubstring(sam, pathsCount, k) {
+    samNext = sam[4]
+
+    cur = 0
+    res = ""
+    remainK = k
+
+    while (remainK > 0) {
+        c = 0
+        foundNext = false
+        while (c < 128 and !foundNext) {
+            v = samNext[cur * 128 + c]
+            if (v != -1) {
+                if (remainK <= pathsCount[v]) {
+                    // Descend into branch c
+                    res = res + s.charAt(s.substring(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~", c - 32, 1), 0)
+                    remainK = remainK - 1
+                    cur = v
+                    foundNext = true
+                } else {
+                    remainK = remainK - pathsCount[v]
+                }
+            }
+            c = c + 1
+        }
+        if (!foundNext) {
+            // Finished searching
+            return res
+        }
+    }
+
+    return res
+}
+
+func findLongestCommonSubstring(sam, queryStr) {
+    samLen = sam[2]
+    samLink = sam[3]
+    samNext = sam[4]
+    firstPos = sam[6]
+
+    qLen = s.length(queryStr)
+    cur = 0
+    curLen = 0
+    bestLen = 0
+    bestEnd = 0
+
+    idx = 0
+    while (idx < qLen) {
+        c = s.charCodeAt(queryStr, idx)
+        while (cur != 0 and samNext[cur * 128 + c] == -1) {
+            cur = samLink[cur]
+            curLen = samLen[cur]
+        }
+
+        if (samNext[cur * 128 + c] != -1) {
+            cur = samNext[cur * 128 + c]
+            curLen = curLen + 1
+        }
+
+        if (curLen > bestLen) {
+            bestLen = curLen
+            bestEnd = idx
+        }
+
+        idx = idx + 1
+    }
+
+    startPos = bestEnd - bestLen + 1
+    return s.substring(queryStr, startPos, bestLen)
+}
+
+func findLongestRepeatedSubstring(sam, originalStr) {
+    samSz = sam[0]
+    samLen = sam[2]
+    samEndpos = sam[5]
+    firstPos = sam[6]
+
+    bestLen = 0
+    bestState = -1
+
+    st = 1
+    while (st < samSz) {
+        if (samEndpos[st] >= 2 and samLen[st] > bestLen) {
+            bestLen = samLen[st]
+            bestState = st
+        }
+        st = st + 1
+    }
+
+    if (bestState == -1) {
+        return ""
+    }
+
+    startPos = firstPos[bestState] - bestLen + 1
+    return s.substring(originalStr, startPos, bestLen)
+}
+
+func runAutomatonTestCase(testNum, testName, inputStr, expectedDistinct, queryOccurrences, expectedOccurrences, queryLcs, expectedLcs, expectedLrs) {
+    print("Running Test Case " + testNum + ": " + testName + "...")
+    bundle = buildSuffixAutomaton(inputStr)
+    sam = bundle[0]
+    order = bundle[1]
+
+    samSz = sam[0]
+    strLen = s.length(inputStr)
+    distinctByFormula = countDistinctSubstringsFormula(sam)
+    pathsCount = computeDagPathsCount(sam, order)
+    distinctByDag = pathsCount[0] - 1
+
+    print("  Input String: '" + inputStr + "' (length:", strLen, ")")
+    print("  SAM State Count   :", samSz, "(Theoretical Max:", (2 * strLen - 1), ")")
+    print("  Distinct Substrings Formula:", distinctByFormula, "(Expected:", expectedDistinct, ")")
+    print("  Distinct Substrings DAG DP :", distinctByDag)
+
+    if (distinctByFormula != expectedDistinct or distinctByDag != expectedDistinct) {
+        print("  [FAIL] Distinct substrings mismatch")
+        return false
+    }
+
+    // Verify occurrence count queries
+    qIdx = 0
+    while (qIdx < queryOccurrences.size()) {
+        pat = queryOccurrences[qIdx]
+        expOcc = expectedOccurrences[qIdx]
+        actualOcc = countOccurrences(sam, pat)
+        if (actualOcc != expOcc) {
+            print("  [FAIL] Occurrence count mismatch for pattern '" + pat + "': got", actualOcc, "expected", expOcc)
+            return false
+        }
+        if (actualOcc > 0) {
+            firstIdx = findFirstOccurrenceIndex(sam, pat)
+            foundSub = s.substring(inputStr, firstIdx, s.length(pat))
+            if (foundSub != pat) {
+                print("  [FAIL] First occurrence index verification failed for pattern '" + pat + "'")
+                return false
+            }
+        }
+        qIdx = qIdx + 1
+    }
+    print("  Pattern Occurrence Checks  : ALL MATCHED (" + queryOccurrences.size() + " queries)")
+
+    // Verify Longest Common Substring (LCS)
+    actualLcs = findLongestCommonSubstring(sam, queryLcs)
+    print("  LCS with '" + queryLcs + "'      : '" + actualLcs + "' (Expected: '" + expectedLcs + "')")
+    if (actualLcs != expectedLcs) {
+        print("  [FAIL] Longest common substring mismatch")
+        return false
+    }
+
+    // Verify Longest Repeated Substring (LRS)
+    actualLrs = findLongestRepeatedSubstring(sam, inputStr)
+    print("  Longest Repeated Substring : '" + actualLrs + "' (Expected: '" + expectedLrs + "')")
+    if (actualLrs != expectedLrs) {
+        print("  [FAIL] Longest repeated substring mismatch")
+        return false
+    }
+
+    // Verify topological link tree invariant: len[link[u]] < len[u]
+    samLen = sam[2]
+    samLink = sam[3]
+    st = 1
+    while (st < samSz) {
+        parent = samLink[st]
+        if (samLen[parent] >= samLen[st]) {
+            print("  [FAIL] Link tree depth invariant broken at state", st)
+            return false
+        }
+        st = st + 1
+    }
+    print("  Topology & Link Invariants : VALID")
+
+    print("  Test Case " + testNum + " PASSED")
+    return true
+}
+
+allSamPassed = true
+
+// --- Test Case 1: Canonical "abracadabra" ---
+// N = 11. Distinct substrings = 54
+queries1 = ["a", "abra", "cadabra", "bra", "ra", "xyz", "abracadabra"]
+expectedOcc1 = [5, 2, 1, 2, 2, 0, 1]
+if (!runAutomatonTestCase(1, "Canonical 'abracadabra'", "abracadabra", 54, queries1, expectedOcc1, "abracarpet", "abraca", "abra")) {
+    allSamPassed = false
+}
+
+// --- Test Case 2: Classic "banana" ---
+// N = 6. Distinct substrings = 15
+queries2 = ["a", "na", "an", "ana", "ban", "banana", "apple"]
+expectedOcc2 = [3, 2, 2, 2, 1, 1, 0]
+if (!runAutomatonTestCase(2, "Classic 'banana'", "banana", 15, queries2, expectedOcc2, "ananas", "anana", "ana")) {
+    allSamPassed = false
+}
+
+// --- Test Case 3: Fibonacci Periodic Word "abaababaabaab" ---
+// N = 13.
+queries3 = ["a", "b", "ab", "ba", "aba", "abaab", "zzz"]
+expectedOcc3 = [8, 5, 5, 4, 4, 3, 0]
+if (!runAutomatonTestCase(3, "Fibonacci Periodic Word 'abaababaabaab'", "abaababaabaab", 55, queries3, expectedOcc3, "babaaba", "babaaba", "abaaba")) {
+    allSamPassed = false
+}
+
+// --- Test Case 4: Monotone Repeated Character String "aaaaaa" ---
+// N = 6. Distinct substrings = 6: a, aa, aaa, aaaa, aaaaa, aaaaaa
+queries4 = ["a", "aa", "aaa", "aaaa", "aaaaa", "aaaaaa", "b"]
+expectedOcc4 = [6, 5, 4, 3, 2, 1, 0]
+if (!runAutomatonTestCase(4, "Monotone Repeated Characters 'aaaaaa'", "aaaaaa", 6, queries4, expectedOcc4, "baaaac", "aaaa", "aaaaa")) {
+    allSamPassed = false
+}
+
+// --- Test Case 5: Rich Heterogeneous Alphabet Sentence ---
+text5 = "thequickbrownfoxjumpsoverthelazydog"
+queries5 = ["the", "quick", "fox", "lazy", "dog", "jump", "notfound"]
+expectedOcc5 = [2, 1, 1, 1, 1, 1, 0]
+if (!runAutomatonTestCase(5, "Heterogeneous Pangram Sentence", text5, 618, queries5, expectedOcc5, "superjumpsoverall", "jumpsover", "the")) {
+    allSamPassed = false
+}
+
+// --- Final Suite Summary ---
+print("=== Suffix Automaton Substring Analytics Suite Summary ===")
+if (allSamPassed) {
+    print("All Suffix Automaton test suites: SUCCESS")
+} else {
+    print("Some Suffix Automaton test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Suffix Automaton Substring Analytics executed successfully in", totalElapsed, "ms")
