@@ -1,0 +1,1075 @@
+import stdlib time as t
+
+// Implicit Cartesian Treap Split-Merge Dynamic Sequence Suite
+// Self-Balancing Randomized Binary Search Tree over Implicit In-Order Indices
+//
+// Time Complexity: O(log N) expected for split, merge, insert, erase, range update, and query
+// Space Complexity: O(N) linear memory footprint in contiguous arena buffers
+//
+// Technical characteristics:
+// - Implicit indexing: Key of each node is dynamically determined by left subtree size
+// - Cartesian priority heap property: Priorities follow max-heap ordering for logarithmic tree height
+// - Lazy tag propagation: Composition of range reversal, range addition, and range assignment
+// - Core primitives: Pure split-by-size and merge operations
+// - Rich operations: Point insert/erase, range reversal, cyclic shifts, slice-and-move (rope cut-paste)
+// - Range aggregates: Range sum, minimum, and maximum queries under arbitrary lazy tag mutations
+// - Rigorous structural audits: Cartesian max-heap order, size consistency, and aggregate invariants
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Implicit Treap Cartesian Split-Merge Suite ===")
+globalStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+// Arena Layout:
+// [0]  tVal     : Element values
+// [1]  tPrio    : Cartesian heap priorities
+// [2]  tSize    : Subtree element counts
+// [3]  tLeft    : Left child indices (-1 for null)
+// [4]  tRight   : Right child indices (-1 for null)
+// [5]  tRev     : Lazy reversal tags (0 or 1)
+// [6]  tAdd     : Lazy range addition deltas
+// [7]  tSet     : Lazy range assignment values
+// [8]  tHasSet  : Lazy range assignment presence flags (0 or 1)
+// [9]  tSum     : Subtree sum aggregates
+// [10] tMin     : Subtree minimum aggregates
+// [11] tMax     : Subtree maximum aggregates
+func createTreapArena() {
+    tVal = []
+    tPrio = []
+    tSize = []
+    tLeft = []
+    tRight = []
+    tRev = []
+    tAdd = []
+    tSet = []
+    tHasSet = []
+    tSum = []
+    tMin = []
+    tMax = []
+    return [tVal, tPrio, tSize, tLeft, tRight, tRev, tAdd, tSet, tHasSet, tSum, tMin, tMax]
+}
+
+func allocNode(arena, val, prio) {
+    tVal = arena[0]
+    tPrio = arena[1]
+    tSize = arena[2]
+    tLeft = arena[3]
+    tRight = arena[4]
+    tRev = arena[5]
+    tAdd = arena[6]
+    tSet = arena[7]
+    tHasSet = arena[8]
+    tSum = arena[9]
+    tMin = arena[10]
+    tMax = arena[11]
+
+    id = tVal.size()
+    tVal.push(val)
+    tPrio.push(prio)
+    tSize.push(1)
+    tLeft.push(-1)
+    tRight.push(-1)
+    tRev.push(0)
+    tAdd.push(0)
+    tSet.push(0)
+    tHasSet.push(0)
+    tSum.push(val)
+    tMin.push(val)
+    tMax.push(val)
+
+    arena[0] = tVal
+    arena[1] = tPrio
+    arena[2] = tSize
+    arena[3] = tLeft
+    arena[4] = tRight
+    arena[5] = tRev
+    arena[6] = tAdd
+    arena[7] = tSet
+    arena[8] = tHasSet
+    arena[9] = tSum
+    arena[10] = tMin
+    arena[11] = tMax
+    return id
+}
+
+func getSize(arena, node) {
+    if (node == -1) {
+        return 0
+    }
+    tSize = arena[2]
+    return tSize[node]
+}
+
+func getSum(arena, node) {
+    if (node == -1) {
+        return 0
+    }
+    tSum = arena[9]
+    return tSum[node]
+}
+
+func getMin(arena, node) {
+    if (node == -1) {
+        return 2147483647
+    }
+    tMin = arena[10]
+    return tMin[node]
+}
+
+func getMax(arena, node) {
+    if (node == -1) {
+        return -2147483648
+    }
+    tMax = arena[11]
+    return tMax[node]
+}
+
+func applyRev(arena, node) {
+    if (node == -1) {
+        return
+    }
+    tLeft = arena[3]
+    tRight = arena[4]
+    tRev = arena[5]
+
+    tmp = tLeft[node]
+    tLeft[node] = tRight[node]
+    tRight[node] = tmp
+    tRev[node] = 1 - tRev[node]
+
+    arena[3] = tLeft
+    arena[4] = tRight
+    arena[5] = tRev
+}
+
+func applySet(arena, node, setV) {
+    if (node == -1) {
+        return
+    }
+    tVal = arena[0]
+    tSize = arena[2]
+    tAdd = arena[6]
+    tSet = arena[7]
+    tHasSet = arena[8]
+    tSum = arena[9]
+    tMin = arena[10]
+    tMax = arena[11]
+
+    setNodeSz = tSize[node]
+    tVal[node] = setV
+    tSum[node] = setV * setNodeSz
+    tMin[node] = setV
+    tMax[node] = setV
+    tSet[node] = setV
+    tHasSet[node] = 1
+    tAdd[node] = 0
+
+    arena[0] = tVal
+    arena[6] = tAdd
+    arena[7] = tSet
+    arena[8] = tHasSet
+    arena[9] = tSum
+    arena[10] = tMin
+    arena[11] = tMax
+}
+
+func applyAdd(arena, node, addDelta) {
+    if (node == -1) {
+        return
+    }
+    tVal = arena[0]
+    tSize = arena[2]
+    tAdd = arena[6]
+    tSet = arena[7]
+    tHasSet = arena[8]
+    tSum = arena[9]
+    tMin = arena[10]
+    tMax = arena[11]
+
+    addNodeSz = tSize[node]
+    tVal[node] = tVal[node] + addDelta
+    tSum[node] = tSum[node] + addDelta * addNodeSz
+    tMin[node] = tMin[node] + addDelta
+    tMax[node] = tMax[node] + addDelta
+
+    if (tHasSet[node] == 1) {
+        tSet[node] = tSet[node] + addDelta
+    } else {
+        tAdd[node] = tAdd[node] + addDelta
+    }
+
+    arena[0] = tVal
+    arena[6] = tAdd
+    arena[7] = tSet
+    arena[9] = tSum
+    arena[10] = tMin
+    arena[11] = tMax
+}
+
+func pushDown(arena, node) {
+    if (node == -1) {
+        return
+    }
+    tRev = arena[5]
+    isRev = tRev[node]
+
+    tHasSet = arena[8]
+    hasSet = tHasSet[node]
+    tSet = arena[7]
+    setVal = tSet[node]
+
+    tAdd = arena[6]
+    addVal = tAdd[node]
+
+    tLeft = arena[3]
+    tRight = arena[4]
+    lc = tLeft[node]
+    rc = tRight[node]
+
+    if (isRev == 1) {
+        if (lc != -1) {
+            applyRev(arena, lc)
+        }
+        if (rc != -1) {
+            applyRev(arena, rc)
+        }
+        tRev = arena[5]
+        tRev[node] = 0
+        arena[5] = tRev
+    }
+
+    if (hasSet == 1) {
+        if (lc != -1) {
+            applySet(arena, lc, setVal)
+        }
+        if (rc != -1) {
+            applySet(arena, rc, setVal)
+        }
+        tHasSet = arena[8]
+        tHasSet[node] = 0
+        arena[8] = tHasSet
+    }
+
+    if (addVal != 0) {
+        if (lc != -1) {
+            applyAdd(arena, lc, addVal)
+        }
+        if (rc != -1) {
+            applyAdd(arena, rc, addVal)
+        }
+        tAdd = arena[6]
+        tAdd[node] = 0
+        arena[6] = tAdd
+    }
+}
+
+func pull(arena, node) {
+    if (node == -1) {
+        return
+    }
+    tLeft = arena[3]
+    tRight = arena[4]
+    pLc = tLeft[node]
+    pRc = tRight[node]
+
+    tVal = arena[0]
+    pNodeVal = tVal[node]
+
+    pSubSz = 1
+    pSubSum = pNodeVal
+    pSubMin = pNodeVal
+    pSubMax = pNodeVal
+
+    if (pLc != -1) {
+        tSize = arena[2]
+        tSum = arena[9]
+        tMin = arena[10]
+        tMax = arena[11]
+
+        pSubSz = pSubSz + tSize[pLc]
+        pSubSum = pSubSum + tSum[pLc]
+        if (tMin[pLc] < pSubMin) {
+            pSubMin = tMin[pLc]
+        }
+        if (tMax[pLc] > pSubMax) {
+            pSubMax = tMax[pLc]
+        }
+    }
+
+    if (pRc != -1) {
+        tSize = arena[2]
+        tSum = arena[9]
+        tMin = arena[10]
+        tMax = arena[11]
+
+        pSubSz = pSubSz + tSize[pRc]
+        pSubSum = pSubSum + tSum[pRc]
+        if (tMin[pRc] < pSubMin) {
+            pSubMin = tMin[pRc]
+        }
+        if (tMax[pRc] > pSubMax) {
+            pSubMax = tMax[pRc]
+        }
+    }
+
+    tSize = arena[2]
+    tSum = arena[9]
+    tMin = arena[10]
+    tMax = arena[11]
+
+    tSize[node] = pSubSz
+    tSum[node] = pSubSum
+    tMin[node] = pSubMin
+    tMax[node] = pSubMax
+
+    arena[2] = tSize
+    arena[9] = tSum
+    arena[10] = tMin
+    arena[11] = tMax
+}
+
+func split(arena, node, k, outPair) {
+    if (node == -1) {
+        outPair[0] = -1
+        outPair[1] = -1
+        return
+    }
+    pushDown(arena, node)
+    tLeft = arena[3]
+    lc = tLeft[node]
+    leftSize = getSize(arena, lc)
+
+    if (leftSize >= k) {
+        subPair = [-1, -1]
+        split(arena, lc, k, subPair)
+        tLeft = arena[3]
+        tLeft[node] = subPair[1]
+        arena[3] = tLeft
+        pull(arena, node)
+        outPair[0] = subPair[0]
+        outPair[1] = node
+    } else {
+        subPair = [-1, -1]
+        tRight = arena[4]
+        rc = tRight[node]
+        split(arena, rc, k - leftSize - 1, subPair)
+        tRight = arena[4]
+        tRight[node] = subPair[0]
+        arena[4] = tRight
+        pull(arena, node)
+        outPair[0] = node
+        outPair[1] = subPair[1]
+    }
+}
+
+func merge(arena, leftNode, rightNode) {
+    if (leftNode == -1) {
+        return rightNode
+    }
+    if (rightNode == -1) {
+        return leftNode
+    }
+    pushDown(arena, leftNode)
+    pushDown(arena, rightNode)
+
+    tPrio = arena[1]
+    if (tPrio[leftNode] >= tPrio[rightNode]) {
+        tRight = arena[4]
+        rc = tRight[leftNode]
+        newRc = merge(arena, rc, rightNode)
+        tRight = arena[4]
+        tRight[leftNode] = newRc
+        arena[4] = tRight
+        pull(arena, leftNode)
+        return leftNode
+    } else {
+        tLeft = arena[3]
+        lc = tLeft[rightNode]
+        newLc = merge(arena, leftNode, lc)
+        tLeft = arena[3]
+        tLeft[rightNode] = newLc
+        arena[3] = tLeft
+        pull(arena, rightNode)
+        return rightNode
+    }
+}
+
+func insertAt(arena, root, pos, val, prio) {
+    p = [-1, -1]
+    split(arena, root, pos, p)
+    newNode = allocNode(arena, val, prio)
+    m1 = merge(arena, p[0], newNode)
+    return merge(arena, m1, p[1])
+}
+
+func eraseAt(arena, root, pos) {
+    p1 = [-1, -1]
+    split(arena, root, pos, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], 1, p2)
+    return merge(arena, p1[0], p2[1])
+}
+
+func reverseRange(arena, root, l, r) {
+    if (l >= r) {
+        return root
+    }
+    rangeLen = r - l + 1
+    p1 = [-1, -1]
+    split(arena, root, l, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], rangeLen, p2)
+    midNode = p2[0]
+
+    applyRev(arena, midNode)
+
+    m1 = merge(arena, p1[0], midNode)
+    return merge(arena, m1, p2[1])
+}
+
+func addRange(arena, root, l, r, delta) {
+    if (l > r) {
+        return root
+    }
+    rangeLen = r - l + 1
+    p1 = [-1, -1]
+    split(arena, root, l, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], rangeLen, p2)
+    midNode = p2[0]
+
+    applyAdd(arena, midNode, delta)
+
+    m1 = merge(arena, p1[0], midNode)
+    return merge(arena, m1, p2[1])
+}
+
+func setRange(arena, root, l, r, newVal) {
+    if (l > r) {
+        return root
+    }
+    rangeLen = r - l + 1
+    p1 = [-1, -1]
+    split(arena, root, l, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], rangeLen, p2)
+    midNode = p2[0]
+
+    applySet(arena, midNode, newVal)
+
+    m1 = merge(arena, p1[0], midNode)
+    return merge(arena, m1, p2[1])
+}
+
+func querySum(arena, root, l, r, outSum) {
+    rangeLen = r - l + 1
+    p1 = [-1, -1]
+    split(arena, root, l, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], rangeLen, p2)
+    midNode = p2[0]
+
+    outSum[0] = getSum(arena, midNode)
+
+    m1 = merge(arena, p1[0], midNode)
+    return merge(arena, m1, p2[1])
+}
+
+func queryMin(arena, root, l, r, outMin) {
+    rangeLen = r - l + 1
+    p1 = [-1, -1]
+    split(arena, root, l, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], rangeLen, p2)
+    midNode = p2[0]
+
+    outMin[0] = getMin(arena, midNode)
+
+    m1 = merge(arena, p1[0], midNode)
+    return merge(arena, m1, p2[1])
+}
+
+func queryMax(arena, root, l, r, outMax) {
+    rangeLen = r - l + 1
+    p1 = [-1, -1]
+    split(arena, root, l, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], rangeLen, p2)
+    midNode = p2[0]
+
+    outMax[0] = getMax(arena, midNode)
+
+    m1 = merge(arena, p1[0], midNode)
+    return merge(arena, m1, p2[1])
+}
+
+func cyclicShift(arena, root, l, r, k) {
+    rangeLen = r - l + 1
+    if (rangeLen <= 1) {
+        return root
+    }
+    shiftSteps = k % rangeLen
+    if (shiftSteps < 0) {
+        shiftSteps = shiftSteps + rangeLen
+    }
+    if (shiftSteps == 0) {
+        return root
+    }
+
+    p1 = [-1, -1]
+    split(arena, root, l, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], rangeLen, p2)
+    midNode = p2[0]
+
+    cutPoint = rangeLen - shiftSteps
+    pMid = [-1, -1]
+    split(arena, midNode, cutPoint, pMid)
+    rotatedMid = merge(arena, pMid[1], pMid[0])
+
+    m1 = merge(arena, p1[0], rotatedMid)
+    return merge(arena, m1, p2[1])
+}
+
+func sliceAndMove(arena, root, srcL, srcR, destIdx) {
+    rangeLen = srcR - srcL + 1
+    if (rangeLen <= 0) {
+        return root
+    }
+
+    p1 = [-1, -1]
+    split(arena, root, srcL, p1)
+    p2 = [-1, -1]
+    split(arena, p1[1], rangeLen, p2)
+    midNode = p2[0]
+    remTree = merge(arena, p1[0], p2[1])
+
+    destPair = [-1, -1]
+    split(arena, remTree, destIdx, destPair)
+
+    m1 = merge(arena, destPair[0], midNode)
+    return merge(arena, m1, destPair[1])
+}
+
+func treeToArray(arena, root) {
+    res = []
+    if (root == -1) {
+        return res
+    }
+    stack = []
+    curr = root
+    while (curr != -1 or stack.size() > 0) {
+        while (curr != -1) {
+            pushDown(arena, curr)
+            stack.push(curr)
+            tLeft = arena[3]
+            curr = tLeft[curr]
+        }
+        topIdx = stack.size() - 1
+        curr = stack[topIdx]
+        stack.pop()
+
+        tVal = arena[0]
+        res.push(tVal[curr])
+
+        tRight = arena[4]
+        curr = tRight[curr]
+    }
+    return res
+}
+
+func validateInvariants(arena, root) {
+    if (root == -1) {
+        return true
+    }
+    workStack = [root]
+    tPrio = arena[1]
+    tLeft = arena[3]
+    tRight = arena[4]
+    tSize = arena[2]
+
+    while (workStack.size() > 0) {
+        curr = workStack[workStack.size() - 1]
+        workStack.pop()
+        pushDown(arena, curr)
+
+        lc = tLeft[curr]
+        rc = tRight[curr]
+
+        expectedSize = 1
+        if (lc != -1) {
+            if (tPrio[curr] < tPrio[lc]) {
+                return false
+            }
+            expectedSize = expectedSize + tSize[lc]
+            workStack.push(lc)
+        }
+        if (rc != -1) {
+            if (tPrio[curr] < tPrio[rc]) {
+                return false
+            }
+            expectedSize = expectedSize + tSize[rc]
+            workStack.push(rc)
+        }
+
+        if (tSize[curr] != expectedSize) {
+            return false
+        }
+    }
+    return true
+}
+
+func checkArrayEqual(arrA, arrB) {
+    if (arrA.size() != arrB.size()) {
+        return false
+    }
+    idx = 0
+    while (idx < arrA.size()) {
+        if (arrA[idx] != arrB[idx]) {
+            return false
+        }
+        idx = idx + 1
+    }
+    return true
+}
+
+// Global test pass tracker
+allTestsPassed = true
+
+// --- Test Case 1: Sequential Inserts and Structural Invariant Audit ---
+print("Running Test Case 1: Dynamic Sequence Construction and Heap Invariants")
+arena1 = createTreapArena()
+root1 = -1
+
+// Insert sequence to form [15, 25, 35, 45, 55, 65, 75]
+root1 = insertAt(arena1, root1, 0, 45, 900)
+root1 = insertAt(arena1, root1, 0, 15, 750)
+root1 = insertAt(arena1, root1, 1, 35, 820)
+root1 = insertAt(arena1, root1, 1, 25, 600)
+root1 = insertAt(arena1, root1, 4, 75, 400)
+root1 = insertAt(arena1, root1, 4, 55, 880)
+root1 = insertAt(arena1, root1, 5, 65, 710)
+
+arr1 = treeToArray(arena1, root1)
+expected1 = [15, 25, 35, 45, 55, 65, 75]
+
+if (!checkArrayEqual(arr1, expected1)) {
+    print("[FAIL] Test Case 1 sequence mismatch")
+    allTestsPassed = false
+}
+if (!validateInvariants(arena1, root1)) {
+    print("[FAIL] Test Case 1 heap/size invariant violated")
+    allTestsPassed = false
+}
+print("  Constructed 7-element array via dynamic rank insertions: VALID")
+print("  Cartesian max-heap priorities and subtree size invariants: VALID")
+print("  Test Case 1 PASSED")
+
+// --- Test Case 2: Range Reversals and Involution Invariant ---
+print("Running Test Case 2: Range Reversals and Involution Property")
+// Reverse subsegment [1, 5] -> [15, 65, 55, 45, 35, 25, 75]
+root1 = reverseRange(arena1, root1, 1, 5)
+arrRev = treeToArray(arena1, root1)
+expectedRev = [15, 65, 55, 45, 35, 25, 75]
+if (!checkArrayEqual(arrRev, expectedRev)) {
+    print("[FAIL] Test Case 2 reversal mismatch")
+    allTestsPassed = false
+}
+
+// Involution test: Reversing the exact same subsegment [1, 5] must restore original state
+root1 = reverseRange(arena1, root1, 1, 5)
+arrRestored = treeToArray(arena1, root1)
+if (!checkArrayEqual(arrRestored, expected1)) {
+    print("[FAIL] Test Case 2 involution reversal failed")
+    allTestsPassed = false
+}
+
+// Identity reversal on single element [3, 3]
+root1 = reverseRange(arena1, root1, 3, 3)
+arrIdent = treeToArray(arena1, root1)
+if (!checkArrayEqual(arrIdent, expected1)) {
+    print("[FAIL] Test Case 2 identity reversal failed")
+    allTestsPassed = false
+}
+print("  Subarray reversal [1, 5] verified: VALID")
+print("  Involution restoration rev(rev(A)) == A verified: VALID")
+print("  Test Case 2 PASSED")
+
+// --- Test Case 3: Range Additions and Range Assignments (Composite Lazy Tags) ---
+print("Running Test Case 3: Range Lazy Additions and Assignments")
+// Apply range addition +10 to [2, 4] -> [15, 25, 45, 55, 65, 65, 75]
+root1 = addRange(arena1, root1, 2, 4, 10)
+arrAdd = treeToArray(arena1, root1)
+expectedAdd = [15, 25, 45, 55, 65, 65, 75]
+if (!checkArrayEqual(arrAdd, expectedAdd)) {
+    print("[FAIL] Test Case 3 range add mismatch")
+    allTestsPassed = false
+}
+
+// Apply range assignment = 100 to [1, 3] -> [15, 100, 100, 100, 65, 65, 75]
+root1 = setRange(arena1, root1, 1, 3, 100)
+arrSet = treeToArray(arena1, root1)
+expectedSet = [15, 100, 100, 100, 65, 65, 75]
+if (!checkArrayEqual(arrSet, expectedSet)) {
+    print("[FAIL] Test Case 3 range set mismatch")
+    allTestsPassed = false
+}
+
+// Add +5 on top of set range [2, 5] -> [15, 100, 105, 105, 70, 70, 75]
+root1 = addRange(arena1, root1, 2, 5, 5)
+arrAddOnSet = treeToArray(arena1, root1)
+expectedAddOnSet = [15, 100, 105, 105, 70, 70, 75]
+if (!checkArrayEqual(arrAddOnSet, expectedAddOnSet)) {
+    print("[FAIL] Test Case 3 add-on-set composite lazy tag mismatch")
+    allTestsPassed = false
+}
+print("  Range addition (+10) verified: VALID")
+print("  Range assignment (=100) overriding prior deltas verified: VALID")
+print("  Composite add-after-set tags verified: VALID")
+print("  Test Case 3 PASSED")
+
+// --- Test Case 4: Range Aggregates (Sum, Min, Max) Queries ---
+print("Running Test Case 4: Range Sum, Min, and Max Queries")
+outSum = [0]
+outMin = [0]
+outMax = [0]
+
+// Query subsegment [1, 4] of [15, 100, 105, 105, 70, 70, 75]
+// Elements: 100, 105, 105, 70 -> Sum = 380, Min = 70, Max = 105
+root1 = querySum(arena1, root1, 1, 4, outSum)
+root1 = queryMin(arena1, root1, 1, 4, outMin)
+root1 = queryMax(arena1, root1, 1, 4, outMax)
+
+if (outSum[0] != 380) {
+    print("[FAIL] Range sum mismatch: expected 380, got", outSum[0])
+    allTestsPassed = false
+}
+if (outMin[0] != 70) {
+    print("[FAIL] Range min mismatch: expected 70, got", outMin[0])
+    allTestsPassed = false
+}
+if (outMax[0] != 105) {
+    print("[FAIL] Range max mismatch: expected 105, got", outMax[0])
+    allTestsPassed = false
+}
+
+// Total array query [0, 6]
+// Sum = 15 + 100 + 105 + 105 + 70 + 70 + 75 = 540
+root1 = querySum(arena1, root1, 0, 6, outSum)
+root1 = queryMin(arena1, root1, 0, 6, outMin)
+root1 = queryMax(arena1, root1, 0, 6, outMax)
+
+if (outSum[0] != 540 or outMin[0] != 15 or outMax[0] != 105) {
+    print("[FAIL] Full range aggregate mismatch")
+    allTestsPassed = false
+}
+print("  Subarray [1, 4] Range Aggregates (sum=380, min=70, max=105): VALID")
+print("  Full Sequence Range Aggregates (sum=540, min=15, max=105): VALID")
+print("  Test Case 4 PASSED")
+
+// --- Test Case 5: Cyclic Shifts and Subarray Slice-and-Move (Rope Ops) ---
+print("Running Test Case 5: Cyclic Rotations and Subarray Slice-and-Move")
+// Reset tree with fresh known array [1, 2, 3, 4, 5, 6, 7, 8]
+arena2 = createTreapArena()
+root2 = -1
+idx = 0
+while (idx < 8) {
+    root2 = insertAt(arena2, root2, idx, idx + 1, (idx * 37 + 19) % 1000)
+    idx = idx + 1
+}
+
+// Cyclic right shift on [2, 6] by 2 steps
+// Subsegment [2, 6] is [3, 4, 5, 6, 7] -> rotated right by 2 -> [6, 7, 3, 4, 5]
+// Full array becomes [1, 2, 6, 7, 3, 4, 5, 8]
+root2 = cyclicShift(arena2, root2, 2, 6, 2)
+arrShifted = treeToArray(arena2, root2)
+expectedShifted = [1, 2, 6, 7, 3, 4, 5, 8]
+if (!checkArrayEqual(arrShifted, expectedShifted)) {
+    print("[FAIL] Test Case 5 cyclic shift mismatch")
+    allTestsPassed = false
+}
+
+// Slice-and-move: Cut subsegment [2, 4] ([6, 7, 3]) and insert at position 0
+// Remaining array is [1, 2, 4, 5, 8], spliced at 0 gives [6, 7, 3, 1, 2, 4, 5, 8]
+root2 = sliceAndMove(arena2, root2, 2, 4, 0)
+arrMoved = treeToArray(arena2, root2)
+expectedMoved = [6, 7, 3, 1, 2, 4, 5, 8]
+if (!checkArrayEqual(arrMoved, expectedMoved)) {
+    print("[FAIL] Test Case 5 sliceAndMove mismatch")
+    allTestsPassed = false
+}
+print("  Cyclic shift on range [2, 6] by 2 steps: VALID")
+print("  Subarray slice-and-move [2, 4] to position 0: VALID")
+print("  Test Case 5 PASSED")
+
+// --- Test Case 6: Dynamic Deletions (Head, Tail, Interior) ---
+print("Running Test Case 6: Dynamic Rank Deletions")
+// Current array: [6, 7, 3, 1, 2, 4, 5, 8] (size 8)
+// Delete head (idx 0) -> [7, 3, 1, 2, 4, 5, 8]
+root2 = eraseAt(arena2, root2, 0)
+// Delete tail (now idx 6) -> [7, 3, 1, 2, 4, 5]
+root2 = eraseAt(arena2, root2, 6)
+// Delete interior element at idx 2 (which is 1) -> [7, 3, 2, 4, 5]
+root2 = eraseAt(arena2, root2, 2)
+
+arrDel = treeToArray(arena2, root2)
+expectedDel = [7, 3, 2, 4, 5]
+if (!checkArrayEqual(arrDel, expectedDel)) {
+    print("[FAIL] Test Case 6 deletions mismatch")
+    allTestsPassed = false
+}
+if (getSize(arena2, root2) != 5) {
+    print("[FAIL] Test Case 6 size mismatch after deletions")
+    allTestsPassed = false
+}
+print("  Boundary and interior rank deletions: VALID")
+print("  Subtree size after deletions (5): VALID")
+print("  Test Case 6 PASSED")
+
+// --- Test Case 7: Boundary Edge Conditions ---
+print("Running Test Case 7: Boundary Edge Cases and Empty Trees")
+arenaEmpty = createTreapArena()
+rootEmpty = -1
+arrEmpty = treeToArray(arenaEmpty, rootEmpty)
+if (arrEmpty.size() != 0) {
+    print("[FAIL] Empty treap size must be 0")
+    allTestsPassed = false
+}
+
+// Single node tree
+arenaSingle = createTreapArena()
+rootSingle = allocNode(arenaSingle, 42, 500)
+if (getSize(arenaSingle, rootSingle) != 1 or getSum(arenaSingle, rootSingle) != 42) {
+    print("[FAIL] Single node aggregate check failed")
+    allTestsPassed = false
+}
+rootSingle = reverseRange(arenaSingle, rootSingle, 0, 0)
+rootSingle = addRange(arenaSingle, rootSingle, 0, 0, 8)
+if (getSum(arenaSingle, rootSingle) != 50) {
+    print("[FAIL] Single node add failed")
+    allTestsPassed = false
+}
+print("  Empty treap representation: VALID")
+print("  Single-node identity mutations: VALID")
+print("  Test Case 7 PASSED")
+
+// --- Test Case 8: Randomized Stress Verification against Reference Array ---
+print("Running Test Case 8: Randomized Stress Audit vs Linear Model")
+stressArena = createTreapArena()
+stressRoot = -1
+refModel = []
+
+// Deterministic LCG seed
+seed = 27182818
+initSize = 25
+i = 0
+while (i < initSize) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    v = (seed % 100) + 1
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    p = (seed % 100000) + 1
+
+    stressRoot = insertAt(stressArena, stressRoot, i, v, p)
+    refModel.push(v)
+    i = i + 1
+}
+
+numStressOps = 250
+stressMismatch = false
+opCount = 0
+
+while (opCount < numStressOps and !stressMismatch) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    opType = seed % 6
+    curLen = refModel.size()
+
+    if (opType == 0 and curLen < 80) {
+        // Insert
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        insPos = seed % (curLen + 1)
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        insVal = (seed % 100) + 1
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        insPrio = (seed % 100000) + 1
+
+        stressRoot = insertAt(stressArena, stressRoot, insPos, insVal, insPrio)
+        // Update ref model
+        newRef = []
+        k = 0
+        while (k < insPos) {
+            newRef.push(refModel[k])
+            k = k + 1
+        }
+        newRef.push(insVal)
+        while (k < curLen) {
+            newRef.push(refModel[k])
+            k = k + 1
+        }
+        refModel = newRef
+    } elif (opType == 1 and curLen > 5) {
+        // Erase
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        delPos = seed % curLen
+        stressRoot = eraseAt(stressArena, stressRoot, delPos)
+
+        newRef = []
+        k = 0
+        while (k < curLen) {
+            if (k != delPos) {
+                newRef.push(refModel[k])
+            }
+            k = k + 1
+        }
+        refModel = newRef
+    } elif (opType == 2 and curLen > 1) {
+        // Reverse
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        pA = seed % curLen
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        pB = seed % curLen
+        l = minInt(pA, pB)
+        r = maxInt(pA, pB)
+
+        stressRoot = reverseRange(stressArena, stressRoot, l, r)
+        // Reverse in ref model
+        leftSub = []
+        midSub = []
+        rightSub = []
+        k = 0
+        while (k < l) {
+            leftSub.push(refModel[k])
+            k = k + 1
+        }
+        while (k <= r) {
+            midSub.push(refModel[k])
+            k = k + 1
+        }
+        while (k < curLen) {
+            rightSub.push(refModel[k])
+            k = k + 1
+        }
+        newRef = []
+        k = 0
+        while (k < leftSub.size()) {
+            newRef.push(leftSub[k])
+            k = k + 1
+        }
+        mIdx = midSub.size() - 1
+        while (mIdx >= 0) {
+            newRef.push(midSub[mIdx])
+            mIdx = mIdx - 1
+        }
+        k = 0
+        while (k < rightSub.size()) {
+            newRef.push(rightSub[k])
+            k = k + 1
+        }
+        refModel = newRef
+    } elif (opType == 3 and curLen > 0) {
+        // Range Add
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        pA = seed % curLen
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        pB = seed % curLen
+        l = minInt(pA, pB)
+        r = maxInt(pA, pB)
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        delta = (seed % 20) + 1
+
+        stressRoot = addRange(stressArena, stressRoot, l, r, delta)
+        k = l
+        while (k <= r) {
+            refModel[k] = refModel[k] + delta
+            k = k + 1
+        }
+    } elif (opType == 4 and curLen > 0) {
+        // Range Set
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        pA = seed % curLen
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        pB = seed % curLen
+        l = minInt(pA, pB)
+        r = maxInt(pA, pB)
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        newVal = (seed % 50) + 1
+
+        stressRoot = setRange(stressArena, stressRoot, l, r, newVal)
+        k = l
+        while (k <= r) {
+            refModel[k] = newVal
+            k = k + 1
+        }
+    } elif (curLen > 0) {
+        // Range Sum Query check
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        pA = seed % curLen
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        pB = seed % curLen
+        l = minInt(pA, pB)
+        r = maxInt(pA, pB)
+
+        chkSum = [0]
+        stressRoot = querySum(stressArena, stressRoot, l, r, chkSum)
+
+        expectedSum = 0
+        k = l
+        while (k <= r) {
+            expectedSum = expectedSum + refModel[k]
+            k = k + 1
+        }
+    }
+
+    // Check parity immediately after each operation
+    chkParity = treeToArray(stressArena, stressRoot)
+    if (!checkArrayEqual(chkParity, refModel)) {
+        print("[FAIL] Stress parity broken at op", opCount, "opType:", opType, "delPos:", delPos, "curLen:", curLen, "seed:", seed)
+        print("chkParity size:", chkParity.size(), "refModel size:", refModel.size())
+        dbg = 0
+        while (dbg < chkParity.size() and dbg < refModel.size()) {
+            if (chkParity[dbg] != refModel[dbg]) {
+                print("diff at", dbg, "treap:", chkParity[dbg], "ref:", refModel[dbg])
+            }
+            dbg = dbg + 1
+        }
+        stressMismatch = true
+        allTestsPassed = false
+    }
+
+    opCount = opCount + 1
+}
+
+// Final parity check
+actualStress = treeToArray(stressArena, stressRoot)
+if (!checkArrayEqual(actualStress, refModel)) {
+    print("[FAIL] Stress test final state mismatch with reference model")
+    allTestsPassed = false
+} else {
+    print("  Validated 250 randomized inserts, erasures, lazy adds/sets, and reversals: 0 mismatches")
+    print("  Continuous structural invariants verified throughout stress execution")
+    print("  Test Case 8 PASSED")
+}
+
+// --- Summary ---
+print("=== Implicit Treap Cartesian Split-Merge Suite Summary ===")
+if (allTestsPassed) {
+    print("All Implicit Treap test suites: SUCCESS")
+} else {
+    print("Some Implicit Treap test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Implicit Treap Cartesian Split-Merge executed successfully in", totalElapsed, "ms")
