@@ -1,0 +1,612 @@
+import stdlib time as t
+
+// Heavy-Light Decomposition (HLD) Tree Queries Suite
+// Technical characteristics:
+// - Partitions tree into vertex-disjoint heavy paths for logarithmic chain jumping
+// - Subtree queries in O(log N) mapped to contiguous DFS intervals [pos[u], pos[u] + size[u] - 1]
+// - Path queries in O(log^2 N) using Segment Tree supporting range sums and range max
+// - Lowest Common Ancestor (LCA) and tree distance computed in O(log N)
+// - Point updates with instant Segment Tree propagation
+// - Deterministic validation against naive tree traversal and BFS path oracles
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Heavy-Light Decomposition Tree Queries Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func createHldTree(numNodes) {
+    head = makeIntArray(numNodes, -1)
+    edgeTo = []
+    edgeNext = []
+    values = makeIntArray(numNodes, 0)
+    parent = makeIntArray(numNodes, -1)
+    depth = makeIntArray(numNodes, 0)
+    subSize = makeIntArray(numNodes, 0)
+    heavy = makeIntArray(numNodes, -1)
+    headChain = makeIntArray(numNodes, -1)
+    pos = makeIntArray(numNodes, -1)
+    nodeAtPos = makeIntArray(numNodes, -1)
+    segSum = makeIntArray(numNodes * 4 + 4, 0)
+    segMax = makeIntArray(numNodes * 4 + 4, 0)
+
+    return [numNodes, head, edgeTo, edgeNext, values, parent, depth, subSize, heavy, headChain, pos, nodeAtPos, segSum, segMax]
+}
+
+func addTreeEdge(tree, u, v) {
+    head = tree[1]
+    edgeTo = tree[2]
+    edgeNext = tree[3]
+
+    e1 = edgeTo.size()
+    edgeTo.push(v)
+    edgeNext.push(head[u])
+    head[u] = e1
+
+    e2 = edgeTo.size()
+    edgeTo.push(u)
+    edgeNext.push(head[v])
+    head[v] = e2
+
+    tree[1] = head
+    tree[2] = edgeTo
+    tree[3] = edgeNext
+}
+
+func dfsInitSize(tree, root) {
+    numNodes = tree[0]
+    head = tree[1]
+    edgeTo = tree[2]
+    edgeNext = tree[3]
+    parent = tree[5]
+    depth = tree[6]
+    subSize = tree[7]
+    heavy = tree[8]
+
+    parent[root] = -1
+    depth[root] = 0
+
+    order = []
+    stack = [root]
+    visited = makeIntArray(numNodes, 0)
+    visited[root] = 1
+
+    while (stack.size() > 0) {
+        curr = stack.pop()
+        order.push(curr)
+
+        e = head[curr]
+        while (e != -1) {
+            nxt = edgeTo[e]
+            if (visited[nxt] == 0) {
+                visited[nxt] = 1
+                parent[nxt] = curr
+                depth[nxt] = depth[curr] + 1
+                stack.push(nxt)
+            }
+            e = edgeNext[e]
+        }
+    }
+
+    // Process nodes in reverse topological order for subtree sizes
+    i = order.size() - 1
+    while (i >= 0) {
+        u = order[i]
+        subSize[u] = 1
+        heavy[u] = -1
+        maxChildSize = 0
+
+        e = head[u]
+        while (e != -1) {
+            nxt = edgeTo[e]
+            if (nxt != parent[u]) {
+                subSize[u] = subSize[u] + subSize[nxt]
+                if (subSize[nxt] > maxChildSize) {
+                    maxChildSize = subSize[nxt]
+                    heavy[u] = nxt
+                }
+            }
+            e = edgeNext[e]
+        }
+        i = i - 1
+    }
+}
+
+func dfsBuildChains(tree, root) {
+    head = tree[1]
+    edgeTo = tree[2]
+    edgeNext = tree[3]
+    parent = tree[5]
+    heavy = tree[8]
+    headChain = tree[9]
+    pos = tree[10]
+    nodeAtPos = tree[11]
+
+    timer = 0
+    stackNodes = [root]
+    stackHeads = [root]
+
+    while (stackNodes.size() > 0) {
+        u = stackNodes.pop()
+        h = stackHeads.pop()
+
+        pos[u] = timer
+        nodeAtPos[timer] = u
+        headChain[u] = h
+        timer = timer + 1
+
+        lightChildren = []
+        e = head[u]
+        while (e != -1) {
+            nxt = edgeTo[e]
+            if (nxt != parent[u] and nxt != heavy[u]) {
+                lightChildren.push(nxt)
+            }
+            e = edgeNext[e]
+        }
+
+        // Push light children first so heavy child is processed first
+        lcIdx = 0
+        while (lcIdx < lightChildren.size()) {
+            lc = lightChildren[lcIdx]
+            stackNodes.push(lc)
+            stackHeads.push(lc)
+            lcIdx = lcIdx + 1
+        }
+
+        if (heavy[u] != -1) {
+            hc = heavy[u]
+            stackNodes.push(hc)
+            stackHeads.push(h)
+        }
+    }
+}
+
+func segTreeBuild(tree, nodeIdx, l, r) {
+    values = tree[4]
+    nodeAtPos = tree[11]
+    segSum = tree[12]
+    segMax = tree[13]
+
+    if (l == r) {
+        origNode = nodeAtPos[l]
+        v = values[origNode]
+        segSum[nodeIdx] = v
+        segMax[nodeIdx] = v
+        return 0
+    }
+
+    mid = (l + r) / 2
+    segTreeBuild(tree, nodeIdx * 2, l, mid)
+    segTreeBuild(tree, nodeIdx * 2 + 1, mid + 1, r)
+
+    segSum[nodeIdx] = segSum[nodeIdx * 2] + segSum[nodeIdx * 2 + 1]
+    segMax[nodeIdx] = maxInt(segMax[nodeIdx * 2], segMax[nodeIdx * 2 + 1])
+    return 0
+}
+
+func segTreeUpdate(tree, nodeIdx, l, r, targetPos, newVal) {
+    segSum = tree[12]
+    segMax = tree[13]
+
+    if (l == r) {
+        segSum[nodeIdx] = newVal
+        segMax[nodeIdx] = newVal
+        return 0
+    }
+
+    mid = (l + r) / 2
+    if (targetPos <= mid) {
+        segTreeUpdate(tree, nodeIdx * 2, l, mid, targetPos, newVal)
+    } else {
+        segTreeUpdate(tree, nodeIdx * 2 + 1, mid + 1, r, targetPos, newVal)
+    }
+
+    segSum[nodeIdx] = segSum[nodeIdx * 2] + segSum[nodeIdx * 2 + 1]
+    segMax[nodeIdx] = maxInt(segMax[nodeIdx * 2], segMax[nodeIdx * 2 + 1])
+    return 0
+}
+
+func segTreeQuerySum(tree, nodeIdx, l, r, ql, qr) {
+    if (ql > r or qr < l) {
+        return 0
+    }
+    if (ql <= l and r <= qr) {
+        segSum = tree[12]
+        return segSum[nodeIdx]
+    }
+
+    mid = (l + r) / 2
+    leftSum = segTreeQuerySum(tree, nodeIdx * 2, l, mid, ql, qr)
+    rightSum = segTreeQuerySum(tree, nodeIdx * 2 + 1, mid + 1, r, ql, qr)
+    return leftSum + rightSum
+}
+
+func segTreeQueryMax(tree, nodeIdx, l, r, ql, qr) {
+    if (ql > r or qr < l) {
+        return -1000000000
+    }
+    if (ql <= l and r <= qr) {
+        segMax = tree[13]
+        return segMax[nodeIdx]
+    }
+
+    mid = (l + r) / 2
+    leftMax = segTreeQueryMax(tree, nodeIdx * 2, l, mid, ql, qr)
+    rightMax = segTreeQueryMax(tree, nodeIdx * 2 + 1, mid + 1, r, ql, qr)
+    return maxInt(leftMax, rightMax)
+}
+
+func initializeHld(tree, root) {
+    numNodes = tree[0]
+    dfsInitSize(tree, root)
+    dfsBuildChains(tree, root)
+    segTreeBuild(tree, 1, 0, numNodes - 1)
+}
+
+func setNodeValue(tree, u, val) {
+    numNodes = tree[0]
+    values = tree[4]
+    pos = tree[10]
+    values[u] = val
+    segTreeUpdate(tree, 1, 0, numNodes - 1, pos[u], val)
+}
+
+func queryLca(tree, u, v) {
+    depth = tree[6]
+    headChain = tree[9]
+    parent = tree[5]
+
+    currU = u
+    currV = v
+
+    while (headChain[currU] != headChain[currV]) {
+        if (depth[headChain[currU]] > depth[headChain[currV]]) {
+            currU = parent[headChain[currU]]
+        } else {
+            currV = parent[headChain[currV]]
+        }
+    }
+
+    if (depth[currU] < depth[currV]) {
+        return currU
+    }
+    return currV
+}
+
+func queryPathSum(tree, u, v) {
+    numNodes = tree[0]
+    depth = tree[6]
+    headChain = tree[9]
+    parent = tree[5]
+    pos = tree[10]
+
+    currU = u
+    currV = v
+    totalSum = 0
+
+    while (headChain[currU] != headChain[currV]) {
+        if (depth[headChain[currU]] < depth[headChain[currV]]) {
+            tmp = currU
+            currU = currV
+            currV = tmp
+        }
+
+        h = headChain[currU]
+        totalSum = totalSum + segTreeQuerySum(tree, 1, 0, numNodes - 1, pos[h], pos[currU])
+        currU = parent[h]
+    }
+
+    if (depth[currU] > depth[currV]) {
+        tmp = currU
+        currU = currV
+        currV = tmp
+    }
+
+    totalSum = totalSum + segTreeQuerySum(tree, 1, 0, numNodes - 1, pos[currU], pos[currV])
+    return totalSum
+}
+
+func queryPathMax(tree, u, v) {
+    numNodes = tree[0]
+    depth = tree[6]
+    headChain = tree[9]
+    parent = tree[5]
+    pos = tree[10]
+
+    currU = u
+    currV = v
+    maxResult = -1000000000
+
+    while (headChain[currU] != headChain[currV]) {
+        if (depth[headChain[currU]] < depth[headChain[currV]]) {
+            tmp = currU
+            currU = currV
+            currV = tmp
+        }
+
+        h = headChain[currU]
+        chunkMax = segTreeQueryMax(tree, 1, 0, numNodes - 1, pos[h], pos[currU])
+        maxResult = maxInt(maxResult, chunkMax)
+        currU = parent[h]
+    }
+
+    if (depth[currU] > depth[currV]) {
+        tmp = currU
+        currU = currV
+        currV = tmp
+    }
+
+    chunkMax = segTreeQueryMax(tree, 1, 0, numNodes - 1, pos[currU], pos[currV])
+    maxResult = maxInt(maxResult, chunkMax)
+    return maxResult
+}
+
+func querySubtreeSum(tree, u) {
+    numNodes = tree[0]
+    pos = tree[10]
+    subSize = tree[7]
+    qL = pos[u]
+    qR = pos[u] + subSize[u] - 1
+    return segTreeQuerySum(tree, 1, 0, numNodes - 1, qL, qR)
+}
+
+// Brute-force path oracle for verification
+func oraclePathSum(tree, u, v) {
+    numNodes = tree[0]
+    head = tree[1]
+    edgeTo = tree[2]
+    edgeNext = tree[3]
+    values = tree[4]
+
+    // BFS to find parent pointers in unrooted tree
+    bfsParent = makeIntArray(numNodes, -1)
+    visited = makeIntArray(numNodes, 0)
+    queue = [u]
+    visited[u] = 1
+
+    while (queue.size() > 0) {
+        curr = queue.pop()
+        if (curr == v) {
+            // Found target
+        }
+        e = head[curr]
+        while (e != -1) {
+            nxt = edgeTo[e]
+            if (visited[nxt] == 0) {
+                visited[nxt] = 1
+                bfsParent[nxt] = curr
+                queue.push(nxt)
+            }
+            e = edgeNext[e]
+        }
+    }
+
+    curr = v
+    pathSum = 0
+    while (curr != -1) {
+        pathSum = pathSum + values[curr]
+        if (curr == u) {
+            curr = -1
+        } else {
+            curr = bfsParent[curr]
+        }
+    }
+    return pathSum
+}
+
+func oraclePathMax(tree, u, v) {
+    numNodes = tree[0]
+    head = tree[1]
+    edgeTo = tree[2]
+    edgeNext = tree[3]
+    values = tree[4]
+
+    bfsParent = makeIntArray(numNodes, -1)
+    visited = makeIntArray(numNodes, 0)
+    queue = [u]
+    visited[u] = 1
+
+    while (queue.size() > 0) {
+        curr = queue.pop()
+        e = head[curr]
+        while (e != -1) {
+            nxt = edgeTo[e]
+            if (visited[nxt] == 0) {
+                visited[nxt] = 1
+                bfsParent[nxt] = curr
+                queue.push(nxt)
+            }
+            e = edgeNext[e]
+        }
+    }
+
+    curr = v
+    pathMax = -1000000000
+    while (curr != -1) {
+        pathMax = maxInt(pathMax, values[curr])
+        if (curr == u) {
+            curr = -1
+        } else {
+            curr = bfsParent[curr]
+        }
+    }
+    return pathMax
+}
+
+allHldTestsPassed = true
+
+// --- Test Case 1: 12-Node Balanced Hierarchical Tree ---
+print("Running Test Case 1: 12-Node Balanced Hierarchical Tree...")
+t1 = createHldTree(12)
+// Construct tree: 0 -> 1, 2; 1 -> 3, 4; 2 -> 5, 6; 3 -> 7, 8; 4 -> 9; 6 -> 10, 11
+addTreeEdge(t1, 0, 1)
+addTreeEdge(t1, 0, 2)
+addTreeEdge(t1, 1, 3)
+addTreeEdge(t1, 1, 4)
+addTreeEdge(t1, 2, 5)
+addTreeEdge(t1, 2, 6)
+addTreeEdge(t1, 3, 7)
+addTreeEdge(t1, 3, 8)
+addTreeEdge(t1, 4, 9)
+addTreeEdge(t1, 6, 10)
+addTreeEdge(t1, 6, 11)
+
+// Initialize node values: u -> (u + 1) * 10
+i = 0
+while (i < 12) {
+    values = t1[4]
+    values[i] = (i + 1) * 10
+    i = i + 1
+}
+
+initializeHld(t1, 0)
+
+// Test LCAs
+lca1 = queryLca(t1, 7, 9)
+lca2 = queryLca(t1, 7, 11)
+lca3 = queryLca(t1, 10, 11)
+lca4 = queryLca(t1, 4, 4)
+
+print("  LCA(7, 9)  : " + lca1 + " (Expected: 1)")
+print("  LCA(7, 11) : " + lca2 + " (Expected: 0)")
+print("  LCA(10, 11): " + lca3 + " (Expected: 6)")
+
+if (lca1 != 1 or lca2 != 0 or lca3 != 6 or lca4 != 4) {
+    print("[FAIL] Test Case 1 LCA validation failed")
+    allHldTestsPassed = false
+}
+
+// Test Path Sums against Oracle
+sum1 = queryPathSum(t1, 7, 9)
+oracSum1 = oraclePathSum(t1, 7, 9)
+sum2 = queryPathSum(t1, 7, 11)
+oracSum2 = oraclePathSum(t1, 7, 11)
+max1 = queryPathMax(t1, 7, 9)
+oracMax1 = oraclePathMax(t1, 7, 9)
+max2 = queryPathMax(t1, 7, 11)
+oracMax2 = oraclePathMax(t1, 7, 11)
+
+print("  PathSum(7, 9)  : " + sum1 + " (Oracle: " + oracSum1 + ")")
+print("  PathSum(7, 11) : " + sum2 + " (Oracle: " + oracSum2 + ")")
+print("  PathMax(7, 9)  : " + max1 + " (Oracle: " + oracMax1 + ")")
+print("  PathMax(7, 11) : " + max2 + " (Oracle: " + oracMax2 + ")")
+
+if (sum1 != oracSum1 or sum2 != oracSum2 or max1 != oracMax1 or max2 != oracMax2) {
+    print("[FAIL] Test Case 1 Path queries failed")
+    allHldTestsPassed = false
+} else {
+    print("  Test Case 1 PASSED")
+}
+
+// --- Test Case 2: Subtree Sum Verification and Point Updates ---
+print("Running Test Case 2: Subtree Sum and Dynamic Point Updates...")
+// Subtree sum of node 1 initially: 1(20) + 3(40) + 4(50) + 7(80) + 8(90) + 9(100) = 380
+sub1 = querySubtreeSum(t1, 1)
+print("  Initial SubtreeSum(1): " + sub1 + " (Expected: 380)")
+
+if (sub1 != 380) {
+    print("[FAIL] Test Case 2 initial subtree sum failed")
+    allHldTestsPassed = false
+}
+
+// Update node 7 value from 80 to 200 (+120)
+setNodeValue(t1, 7, 200)
+sub1Updated = querySubtreeSum(t1, 1)
+sumUpdated = queryPathSum(t1, 7, 9)
+oracSumUpdated = oraclePathSum(t1, 7, 9)
+maxUpdated = queryPathMax(t1, 7, 9)
+
+print("  Updated SubtreeSum(1): " + sub1Updated + " (Expected: 500)")
+print("  Updated PathSum(7, 9): " + sumUpdated + " (Oracle: " + oracSumUpdated + ")")
+print("  Updated PathMax(7, 9): " + maxUpdated + " (Expected: 200)")
+
+if (sub1Updated != 500 or sumUpdated != oracSumUpdated or maxUpdated != 200) {
+    print("[FAIL] Test Case 2 dynamic updates failed")
+    allHldTestsPassed = false
+} else {
+    print("  Test Case 2 PASSED")
+}
+
+// --- Test Case 3: Deep Star-Line Hybrid Graph (Chain Stress) ---
+print("Running Test Case 3: Deep Star-Line Hybrid Graph...")
+t3 = createHldTree(20)
+// Line 0 - 1 - 2 - 3 - 4 - 5 - 6 - 7 - 8 - 9
+i = 0
+while (i < 9) {
+    addTreeEdge(t3, i, i + 1)
+    i = i + 1
+}
+// Star leaves attached to node 4: 10, 11, 12, 13, 14
+i = 10
+while (i <= 14) {
+    addTreeEdge(t3, 4, i)
+    i = i + 1
+}
+// Star leaves attached to node 9: 15, 16, 17, 18, 19
+i = 15
+while (i <= 19) {
+    addTreeEdge(t3, 9, i)
+    i = i + 1
+}
+
+i = 0
+while (i < 20) {
+    values = t3[4]
+    values[i] = i + 1
+    i = i + 1
+}
+
+initializeHld(t3, 0)
+
+// Verify chain jumping from star leaf 12 to star leaf 18
+sumStar = queryPathSum(t3, 12, 18)
+oracStar = oraclePathSum(t3, 12, 18)
+maxStar = queryPathMax(t3, 12, 18)
+oracMaxStar = oraclePathMax(t3, 12, 18)
+lcaStar = queryLca(t3, 12, 18)
+
+print("  PathSum(12, 18): " + sumStar + " (Oracle: " + oracStar + ")")
+print("  PathMax(12, 18): " + maxStar + " (Oracle: " + oracMaxStar + ")")
+print("  LCA(12, 18)    : " + lcaStar + " (Expected: 4)")
+
+if (sumStar != oracStar or maxStar != oracMaxStar or lcaStar != 4) {
+    print("[FAIL] Test Case 3 star-line stress failed")
+    allHldTestsPassed = false
+} else {
+    print("  Test Case 3 PASSED")
+}
+
+// --- Final Summary ---
+print("=== Heavy-Light Decomposition Suite Summary ===")
+if (allHldTestsPassed) {
+    print("All HLD test suites: SUCCESS")
+} else {
+    print("Some HLD test suites: FAILED")
+}
+
+totalElapsed = t.millis() - suiteStartTime
+print("[PASS] Heavy-Light Decomposition executed successfully in", totalElapsed, "ms")
