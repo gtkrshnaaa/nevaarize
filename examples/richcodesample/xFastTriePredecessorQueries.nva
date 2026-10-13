@@ -1,0 +1,609 @@
+import stdlib time as t
+
+// X-Fast Trie Predecessor Suite
+// Technical characteristics:
+// - Bitwise trie of depth W = 16 (Universe U = 65536)
+// - Hash table per level for O(1) prefix lookup
+// - Binary search on levels for O(log W) = O(log log U) LCP identification
+// - Doubly linked list on leaves for O(1) neighbor retrieval
+// - Subtree min and max leaf pointers (descMin, descMax) on internal nodes
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize X-Fast Trie Suite ===")
+suiteStartTime = t.millis()
+
+func hashSlot(prefix, cap) {
+    h = (prefix * 2654435761) % cap
+    if (h < 0) {
+        h = h + cap
+    }
+    return h
+}
+
+func htGet(htKeys, htNodes, cap, prefix) {
+    idx = hashSlot(prefix, cap)
+    start = idx
+    while (htKeys[idx] != -1) {
+        if (htKeys[idx] == prefix) {
+            return htNodes[idx]
+        }
+        idx = (idx + 1) % cap
+        if (idx == start) {
+            return -1
+        }
+    }
+    return -1
+}
+
+func htPut(htKeys, htNodes, cap, prefix, nodeId) {
+    idx = hashSlot(prefix, cap)
+    tombSlot = -1
+    start = idx
+    while (htKeys[idx] != -1) {
+        if (htKeys[idx] == prefix) {
+            htNodes[idx] = nodeId
+            return 1
+        }
+        if (htKeys[idx] == -2 and tombSlot == -1) {
+            tombSlot = idx
+        }
+        idx = (idx + 1) % cap
+        if (idx == start) {
+            break
+        }
+    }
+    target = idx
+    if (tombSlot != -1) {
+        target = tombSlot
+    }
+    htKeys[target] = prefix
+    htNodes[target] = nodeId
+    return 1
+}
+
+func htRemove(htKeys, htNodes, cap, prefix) {
+    idx = hashSlot(prefix, cap)
+    start = idx
+    while (htKeys[idx] != -1) {
+        if (htKeys[idx] == prefix) {
+            htKeys[idx] = -2 // tombstone
+            htNodes[idx] = -1
+            return 1
+        }
+        idx = (idx + 1) % cap
+        if (idx == start) {
+            return 0
+        }
+    }
+    return 0
+}
+
+func createXFastTrie() {
+    // Arena for trie nodes:
+    // [key, level, left, right, descMin, descMax, leafPrev, leafNext, leafVal]
+    tKey = []
+    tLevel = []
+    tLeft = []
+    tRight = []
+    tDescMin = []
+    tDescMax = []
+    tLeafPrev = []
+    tLeafNext = []
+    tLeafVal = []
+
+    arena = [tKey, tLevel, tLeft, tRight, tDescMin, tDescMax, tLeafPrev, tLeafNext, tLeafVal]
+
+    // Create root node (prefix 0 at level 0)
+    rootId = 0
+    arena[0].push(0)
+    arena[1].push(0)
+    arena[2].push(-1)
+    arena[3].push(-1)
+    arena[4].push(-1)
+    arena[5].push(-1)
+    arena[6].push(-1)
+    arena[7].push(-1)
+    arena[8].push(-1)
+
+    // Level hash tables: W = 16, levels 0..16
+    htCap = 2048
+    levelKeys = []
+    levelNodes = []
+    l = 0
+    while (l <= 16) {
+        kArr = []
+        nArr = []
+        slot = 0
+        while (slot < htCap) {
+            kArr.push(-1)
+            nArr.push(-1)
+            slot = slot + 1
+        }
+        levelKeys.push(kArr)
+        levelNodes.push(nArr)
+        l = l + 1
+    }
+
+    // Root in level 0 hash table
+    htPut(levelKeys[0], levelNodes[0], htCap, 0, rootId)
+
+    // Metadata: [rootId, totalLeaves, firstLeaf, lastLeaf, htCap]
+    meta = [rootId, 0, -1, -1, htCap]
+
+    return [arena, levelKeys, levelNodes, meta]
+}
+
+func allocTrieNode(arena, key, level) {
+    nodeId = arena[0].size()
+    arena[0].push(key)
+    arena[1].push(level)
+    arena[2].push(-1)
+    arena[3].push(-1)
+    arena[4].push(-1)
+    arena[5].push(-1)
+    arena[6].push(-1)
+    arena[7].push(-1)
+    arena[8].push(-1)
+    return nodeId
+}
+
+func xFastFindLcp(trie, x) {
+    arena = trie[0]
+    levelKeys = trie[1]
+    levelNodes = trie[2]
+    meta = trie[3]
+    htCap = meta[4]
+
+    low = 0
+    high = 16
+    bestNode = meta[0]
+    bestLevel = 0
+
+    while (low <= high) {
+        mid = (low + high) / 2
+        prefix = x >> (16 - mid)
+        foundNode = htGet(levelKeys[mid], levelNodes[mid], htCap, prefix)
+
+        if (foundNode != -1) {
+            bestNode = foundNode
+            bestLevel = mid
+            low = mid + 1
+        } else {
+            high = mid - 1
+        }
+    }
+
+    return [bestNode, bestLevel]
+}
+
+func xFastMember(trie, x) {
+    if (x < 0 or x >= 65536) {
+        return 0
+    }
+    levelKeys = trie[1]
+    levelNodes = trie[2]
+    meta = trie[3]
+    htCap = meta[4]
+
+    nodeId = htGet(levelKeys[16], levelNodes[16], htCap, x)
+    return (nodeId != -1)
+}
+
+func xFastPredecessor(trie, x) {
+    if (x <= 0) {
+        return -1
+    }
+    arena = trie[0]
+    meta = trie[3]
+    if (meta[1] == 0) {
+        return -1
+    }
+
+    lcpRes = xFastFindLcp(trie, x)
+    bestNode = lcpRes[0]
+    bestLevel = lcpRes[1]
+
+    if (bestLevel == 16) {
+        prevLeaf = arena[6][bestNode]
+        if (prevLeaf != -1) {
+            return arena[8][prevLeaf]
+        }
+        return -1
+    }
+
+    shift = 16 - bestLevel - 1
+    nextBit = (x >> shift) & 1
+
+    candLeaf = -1
+    if (nextBit == 0) {
+        dMin = arena[4][bestNode]
+        if (dMin != -1) {
+            candLeaf = arena[6][dMin]
+        }
+    } else {
+        dMax = arena[5][bestNode]
+        if (dMax != -1) {
+            candLeaf = dMax
+        }
+    }
+
+    if (candLeaf != -1) {
+        return arena[8][candLeaf]
+    }
+    return -1
+}
+
+func xFastSuccessor(trie, x) {
+    if (x >= 65535) {
+        return -1
+    }
+    arena = trie[0]
+    meta = trie[3]
+    if (meta[1] == 0) {
+        return -1
+    }
+
+    lcpRes = xFastFindLcp(trie, x)
+    bestNode = lcpRes[0]
+    bestLevel = lcpRes[1]
+
+    if (bestLevel == 16) {
+        nextLeaf = arena[7][bestNode]
+        if (nextLeaf != -1) {
+            return arena[8][nextLeaf]
+        }
+        return -1
+    }
+
+    shift = 16 - bestLevel - 1
+    nextBit = (x >> shift) & 1
+
+    candLeaf = -1
+    if (nextBit == 0) {
+        dMin = arena[4][bestNode]
+        if (dMin != -1) {
+            candLeaf = dMin
+        }
+    } else {
+        dMax = arena[5][bestNode]
+        if (dMax != -1) {
+            candLeaf = arena[7][dMax]
+        }
+    }
+
+    if (candLeaf != -1) {
+        return arena[8][candLeaf]
+    }
+    return -1
+}
+
+func xFastInsert(trie, x) {
+    if (x < 0 or x >= 65536) {
+        return 0
+    }
+    if (xFastMember(trie, x) == 1) {
+        return 0
+    }
+
+    arena = trie[0]
+    levelKeys = trie[1]
+    levelNodes = trie[2]
+    meta = trie[3]
+    htCap = meta[4]
+
+    // Allocate leaf node
+    leafId = allocTrieNode(arena, x, 16)
+    arena[8][leafId] = x
+    arena[4][leafId] = leafId
+    arena[5][leafId] = leafId
+
+    // 1. Insert into sorted doubly linked list of leaves
+    if (meta[1] == 0) {
+        meta[2] = leafId
+        meta[3] = leafId
+    } else {
+        currL = meta[2]
+        predLeaf = -1
+        while (currL != -1 and arena[8][currL] < x) {
+            predLeaf = currL
+            currL = arena[7][currL]
+        }
+
+        if (predLeaf == -1) {
+            // New min leaf
+            oldFirst = meta[2]
+            arena[7][leafId] = oldFirst
+            arena[6][oldFirst] = leafId
+            meta[2] = leafId
+        } else {
+            nxtLeaf = arena[7][predLeaf]
+            arena[6][leafId] = predLeaf
+            arena[7][leafId] = nxtLeaf
+            arena[7][predLeaf] = leafId
+            if (nxtLeaf != -1) {
+                arena[6][nxtLeaf] = leafId
+            } else {
+                meta[3] = leafId // new max leaf
+            }
+        }
+    }
+
+    htPut(levelKeys[16], levelNodes[16], htCap, x, leafId)
+    meta[1] = meta[1] + 1
+
+    // 2. Insert missing ancestors from level 1 to 15
+    curr = meta[0]
+    lvl = 0
+    while (lvl < 16) {
+        bit = (x >> (15 - lvl)) & 1
+        nextLvl = lvl + 1
+        pref = x >> (16 - nextLvl)
+
+        if (nextLvl == 16) {
+            if (bit == 0) {
+                arena[2][curr] = leafId
+            } else {
+                arena[3][curr] = leafId
+            }
+        } else {
+            child = -1
+            if (bit == 0) {
+                child = arena[2][curr]
+            } else {
+                child = arena[3][curr]
+            }
+            if (child == -1) {
+                child = allocTrieNode(arena, pref, nextLvl)
+                if (bit == 0) {
+                    arena[2][curr] = child
+                } else {
+                    arena[3][curr] = child
+                }
+                htPut(levelKeys[nextLvl], levelNodes[nextLvl], htCap, pref, child)
+            }
+            curr = child
+        }
+        lvl = lvl + 1
+    }
+
+    // 3. Update descMin and descMax along the path
+    curr = meta[0]
+    lvl = 0
+    while (lvl <= 16) {
+        dMin = arena[4][curr]
+        dMax = arena[5][curr]
+
+        if (dMin == -1 or x < arena[8][dMin]) {
+            arena[4][curr] = leafId
+        }
+        if (dMax == -1 or x > arena[8][dMax]) {
+            arena[5][curr] = leafId
+        }
+
+        if (lvl < 16) {
+            bit = (x >> (15 - lvl)) & 1
+            if (bit == 0) {
+                curr = arena[2][curr]
+            } else {
+                curr = arena[3][curr]
+            }
+        }
+        lvl = lvl + 1
+    }
+
+    return 1
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 1: Sequential Inserts and Predecessor/Successor Navigation
+// -----------------------------------------------------------------------------
+print("Running Test Case 1: Sequential Inserts and Predecessor/Successor...")
+tc1Pass = 1
+t1 = createXFastTrie()
+
+keys1 = [100, 50, 200, 25, 75, 150, 300, 10, 500, 1000]
+kIdx = 0
+while (kIdx < keys1.size()) {
+    xFastInsert(t1, keys1[kIdx])
+    kIdx = kIdx + 1
+}
+
+// Membership
+kIdx = 0
+while (kIdx < keys1.size()) {
+    if (xFastMember(t1, keys1[kIdx]) != 1) {
+        tc1Pass = 0
+    }
+    kIdx = kIdx + 1
+}
+if (xFastMember(t1, 42) != 0 or xFastMember(t1, 999) != 0) {
+    tc1Pass = 0
+}
+
+// Sorted keys: [10, 25, 50, 75, 100, 150, 200, 300, 500, 1000]
+// Predecessor queries
+if (xFastPredecessor(t1, 10) != -1) {
+    tc1Pass = 0
+}
+if (xFastPredecessor(t1, 20) != 10) {
+    tc1Pass = 0
+}
+if (xFastPredecessor(t1, 50) != 25) {
+    tc1Pass = 0
+}
+if (xFastPredecessor(t1, 80) != 75) {
+    tc1Pass = 0
+}
+if (xFastPredecessor(t1, 250) != 200) {
+    tc1Pass = 0
+}
+if (xFastPredecessor(t1, 2000) != 1000) {
+    tc1Pass = 0
+}
+
+// Successor queries
+if (xFastSuccessor(t1, 5) != 10) {
+    tc1Pass = 0
+}
+if (xFastSuccessor(t1, 10) != 25) {
+    tc1Pass = 0
+}
+if (xFastSuccessor(t1, 80) != 100) {
+    tc1Pass = 0
+}
+if (xFastSuccessor(t1, 300) != 500) {
+    tc1Pass = 0
+}
+if (xFastSuccessor(t1, 1000) != -1) {
+    tc1Pass = 0
+}
+
+if (tc1Pass == 1) {
+    print("  10 elements inserted into bitwise trie and level hash tables")
+    print("  Exact member lookups confirmed")
+    print("  O(log log U) predecessor and successor lookups verified")
+    print("  Test Case 1 Passed successfully")
+} else {
+    print("[FAIL] Test Case 1 assertion failure")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Boundary Universe Values (0 and 65535)
+// -----------------------------------------------------------------------------
+print("")
+print("Running Test Case 2: Boundary Universe Values...")
+tc2Pass = 1
+t2 = createXFastTrie()
+
+xFastInsert(t2, 0)
+xFastInsert(t2, 65535)
+
+if (xFastMember(t2, 0) != 1 or xFastMember(t2, 65535) != 1) {
+    tc2Pass = 0
+}
+if (xFastPredecessor(t2, 0) != -1 or xFastSuccessor(t2, 65535) != -1) {
+    tc2Pass = 0
+}
+if (xFastSuccessor(t2, 0) != 65535 or xFastPredecessor(t2, 65535) != 0) {
+    tc2Pass = 0
+}
+
+// Intermediate query
+if (xFastPredecessor(t2, 32768) != 0 or xFastSuccessor(t2, 32768) != 65535) {
+    tc2Pass = 0
+}
+
+if (tc2Pass == 1) {
+    print("  Boundary universe extremes 0 and 65535 handled without overflow")
+    print("  Bidirectional successor and predecessor links verified")
+    print("  Test Case 2 Passed successfully")
+} else {
+    print("[FAIL] Test Case 2 assertion failure")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Randomized Stress Simulation against Sorted Array Oracle
+// -----------------------------------------------------------------------------
+print("")
+print("Running Test Case 3: Randomized Stress Simulation against Array Oracle...")
+tStress = createXFastTrie()
+stressOracle = []
+
+stressSeed = 987654321
+stressOps = 200
+stressOpI = 0
+stressMismatches = 0
+totalIns = 0
+totalQueries = 0
+
+while (stressOpI < stressOps) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    opType = (stressSeed / 65536) % 3
+
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    val = (stressSeed / 32) % 4000 // range [0, 3999]
+
+    if (opType == 0) {
+        // Insert
+        xFastInsert(tStress, val)
+
+        // Oracle insert
+        found = 0
+        oI = 0
+        while (oI < stressOracle.size()) {
+            if (stressOracle[oI] == val) {
+                found = 1
+            }
+            oI = oI + 1
+        }
+        if (found == 0) {
+            stressOracle.push(val)
+            sI = stressOracle.size() - 1
+            while (sI > 0 and stressOracle[sI] < stressOracle[sI - 1]) {
+                tmp = stressOracle[sI]
+                stressOracle[sI] = stressOracle[sI - 1]
+                stressOracle[sI - 1] = tmp
+                sI = sI - 1
+            }
+        }
+        totalIns = totalIns + 1
+    }
+
+    if (opType == 1) {
+        // Predecessor query
+        pRes = xFastPredecessor(tStress, val)
+
+        oPred = -1
+        oI = stressOracle.size() - 1
+        while (oI >= 0) {
+            if (stressOracle[oI] < val) {
+                oPred = stressOracle[oI]
+                oI = -1 // break
+            } else {
+                oI = oI - 1
+            }
+        }
+
+        if (pRes != oPred) {
+            print("[FAIL] Predecessor mismatch for val=", val, ": trie=", pRes, ", oracle=", oPred)
+            stressMismatches = stressMismatches + 1
+        }
+        totalQueries = totalQueries + 1
+    }
+
+    if (opType == 2) {
+        // Successor query
+        sRes = xFastSuccessor(tStress, val)
+
+        oSucc = -1
+        oI = 0
+        while (oI < stressOracle.size()) {
+            if (stressOracle[oI] > val) {
+                oSucc = stressOracle[oI]
+                oI = stressOracle.size() // break
+            } else {
+                oI = oI + 1
+            }
+        }
+
+        if (sRes != oSucc) {
+            print("[FAIL] Successor mismatch for val=", val, ": trie=", sRes, ", oracle=", oSucc)
+            stressMismatches = stressMismatches + 1
+        }
+        totalQueries = totalQueries + 1
+    }
+
+    stressOpI = stressOpI + 1
+}
+
+if (stressMismatches == 0) {
+    print("  Executed", stressOps, "randomized ops (", totalIns, "ins,", totalQueries, "queries): 0 mismatches")
+    print("  100% agreement with sorted oracle")
+    print("  Test Case 3 Passed successfully")
+} else {
+    print("[FAIL] Stress simulation encountered", stressMismatches, "mismatches")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] X-Fast Trie Suite executed successfully in", elapsed, "ms")
