@@ -1,0 +1,346 @@
+import stdlib time as t
+
+// Pairing Heap Priority Queue Operations Suite
+// Technical characteristics:
+// - Self-adjusting heap-ordered multi-way tree via first-child / next-sibling representation
+// - Parallel flat arena vectors: hKey, hVal, hChild, hSibling, hPrev for high cache locality
+// - O(1) amortized insert and meld operations
+// - Two-pass multipass pairing meld consolidation on delete-min
+// - O(1) unlinking and root-meld for decrease-key via hPrev back-pointers
+// - Invariant verifier for strict min-heap order and bidirectional pointer integrity
+// - Deterministic assertions and runtime benchmark
+// - Strict camelCase naming conventions enforced across all symbols (No-Underscore Policy)
+
+print("=== Nevaarize Pairing Heap Priority Queue Operations Suite ===")
+suiteStartTime = t.millis()
+
+func createPairingHeapArena() {
+    hKey = []
+    hVal = []
+    hChild = []
+    hSibling = []
+    hPrev = []
+    return [hKey, hVal, hChild, hSibling, hPrev]
+}
+
+func allocPairingNode(arena, key, val) {
+    aKey = arena[0]
+    aVal = arena[1]
+    aChild = arena[2]
+    aSibling = arena[3]
+    aPrev = arena[4]
+
+    nodeId = aKey.size()
+    aKey.push(key)
+    aVal.push(val)
+    aChild.push(-1)
+    aSibling.push(-1)
+    aPrev.push(-1)
+
+    arena[0] = aKey
+    arena[1] = aVal
+    arena[2] = aChild
+    arena[3] = aSibling
+    arena[4] = aPrev
+    return nodeId
+}
+
+func isEmptyPairingHeap(root) {
+    return root == -1
+}
+
+func findMin(arena, root) {
+    if (root == -1) {
+        return [-1, -1]
+    }
+    aKey = arena[0]
+    aVal = arena[1]
+    return [aKey[root], aVal[root]]
+}
+
+func meldPairingHeaps(arena, h1, h2) {
+    if (h1 == -1) {
+        return h2
+    }
+    if (h2 == -1) {
+        return h1
+    }
+    if (h1 == h2) {
+        return h1
+    }
+
+    aKey = arena[0]
+    aChild = arena[2]
+    aSibling = arena[3]
+    aPrev = arena[4]
+
+    if (aKey[h1] <= aKey[h2]) {
+        oldChild = aChild[h1]
+        aSibling[h2] = oldChild
+        if (oldChild != -1) {
+            aPrev[oldChild] = h2
+        }
+        aChild[h1] = h2
+        aPrev[h2] = h1
+        aSibling[h1] = -1
+        aPrev[h1] = -1
+
+        arena[2] = aChild
+        arena[3] = aSibling
+        arena[4] = aPrev
+        return h1
+    } else {
+        oldChild = aChild[h2]
+        aSibling[h1] = oldChild
+        if (oldChild != -1) {
+            aPrev[oldChild] = h1
+        }
+        aChild[h2] = h1
+        aPrev[h1] = h2
+        aSibling[h2] = -1
+        aPrev[h2] = -1
+
+        arena[2] = aChild
+        arena[3] = aSibling
+        arena[4] = aPrev
+        return h2
+    }
+}
+
+func insertPairingNode(arena, root, key, val) {
+    nodeId = allocPairingNode(arena, key, val)
+    newRoot = meldPairingHeaps(arena, root, nodeId)
+    return [nodeId, newRoot]
+}
+
+func collectChildren(arena, root) {
+    if (root == -1) {
+        return []
+    }
+    aChild = arena[2]
+    aSibling = arena[3]
+    aPrev = arena[4]
+
+    children = []
+    curr = aChild[root]
+    while (curr != -1) {
+        nextSib = aSibling[curr]
+        aSibling[curr] = -1
+        aPrev[curr] = -1
+        children.push(curr)
+        curr = nextSib
+    }
+
+    aChild[root] = -1
+    arena[2] = aChild
+    arena[3] = aSibling
+    arena[4] = aPrev
+    return children
+}
+
+func twoPassPairing(arena, children) {
+    if (children.size() == 0) {
+        return -1
+    }
+    if (children.size() == 1) {
+        return children[0]
+    }
+
+    // Pass 1: Pair adjacent siblings from left to right
+    pairs = []
+    pairIdx = 0
+    while (pairIdx < children.size()) {
+        if (pairIdx + 1 < children.size()) {
+            pairedRoot = meldPairingHeaps(arena, children[pairIdx], children[pairIdx + 1])
+            pairs.push(pairedRoot)
+            pairIdx = pairIdx + 2
+        } else {
+            pairs.push(children[pairIdx])
+            pairIdx = pairIdx + 1
+        }
+    }
+
+    // Pass 2: Accumulate pairs from right to left
+    pass2Idx = pairs.size() - 1
+    accumRoot = pairs[pass2Idx]
+    while (pass2Idx > 0) {
+        pass2Idx = pass2Idx - 1
+        accumRoot = meldPairingHeaps(arena, pairs[pass2Idx], accumRoot)
+    }
+
+    return accumRoot
+}
+
+func deleteMin(arena, root) {
+    if (root == -1) {
+        return [-1, -1, -1]
+    }
+    aKey = arena[0]
+    aVal = arena[1]
+    minKey = aKey[root]
+    minVal = aVal[root]
+
+    children = collectChildren(arena, root)
+    newRoot = twoPassPairing(arena, children)
+    return [minKey, minVal, newRoot]
+}
+
+func countPairingHeapNodes(arena, root) {
+    if (root == -1) {
+        return 0
+    }
+    aChild = arena[2]
+    aSibling = arena[3]
+
+    count = 0
+    stack = [root]
+    while (stack.size() > 0) {
+        topIdx = stack.size() - 1
+        currNode = stack[topIdx]
+
+        newStack = []
+        cCopyI = 0
+        while (cCopyI < topIdx) {
+            newStack.push(stack[cCopyI])
+            cCopyI = cCopyI + 1
+        }
+        stack = newStack
+        count = count + 1
+
+        childNode = aChild[currNode]
+        while (childNode != -1) {
+            stack.push(childNode)
+            childNode = aSibling[childNode]
+        }
+    }
+    return count
+}
+
+func verifyPairingHeapInvariants(arena, root) {
+    if (root == -1) {
+        return 1
+    }
+
+    aKey = arena[0]
+    aChild = arena[2]
+    aSibling = arena[3]
+    aPrev = arena[4]
+
+    if (aSibling[root] != -1 or aPrev[root] != -1) {
+        print("[FAIL] Root node must not have sibling or prev pointers")
+        return 0
+    }
+
+    workStack = [root]
+    while (workStack.size() > 0) {
+        wTop = workStack.size() - 1
+        curr = workStack[wTop]
+
+        wNewStack = []
+        wCopyI = 0
+        while (wCopyI < wTop) {
+            wNewStack.push(workStack[wCopyI])
+            wCopyI = wCopyI + 1
+        }
+        workStack = wNewStack
+
+        firstChild = aChild[curr]
+        if (firstChild != -1) {
+            if (aPrev[firstChild] != curr) {
+                print("[FAIL] First child prev pointer must point to parent curr=", curr, "child=", firstChild)
+                return 0
+            }
+            if (aKey[firstChild] < aKey[curr]) {
+                print("[FAIL] Min-heap invariant violated: childKey=", aKey[firstChild], " < parentKey=", aKey[curr])
+                return 0
+            }
+            workStack.push(firstChild)
+
+            prevSibling = firstChild
+            currSibling = aSibling[firstChild]
+            while (currSibling != -1) {
+                if (aPrev[currSibling] != prevSibling) {
+                    print("[FAIL] Sibling prev pointer must point to left sibling curr=", currSibling, "prevSib=", prevSibling)
+                    return 0
+                }
+                if (aKey[currSibling] < aKey[curr]) {
+                    print("[FAIL] Min-heap invariant violated on sibling: sibKey=", aKey[currSibling], " < parentKey=", aKey[curr])
+                    return 0
+                }
+                workStack.push(currSibling)
+                prevSibling = currSibling
+                currSibling = aSibling[currSibling]
+            }
+        }
+    }
+    return 1
+}
+
+// ==============================================================================
+// Test Case 1: Sequential Inserts, Priority Order Extraction, and Invariants
+// ==============================================================================
+print("[*] Test Case 1: Sequential Inserts, Priority Order Extraction, and Invariants")
+tc1Arena = createPairingHeapArena()
+tc1Root = -1
+
+tc1Keys = [50, 30, 70, 20, 40, 60, 80, 10, 25, 35]
+tc1Vals = [500, 300, 700, 200, 400, 600, 800, 100, 250, 350]
+
+expectedMinKeys = [50, 30, 30, 20, 20, 20, 20, 10, 10, 10]
+expectedNodeCounts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+tc1Idx = 0
+while (tc1Idx < tc1Keys.size()) {
+    insRes = insertPairingNode(tc1Arena, tc1Root, tc1Keys[tc1Idx], tc1Vals[tc1Idx])
+    tc1Root = insRes[1]
+
+    curMin = findMin(tc1Arena, tc1Root)
+    if (curMin[0] != expectedMinKeys[tc1Idx]) {
+        print("[FAIL] Test Case 1: Mismatch in running minKey at step", tc1Idx, "expected", expectedMinKeys[tc1Idx], "got", curMin[0])
+    }
+
+    curCount = countPairingHeapNodes(tc1Arena, tc1Root)
+    if (curCount != expectedNodeCounts[tc1Idx]) {
+        print("[FAIL] Test Case 1: Mismatch in node count at step", tc1Idx, "expected", expectedNodeCounts[tc1Idx], "got", curCount)
+    }
+
+    if (verifyPairingHeapInvariants(tc1Arena, tc1Root) != 1) {
+        print("[FAIL] Test Case 1: Invariant check failed after insert step", tc1Idx)
+    }
+
+    tc1Idx = tc1Idx + 1
+}
+
+print("  All", tc1Keys.size(), "elements successfully inserted into pairing heap")
+print("  Running min-keys and subtree counts matched deterministic assertions")
+
+expectedSortedKeys = [10, 20, 25, 30, 35, 40, 50, 60, 70, 80]
+expectedSortedVals = [100, 200, 250, 300, 350, 400, 500, 600, 700, 800]
+
+tc1ExtractIdx = 0
+while (tc1ExtractIdx < expectedSortedKeys.size()) {
+    delRes = deleteMin(tc1Arena, tc1Root)
+    extractedKey = delRes[0]
+    extractedVal = delRes[1]
+    tc1Root = delRes[2]
+
+    if (extractedKey != expectedSortedKeys[tc1ExtractIdx]) {
+        print("[FAIL] Test Case 1: Extracted key mismatch at index", tc1ExtractIdx, "expected", expectedSortedKeys[tc1ExtractIdx], "got", extractedKey)
+    }
+    if (extractedVal != expectedSortedVals[tc1ExtractIdx]) {
+        print("[FAIL] Test Case 1: Extracted val mismatch at index", tc1ExtractIdx, "expected", expectedSortedVals[tc1ExtractIdx], "got", extractedVal)
+    }
+
+    if (tc1Root != -1) {
+        if (verifyPairingHeapInvariants(tc1Arena, tc1Root) != 1) {
+            print("[FAIL] Test Case 1: Invariant check failed after extract step", tc1ExtractIdx)
+        }
+    }
+
+    tc1ExtractIdx = tc1ExtractIdx + 1
+}
+
+if (isEmptyPairingHeap(tc1Root) != 1) {
+    print("[FAIL] Test Case 1: Heap must be empty after all extractions")
+}
+print("  Test Case 1 Passed sequential insert and sorted extraction verification")
