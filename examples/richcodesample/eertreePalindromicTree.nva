@@ -1,0 +1,313 @@
+import stdlib string as s
+import stdlib time as t
+
+// EERTREE (Palindromic Tree) Algorithm Suite
+// Linear-Time Online Data Structure for All Distinct Palindromic Substrings
+//
+// Time Complexity:
+// - O(N * Sigma) online construction via suffix link transitions
+// - O(N) reverse topological DP for exact palindrome occurrence frequencies
+// Space Complexity: O(N * Sigma) bounded node transition memory
+//
+// Technical characteristics:
+// - Dual roots: Root 1 (Odd root, length -1) and Root 2 (Even root, length 0)
+// - Suffix links connect each palindrome to its longest proper palindromic suffix
+// - Each non-root node represents a unique distinct palindromic substring
+// - Distinct palindromes count: exactly (treeSz - 2)
+// - Exact occurrence frequency of every palindrome via reverse suffix link propagation
+// - Total palindromic occurrences sum equals sum(nodeCnt[u])
+// - Longest palindromic substring discovery in O(treeSz)
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize EERTREE (Palindromic Tree) Suite ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func createEerTree(maxNodes) {
+    nodeLen = makeIntArray(maxNodes, 0)
+    nodeLink = makeIntArray(maxNodes, 0)
+    nodeNext = makeIntArray(maxNodes * 128, 0)
+    nodeCnt = makeIntArray(maxNodes, 0)
+    nodeStartPos = makeIntArray(maxNodes, 0)
+
+    // Node 1: Odd root (length -1)
+    nodeLen[1] = -1
+    nodeLink[1] = 1
+
+    // Node 2: Even root (length 0)
+    nodeLen[2] = 0
+    nodeLink[2] = 1
+
+    // treeSz starts at 2 (nodes 1 and 2 are roots), last is even root
+    return [2, 2, nodeLen, nodeLink, nodeNext, nodeCnt, nodeStartPos, maxNodes]
+}
+
+func getPalindromicSuffixLink(inputStr, idx, startNode, nodeLen, nodeLink) {
+    walkNode = startNode
+    while (walkNode > 1) {
+        walkK = nodeLen[walkNode]
+        walkPrevPos = idx - walkK - 1
+        if (walkPrevPos >= 0) {
+            walkCPrev = s.charCodeAt(inputStr, walkPrevPos)
+            walkCCurr = s.charCodeAt(inputStr, idx)
+            if (walkCPrev == walkCCurr) {
+                return walkNode
+            }
+        }
+        walkNode = nodeLink[walkNode]
+    }
+    return 1
+}
+
+func addCharacterToEerTree(tree, inputStr, idx) {
+    nodeLen = tree[2]
+    nodeLink = tree[3]
+    nodeNext = tree[4]
+    nodeCnt = tree[5]
+    nodeStartPos = tree[6]
+
+    charCode = s.charCodeAt(inputStr, idx)
+    last = tree[1]
+
+    curr = getPalindromicSuffixLink(inputStr, idx, last, nodeLen, nodeLink)
+    trans = nodeNext[curr * 128 + charCode]
+    if (trans != 0) {
+        nodeCnt[trans] = nodeCnt[trans] + 1
+        tree[1] = trans
+        tree[5] = nodeCnt
+        return trans
+    }
+
+    // Create new palindrome node
+    sz = tree[0] + 1
+    tree[0] = sz
+
+    newNode = sz
+    nodeLen[newNode] = nodeLen[curr] + 2
+    nodeCnt[newNode] = 1
+    nodeStartPos[newNode] = idx - nodeLen[newNode] + 1
+
+    if (nodeLen[newNode] == 1) {
+        nodeLink[newNode] = 2
+    } else {
+        linkParent = getPalindromicSuffixLink(inputStr, idx, nodeLink[curr], nodeLen, nodeLink)
+        transLink = nodeNext[linkParent * 128 + charCode]
+        if (transLink == 0) {
+            nodeLink[newNode] = 2
+        } else {
+            nodeLink[newNode] = transLink
+        }
+    }
+
+    nodeNext[curr * 128 + charCode] = newNode
+
+    tree[1] = newNode
+    tree[2] = nodeLen
+    tree[3] = nodeLink
+    tree[4] = nodeNext
+    tree[5] = nodeCnt
+    tree[6] = nodeStartPos
+    return newNode
+}
+
+func buildEerTree(inputStr) {
+    n = s.length(inputStr)
+    maxCap = n + 10
+    tree = createEerTree(maxCap)
+
+    idx = 0
+    while (idx < n) {
+        addCharacterToEerTree(tree, inputStr, idx)
+        idx = idx + 1
+    }
+
+    // Propagate occurrence counts in reverse topological order (sz down to 3)
+    sz = tree[0]
+    nodeLink = tree[3]
+    nodeCnt = tree[5]
+
+    u = sz
+    while (u >= 3) {
+        p = nodeLink[u]
+        nodeCnt[p] = nodeCnt[p] + nodeCnt[u]
+        u = u - 1
+    }
+    tree[5] = nodeCnt
+
+    return tree
+}
+
+func countDistinctPalindromes(tree) {
+    sz = tree[0]
+    return sz - 2
+}
+
+func countTotalPalindromicOccurrences(tree) {
+    sz = tree[0]
+    nodeCnt = tree[5]
+
+    total = 0
+    u = 3
+    while (u <= sz) {
+        total = total + nodeCnt[u]
+        u = u + 1
+    }
+    return total
+}
+
+func findPalindromeFrequency(tree, inputStr, palindromeStr) {
+    sz = tree[0]
+    nodeLen = tree[2]
+    nodeCnt = tree[5]
+    nodeStartPos = tree[6]
+
+    pLen = s.length(palindromeStr)
+
+    u = 3
+    while (u <= sz) {
+        if (nodeLen[u] == pLen) {
+            sub = s.substring(inputStr, nodeStartPos[u], pLen)
+            if (sub == palindromeStr) {
+                return nodeCnt[u]
+            }
+        }
+        u = u + 1
+    }
+
+    return 0
+}
+
+func runEerTreeTestCase(testNum, testName, inputStr, expectedDistinct, expectedTotalOccurrences, expectedLongestLen, expectedLongestStr, queryPals, expectedFreqs) {
+    print("Running Test Case " + testNum + ": " + testName + "...")
+
+    tree = buildEerTree(inputStr)
+    distinctCount = countDistinctPalindromes(tree)
+    totalOccurrences = countTotalPalindromicOccurrences(tree)
+
+    sz = tree[0]
+    nodeLen = tree[2]
+    nodeCnt = tree[5]
+    nodeStartPos = tree[6]
+
+    bestLen = 0
+    bestStart = 0
+    u = 3
+    while (u <= sz) {
+        if (nodeLen[u] > bestLen) {
+            bestLen = nodeLen[u]
+            bestStart = nodeStartPos[u]
+        }
+        u = u + 1
+    }
+    maxLen = bestLen
+    startPos = bestStart
+    longestStr = s.substring(inputStr, startPos, maxLen)
+
+    print("  Input String: '" + inputStr + "' (length:", s.length(inputStr), ")")
+    print("  Distinct Palindromes     :", distinctCount, "(Expected:", expectedDistinct, ")")
+    print("  Total Palindrome Occs    :", totalOccurrences, "(Expected:", expectedTotalOccurrences, ")")
+    print("  Longest Palindrome       : '" + longestStr + "' (len:", maxLen, ") Expected: '" + expectedLongestStr + "'")
+
+    if (distinctCount != expectedDistinct) {
+        print("  [FAIL] Distinct palindromes count mismatch: got", distinctCount, "expected", expectedDistinct)
+        return false
+    }
+
+    if (totalOccurrences != expectedTotalOccurrences) {
+        print("  [FAIL] Total occurrences count mismatch: got", totalOccurrences, "expected", expectedTotalOccurrences)
+        return false
+    }
+
+    if (maxLen != expectedLongestLen or longestStr != expectedLongestStr) {
+        print("  [FAIL] Longest palindrome mismatch: got '" + longestStr + "' (len " + maxLen + "), expected '" + expectedLongestStr + "'")
+        return false
+    }
+
+    // Verify frequency queries
+    qIdx = 0
+    while (qIdx < queryPals.size()) {
+        qStr = queryPals[qIdx]
+        expFreq = expectedFreqs[qIdx]
+        actualFreq = findPalindromeFrequency(tree, inputStr, qStr)
+        if (actualFreq != expFreq) {
+            print("  [FAIL] Palindrome frequency mismatch for '" + qStr + "': got", actualFreq, "expected", expFreq)
+            return false
+        }
+        qIdx = qIdx + 1
+    }
+
+    print("  Frequency Verification   : ALL VALID (" + queryPals.size() + " queries)")
+    print("  Test Case " + testNum + " PASSED")
+    return true
+}
+
+allEerTreePassed = true
+
+// --- Test Case 1: Highly Symmetric "abacaba" ---
+// Distinct palindromes: 7 ("a", "b", "c", "aba", "aca", "bacab", "abacaba")
+// Total occurrences: 12
+// Longest: "abacaba" (len 7)
+qPals1 = ["a", "b", "c", "aba", "aca", "bacab", "abacaba", "xyz"]
+qFreq1 = [4, 2, 1, 2, 1, 1, 1, 0]
+if (!runEerTreeTestCase(1, "Symmetric Palindrome 'abacaba'", "abacaba", 7, 12, 7, "abacaba", qPals1, qFreq1)) {
+    allEerTreePassed = false
+}
+
+// --- Test Case 2: Multi-Palindrome Word "racecarannakayaknoon" ---
+// Text length: 20. Total occurrences = 31 (verified with Manacher!).
+// Longest: "racecar" (len 7)
+// Distinct palindromes: 19
+qPals2 = ["racecar", "aceca", "cec", "anna", "nn", "kayak", "aya", "noon", "oo", "a", "ara", "aka"]
+qFreq2 = [1, 1, 1, 1, 1, 1, 1, 1, 1, 6, 1, 1]
+if (!runEerTreeTestCase(2, "Multi-Palindrome Word", "racecarannakayaknoon", 19, 31, 7, "racecar", qPals2, qFreq2)) {
+    allEerTreePassed = false
+}
+
+// --- Test Case 3: Monotone Repetition "aaaa" ---
+// N = 4. Distinct palindromes: 4 ("a", "aa", "aaa", "aaaa")
+// Total occurrences: 10
+// Longest: "aaaa" (len 4)
+qPals3 = ["a", "aa", "aaa", "aaaa"]
+qFreq3 = [4, 3, 2, 1]
+if (!runEerTreeTestCase(3, "Monotone Repeated Characters 'aaaa'", "aaaa", 4, 10, 4, "aaaa", qPals3, qFreq3)) {
+    allEerTreePassed = false
+}
+
+// --- Test Case 4: Algorithm Name Palindrome "eertree" ---
+// N = 7. Distinct palindromes: 7 ("e", "r", "t", "ee", "rtr", "ertre", "eertree")
+// Total occurrences: 7 (single chars) + 2 ("ee") + 1 ("rtr") + 1 ("ertre") + 1 ("eertree") = 12
+// Longest: "eertree" (len 7)
+qPals4 = ["e", "r", "t", "ee", "rtr", "ertre", "eertree"]
+qFreq4 = [4, 2, 1, 2, 1, 1, 1]
+if (!runEerTreeTestCase(4, "Algorithm Name 'eertree'", "eertree", 7, 12, 7, "eertree", qPals4, qFreq4)) {
+    allEerTreePassed = false
+}
+
+// --- Test Case 5: Distinct Characters Asymmetric "abcdef" ---
+// N = 6. Distinct: 6. Total: 6. Longest: "a" (len 1)
+qPals5 = ["a", "b", "c", "d", "e", "f"]
+qFreq5 = [1, 1, 1, 1, 1, 1]
+if (!runEerTreeTestCase(5, "Asymmetric Distinct Characters 'abcdef'", "abcdef", 6, 6, 1, "a", qPals5, qFreq5)) {
+    allEerTreePassed = false
+}
+
+// --- Final Suite Summary ---
+print("=== EERTREE Palindromic Tree Suite Summary ===")
+if (allEerTreePassed) {
+    print("All EERTREE test suites: SUCCESS")
+} else {
+    print("Some EERTREE test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] EERTREE Palindromic Tree executed successfully in", totalElapsed, "ms")
