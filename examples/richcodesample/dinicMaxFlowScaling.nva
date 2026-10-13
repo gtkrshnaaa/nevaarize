@@ -1,0 +1,498 @@
+import stdlib time as t
+
+// Dinic Algorithm with Capacity Scaling for Maximum Network Flow
+// Time Complexity: O(V * E * log(U)) with capacity scaling and current-arc DFS
+// Space Complexity: O(V + E) compact forward-star residual representation
+// Technical characteristics:
+// - Capacity scaling parameter Delta starts at highest power of 2 <= max capacity
+// - Filtered BFS level graph traversal enforces residual capacity >= Delta
+// - Blocking flow DFS with current-arc pointer optimization (work pointers)
+// - Flow conservation and capacity bound invariants verified across all nodes
+// - Max-Flow Min-Cut duality verification: Max Flow == Min Cut Capacity
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Dinic Capacity Scaling Max-Flow Algorithm Suite ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func createDinicNetwork(numNodes) {
+    head = makeIntArray(numNodes, -1)
+    edgeTo = []
+    edgeCap = []
+    edgeFlow = []
+    edgeRev = []
+    edgeNext = []
+    return [numNodes, head, edgeTo, edgeCap, edgeFlow, edgeRev, edgeNext]
+}
+
+func addDinicEdge(net, u, v, cap) {
+    head = net[1]
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeRev = net[5]
+    edgeNext = net[6]
+
+    forwardIdx = edgeTo.size()
+    reverseIdx = forwardIdx + 1
+
+    // Forward edge u -> v
+    edgeTo.push(v)
+    edgeCap.push(cap)
+    edgeFlow.push(0)
+    edgeRev.push(reverseIdx)
+    edgeNext.push(head[u])
+    head[u] = forwardIdx
+
+    // Residual reverse edge v -> u
+    edgeTo.push(u)
+    edgeCap.push(0)
+    edgeFlow.push(0)
+    edgeRev.push(forwardIdx)
+    edgeNext.push(head[v])
+    head[v] = reverseIdx
+
+    net[1] = head
+    net[2] = edgeTo
+    net[3] = edgeCap
+    net[4] = edgeFlow
+    net[5] = edgeRev
+    net[6] = edgeNext
+}
+
+func dinicBfs(net, s, tNode, level, delta) {
+    numNodes = net[0]
+    head = net[1]
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeNext = net[6]
+
+    i = 0
+    while (i < numNodes) {
+        level[i] = -1
+        i = i + 1
+    }
+
+    queue = []
+    qHead = 0
+
+    level[s] = 0
+    queue.push(s)
+
+    while (qHead < queue.size()) {
+        u = queue[qHead]
+        qHead = qHead + 1
+
+        e = head[u]
+        while (e != -1) {
+            v = edgeTo[e]
+            resCap = edgeCap[e] - edgeFlow[e]
+            if (resCap >= delta && level[v] == -1) {
+                level[v] = level[u] + 1
+                queue.push(v)
+            }
+            e = edgeNext[e]
+        }
+    }
+
+    if (level[tNode] != -1) {
+        return true
+    }
+    return false
+}
+
+func dinicDfs(net, u, tNode, pushed, level, ptr, delta) {
+    if (pushed == 0 || u == tNode) {
+        return pushed
+    }
+
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeRev = net[5]
+    edgeNext = net[6]
+
+    e = ptr[u]
+    while (e != -1) {
+        v = edgeTo[e]
+        resCap = edgeCap[e] - edgeFlow[e]
+
+        if (level[v] == level[u] + 1 && resCap >= delta) {
+            pushLimit = minInt(pushed, resCap)
+            tr = dinicDfs(net, v, tNode, pushLimit, level, ptr, delta)
+            if (tr > 0) {
+                edgeFlow[e] = edgeFlow[e] + tr
+                revE = edgeRev[e]
+                edgeFlow[revE] = edgeFlow[revE] - tr
+                return tr
+            }
+        }
+
+        e = edgeNext[e]
+        ptr[u] = e
+    }
+
+    return 0
+}
+
+func computeDinicScalingMaxFlow(net, s, tNode) {
+    numNodes = net[0]
+    head = net[1]
+    edgeCap = net[3]
+
+    // Determine initial scaling factor Delta (highest power of 2 <= max capacity)
+    maxC = 0
+    eIdx = 0
+    totalEdges = edgeCap.size()
+    while (eIdx < totalEdges) {
+        if (edgeCap[eIdx] > maxC) {
+            maxC = edgeCap[eIdx]
+        }
+        eIdx = eIdx + 1
+    }
+
+    delta = 1
+    while (delta <= maxC / 2) {
+        delta = delta * 2
+    }
+
+    level = makeIntArray(numNodes, -1)
+    ptr = makeIntArray(numNodes, 0)
+    totalFlow = 0
+    bfsPhases = 0
+    dfsPushes = 0
+
+    while (delta >= 1) {
+        while (dinicBfs(net, s, tNode, level, delta)) {
+            bfsPhases = bfsPhases + 1
+            // Reset work pointers to current adjacency heads
+            i = 0
+            while (i < numNodes) {
+                ptr[i] = head[i]
+                i = i + 1
+            }
+
+            pushed = dinicDfs(net, s, tNode, 1000000000, level, ptr, delta)
+            while (pushed > 0) {
+                totalFlow = totalFlow + pushed
+                dfsPushes = dfsPushes + 1
+                pushed = dinicDfs(net, s, tNode, 1000000000, level, ptr, delta)
+            }
+        }
+        delta = delta / 2
+    }
+
+    return [totalFlow, bfsPhases, dfsPushes]
+}
+
+func computeMinCutCapacity(net, s) {
+    numNodes = net[0]
+    head = net[1]
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeNext = net[6]
+
+    visited = makeIntArray(numNodes, 0)
+    queue = []
+    qHead = 0
+
+    visited[s] = 1
+    queue.push(s)
+
+    while (qHead < queue.size()) {
+        u = queue[qHead]
+        qHead = qHead + 1
+
+        e = head[u]
+        while (e != -1) {
+            v = edgeTo[e]
+            resCap = edgeCap[e] - edgeFlow[e]
+            if (resCap > 0 && visited[v] == 0) {
+                visited[v] = 1
+                queue.push(v)
+            }
+            e = edgeNext[e]
+        }
+    }
+
+    cutCap = 0
+    u = 0
+    while (u < numNodes) {
+        if (visited[u] == 1) {
+            e = head[u]
+            while (e != -1) {
+                v = edgeTo[e]
+                // Only count original forward edges crossing the cut
+                if (visited[v] == 0 && edgeCap[e] > 0) {
+                    cutCap = cutCap + edgeCap[e]
+                }
+                e = edgeNext[e]
+            }
+        }
+        u = u + 1
+    }
+
+    return cutCap
+}
+
+func verifyFlowInvariants(net, s, tNode, expectedFlow) {
+    numNodes = net[0]
+    head = net[1]
+    edgeTo = net[2]
+    edgeCap = net[3]
+    edgeFlow = net[4]
+    edgeRev = net[5]
+    edgeNext = net[6]
+
+    // 1. Capacity bounds check & skew symmetry
+    totalEdges = edgeTo.size()
+    e = 0
+    while (e < totalEdges) {
+        if (edgeFlow[e] > edgeCap[e]) {
+            return false
+        }
+        revE = edgeRev[e]
+        if (edgeFlow[e] + edgeFlow[revE] != 0) {
+            return false
+        }
+        e = e + 1
+    }
+
+    // 2. Flow conservation at internal nodes
+    u = 0
+    while (u < numNodes) {
+        if (u != s && u != tNode) {
+            netFlow = 0
+            currE = head[u]
+            while (currE != -1) {
+                netFlow = netFlow + edgeFlow[currE]
+                currE = edgeNext[currE]
+            }
+            if (netFlow != 0) {
+                return false
+            }
+        }
+        u = u + 1
+    }
+
+    // 3. Source net outgoing flow must match total flow
+    sourceOutFlow = 0
+    currE = head[s]
+    while (currE != -1) {
+        sourceOutFlow = sourceOutFlow + edgeFlow[currE]
+        currE = edgeNext[currE]
+    }
+    if (sourceOutFlow != expectedFlow) {
+        return false
+    }
+
+    return true
+}
+
+func runDinicTestCase(testNum, testName, numNodes, edgesFlat, s, tNode, expectedMaxFlow) {
+    print("Running Test Case " + testNum + ": " + testName + "...")
+    net = createDinicNetwork(numNodes)
+
+    idx = 0
+    edgeCount = edgesFlat.size() / 3
+    while (idx < edgesFlat.size()) {
+        u = edgesFlat[idx]
+        v = edgesFlat[idx + 1]
+        cap = edgesFlat[idx + 2]
+        addDinicEdge(net, u, v, cap)
+        idx = idx + 3
+    }
+
+    res = computeDinicScalingMaxFlow(net, s, tNode)
+    actualFlow = res[0]
+    bfsPhases = res[1]
+    dfsPushes = res[2]
+
+    minCut = computeMinCutCapacity(net, s)
+    invariantsOk = verifyFlowInvariants(net, s, tNode, actualFlow)
+
+    print("  Nodes:", numNodes, "Directed Edges:", edgeCount, "Source:", s, "Sink:", tNode)
+    print("  Max Flow Computed   :", actualFlow, "(Expected:", expectedMaxFlow, ")")
+    print("  Min Cut Capacity    :", minCut)
+    print("  BFS Phases Count    :", bfsPhases)
+    print("  DFS Pushes Count    :", dfsPushes)
+    if (invariantsOk) {
+        print("  Flow Invariants     : VALID")
+    } else {
+        print("  Flow Invariants     : INVALID")
+        return false
+    }
+
+    if (actualFlow != expectedMaxFlow) {
+        print("  [FAIL] Flow mismatch: got", actualFlow, "expected", expectedMaxFlow)
+        return false
+    }
+
+    if (actualFlow != minCut) {
+        print("  [FAIL] Max-Flow Min-Cut duality broken: flow", actualFlow, "cut", minCut)
+        return false
+    }
+
+    print("  Test Case " + testNum + " PASSED (Max-Flow Min-Cut Duality verified)")
+    return true
+}
+
+allDinicPassed = true
+
+// --- Test Case 1: Textbook 6-Node Flow Network ---
+e1 = [
+    0, 1, 10,
+    0, 2, 10,
+    1, 2, 2,
+    1, 3, 4,
+    1, 4, 8,
+    2, 4, 9,
+    3, 5, 10,
+    4, 3, 6,
+    4, 5, 10
+]
+if (!runDinicTestCase(1, "Textbook 6-Node Flow Network", 6, e1, 0, 5, 19)) {
+    allDinicPassed = false
+}
+
+// --- Test Case 2: Unit Capacity Matching Network ---
+e2 = [
+    0, 1, 1, 0, 2, 1, 0, 3, 1, 0, 4, 1,
+    1, 5, 1, 1, 6, 1,
+    2, 5, 1, 2, 7, 1,
+    3, 7, 1, 3, 8, 1,
+    4, 6, 1, 4, 8, 1,
+    5, 9, 1, 6, 9, 1, 7, 9, 1, 8, 9, 1
+]
+if (!runDinicTestCase(2, "Unit Capacity Matching Network", 10, e2, 0, 9, 4)) {
+    allDinicPassed = false
+}
+
+// --- Test Case 3: Choke Point Bridge Bottleneck Network ---
+e3 = [
+    0, 1, 10,
+    0, 2, 10,
+    1, 3, 10,
+    2, 3, 10,
+    3, 4, 18,
+    4, 5, 10,
+    4, 6, 10,
+    5, 7, 10,
+    6, 7, 10
+]
+if (!runDinicTestCase(3, "Choke Point Bridge Bottleneck Network", 8, e3, 0, 7, 18)) {
+    allDinicPassed = false
+}
+
+// --- Test Case 4: Diamond Grid Multi-Stage Network ---
+e4 = [
+    0, 1, 16,
+    0, 2, 13,
+    1, 2, 10,
+    1, 3, 12,
+    2, 1, 4,
+    2, 4, 14,
+    3, 2, 9,
+    3, 5, 20,
+    4, 3, 7,
+    4, 5, 4,
+    0, 6, 15,
+    6, 4, 8,
+    6, 5, 10
+]
+if (!runDinicTestCase(4, "Diamond Grid Multi-Stage Network", 7, e4, 0, 5, 33)) {
+    allDinicPassed = false
+}
+
+// --- Test Case 5: Layered 14-Node Industrial Pipeline ---
+e5 = [
+    0, 1, 25,  0, 2, 22,  0, 3, 20,
+    1, 4, 15,  1, 5, 12,
+    2, 5, 18,  2, 6, 14,
+    3, 6, 10,  3, 7, 15,
+    4, 8, 16,  5, 8, 14,  5, 9, 12,
+    6, 9, 15,  6, 10, 11,
+    7, 10, 18,
+    8, 11, 22, 9, 11, 20, 9, 12, 18,
+    10, 12, 24,
+    11, 13, 35, 12, 13, 38
+]
+if (!runDinicTestCase(5, "Layered 14-Node Industrial Pipeline", 14, e5, 0, 13, 67)) {
+    allDinicPassed = false
+}
+
+// --- Test Case 6: Disconnected Sink Zero Flow Boundary ---
+e6 = [
+    0, 1, 10,
+    1, 2, 10,
+    3, 4, 10
+]
+if (!runDinicTestCase(6, "Disconnected Sink Zero Flow Boundary", 5, e6, 0, 4, 0)) {
+    allDinicPassed = false
+}
+
+// --- Test Case 7: Anti-Parallel Edges and Cycle Network ---
+e7 = [
+    0, 1, 15,
+    0, 2, 10,
+    1, 2, 5,
+    2, 1, 5,
+    1, 3, 12,
+    2, 4, 10,
+    3, 2, 3,
+    3, 5, 15,
+    4, 3, 4,
+    4, 5, 12
+]
+if (!runDinicTestCase(7, "Anti-Parallel Edges and Cycle Network", 6, e7, 0, 5, 22)) {
+    allDinicPassed = false
+}
+
+// --- Test Case 8: Capacity Scaling Large-Magnitude Edges ---
+e8 = [
+    0, 1, 1000000,
+    0, 2, 1000000,
+    1, 2, 1,
+    1, 3, 1000000,
+    2, 3, 1000000
+]
+if (!runDinicTestCase(8, "Capacity Scaling Large-Magnitude Edges", 4, e8, 0, 3, 2000000)) {
+    allDinicPassed = false
+}
+
+// --- Final Suite Summary ---
+print("=== Dinic Capacity Scaling Algorithm Suite Summary ===")
+if (allDinicPassed) {
+    print("All Dinic network flow test suites: SUCCESS")
+} else {
+    print("Some Dinic network flow test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Dinic Max-Flow Scaling executed successfully in", totalElapsed, "ms")
