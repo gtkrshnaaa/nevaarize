@@ -31,3 +31,6 @@ docs/*.html
 # Script & Temp Dirs
 z_listing/
 inject.py
+# AI and agent artifacts
+.agents/
+
