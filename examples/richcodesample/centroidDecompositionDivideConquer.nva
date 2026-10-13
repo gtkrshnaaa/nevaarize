@@ -397,5 +397,157 @@ if (totalPairs1 != 21 or atMost3 != 15) {
 
 print("  Test Case 1 Passed line graph path counting and centroid tree verification")
 
+func countPathsNaiveAllPairs(tree, targetLen) {
+    napNum = tree[0]
+    napHead = tree[1]
+    napTo = tree[2]
+    napWeight = tree[3]
+    napNextEdge = tree[4]
+
+    napTotal = 0
+    napStartU = 0
+    while (napStartU < napNum) {
+        napVisited = []
+        napDists = []
+        napVI = 0
+        while (napVI < napNum) {
+            napVisited.push(0)
+            napDists.push(-1)
+            napVI = napVI + 1
+        }
+
+        napQueue = [napStartU]
+        napVisited[napStartU] = 1
+        napDists[napStartU] = 0
+        napQH = 0
+
+        while (napQH < napQueue.size()) {
+            napCurV = napQueue[napQH]
+            napCurD = napDists[napCurV]
+            napQH = napQH + 1
+
+            if (napCurV > napStartU and napCurD == targetLen) {
+                napTotal = napTotal + 1
+            }
+
+            napEdge = napHead[napCurV]
+            while (napEdge != -1) {
+                napNbr = napTo[napEdge]
+                napW = napWeight[napEdge]
+                if (napVisited[napNbr] == 0) {
+                    napVisited[napNbr] = 1
+                    napDists[napNbr] = napCurD + napW
+                    napQueue.push(napNbr)
+                }
+                napEdge = napNextEdge[napEdge]
+            }
+        }
+        napStartU = napStartU + 1
+    }
+    return napTotal
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Star Graph Topology
+// -----------------------------------------------------------------------------
+print("Running Test Case 2: Star Graph Topology...")
+tc2Size = 8
+tc2Tree = createTree(tc2Size)
+// Center 0 connected to 1..7
+tc2I = 1
+while (tc2I < tc2Size) {
+    addEdge(tc2Tree, 0, tc2I, 1)
+    tc2I = tc2I + 1
+}
+
+cTreeData2 = buildCentroidTree(tc2Tree)
+cRoot2 = cTreeData2[0]
+cPar2 = cTreeData2[1]
+cDepth2 = cTreeData2[2]
+
+maxDepth2 = 0
+tc2Node = 0
+while (tc2Node < tc2Size) {
+    if (cDepth2[tc2Node] > maxDepth2) {
+        maxDepth2 = cDepth2[tc2Node]
+    }
+    tc2Node = tc2Node + 1
+}
+
+starP1 = countPathsExactLength(tc2Tree, 1)
+starP2 = countPathsExactLength(tc2Tree, 2)
+starP3 = countPathsExactLength(tc2Tree, 3)
+
+if (cRoot2 != 0 or maxDepth2 != 2) {
+    print("[FAIL] Star graph centroid tree failed: root=", cRoot2, ", maxDepth=", maxDepth2)
+} else {
+    print("  Star graph centroid tree verified: center 0 is root, max depth is 2")
+}
+
+if (starP1 != 7 or starP2 != 21 or starP3 != 0) {
+    print("[FAIL] Star graph path counts failed: p1=", starP1, ", p2=", starP2, ", p3=", starP3)
+} else {
+    print("  Star graph path counts verified: k=1: 7 paths (leaves to center), k=2: 21 paths (leaf pairs), k=3: 0")
+}
+
+print("  Test Case 2 Passed star graph topology verification")
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Complete Binary Tree Structure
+// -----------------------------------------------------------------------------
+print("Running Test Case 3: Complete Binary Tree Structure...")
+tc3Size = 15
+tc3Tree = createTree(tc3Size)
+// Binary tree edges: parent i -> children 2*i + 1, 2*i + 2
+tc3Parent = 0
+while (tc3Parent < 7) {
+    lc = 2 * tc3Parent + 1
+    rc = 2 * tc3Parent + 2
+    addEdge(tc3Tree, tc3Parent, lc, 1)
+    addEdge(tc3Tree, tc3Parent, rc, 1)
+    tc3Parent = tc3Parent + 1
+}
+
+cTreeData3 = buildCentroidTree(tc3Tree)
+cRoot3 = cTreeData3[0]
+cDepth3 = cTreeData3[2]
+
+maxDepth3 = 0
+tc3Node = 0
+while (tc3Node < tc3Size) {
+    if (cDepth3[tc3Node] > maxDepth3) {
+        maxDepth3 = cDepth3[tc3Node]
+    }
+    tc3Node = tc3Node + 1
+}
+
+if (maxDepth3 > 4) {
+    print("[FAIL] Complete binary tree centroid tree depth exceeded 4: ", maxDepth3)
+} else {
+    print("  Complete binary tree centroid depth verified: max depth is", maxDepth3, "<= 4")
+}
+
+// Compare exact path counts k=1..6 against BFS oracle
+tc3K = 1
+tc3Mismatches = 0
+tc3Total = 0
+while (tc3K <= 6) {
+    cdCount = countPathsExactLength(tc3Tree, tc3K)
+    oracleCount = countPathsNaiveAllPairs(tc3Tree, tc3K)
+    if (cdCount != oracleCount) {
+        tc3Mismatches = tc3Mismatches + 1
+        print("[FAIL] Mismatch at k=", tc3K, ": cd=", cdCount, ", oracle=", oracleCount)
+    }
+    tc3Total = tc3Total + cdCount
+    tc3K = tc3K + 1
+}
+
+if (tc3Mismatches == 0 and tc3Total == 105) {
+    print("  All path lengths k=1..6 matched oracle: total paths = 105 (15 choose 2)")
+    print("  Test Case 3 Passed complete binary tree verification")
+} else {
+    print("[FAIL] Test Case 3 binary tree validation failed: mismatches=", tc3Mismatches, ", total=", tc3Total)
+}
+
 elapsed = t.millis() - suiteStartTime
-print("[PASS] Centroid Decomposition Milestone 1 executed in", elapsed, "ms")
+print("[PASS] Centroid Decomposition Milestone 2 executed in", elapsed, "ms")
