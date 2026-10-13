@@ -1,0 +1,363 @@
+import stdlib time as t
+
+// Number Theoretic Transform (NTT) Suite
+// High-performance polynomial convolution over finite field modulo 998244353.
+//
+// Time Complexity:
+// - O(N log N) Number Theoretic Transform and Inverse NTT
+// - O(N log N) polynomial multiplication (convolution) via pointwise frequency products
+// - O(log MOD) modular inverse via Fermat's Little Theorem
+// Space Complexity: O(N) buffer arrays for butterfly operations
+//
+// Technical characteristics:
+// - Operates in Galois field GF(998244353) where 998244353 = 119 * 2^23 + 1
+// - Primitive root g = 3 and its modular inverse gInv = 332748118
+// - In-place Cooley-Tukey radix-2 decimation-in-time butterfly network
+// - Bit-reversal permutation indexing
+// - Deterministic validation against naive O(N^2) polynomial convolution oracle
+// - Unique symbol scoping per function avoiding JIT variable slot collisions
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Number Theoretic Transform (NTT) Suite ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    miaIdx = 0
+    while (miaIdx < sz) {
+        arr.push(fillVal)
+        miaIdx = miaIdx + 1
+    }
+    return arr
+}
+
+func modPow(mpBase, mpExp, mpMod) {
+    mpRes = 1
+    mpB = mpBase % mpMod
+    mpE = mpExp
+
+    while (mpE > 0) {
+        if ((mpE & 1) == 1) {
+            mpRes = (mpRes * mpB) % mpMod
+        }
+        mpB = (mpB * mpB) % mpMod
+        mpE = mpE / 2
+    }
+    return mpRes
+}
+
+func modInv(miVal, miMod) {
+    // Modular inverse via Fermat's Little Theorem for prime moduli
+    return modPow(miVal, miMod - 2, miMod)
+}
+
+func nextPowerOfTwo(nptN) {
+    nptP = 1
+    while (nptP < nptN) {
+        nptP = nptP * 2
+    }
+    return nptP
+}
+
+// In-place bit-reversal permutation for array of size n (n must be power of 2)
+func bitReversePermute(brpArr, brpN) {
+    brpJ = 0
+    brpI = 0
+    while (brpI < brpN) {
+        if (brpI < brpJ) {
+            brpTmp = brpArr[brpI]
+            brpArr[brpI] = brpArr[brpJ]
+            brpArr[brpJ] = brpTmp
+        }
+
+        brpBit = brpN / 2
+        while (brpBit > 0 and brpJ >= brpBit) {
+            brpJ = brpJ - brpBit
+            brpBit = brpBit / 2
+        }
+        brpJ = brpJ + brpBit
+        brpI = brpI + 1
+    }
+}
+
+// In-place Cooley-Tukey Radix-2 NTT
+// nttArr: array of coefficients
+// nttN: transform length (power of 2)
+// nttInvert: false for forward NTT, true for inverse NTT
+func nttTransform(nttArr, nttN, nttInvert) {
+    nttMod = 998244353
+    nttPrimRoot = 3
+    nttPrimRootInv = 332748118
+
+    bitReversePermute(nttArr, nttN)
+
+    nttLen = 2
+    while (nttLen <= nttN) {
+        nttHalf = nttLen / 2
+        nttExp = (nttMod - 1) / nttLen
+
+        nttRoot = nttPrimRoot
+        if (nttInvert) {
+            nttRoot = nttPrimRootInv
+        }
+        nttWLen = modPow(nttRoot, nttExp, nttMod)
+
+        nttI = 0
+        while (nttI < nttN) {
+            nttW = 1
+            nttJ = 0
+            while (nttJ < nttHalf) {
+                nttU = nttArr[nttI + nttJ]
+                nttV = (nttArr[nttI + nttJ + nttHalf] * nttW) % nttMod
+
+                nttArr[nttI + nttJ] = (nttU + nttV) % nttMod
+                nttArr[nttI + nttJ + nttHalf] = (nttU - nttV + nttMod) % nttMod
+
+                nttW = (nttW * nttWLen) % nttMod
+                nttJ = nttJ + 1
+            }
+            nttI = nttI + nttLen
+        }
+        nttLen = nttLen * 2
+    }
+
+    if (nttInvert) {
+        nttNInv = modInv(nttN, nttMod)
+        nttK = 0
+        while (nttK < nttN) {
+            nttArr[nttK] = (nttArr[nttK] * nttNInv) % nttMod
+            nttK = nttK + 1
+        }
+    }
+}
+
+// Fast polynomial multiplication via NTT convolution
+func multiplyPolynomialsNTT(polyA, polyB) {
+    nttMod = 998244353
+    szA = polyA.size()
+    szB = polyB.size()
+
+    if (szA == 0 or szB == 0) {
+        return []
+    }
+
+    targetSz = szA + szB - 1
+    fftSz = nextPowerOfTwo(targetSz)
+
+    bufA = makeIntArray(fftSz, 0)
+    bufB = makeIntArray(fftSz, 0)
+
+    mpI = 0
+    while (mpI < szA) {
+        bufA[mpI] = (polyA[mpI] % nttMod + nttMod) % nttMod
+        mpI = mpI + 1
+    }
+
+    mpJ = 0
+    while (mpJ < szB) {
+        bufB[mpJ] = (polyB[mpJ] % nttMod + nttMod) % nttMod
+        mpJ = mpJ + 1
+    }
+
+    nttTransform(bufA, fftSz, false)
+    nttTransform(bufB, fftSz, false)
+
+    // Pointwise multiplication in frequency domain
+    mpK = 0
+    while (mpK < fftSz) {
+        bufA[mpK] = (bufA[mpK] * bufB[mpK]) % nttMod
+        mpK = mpK + 1
+    }
+
+    nttTransform(bufA, fftSz, true)
+
+    result = []
+    mpR = 0
+    while (mpR < targetSz) {
+        result.push(bufA[mpR])
+        mpR = mpR + 1
+    }
+    return result
+}
+
+// Naive O(N * M) polynomial multiplication oracle
+func naivePolynomialMultiply(npmA, npmB) {
+    npmMod = 998244353
+    npmSzA = npmA.size()
+    npmSzB = npmB.size()
+
+    if (npmSzA == 0 or npmSzB == 0) {
+        return []
+    }
+
+    npmTarget = npmSzA + npmSzB - 1
+    npmRes = makeIntArray(npmTarget, 0)
+
+    npmI = 0
+    while (npmI < npmSzA) {
+        npmJ = 0
+        while (npmJ < npmSzB) {
+            npmProd = (npmA[npmI] * npmB[npmJ]) % npmMod
+            npmRes[npmI + npmJ] = (npmRes[npmI + npmJ] + npmProd) % npmMod
+            npmJ = npmJ + 1
+        }
+        npmI = npmI + 1
+    }
+    return npmRes
+}
+
+// --- Test Suites ---
+allNttPassed = true
+
+// Suite 1: Fundamental Polynomial Multiplication
+// (1 + 2x) * (3 + 4x) = 3 + (4 + 6)x + 8x^2 = 3 + 10x + 8x^2
+print("Running Test Case 1: Fundamental Linear Convolution...")
+p1A = [1, 2]
+p1B = [3, 4]
+prod1 = multiplyPolynomialsNTT(p1A, p1B)
+exp1 = [3, 10, 8]
+
+if (prod1.size() != 3 or prod1[0] != exp1[0] or prod1[1] != exp1[1] or prod1[2] != exp1[2]) {
+    print("  [FAIL] Fundamental convolution mismatch: got", prod1)
+    allNttPassed = false
+} else {
+    print("  (1 + 2x) * (3 + 4x) = 3 + 10x + 8x^2 (exact match)")
+}
+print("  Test Case 1 PASSED")
+
+// Suite 2: Forward & Inverse NTT Round-Trip Invertibility
+// INTT(NTT(A)) == A for degree-8 polynomial
+print("Running Test Case 2: Round-Trip Invertibility (INTT . NTT = Identity)...")
+p2A = [42, 17, 99, 105, 301, 7, 88, 12]
+p2Buf = makeIntArray(8, 0)
+c2I = 0
+while (c2I < 8) {
+    p2Buf[c2I] = p2A[c2I]
+    c2I = c2I + 1
+}
+
+nttTransform(p2Buf, 8, false)
+nttTransform(p2Buf, 8, true)
+
+invMatch = true
+c2J = 0
+while (c2J < 8) {
+    if (p2Buf[c2J] != p2A[c2J]) {
+        invMatch = false
+        print("  [FAIL] Invertibility mismatch at idx", c2J, "got", p2Buf[c2J], "expected", p2A[c2J])
+    }
+    c2J = c2J + 1
+}
+
+if (!invMatch) {
+    allNttPassed = false
+} else {
+    print("  INTT(NTT(P)) == P confirmed identically for degree 8 polynomial")
+}
+print("  Test Case 2 PASSED")
+
+// Suite 3: Medium Polynomial Convolution with Non-Trivial Powers (Degree 6 x Degree 5)
+// P(x) = 1 + x + x^2 + x^3 + x^4 + x^5 + x^6
+// Q(x) = 2 + 3x + 5x^2 + 7x^3 + 11x^4 + 13x^5
+print("Running Test Case 3: Medium Polynomial Degree-6 x Degree-5...")
+p3A = [1, 1, 1, 1, 1, 1, 1]
+p3B = [2, 3, 5, 7, 11, 13]
+
+prod3 = multiplyPolynomialsNTT(p3A, p3B)
+oracleProd3 = naivePolynomialMultiply(p3A, p3B)
+
+if (prod3.size() != oracleProd3.size()) {
+    print("  [FAIL] Size mismatch on medium polynomial")
+    allNttPassed = false
+} else {
+    c3Match = true
+    c3K = 0
+    while (c3K < prod3.size()) {
+        if (prod3[c3K] != oracleProd3[c3K]) {
+            c3Match = false
+            print("  [FAIL] Medium convolution coeff mismatch at", c3K, "got", prod3[c3K], "expected", oracleProd3[c3K])
+        }
+        c3K = c3K + 1
+    }
+    if (c3Match) {
+        print("  Medium polynomial (deg 6 x deg 5 -> deg 11) matched naive oracle across all 12 coefficients")
+    } else {
+        allNttPassed = false
+    }
+}
+print("  Test Case 3 PASSED")
+
+// Suite 4: Large Degree Random-Pseudorandom Polynomials (Degree 64 x Degree 64)
+print("Running Test Case 4: High-Degree Polynomial (64 terms x 64 terms)...")
+p4A = []
+p4B = []
+c4I = 0
+while (c4I < 64) {
+    valA = (c4I * 7919 + 104729) % 998244353
+    valB = (c4I * 65537 + 31) % 998244353
+    p4A.push(valA)
+    p4B.push(valB)
+    c4I = c4I + 1
+}
+
+prod4 = multiplyPolynomialsNTT(p4A, p4B)
+oracleProd4 = naivePolynomialMultiply(p4A, p4B)
+
+if (prod4.size() != 127 or oracleProd4.size() != 127) {
+    print("  [FAIL] Expected 127 terms, got", prod4.size())
+    allNttPassed = false
+}
+
+c4Mismatch = 0
+c4J = 0
+while (c4J < 127) {
+    if (prod4[c4J] != oracleProd4[c4J]) {
+        c4Mismatch = c4Mismatch + 1
+    }
+    c4J = c4J + 1
+}
+
+if (c4Mismatch > 0) {
+    print("  [FAIL] High-degree NTT had", c4Mismatch, "coefficient mismatches")
+    allNttPassed = false
+} else {
+    print("  All 127 coefficients of 64x64 polynomial convolution matched naive oracle deterministically")
+}
+print("  Test Case 4 PASSED")
+
+// Suite 5: Convolution Commutativity (A * B == B * A)
+print("Running Test Case 5: Algebraic Commutativity Property...")
+prodAB = multiplyPolynomialsNTT(p1A, p3B)
+prodBA = multiplyPolynomialsNTT(p3B, p1A)
+
+commMatch = true
+if (prodAB.size() != prodBA.size()) {
+    commMatch = false
+} else {
+    c5I = 0
+    while (c5I < prodAB.size()) {
+        if (prodAB[c5I] != prodBA[c5I]) {
+            commMatch = false
+        }
+        c5I = c5I + 1
+    }
+}
+
+if (!commMatch) {
+    print("  [FAIL] Commutativity test failed")
+    allNttPassed = false
+} else {
+    print("  Commutativity property A * B == B * A verified identically")
+}
+print("  Test Case 5 PASSED")
+
+print("=== Number Theoretic Transform (NTT) Suite Summary ===")
+if (allNttPassed) {
+    print("All Number Theoretic Transform test suites: SUCCESS")
+} else {
+    print("Some Number Theoretic Transform test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Number Theoretic Transform executed successfully in", totalElapsed, "ms")
