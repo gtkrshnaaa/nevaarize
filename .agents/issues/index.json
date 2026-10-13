@@ -2,7 +2,8 @@
   {
     "id": "ISSUE-1",
     "title": "feat(algorithms): implement leftistHeapMeldableQueue in richcodesamples",
-    "status": "in-progress",
+    "status": "closed",
+    "commit": "9cef68b",
     "file": "ISSUE-1-leftistHeap.md"
   },
   {
