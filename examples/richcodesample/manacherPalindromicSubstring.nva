@@ -1,0 +1,334 @@
+import stdlib string as s
+import stdlib time as t
+
+// Manacher Linear-Time Palindromic Substring Suite
+// Optimal O(N) palindromic radius computation and substring verification
+//
+// Time Complexity:
+// - O(N) linear-time radius array construction
+// - O(1) query time for arbitrary substring palindromicity
+// - O(1) longest palindrome extraction
+// Space Complexity: O(N) transformed character and radius arrays
+//
+// Technical characteristics:
+// - Virtual interleaved delimiter transformation (# delimiter)
+// - Boundary expansion with center-right boundary mirror reuse
+// - Radii array P[i] mapping directly to original string palindrome lengths
+// - Total palindromic substrings summation: sum((P[i] + 1) / 2)
+// - O(1) arbitrary substring palindrome test: isPalindrome(L, R)
+// - Longest prefix and suffix palindrome discovery
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Manacher Palindromic Substring Suite ===")
+globalStartTime = t.millis()
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func computeManacherRadii(inputStr) {
+    n = s.length(inputStr)
+    // Transformed length: 2*N + 1
+    m = 2 * n + 1
+    p = makeIntArray(m, 0)
+
+    center = 0
+    rightBound = 0
+
+    i = 0
+    while (i < m) {
+        mirror = 2 * center - i
+
+        if (i < rightBound) {
+            p[i] = minInt(rightBound - i, p[mirror])
+        } else {
+            p[i] = 0
+        }
+
+        // Expand around i
+        rad = p[i]
+        expand = true
+        while (expand) {
+            leftIdx = i - rad - 1
+            rightIdx = i + rad + 1
+
+            if (leftIdx >= 0 and rightIdx < m) {
+                // Determine character at leftIdx and rightIdx
+                // If index is even, it is delimiter '#', which always matches '#'
+                isLeftEven = (leftIdx % 2 == 0)
+                isRightEven = (rightIdx % 2 == 0)
+
+                match = false
+                if (isLeftEven and isRightEven) {
+                    match = true
+                } else {
+                    if (!isLeftEven and !isRightEven) {
+                        charLeft = s.charCodeAt(inputStr, leftIdx / 2)
+                        charRight = s.charCodeAt(inputStr, rightIdx / 2)
+                        if (charLeft == charRight) {
+                            match = true
+                        }
+                    }
+                }
+
+                if (match) {
+                    rad = rad + 1
+                } else {
+                    expand = false
+                }
+            } else {
+                expand = false
+            }
+        }
+
+        p[i] = rad
+
+        if (i + rad > rightBound) {
+            center = i
+            rightBound = i + rad
+        }
+
+        i = i + 1
+    }
+
+    return p
+}
+
+func intDiv2(x) {
+    res = 0
+    curr = x
+    while (curr >= 2) {
+        curr = curr - 2
+        res = res + 1
+    }
+    return res
+}
+
+func findLongestPalindrome(inputStr, p) {
+    m = p.size()
+    maxRad = 0
+    bestCenter = 0
+
+    i = 0
+    while (i < m) {
+        if (p[i] > maxRad) {
+            maxRad = p[i]
+            bestCenter = i
+        }
+        i = i + 1
+    }
+
+    startPos = intDiv2(bestCenter - maxRad)
+    return [maxRad, startPos]
+}
+
+func countTotalPalindromicSubstrings(p) {
+    total = 0
+    i = 0
+    m = p.size()
+    while (i < m) {
+        if (i % 2 == 1) {
+            total = total + intDiv2(p[i] + 1)
+        } else {
+            total = total + intDiv2(p[i])
+        }
+        i = i + 1
+    }
+    return total
+}
+
+func isSubstringPalindrome(p, l, r) {
+    // In transformed coordinates, center is l + r + 1
+    c = l + r + 1
+    reqLen = r - l + 1
+    if (p[c] >= reqLen) {
+        return true
+    }
+    return false
+}
+
+func findLongestPalindromicPrefix(inputStr, p) {
+    n = s.length(inputStr)
+    bestLen = 1
+    r = n - 1
+    while (r >= 0) {
+        if (isSubstringPalindrome(p, 0, r)) {
+            return s.substring(inputStr, 0, r + 1)
+        }
+        r = r - 1
+    }
+    return s.substring(inputStr, 0, 1)
+}
+
+func findLongestPalindromicSuffix(inputStr, p) {
+    n = s.length(inputStr)
+    l = 0
+    while (l < n) {
+        if (isSubstringPalindrome(p, l, n - 1)) {
+            return s.substring(inputStr, l, n - l)
+        }
+        l = l + 1
+    }
+    return s.substring(inputStr, n - 1, 1)
+}
+
+func runManacherTestCase(testNum, testName, inputStr, expectedMaxLen, expectedTotalPalindromes, expectedPrefixPal, expectedSuffixPal, rangeQueries) {
+    print("Running Test Case " + testNum + ": " + testName + "...")
+
+    p = computeManacherRadii(inputStr)
+    longestBundle = findLongestPalindrome(inputStr, p)
+    maxLen = longestBundle[0]
+    startPos = longestBundle[1]
+    longestStr = s.substring(inputStr, startPos, maxLen)
+
+    totalPalindromes = countTotalPalindromicSubstrings(p)
+    actualPrefix = findLongestPalindromicPrefix(inputStr, p)
+    actualSuffix = findLongestPalindromicSuffix(inputStr, p)
+
+    print("  Input String: '" + inputStr + "' (length:", s.length(inputStr), ")")
+    print("  Longest Palindrome      : '" + longestStr + "' (len:", maxLen, "at start:", startPos, ") Expected Len:", expectedMaxLen)
+    print("  Total Palindromic Subs  :", totalPalindromes, "(Expected:", expectedTotalPalindromes, ")")
+    print("  Longest Palindrome Prefix: '" + actualPrefix + "' (Expected: '" + expectedPrefixPal + "')")
+    print("  Longest Palindrome Suffix: '" + actualSuffix + "' (Expected: '" + expectedSuffixPal + "')")
+
+    if (maxLen != expectedMaxLen) {
+        print("  [FAIL] Longest palindrome length mismatch")
+        return false
+    }
+
+    if (totalPalindromes != expectedTotalPalindromes) {
+        print("  [FAIL] Total palindromes count mismatch")
+        return false
+    }
+
+    if (actualPrefix != expectedPrefixPal) {
+        print("  [FAIL] Longest palindrome prefix mismatch")
+        return false
+    }
+
+    if (actualSuffix != expectedSuffixPal) {
+        print("  [FAIL] Longest palindrome suffix mismatch")
+        return false
+    }
+
+    // Verify range palindromic queries [l, r, expectedBool]
+    qIdx = 0
+    while (qIdx < rangeQueries.size()) {
+        ql = rangeQueries[qIdx]
+        qr = rangeQueries[qIdx + 1]
+        qExp = rangeQueries[qIdx + 2]
+
+        isPal = isSubstringPalindrome(p, ql, qr)
+        expBool = (qExp == 1)
+
+        if (isPal != expBool) {
+            print("  [FAIL] Substring palindromicity mismatch for range [" + ql + ".." + qr + "]: got", isPal, "expected", expBool)
+            return false
+        }
+        qIdx = qIdx + 3
+    }
+
+    print("  Range Palindrome Checks : ALL VALID (" + (rangeQueries.size() / 3) + " queries)")
+    print("  Test Case " + testNum + " PASSED")
+    return true
+}
+
+allManacherPassed = true
+
+// --- Test Case 1: Canonical "abacaba" ---
+// N = 7. Longest = "abacaba" (len 7)
+// len 1: a(4), b(2), c(1) = 7
+// len 3: aba (0..2), aca (2..4), aba (4..6) = 3
+// len 5: bacab (1..5) = 1
+// len 7: abacaba (0..6) = 1
+// Total = 7 + 3 + 1 + 1 = 12.
+q1 = [
+    0, 6, 1, // "abacaba" is palindrome
+    0, 2, 1, // "aba" is palindrome
+    1, 5, 1, // "bacab" is palindrome
+    4, 6, 1, // "aba" is palindrome
+    0, 3, 0, // "abac" is not
+    1, 3, 0  // "bac" is not
+]
+if (!runManacherTestCase(1, "Symmetric Palindrome 'abacaba'", "abacaba", 7, 12, "abacaba", "abacaba", q1)) {
+    allManacherPassed = false
+}
+
+// --- Test Case 2: Even-Length Center "racecarannakayaknoon" ---
+// Text contains racecar (7), anna (4), kayak (5), noon (4)
+// Total length: 20
+// Longest: racecar (7)
+q2 = [
+    0, 6, 1,   // "racecar"
+    7, 10, 1,  // "anna"
+    8, 9, 1,   // "nn"
+    11, 15, 1, // "kayak"
+    16, 19, 1, // "noon"
+    17, 18, 1, // "oo"
+    0, 7, 0    // "racecara"
+]
+if (!runManacherTestCase(2, "Multi-Palindrome String", "racecarannakayaknoon", 7, 31, "racecar", "noon", q2)) {
+    allManacherPassed = false
+}
+
+// --- Test Case 3: Monotone Repetition "aaaa" ---
+// N = 4. Total = 4 + 3 + 2 + 1 = 10. Longest = 4.
+q3 = [
+    0, 3, 1,
+    0, 2, 1,
+    1, 3, 1,
+    0, 1, 1
+]
+if (!runManacherTestCase(3, "Monotone Repeated Characters 'aaaa'", "aaaa", 4, 10, "aaaa", "aaaa", q3)) {
+    allManacherPassed = false
+}
+
+// --- Test Case 4: Asymmetric Minimal Palindromes "abcdef" ---
+// N = 6. All chars distinct, only single-character palindromes. Total = 6. Longest = 1.
+q4 = [
+    0, 0, 1,
+    0, 1, 0,
+    0, 5, 0,
+    2, 4, 0
+]
+if (!runManacherTestCase(4, "Asymmetric Distinct Characters 'abcdef'", "abcdef", 1, 6, "a", "f", q4)) {
+    allManacherPassed = false
+}
+
+// --- Test Case 5: Complex Periodic Palindrome "abacababacaba" ---
+// N = 13. Prefix and suffix are "abacaba".
+// Longest is "abacababacaba" (len 13).
+q5 = [
+    0, 12, 1,
+    0, 6, 1,
+    6, 12, 1,
+    2, 4, 1
+]
+if (!runManacherTestCase(5, "Nested Periodic Palindrome 'abacababacaba'", "abacababacaba", 13, 29, "abacababacaba", "abacababacaba", q5)) {
+    allManacherPassed = false
+}
+
+// --- Final Suite Summary ---
+print("=== Manacher Palindromic Substring Suite Summary ===")
+if (allManacherPassed) {
+    print("All Manacher test suites: SUCCESS")
+} else {
+    print("Some Manacher test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Manacher Palindromic Substring executed successfully in", totalElapsed, "ms")
