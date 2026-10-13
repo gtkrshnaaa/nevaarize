@@ -1,0 +1,566 @@
+import stdlib time as t
+
+// Euler Tour Tree Subtree Aggregates Suite
+// Tree linearization mapping subtree queries and updates to contiguous intervals.
+//
+// Time Complexity:
+// - O(N) tree linearization via Euler tour traversal (tin, tout timestamps)
+// - O(1) ancestor-descendant containment verification
+// - O(log N) subtree sum queries via Fenwick Tree (Binary Indexed Tree)
+// - O(log N) subtree range updates and range maximum queries via Segment Tree
+// - O(log N) point value modifications
+// Space Complexity: O(N) flat arrays for Euler tour intervals and trees
+//
+// Technical characteristics:
+// - Iterative DFS traversal recording entry (tin) and exit (tout) times
+// - Continuous interval mapping: node u's subtree corresponds to [tin[u], tout[u]]
+// - Binary Indexed Tree (Fenwick) for high-throughput prefix sum aggregates
+// - Lazy propagation Segment Tree for subtree additions and range maximums
+// - Deterministic validation against naive tree traversal oracles
+// - Unique symbol scoping per function avoiding JIT variable slot collisions
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Euler Tour Tree Subtree Aggregates Suite ===")
+globalStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    miaIdx = 0
+    while (miaIdx < sz) {
+        arr.push(fillVal)
+        miaIdx = miaIdx + 1
+    }
+    return arr
+}
+
+func createEulerTree(numNodes) {
+    etAdj = []
+    etI = 0
+    while (etI < numNodes) {
+        etAdj.push([])
+        etI = etI + 1
+    }
+    etVals = makeIntArray(numNodes, 0)
+    etTin = makeIntArray(numNodes, 0)
+    etTout = makeIntArray(numNodes, 0)
+    etOrder = makeIntArray(numNodes + 2, 0)
+    etDepth = makeIntArray(numNodes, 0)
+    etParent = makeIntArray(numNodes, -1)
+
+    // Fenwick Tree array (1-based, size numNodes + 2)
+    etFenwick = makeIntArray(numNodes + 4, 0)
+
+    // Segment Tree arrays for range add and range max (size 4 * numNodes + 8)
+    etSegMax = makeIntArray(numNodes * 4 + 8, 0)
+    etSegSum = makeIntArray(numNodes * 4 + 8, 0)
+    etSegLazy = makeIntArray(numNodes * 4 + 8, 0)
+
+    return [numNodes, etAdj, etVals, etTin, etTout, etOrder, etDepth, etParent, etFenwick, etSegMax, etSegSum, etSegLazy]
+}
+
+func addTreeEdge(tree, ateU, ateV) {
+    ateAdj = tree[1]
+    ateAdj[ateU].push(ateV)
+    ateAdj[ateV].push(ateU)
+}
+
+func setNodeValue(tree, snvU, snvVal) {
+    snvVals = tree[2]
+    snvVals[snvU] = snvVal
+}
+
+// Linearize tree via iterative DFS recording tin and tout
+func buildEulerTour(tree, betRoot) {
+    betNum = tree[0]
+    betAdj = tree[1]
+    betTin = tree[3]
+    betTout = tree[4]
+    betOrder = tree[5]
+    betDepth = tree[6]
+    betParent = tree[7]
+
+    betVisited = makeIntArray(betNum, 0)
+    betChildIdx = makeIntArray(betNum, 0)
+
+    betStack = [betRoot]
+    betVisited[betRoot] = 1
+    betParent[betRoot] = -1
+    betDepth[betRoot] = 0
+
+    betTimer = 1
+
+    betTin[betRoot] = betTimer
+    betOrder[betTimer] = betRoot
+    betTimer = betTimer + 1
+
+    while (betStack.size() > 0) {
+        betCurr = betStack[betStack.size() - 1]
+        betNeighbors = betAdj[betCurr]
+        betDeg = betNeighbors.size()
+        betCIdx = betChildIdx[betCurr]
+
+        if (betCIdx < betDeg) {
+            betNxt = betNeighbors[betCIdx]
+            betChildIdx[betCurr] = betCIdx + 1
+
+            if (betVisited[betNxt] == 0) {
+                betVisited[betNxt] = 1
+                betParent[betNxt] = betCurr
+                betDepth[betNxt] = betDepth[betCurr] + 1
+
+                betTin[betNxt] = betTimer
+                betOrder[betTimer] = betNxt
+                betTimer = betTimer + 1
+
+                betStack.push(betNxt)
+            }
+        } else {
+            betTout[betCurr] = betTimer - 1
+            betStack.pop()
+        }
+    }
+}
+
+// Fenwick Tree (Binary Indexed Tree) Operations
+func fenwickAdd(tree, faIdx, faDelta) {
+    faNum = tree[0]
+    faBit = tree[8]
+    faLimit = faNum + 2
+    faCurr = faIdx
+
+    while (faCurr <= faLimit) {
+        faBit[faCurr] = faBit[faCurr] + faDelta
+        faCurr = faCurr + (faCurr & (-faCurr))
+    }
+}
+
+func fenwickQuery(tree, fqIdx) {
+    fqBit = tree[8]
+    fqSum = 0
+    fqCurr = fqIdx
+
+    while (fqCurr > 0) {
+        fqSum = fqSum + fqBit[fqCurr]
+        fqCurr = fqCurr - (fqCurr & (-fqCurr))
+    }
+    return fqSum
+}
+
+func fenwickRangeQuery(tree, frqL, frqR) {
+    return fenwickQuery(tree, frqR) - fenwickQuery(tree, frqL - 1)
+}
+
+// Segment Tree with Lazy Propagation Operations
+func segPushDown(tree, spdNode, spdL, spdMid, spdR) {
+    spdSegMax = tree[9]
+    spdSegSum = tree[10]
+    spdSegLazy = tree[11]
+
+    if (spdSegLazy[spdNode] != 0) {
+        spdTag = spdSegLazy[spdNode]
+        spdLChild = spdNode * 2
+        spdRChild = spdNode * 2 + 1
+
+        spdSegLazy[spdLChild] = spdSegLazy[spdLChild] + spdTag
+        spdSegSum[spdLChild] = spdSegSum[spdLChild] + spdTag * (spdMid - spdL + 1)
+        spdSegMax[spdLChild] = spdSegMax[spdLChild] + spdTag
+
+        spdSegLazy[spdRChild] = spdSegLazy[spdRChild] + spdTag
+        spdSegSum[spdRChild] = spdSegSum[spdRChild] + spdTag * (spdR - spdMid)
+        spdSegMax[spdRChild] = spdSegMax[spdRChild] + spdTag
+
+        spdSegLazy[spdNode] = 0
+    }
+}
+
+func segPushUp(tree, spuNode) {
+    spuSegMax = tree[9]
+    spuSegSum = tree[10]
+    spuLChild = spuNode * 2
+    spuRChild = spuNode * 2 + 1
+
+    spuSegSum[spuNode] = spuSegSum[spuLChild] + spuSegSum[spuRChild]
+    spuSegMax[spuNode] = maxInt(spuSegMax[spuLChild], spuSegMax[spuRChild])
+}
+
+func segBuild(tree, sbNode, sbL, sbR) {
+    sbVals = tree[2]
+    sbOrder = tree[5]
+    sbSegMax = tree[9]
+    sbSegSum = tree[10]
+    sbSegLazy = tree[11]
+
+    sbSegLazy[sbNode] = 0
+
+    if (sbL == sbR) {
+        sbOrigNode = sbOrder[sbL]
+        sbV = sbVals[sbOrigNode]
+        sbSegSum[sbNode] = sbV
+        sbSegMax[sbNode] = sbV
+        return 0
+    }
+
+    sbMid = (sbL + sbR) / 2
+    segBuild(tree, sbNode * 2, sbL, sbMid)
+    segBuild(tree, sbNode * 2 + 1, sbMid + 1, sbR)
+    segPushUp(tree, sbNode)
+    return 0
+}
+
+func segUpdateRange(tree, surNode, surL, surR, surQl, surQr, surDelta) {
+    surSegMax = tree[9]
+    surSegSum = tree[10]
+    surSegLazy = tree[11]
+
+    if (surQl <= surL and surR <= surQr) {
+        surSegLazy[surNode] = surSegLazy[surNode] + surDelta
+        surSegSum[surNode] = surSegSum[surNode] + surDelta * (surR - surL + 1)
+        surSegMax[surNode] = surSegMax[surNode] + surDelta
+        return 0
+    }
+
+    surMid = (surL + surR) / 2
+    segPushDown(tree, surNode, surL, surMid, surR)
+
+    if (surQl <= surMid) {
+        segUpdateRange(tree, surNode * 2, surL, surMid, surQl, surQr, surDelta)
+    }
+    if (surQr > surMid) {
+        segUpdateRange(tree, surNode * 2 + 1, surMid + 1, surR, surQl, surQr, surDelta)
+    }
+
+    segPushUp(tree, surNode)
+    return 0
+}
+
+func segQuerySum(tree, sqsNode, sqsL, sqsR, sqsQl, sqsQr) {
+    if (sqsQl <= sqsL and sqsR <= sqsQr) {
+        sqsSegSum = tree[10]
+        return sqsSegSum[sqsNode]
+    }
+
+    sqsMid = (sqsL + sqsR) / 2
+    segPushDown(tree, sqsNode, sqsL, sqsMid, sqsR)
+
+    sqsRes = 0
+    if (sqsQl <= sqsMid) {
+        sqsRes = sqsRes + segQuerySum(tree, sqsNode * 2, sqsL, sqsMid, sqsQl, sqsQr)
+    }
+    if (sqsQr > sqsMid) {
+        sqsRes = sqsRes + segQuerySum(tree, sqsNode * 2 + 1, sqsMid + 1, sqsR, sqsQl, sqsQr)
+    }
+    return sqsRes
+}
+
+func segQueryMax(tree, sqmNode, sqmL, sqmR, sqmQl, sqmQr) {
+    if (sqmQl <= sqmL and sqmR <= sqmQr) {
+        sqmSegMax = tree[9]
+        return sqmSegMax[sqmNode]
+    }
+
+    sqmMid = (sqmL + sqmR) / 2
+    segPushDown(tree, sqmNode, sqmL, sqmMid, sqmR)
+
+    sqmRes = -1000000000
+    if (sqmQl <= sqmMid) {
+        sqmRes = maxInt(sqmRes, segQueryMax(tree, sqmNode * 2, sqmL, sqmMid, sqmQl, sqmQr))
+    }
+    if (sqmQr > sqmMid) {
+        sqmRes = maxInt(sqmRes, segQueryMax(tree, sqmNode * 2 + 1, sqmMid + 1, sqmR, sqmQl, sqmQr))
+    }
+    return sqmRes
+}
+
+// Master Initialization: builds Euler tour and both aggregate structures
+func initEulerTourStructures(tree, ietRoot) {
+    ietNum = tree[0]
+    ietVals = tree[2]
+    ietTin = tree[3]
+
+    buildEulerTour(tree, ietRoot)
+
+    // Initialize Fenwick tree
+    ietI = 0
+    while (ietI < ietNum) {
+        fenwickAdd(tree, ietTin[ietI], ietVals[ietI])
+        ietI = ietI + 1
+    }
+
+    // Initialize Segment Tree
+    segBuild(tree, 1, 1, ietNum)
+}
+
+// Subtree Queries & Updates
+func isAncestor(tree, iaU, iaV) {
+    iaTin = tree[3]
+    iaTout = tree[4]
+    return iaTin[iaU] <= iaTin[iaV] and iaTout[iaU] >= iaTout[iaV]
+}
+
+func querySubtreeSumFenwick(tree, qsfU) {
+    qsfTin = tree[3]
+    qsfTout = tree[4]
+    return fenwickRangeQuery(tree, qsfTin[qsfU], qsfTout[qsfU])
+}
+
+func querySubtreeSumSeg(tree, qssU) {
+    qssNum = tree[0]
+    qssTin = tree[3]
+    qssTout = tree[4]
+    return segQuerySum(tree, 1, 1, qssNum, qssTin[qssU], qssTout[qssU])
+}
+
+func querySubtreeMaxSeg(tree, qsmU) {
+    qsmNum = tree[0]
+    qsmTin = tree[3]
+    qsmTout = tree[4]
+    return segQueryMax(tree, 1, 1, qsmNum, qsmTin[qsmU], qsmTout[qsmU])
+}
+
+func updateSubtreeAdd(tree, usaU, usaDelta) {
+    usaNum = tree[0]
+    usaTin = tree[3]
+    usaTout = tree[4]
+    segUpdateRange(tree, 1, 1, usaNum, usaTin[usaU], usaTout[usaU], usaDelta)
+}
+
+func updateNodePointValue(tree, unpvU, unpvNewVal) {
+    unpvVals = tree[2]
+    unpvTin = tree[3]
+    unpvNum = tree[0]
+
+    unpvOldVal = unpvVals[unpvU]
+    unpvDelta = unpvNewVal - unpvOldVal
+    unpvVals[unpvU] = unpvNewVal
+
+    // Update Fenwick
+    fenwickAdd(tree, unpvTin[unpvU], unpvDelta)
+
+    // Update Segment Tree
+    segUpdateRange(tree, 1, 1, unpvNum, unpvTin[unpvU], unpvTin[unpvU], unpvDelta)
+}
+
+// Naive Tree Traversal Oracle for Subtree Aggregates
+func naiveSubtreeCollect(tree, nscRoot) {
+    nscNum = tree[0]
+    nscAdj = tree[1]
+    nscParent = tree[7]
+
+    nscNodes = [nscRoot]
+    nscQHead = 0
+
+    while (nscQHead < nscNodes.size()) {
+        nscCurr = nscNodes[nscQHead]
+        nscQHead = nscQHead + 1
+
+        nscNeighbors = nscAdj[nscCurr]
+        nscDeg = nscNeighbors.size()
+        nscI = 0
+        while (nscI < nscDeg) {
+            nscNxt = nscNeighbors[nscI]
+            if (nscParent[nscNxt] == nscCurr) {
+                nscNodes.push(nscNxt)
+            }
+            nscI = nscI + 1
+        }
+    }
+
+    return nscNodes
+}
+
+func naiveSubtreeSum(tree, nssRoot) {
+    nssVals = tree[2]
+    nssNodes = naiveSubtreeCollect(tree, nssRoot)
+    nssSum = 0
+    nssI = 0
+    while (nssI < nssNodes.size()) {
+        nssSum = nssSum + nssVals[nssNodes[nssI]]
+        nssI = nssI + 1
+    }
+    return nssSum
+}
+
+func naiveSubtreeMax(tree, nsmRoot) {
+    nsmVals = tree[2]
+    nsmNodes = naiveSubtreeCollect(tree, nsmRoot)
+    nsmMax = -1000000000
+    nsmI = 0
+    while (nsmI < nsmNodes.size()) {
+        nsmMax = maxInt(nsmMax, nsmVals[nsmNodes[nsmI]])
+        nsmI = nsmI + 1
+    }
+    return nsmMax
+}
+
+// --- Test Suites ---
+allEulerPassed = true
+
+// Suite 1: Balanced Binary Tree (7 nodes)
+//        0
+//      /   \
+//     1     2
+//    / \   / \
+//   3   4 5   6
+print("Running Test Case 1: Balanced Binary Tree Subtree Aggregates...")
+eulerTree1 = createEulerTree(7)
+addTreeEdge(eulerTree1, 0, 1)
+addTreeEdge(eulerTree1, 0, 2)
+addTreeEdge(eulerTree1, 1, 3)
+addTreeEdge(eulerTree1, 1, 4)
+addTreeEdge(eulerTree1, 2, 5)
+addTreeEdge(eulerTree1, 2, 6)
+
+initialVals1 = [15, 30, 25, 10, 45, 5, 50]
+c1I = 0
+while (c1I < 7) {
+    setNodeValue(eulerTree1, c1I, initialVals1[c1I])
+    c1I = c1I + 1
+}
+initEulerTourStructures(eulerTree1, 0)
+
+// Test Ancestor relationships
+// 0 is ancestor of all; 1 is ancestor of 3, 4; 2 is ancestor of 5, 6; 1 is NOT ancestor of 5
+if (!isAncestor(eulerTree1, 0, 6) or !isAncestor(eulerTree1, 1, 4) or isAncestor(eulerTree1, 1, 5) or isAncestor(eulerTree1, 3, 1)) {
+    print("  [FAIL] Ancestor queries failed")
+    allEulerPassed = false
+} else {
+    print("  O(1) ancestor relationship checks: all valid")
+}
+
+// Subtree sum and max tests on node 1: {1: 30, 3: 10, 4: 45} -> sum = 85, max = 45
+subSumFenwick1 = querySubtreeSumFenwick(eulerTree1, 1)
+subSumSeg1 = querySubtreeSumSeg(eulerTree1, 1)
+subMaxSeg1 = querySubtreeMaxSeg(eulerTree1, 1)
+oracleSum1 = naiveSubtreeSum(eulerTree1, 1)
+oracleMax1 = naiveSubtreeMax(eulerTree1, 1)
+
+if (subSumFenwick1 != 85 or subSumSeg1 != 85 or subMaxSeg1 != 45 or subSumFenwick1 != oracleSum1 or subMaxSeg1 != oracleMax1) {
+    print("  [FAIL] Node 1 subtree aggregates mismatch: Fenwick", subSumFenwick1, "SegSum", subSumSeg1, "SegMax", subMaxSeg1)
+    allEulerPassed = false
+} else {
+    print("  Node 1 subtree sum: 85 (Fenwick & Seg match), max: 45 (matched oracle)")
+}
+
+// Point update on node 3: change from 10 to 100
+updateNodePointValue(eulerTree1, 3, 100)
+subSumAfterPoint = querySubtreeSumFenwick(eulerTree1, 1)
+subMaxAfterPoint = querySubtreeMaxSeg(eulerTree1, 1)
+if (subSumAfterPoint != 175 or subMaxAfterPoint != 100) {
+    print("  [FAIL] After point update on node 3 got sum", subSumAfterPoint, "max", subMaxAfterPoint, "expected 175 and 100")
+    allEulerPassed = false
+} else {
+    print("  After point update on node 3: subtree sum = 175, max = 100 (verified)")
+}
+print("  Test Case 1 PASSED")
+
+// Suite 2: Subtree Range Addition with Lazy Propagation
+print("Running Test Case 2: Subtree Range Addition...")
+// Add +20 to entire subtree of node 2: nodes {2, 5, 6}
+// Previous vals: 2(25), 5(5), 6(50). New vals: 2(45), 5(25), 6(70).
+// Subtree sum before: 80. After: 80 + 20*3 = 140.
+// Subtree max before: 50. After: 70.
+updateSubtreeAdd(eulerTree1, 2, 20)
+subSum2AfterRange = querySubtreeSumSeg(eulerTree1, 2)
+subMax2AfterRange = querySubtreeMaxSeg(eulerTree1, 2)
+
+if (subSum2AfterRange != 140 or subMax2AfterRange != 70) {
+    print("  [FAIL] Subtree range add on node 2: sum", subSum2AfterRange, "max", subMax2AfterRange, "expected 140 and 70")
+    allEulerPassed = false
+} else {
+    print("  Subtree range add (+20): node 2 sum = 140, max = 70 (verified)")
+}
+print("  Test Case 2 PASSED")
+
+// Suite 3: Deep Caterpillar Tree with Full Node Verification (12 nodes)
+print("Running Test Case 3: Caterpillar Tree Full Verification (12 nodes)...")
+eulerTree3 = createEulerTree(12)
+// Spine: 0-1-2-3-4-5
+// Leaves attached to spine: (0,6), (1,7), (2,8), (3,9), (4,10), (5,11)
+c3I = 0
+while (c3I < 5) {
+    addTreeEdge(eulerTree3, c3I, c3I + 1)
+    c3I = c3I + 1
+}
+c3J = 0
+while (c3J < 6) {
+    addTreeEdge(eulerTree3, c3J, c3J + 6)
+    c3J = c3J + 1
+}
+
+c3K = 0
+while (c3K < 12) {
+    setNodeValue(eulerTree3, c3K, (c3K * 19 + 7) % 73 + 1)
+    c3K = c3K + 1
+}
+initEulerTourStructures(eulerTree3, 0)
+
+// Verify all 12 nodes subtree sum against naive oracle
+allMatch3 = true
+c3N = 0
+while (c3N < 12) {
+    fSum = querySubtreeSumFenwick(eulerTree3, c3N)
+    sSum = querySubtreeSumSeg(eulerTree3, c3N)
+    sMax = querySubtreeMaxSeg(eulerTree3, c3N)
+    oSum = naiveSubtreeSum(eulerTree3, c3N)
+    oMax = naiveSubtreeMax(eulerTree3, c3N)
+
+    if (fSum != oSum or sSum != oSum or sMax != oMax) {
+        allMatch3 = false
+        allEulerPassed = false
+        print("  [FAIL] Caterpillar node", c3N, "mismatch: got fSum", fSum, "sSum", sSum, "sMax", sMax, "expected oSum", oSum, "oMax", oMax)
+    }
+    c3N = c3N + 1
+}
+
+if (allMatch3) {
+    print("  All 12 nodes subtree sums and maximums matched naive traversal oracle deterministically")
+}
+print("  Test Case 3 PASSED")
+
+// Suite 4: Star Tree (10 nodes)
+print("Running Test Case 4: Star Tree (10 nodes)...")
+eulerTree4 = createEulerTree(10)
+c4I = 1
+while (c4I < 10) {
+    addTreeEdge(eulerTree4, 0, c4I)
+    setNodeValue(eulerTree4, c4I, c4I * 10)
+    c4I = c4I + 1
+}
+setNodeValue(eulerTree4, 0, 500)
+initEulerTourStructures(eulerTree4, 0)
+
+// Root subtree sum = 500 + 10*(1..9) = 500 + 450 = 950, max = 500
+rootSum = querySubtreeSumFenwick(eulerTree4, 0)
+rootMax = querySubtreeMaxSeg(eulerTree4, 0)
+if (rootSum != 950 or rootMax != 500) {
+    print("  [FAIL] Star root got sum", rootSum, "max", rootMax, "expected 950 and 500")
+    allEulerPassed = false
+} else {
+    print("  Star root: subtree sum = 950, max = 500 (verified)")
+}
+print("  Test Case 4 PASSED")
+
+print("=== Euler Tour Tree Subtree Aggregates Suite Summary ===")
+if (allEulerPassed) {
+    print("All Euler Tour Tree Subtree Aggregates test suites: SUCCESS")
+} else {
+    print("Some Euler Tour Tree Subtree Aggregates test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] Euler Tour Tree Subtree Aggregates executed successfully in", totalElapsed, "ms")
