@@ -216,7 +216,8 @@ func executeHLPPMaxFlow(net, src, snk) {
             inBucket[u] = 0
 
             // Discharge active vertex u
-            while (excess[u] > 0) {
+            discharging = true
+            while (discharging and excess[u] > 0) {
                 arc = currentArc[u]
                 while (arc != -1 and excess[u] > 0) {
                     v = edgeTo[arc]
@@ -293,8 +294,8 @@ func executeHLPPMaxFlow(net, src, snk) {
                         inBucket[u] = 1
                         maxHeight = height[u]
                     }
-                    // Break discharge loop to re-evaluate highest active label
-                    break
+                    // Terminate discharge iteration to re-evaluate highest active label
+                    discharging = false
                 }
             }
         }
