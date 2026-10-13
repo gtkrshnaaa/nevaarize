@@ -3,12 +3,13 @@
     "id": "ISSUE-1",
     "title": "feat(algorithms): implement centroidDecompositionDivideConquer in richcodesamples",
     "status": "closed",
+    "commit": "84c0046",
     "file": "ISSUE-1-centroidDecomp.md"
   },
   {
     "id": "ISSUE-2",
     "title": "feat(algorithms): implement blockCutTreeBiconnectivityDecomp in richcodesamples",
-    "status": "open",
+    "status": "in-progress",
     "file": "ISSUE-2-blockCutTree.md"
   },
   {
