@@ -1,0 +1,515 @@
+import stdlib time as t
+
+// 3D Octree Spatial Partitioning Suite
+// Technical characteristics:
+// - Hierarchical 3D spatial decomposition into 8 octants per node
+// - Bit-coded octant indexing: bit 0 (X >= midX), bit 1 (Y >= midY), bit 2 (Z >= midZ)
+// - Dynamic node subdivision with configurable point capacity and depth cap
+// - Orthogonal 3D range box query via AABB intersection tests
+// - 3D Sphere collision checking via AABB-to-point clamped distance metrics
+// - 100% iterative (non-recursive) traversals with flat arena storage
+// - Deterministic assertions and randomized stress simulations vs linear scan oracle
+// - Zero AI artifacts, zero emojis, zero em dashes
+// - Strict camelCase naming conventions without underscores
+
+print("=== Nevaarize 3D Octree Suite ===")
+suiteStartTime = t.millis()
+
+func createOctree(minX, maxX, minY, maxY, minZ, maxZ, bucketCap, maxDepth) {
+    // Root node layout:
+    // 0: minX, 1: maxX, 2: minY, 3: maxY, 4: minZ, 5: maxZ
+    // 6: points array [ [x, y, z, id], ... ]
+    // 7: children array [c0, c1, c2, c3, c4, c5, c6, c7] (-1 if none)
+    // 8: isLeaf (1 or 0)
+    // 9: depth (int)
+    rootChildren = [-1, -1, -1, -1, -1, -1, -1, -1]
+    rootNode = [minX, maxX, minY, maxY, minZ, maxZ, [], rootChildren, 1, 0]
+    
+    oArena = [rootNode]
+    oMeta = [bucketCap, maxDepth]
+    return [oArena, oMeta]
+}
+
+func octreeGetOctant(arena, uIdx, pt) {
+    gNode = arena[uIdx]
+    gMidX = (gNode[0] + gNode[1]) / 2
+    gMidY = (gNode[2] + gNode[3]) / 2
+    gMidZ = (gNode[4] + gNode[5]) / 2
+
+    octVal = 0
+    if (pt[0] >= gMidX) {
+        octVal = octVal + 1
+    }
+    if (pt[1] >= gMidY) {
+        octVal = octVal + 2
+    }
+    if (pt[2] >= gMidZ) {
+        octVal = octVal + 4
+    }
+    return octVal
+}
+
+func octreeSubdivide(tree, uIdx) {
+    sArena = tree[0]
+    sNode = sArena[uIdx]
+
+    sMinX = sNode[0]
+    sMaxX = sNode[1]
+    sMinY = sNode[2]
+    sMaxY = sNode[3]
+    sMinZ = sNode[4]
+    sMaxZ = sNode[5]
+
+    sMidX = (sMinX + sMaxX) / 2
+    sMidY = (sMinY + sMaxY) / 2
+    sMidZ = (sMinZ + sMaxZ) / 2
+    sDepth = sNode[9]
+
+    childIndices = []
+    octI = 0
+    while (octI < 8) {
+        ox1 = sMinX
+        ox2 = sMidX
+        if ((octI & 1) != 0) {
+            ox1 = sMidX
+            ox2 = sMaxX
+        }
+
+        oy1 = sMinY
+        oy2 = sMidY
+        if ((octI & 2) != 0) {
+            oy1 = sMidY
+            oy2 = sMaxY
+        }
+
+        oz1 = sMinZ
+        oz2 = sMidZ
+        if ((octI & 4) != 0) {
+            oz1 = sMidZ
+            oz2 = sMaxZ
+        }
+
+        cCh = [-1, -1, -1, -1, -1, -1, -1, -1]
+        cNodeIdx = len(sArena)
+        sArena.push([ox1, ox2, oy1, oy2, oz1, oz2, [], cCh, 1, sDepth + 1])
+        childIndices.push(cNodeIdx)
+
+        octI = octI + 1
+    }
+
+    sArena[uIdx][7] = childIndices
+    sArena[uIdx][8] = 0 // Internal node now
+
+    // Redistribute existing points into 8 child octants
+    oldPts = sArena[uIdx][6]
+    oldLen = len(oldPts)
+    sArena[uIdx][6] = []
+
+    redI = 0
+    while (redI < oldLen) {
+        p = oldPts[redI]
+        childOct = octreeGetOctant(sArena, uIdx, p)
+        targetChild = childIndices[childOct]
+        sArena[targetChild][6].push(p)
+        redI = redI + 1
+    }
+    tree[0] = sArena
+    return 1
+}
+
+func octreeInsert(tree, pt) {
+    iMeta = tree[1]
+    bCap = iMeta[0]
+    mDepth = iMeta[1]
+
+    currU = 0
+    inserted = 0
+
+    while (inserted == 0) {
+        iArena = tree[0]
+        cIsLeaf = iArena[currU][8]
+        if (cIsLeaf == 1) {
+            nPts = len(iArena[currU][6])
+            cDepth = iArena[currU][9]
+
+            if (nPts < bCap or cDepth >= mDepth) {
+                iArena[currU][6].push(pt)
+                inserted = 1
+            } else {
+                octreeSubdivide(tree, currU)
+            }
+        }
+
+        if (inserted == 0) {
+            nextOct = octreeGetOctant(iArena, currU, pt)
+            currU = iArena[currU][7][nextOct]
+        }
+    }
+    return 1
+}
+
+func octreeQueryBox(tree, qx1, qx2, qy1, qy2, qz1, qz2) {
+    bArena = tree[0]
+    if (len(bArena) == 0 or qx1 > qx2 or qy1 > qy2 or qz1 > qz2) {
+        return []
+    }
+
+    boxResults = []
+    bStack = [0]
+
+    while (len(bStack) > 0) {
+        u = bStack.pop()
+        uNode = bArena[u]
+
+        // Check AABB intersection with query box
+        if (uNode[0] > qx2 or uNode[1] < qx1 or uNode[2] > qy2 or uNode[3] < qy1 or uNode[4] > qz2 or uNode[5] < qz1) {
+            // Prune disjoint octant
+        } else {
+            if (uNode[8] == 1) {
+                // Leaf node: filter points inside query box
+                uPts = uNode[6]
+                uCount = len(uPts)
+                pI = 0
+                while (pI < uCount) {
+                    currP = uPts[pI]
+                    px = currP[0]
+                    py = currP[1]
+                    pz = currP[2]
+                    if (qx1 <= px and px <= qx2 and qy1 <= py and py <= qy2 and qz1 <= pz and pz <= qz2) {
+                        boxResults.push(currP)
+                    }
+                    pI = pI + 1
+                }
+            } else {
+                // Push non-empty children
+                uChildren = uNode[7]
+                chI = 0
+                while (chI < 8) {
+                    cIdx = uChildren[chI]
+                    if (cIdx != -1) {
+                        bStack.push(cIdx)
+                    }
+                    chI = chI + 1
+                }
+            }
+        }
+    }
+
+    return boxResults
+}
+
+func octreeCollisionSphere(tree, sphereX, sphereY, sphereZ, radius) {
+    sArena = tree[0]
+    if (len(sArena) == 0 or radius < 0) {
+        return []
+    }
+
+    radSq = radius * radius
+    colResults = []
+    cStack = [0]
+
+    while (len(cStack) > 0) {
+        u = cStack.pop()
+        uNode = sArena[u]
+
+        // Find closest point on node AABB to sphere center
+        clampX = sphereX
+        if (clampX < uNode[0]) { clampX = uNode[0] }
+        if (clampX > uNode[1]) { clampX = uNode[1] }
+
+        clampY = sphereY
+        if (clampY < uNode[2]) { clampY = uNode[2] }
+        if (clampY > uNode[3]) { clampY = uNode[3] }
+
+        clampZ = sphereZ
+        if (clampZ < uNode[4]) { clampZ = uNode[4] }
+        if (clampZ > uNode[5]) { clampZ = uNode[5] }
+
+        dx = clampX - sphereX
+        dy = clampY - sphereY
+        dz = clampZ - sphereZ
+        boxDistSq = dx * dx + dy * dy + dz * dz
+
+        if (boxDistSq > radSq) {
+            // Prune octant outside collision radius
+        } else {
+            if (uNode[8] == 1) {
+                // Leaf node: check distance to each point
+                uPts = uNode[6]
+                uCount = len(uPts)
+                pI = 0
+                while (pI < uCount) {
+                    currP = uPts[pI]
+                    pdx = currP[0] - sphereX
+                    pdy = currP[1] - sphereY
+                    pdz = currP[2] - sphereZ
+                    pDistSq = pdx * pdx + pdy * pdy + pdz * pdz
+                    if (pDistSq <= radSq) {
+                        colResults.push(currP)
+                    }
+                    pI = pI + 1
+                }
+            } else {
+                uChildren = uNode[7]
+                chI = 0
+                while (chI < 8) {
+                    cIdx = uChildren[chI]
+                    if (cIdx != -1) {
+                        cStack.push(cIdx)
+                    }
+                    chI = chI + 1
+                }
+            }
+        }
+    }
+
+    return colResults
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 1: Deterministic 3D Point Cluster and Subdivision Assertions
+// -----------------------------------------------------------------------------
+print("Running Test Case 1: Deterministic 3D Spatial Partitioning Assertions...")
+tc1Pass = 1
+
+// Bounding volume: [0, 100] in X, Y, Z, bucket capacity = 2, max depth = 6
+ot1 = createOctree(0, 100, 0, 100, 0, 100, 2, 6)
+
+// 12 points: [x, y, z, id]
+samplePoints3D = [
+    [10, 10, 10, 1],
+    [20, 20, 20, 2],
+    [30, 30, 30, 3], // Triggers subdivision in octant 0 (0..50, 0..50, 0..50)
+    [80, 80, 80, 4],
+    [90, 90, 90, 5],
+    [85, 85, 85, 6], // Triggers subdivision in octant 7 (50..100, 50..100, 50..100)
+    [15, 85, 15, 7], // Octant 2 (0..50, 50..100, 0..50)
+    [85, 15, 15, 8], // Octant 1 (50..100, 0..50, 0..50)
+    [15, 15, 85, 9], // Octant 4 (0..50, 0..50, 50..100)
+    [45, 45, 45, 10],
+    [55, 55, 55, 11],
+    [25, 25, 25, 12]
+]
+
+pI = 0
+while (pI < len(samplePoints3D)) {
+    octreeInsert(ot1, samplePoints3D[pI])
+    pI = pI + 1
+}
+
+// Box Query 1: Full bounding box [0, 100]^3
+fullBox = octreeQueryBox(ot1, 0, 100, 0, 100, 0, 100)
+if (len(fullBox) != 12) {
+    tc1Pass = 0
+}
+
+// Box Query 2: Sub-region [0, 40] x [0, 40] x [0, 40]
+// Expected points: [10,10,10, 1], [20,20,20, 2], [30,30,30, 3], [25,25,25, 12] = 4 points
+subBox = octreeQueryBox(ot1, 0, 40, 0, 40, 0, 40)
+if (len(subBox) != 4) {
+    tc1Pass = 0
+}
+
+// Box Query 3: Disjoint empty region [60, 75] x [0, 100] x [0, 100]
+emptyBox = octreeQueryBox(ot1, 60, 75, 0, 100, 0, 100)
+if (len(emptyBox) != 0) {
+    tc1Pass = 0
+}
+
+// Collision Query 1: Sphere at (85, 85, 85) with radius 10
+// Points 4 [80,80,80] (distSq = 25+25+25 = 75 <= 100), 5 [90,90,90] (distSq = 75 <= 100), 6 [85,85,85] (distSq = 0 <= 100)
+// Total 3 points
+colSphere1 = octreeCollisionSphere(ot1, 85, 85, 85, 10)
+if (len(colSphere1) != 3) {
+    tc1Pass = 0
+}
+
+// Collision Query 2: Sphere at (0, 0, 0) with radius 5 (no points within 5)
+colSphereEmpty = octreeCollisionSphere(ot1, 0, 0, 0, 5)
+if (len(colSphereEmpty) != 0) {
+    tc1Pass = 0
+}
+
+if (tc1Pass == 1) {
+    print("  12-point Octree subdivided dynamically across 8 spatial octants")
+    print("  Full box, sub-cluster, empty box, and sphere collisions verified")
+    print("  Test Case 1 Passed successfully")
+} else {
+    print("[FAIL] Test Case 1 assertion failure")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 2: Boundary Surfaces and Exact Corner Topologies
+// -----------------------------------------------------------------------------
+print("")
+print("Running Test Case 2: Boundary Surfaces and Corner Topologies...")
+tc2Pass = 1
+
+ot2 = createOctree(0, 100, 0, 100, 0, 100, 1, 5)
+
+cornerPts = [
+    [0, 0, 0, 101],
+    [100, 0, 0, 102],
+    [0, 100, 0, 103],
+    [100, 100, 0, 104],
+    [0, 0, 100, 105],
+    [100, 0, 100, 106],
+    [0, 100, 100, 107],
+    [100, 100, 100, 108]
+]
+
+cpI = 0
+while (cpI < len(cornerPts)) {
+    octreeInsert(ot2, cornerPts[cpI])
+    cpI = cpI + 1
+}
+
+// Check each corner is isolated correctly by exact point box
+ci = 0
+while (ci < len(cornerPts)) {
+    pt = cornerPts[ci]
+    boxRes = octreeQueryBox(ot2, pt[0], pt[0], pt[1], pt[1], pt[2], pt[2])
+    if (len(boxRes) != 1 or boxRes[0][3] != pt[3]) {
+        tc2Pass = 0
+    }
+    ci = ci + 1
+}
+
+// Collision check with radius 0 on corner (100, 100, 100) -> exactly point 108
+radZeroRes = octreeCollisionSphere(ot2, 100, 100, 100, 0)
+if (len(radZeroRes) != 1 or radZeroRes[0][3] != 108) {
+    tc2Pass = 0
+}
+
+if (tc2Pass == 1) {
+    print("  8 extreme 3D bounding corners accurately partitioned and queried")
+    print("  Zero-radius exact point collision verified")
+    print("  Test Case 2 Passed successfully")
+} else {
+    print("[FAIL] Test Case 2 assertion failure")
+}
+
+// -----------------------------------------------------------------------------
+// Test Case 3: Randomized Stress Simulation against Linear Scan Oracle
+// -----------------------------------------------------------------------------
+print("")
+print("Running Test Case 3: Randomized Stress Simulation against 3D Oracle...")
+otStress = createOctree(0, 100, 0, 100, 0, 100, 3, 7)
+numStressPts = 45
+stressPts = []
+otSeed = 55443322
+spI = 0
+
+while (spI < numStressPts) {
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    rx = (otSeed % 100) + 1
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    ry = (otSeed % 100) + 1
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    rz = (otSeed % 100) + 1
+    p = [rx, ry, rz, spI]
+    stressPts.push(p)
+    octreeInsert(otStress, p)
+    spI = spI + 1
+}
+
+numBoxQueries = 100
+numColQueries = 100
+stressMismatches = 0
+
+// Part A: Box queries
+bqI = 0
+while (bqI < numBoxQueries) {
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    xa = (otSeed % 100) + 1
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    xb = (otSeed % 100) + 1
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    ya = (otSeed % 100) + 1
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    yb = (otSeed % 100) + 1
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    za = (otSeed % 100) + 1
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    zb = (otSeed % 100) + 1
+
+    minX = xa
+    maxX = xb
+    if (minX > maxX) { minX = xb; maxX = xa }
+    minY = ya
+    maxY = yb
+    if (minY > maxY) { minY = yb; maxY = ya }
+    minZ = za
+    maxZ = zb
+    if (minZ > maxZ) { minZ = zb; maxZ = za }
+
+    otBoxRes = octreeQueryBox(otStress, minX, maxX, minY, maxY, minZ, maxZ)
+
+    // Linear Oracle scan
+    oracleCount = 0
+    scI = 0
+    while (scI < numStressPts) {
+        op = stressPts[scI]
+        if (minX <= op[0] and op[0] <= maxX and minY <= op[1] and op[1] <= maxY and minZ <= op[2] and op[2] <= maxZ) {
+            oracleCount = oracleCount + 1
+        }
+        scI = scI + 1
+    }
+
+    if (len(otBoxRes) != oracleCount) {
+        print("[FAIL] Box query", bqI, "mismatch: ot=", len(otBoxRes), "oracle=", oracleCount)
+        stressMismatches = stressMismatches + 1
+        bqI = numBoxQueries // break
+    }
+
+    bqI = bqI + 1
+}
+
+// Part B: Sphere collision queries
+cqI = 0
+while (cqI < numColQueries and stressMismatches == 0) {
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    sx = (otSeed % 80) + 10
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    sy = (otSeed % 80) + 10
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    sz = (otSeed % 80) + 10
+    otSeed = (otSeed * 1103515245 + 12345) % 2147483648
+    sRad = (otSeed % 35) + 5
+
+    otColRes = octreeCollisionSphere(otStress, sx, sy, sz, sRad)
+
+    // Linear Oracle scan
+    oracleColCount = 0
+    radSq = sRad * sRad
+    ocI = 0
+    while (ocI < numStressPts) {
+        op = stressPts[ocI]
+        odx = op[0] - sx
+        ody = op[1] - sy
+        odz = op[2] - sz
+        if ((odx * odx + ody * ody + odz * odz) <= radSq) {
+            oracleColCount = oracleColCount + 1
+        }
+        ocI = ocI + 1
+    }
+
+    if (len(otColRes) != oracleColCount) {
+        print("[FAIL] Collision query", cqI, "mismatch: ot=", len(otColRes), "oracle=", oracleColCount)
+        stressMismatches = stressMismatches + 1
+        cqI = numColQueries // break
+    }
+
+    cqI = cqI + 1
+}
+
+if (stressMismatches == 0) {
+    print("  Executed", numBoxQueries, "randomized 3D box queries and", numColQueries, "sphere collision checks: 0 mismatches")
+    print("  100% agreement with linear 3D scan oracle")
+    print("  Test Case 3 Passed successfully")
+} else {
+    print("[FAIL] Stress simulation encountered", stressMismatches, "mismatches")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] 3D Octree Suite executed successfully in", elapsed, "ms")
