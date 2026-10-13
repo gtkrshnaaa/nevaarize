@@ -15,9 +15,9 @@
   },
   {
     "id": "ISSUE-3",
-    "title": "feat(algorithms): implement binomialHeapMeldableForest in richcodesamples",
-    "status": "open",
-    "file": "ISSUE-3-binomialHeap.md"
+    "title": "feat(algorithms): implement pairingHeapPriorityQueueOps in richcodesamples",
+    "status": "in-progress",
+    "file": "ISSUE-3-pairingHeap.md"
   },
   {
     "id": "ISSUE-4",
