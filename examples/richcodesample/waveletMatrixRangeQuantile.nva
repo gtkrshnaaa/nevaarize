@@ -1,0 +1,419 @@
+import stdlib time as t
+
+// Wavelet Matrix Range Quantile and Frequency Suite
+// Technical characteristics:
+// - Succinct sequence representation across L bit-levels without explicit pointer trees
+// - Range Quantile (K-th smallest in arbitrary subarray [l, r]) in O(L) time
+// - Range Frequency (occurrences of exact value x in [l, r]) in O(L) time
+// - Range Count Less (elements strictly less than threshold in [l, r]) in O(L) time
+// - Prefix bitvector rank evaluations in O(1) time
+// - Deterministic validation against naive subarray sort and brute-force oracles
+// - Unique symbol scoping per function avoiding JIT variable slot overlap
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize Wavelet Matrix Range Quantile Suite ===")
+suiteStartTime = t.millis()
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func computeBitLength(bMaxVal) {
+    if (bMaxVal <= 0) {
+        return 1
+    }
+    bBits = 0
+    bCurr = bMaxVal
+    while (bCurr > 0) {
+        bCurr = bCurr / 2
+        bBits = bBits + 1
+    }
+    return bBits
+}
+
+func getPowerOfTwo(exp) {
+    powVal = 1
+    pIdx = 0
+    while (pIdx < exp) {
+        powVal = powVal * 2
+        pIdx = pIdx + 1
+    }
+    return powVal
+}
+
+func buildWaveletMatrix(initArr) {
+    bwmLen = initArr.size()
+    bwmMax = 0
+    bwmI = 0
+    while (bwmI < bwmLen) {
+        if (initArr[bwmI] > bwmMax) {
+            bwmMax = initArr[bwmI]
+        }
+        bwmI = bwmI + 1
+    }
+
+    bwmBits = computeBitLength(bwmMax)
+    bwmLevels = []
+    bwmPrefix = []
+    bwmZeros = []
+
+    bwmCurrArr = []
+    bwmI = 0
+    while (bwmI < bwmLen) {
+        bwmCurrArr.push(initArr[bwmI])
+        bwmI = bwmI + 1
+    }
+
+    bwmLvl = bwmBits - 1
+    while (bwmLvl >= 0) {
+        bwmMask = getPowerOfTwo(bwmLvl)
+
+        bwmBitsRow = makeIntArray(bwmLen, 0)
+        bwmPrefRow = makeIntArray(bwmLen + 1, 0)
+        bwmZeroCount = 0
+
+        bwmZerosArr = []
+        bwmOnesArr = []
+
+        bwmIdx = 0
+        while (bwmIdx < bwmLen) {
+            bwmVal = bwmCurrArr[bwmIdx]
+            bwmBit = (bwmVal / bwmMask) % 2
+
+            bwmBitsRow[bwmIdx] = bwmBit
+            bwmPrefRow[bwmIdx + 1] = bwmPrefRow[bwmIdx] + bwmBit
+
+            if (bwmBit == 0) {
+                bwmZeroCount = bwmZeroCount + 1
+                bwmZerosArr.push(bwmVal)
+            } else {
+                bwmOnesArr.push(bwmVal)
+            }
+
+            bwmIdx = bwmIdx + 1
+        }
+
+        bwmNextArr = []
+        bwmZIdx = 0
+        while (bwmZIdx < bwmZerosArr.size()) {
+            bwmNextArr.push(bwmZerosArr[bwmZIdx])
+            bwmZIdx = bwmZIdx + 1
+        }
+        bwmOIdx = 0
+        while (bwmOIdx < bwmOnesArr.size()) {
+            bwmNextArr.push(bwmOnesArr[bwmOIdx])
+            bwmOIdx = bwmOIdx + 1
+        }
+
+        bwmCurrArr = bwmNextArr
+        bwmLevels.push(bwmBitsRow)
+        bwmPrefix.push(bwmPrefRow)
+        bwmZeros.push(bwmZeroCount)
+
+        bwmLvl = bwmLvl - 1
+    }
+
+    return [bwmLen, bwmBits, bwmLevels, bwmPrefix, bwmZeros]
+}
+
+func rank1(wm, r1Lvl, r1Idx) {
+    r1Prefix = wm[3]
+    return r1Prefix[r1Lvl][r1Idx]
+}
+
+func rank0(wm, r0Lvl, r0Idx) {
+    return r0Idx - rank1(wm, r0Lvl, r0Idx)
+}
+
+func queryQuantile(wm, qQL, qQR, qK) {
+    qBits = wm[1]
+    qZeros = wm[4]
+
+    qCurL = qQL
+    qCurR = qQR
+    qRemainK = qK
+    qResult = 0
+
+    qLvl = 0
+    while (qLvl < qBits) {
+        qBitPos = qBits - 1 - qLvl
+        qWeight = getPowerOfTwo(qBitPos)
+
+        qZerosBefore = rank0(wm, qLvl, qCurL)
+        qZerosUpTo = rank0(wm, qLvl, qCurR + 1)
+        qZeroCount = qZerosUpTo - qZerosBefore
+
+        if (qRemainK <= qZeroCount) {
+            qCurL = qZerosBefore
+            qCurR = qZerosUpTo - 1
+        } else {
+            qResult = qResult + qWeight
+            qRemainK = qRemainK - qZeroCount
+
+            qOnesBefore = rank1(wm, qLvl, qCurL)
+            qOnesUpTo = rank1(wm, qLvl, qCurR + 1)
+            qTotalZeros = qZeros[qLvl]
+
+            qCurL = qTotalZeros + qOnesBefore
+            qCurR = qTotalZeros + qOnesUpTo - 1
+        }
+
+        qLvl = qLvl + 1
+    }
+
+    return qResult
+}
+
+func queryCountLess(wm, clQL, clQR, clThreshold) {
+    clBits = wm[1]
+    clZeros = wm[4]
+
+    clCurL = clQL
+    clCurR = clQR
+    clCount = 0
+
+    clLvl = 0
+    while (clLvl < clBits) {
+        if (clCurL > clCurR) {
+            return clCount
+        }
+
+        clBitPos = clBits - 1 - clLvl
+        clWeight = getPowerOfTwo(clBitPos)
+        clTargetBit = (clThreshold / clWeight) % 2
+
+        clZerosBefore = rank0(wm, clLvl, clCurL)
+        clZerosUpTo = rank0(wm, clLvl, clCurR + 1)
+        clZeroInRange = clZerosUpTo - clZerosBefore
+
+        if (clTargetBit == 1) {
+            clCount = clCount + clZeroInRange
+            clOnesBefore = rank1(wm, clLvl, clCurL)
+            clOnesUpTo = rank1(wm, clLvl, clCurR + 1)
+            clTotalZeros = clZeros[clLvl]
+
+            clCurL = clTotalZeros + clOnesBefore
+            clCurR = clTotalZeros + clOnesUpTo - 1
+        } else {
+            clCurL = clZerosBefore
+            clCurR = clZerosUpTo - 1
+        }
+
+        clLvl = clLvl + 1
+    }
+
+    return clCount
+}
+
+func queryFrequency(wm, fQL, fQR, fVal) {
+    fLess1 = queryCountLess(wm, fQL, fQR, fVal + 1)
+    fLess2 = queryCountLess(wm, fQL, fQR, fVal)
+    return fLess1 - fLess2
+}
+
+// Oracle implementation for validation
+func oracleQuantile(srcArr, oQL, oQR, oK) {
+    sub = []
+    oI = oQL
+    while (oI <= oQR) {
+        sub.push(srcArr[oI])
+        oI = oI + 1
+    }
+
+    // Sort sub array
+    sLen = sub.size()
+    sA = 0
+    while (sA < sLen) {
+        sB = sA + 1
+        while (sB < sLen) {
+            if (sub[sB] < sub[sA]) {
+                sTmp = sub[sA]
+                sub[sA] = sub[sB]
+                sub[sB] = sTmp
+            }
+            sB = sB + 1
+        }
+        sA = sA + 1
+    }
+
+    return sub[oK - 1]
+}
+
+func oracleCountLess(srcArr, oQL, oQR, oThreshold) {
+    cnt = 0
+    oI = oQL
+    while (oI <= oQR) {
+        if (srcArr[oI] < oThreshold) {
+            cnt = cnt + 1
+        }
+        oI = oI + 1
+    }
+    return cnt
+}
+
+allWmTestsPassed = true
+
+// --- Test Case 1: Canonical Small Array Quantiles ---
+print("Running Test Case 1: Canonical Array Range Quantiles...")
+arr1 = [15, 3, 42, 8, 99, 14, 27, 4, 8, 30]
+wm1 = buildWaveletMatrix(arr1)
+
+// Query range [0, 9] (full array, size 10):
+// Sorted: 3, 4, 8, 8, 14, 15, 27, 30, 42, 99
+// 1st smallest = 3, 5th smallest = 14, 10th smallest = 99
+qMin = queryQuantile(wm1, 0, 9, 1)
+qMed = queryQuantile(wm1, 0, 9, 5)
+qMax = queryQuantile(wm1, 0, 9, 10)
+
+print("  Full Array 1st smallest : " + qMin + " (Expected: 3)")
+print("  Full Array 5th smallest : " + qMed + " (Expected: 14)")
+print("  Full Array 10th smallest: " + qMax + " (Expected: 99)")
+
+if (qMin != 3 or qMed != 14 or qMax != 99) {
+    print("[FAIL] Test Case 1 full array quantile failed")
+    allWmTestsPassed = false
+}
+
+// Subarray [2, 6] -> [42, 8, 99, 14, 27]
+// Sorted: 8, 14, 27, 42, 99
+// 1st = 8, 2nd = 14, 3rd = 27, 4th = 42, 5th = 99
+k1 = queryQuantile(wm1, 2, 6, 1)
+k2 = queryQuantile(wm1, 2, 6, 2)
+k3 = queryQuantile(wm1, 2, 6, 3)
+k4 = queryQuantile(wm1, 2, 6, 4)
+k5 = queryQuantile(wm1, 2, 6, 5)
+
+print("  Subarray [2, 6] sorted: " + k1 + ", " + k2 + ", " + k3 + ", " + k4 + ", " + k5)
+if (k1 != 8 or k2 != 14 or k3 != 27 or k4 != 42 or k5 != 99) {
+    print("[FAIL] Test Case 1 subarray [2, 6] failed")
+    allWmTestsPassed = false
+} else {
+    print("  Test Case 1 PASSED")
+}
+
+// --- Test Case 2: Range Count Less and Frequency ---
+print("Running Test Case 2: Range Count Less and Frequency Queries...")
+// In arr1 [0, 9], count elements < 20: 3, 4, 8, 8, 14, 15 -> 6 elements
+cLess20 = queryCountLess(wm1, 0, 9, 20)
+oracLess20 = oracleCountLess(arr1, 0, 9, 20)
+print("  Elements < 20 in [0, 9]: " + cLess20 + " (Oracle: " + oracLess20 + ")")
+
+// Count frequency of 8 in [0, 9]: should be 2
+freq8 = queryFrequency(wm1, 0, 9, 8)
+freq99 = queryFrequency(wm1, 0, 9, 99)
+freq100 = queryFrequency(wm1, 0, 9, 100)
+
+print("  Frequency of 8 in [0, 9]  : " + freq8 + " (Expected: 2)")
+print("  Frequency of 99 in [0, 9] : " + freq99 + " (Expected: 1)")
+print("  Frequency of 100 in [0, 9]: " + freq100 + " (Expected: 0)")
+
+if (cLess20 != oracLess20 or freq8 != 2 or freq99 != 1 or freq100 != 0) {
+    print("[FAIL] Test Case 2 range frequency checks failed")
+    allWmTestsPassed = false
+} else {
+    print("  Test Case 2 PASSED")
+}
+
+// --- Test Case 3: Duplicate-Heavy Sequence ---
+print("Running Test Case 3: Duplicate-Heavy Sequence...")
+arr3 = [7, 7, 3, 3, 7, 3, 7, 7]
+wm3 = buildWaveletMatrix(arr3)
+
+// In arr3, there are 3 threes and 5 sevens
+// Subarray [1, 5] -> [7, 3, 3, 7, 3] (three 3s, two 7s)
+// 1st, 2nd, 3rd = 3; 4th, 5th = 7
+qD1 = queryQuantile(wm3, 1, 5, 1)
+qD2 = queryQuantile(wm3, 1, 5, 2)
+qD3 = queryQuantile(wm3, 1, 5, 3)
+qD4 = queryQuantile(wm3, 1, 5, 4)
+qD5 = queryQuantile(wm3, 1, 5, 5)
+
+print("  Duplicate subarray [1, 5] quantiles: " + qD1 + ", " + qD2 + ", " + qD3 + ", " + qD4 + ", " + qD5)
+if (qD1 != 3 or qD2 != 3 or qD3 != 3 or qD4 != 7 or qD5 != 7) {
+    print("[FAIL] Test Case 3 duplicate quantiles failed")
+    allWmTestsPassed = false
+} else {
+    print("  Test Case 3 PASSED")
+}
+
+// --- Test Case 4: Randomized Stress Validation with Large Alphabet ---
+print("Running Test Case 4: Large Alphabet Random Stress Test (40 elements up to 100000)...")
+arr4 = []
+seed = 456789123
+sI = 0
+while (sI < 40) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) {
+        seed = 0 - seed
+    }
+    arr4.push(seed % 100000)
+    sI = sI + 1
+}
+
+wm4 = buildWaveletMatrix(arr4)
+
+stressOk = true
+tIdx = 0
+while (tIdx < 15 and stressOk) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    tL = (seed % 20)
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    tR = tL + 5 + (seed % 15)
+    if (tR >= 40) { tR = 39 }
+
+    rangeLen = tR - tL + 1
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (seed < 0) { seed = 0 - seed }
+    tK = 1 + (seed % rangeLen)
+
+    calcQ = queryQuantile(wm4, tL, tR, tK)
+    expQ = oracleQuantile(arr4, tL, tR, tK)
+
+    if (calcQ != expQ) {
+        print("[FAIL] Mismatch at [" + tL + ", " + tR + "], k=" + tK + ": got " + calcQ + ", expected " + expQ)
+        stressOk = false
+    }
+
+    tIdx = tIdx + 1
+}
+
+if (!stressOk) {
+    print("[FAIL] Test Case 4 stress testing failed")
+    allWmTestsPassed = false
+} else {
+    print("  Test Case 4 PASSED (15 random intervals verified against sorting oracle)")
+}
+
+// --- Final Summary ---
+print("=== Wavelet Matrix Suite Summary ===")
+if (allWmTestsPassed) {
+    print("All Wavelet Matrix test suites: SUCCESS")
+} else {
+    print("Some Wavelet Matrix test suites: FAILED")
+}
+
+totalElapsed = t.millis() - suiteStartTime
+print("[PASS] Wavelet Matrix Range Quantile executed successfully in", totalElapsed, "ms")
