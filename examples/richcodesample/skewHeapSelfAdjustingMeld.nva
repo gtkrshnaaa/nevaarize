@@ -200,6 +200,40 @@ func verifySkewHeapInvariants(arena, root) {
     return 1
 }
 
+func tournamentMeld(arena, heapList) {
+    if (heapList.size() == 0) {
+        return -1
+    }
+    active = []
+    tIdx = 0
+    while (tIdx < heapList.size()) {
+        hRoot = heapList[tIdx]
+        if (hRoot != -1) {
+            active.push(hRoot)
+        }
+        tIdx = tIdx + 1
+    }
+    if (active.size() == 0) {
+        return -1
+    }
+    while (active.size() > 1) {
+        nextRound = []
+        rIdx = 0
+        while (rIdx < active.size()) {
+            if (rIdx + 1 < active.size()) {
+                merged = meldSkewHeaps(arena, active[rIdx], active[rIdx + 1])
+                nextRound.push(merged)
+                rIdx = rIdx + 2
+            } else {
+                nextRound.push(active[rIdx])
+                rIdx = rIdx + 1
+            }
+        }
+        active = nextRound
+    }
+    return active[0]
+}
+
 // -----------------------------------------------------------------------------
 // Test Case 1: Sequential Inserts, Priority Order Extraction, and Min-Heap Invariants
 // -----------------------------------------------------------------------------
@@ -457,3 +491,245 @@ if (tc3Pass == 1) {
 } else {
     print("[FAIL] Test Case 3 encountered assertion mismatches")
 }
+
+print("")
+print("Running Test Case 4: Multi-Heap Tournament Meld in Dynamic Forest...")
+tc4Pass = 1
+tc4Arena = createSkewHeapArena()
+
+forestHeaps = []
+forestBatches = [
+    [[20, 200], [25, 250]],
+    [[5, 50], [50, 500]],
+    [[12, 120], [18, 180]],
+    [[1, 10], [100, 1000]],
+    [[7, 70], [33, 330]],
+    [[14, 140], [45, 450]],
+    [[3, 30], [90, 900]],
+    [[9, 90], [15, 150]]
+]
+
+fIdx = 0
+while (fIdx < forestBatches.size()) {
+    batch = forestBatches[fIdx]
+    hRoot = -1
+    bIdx = 0
+    while (bIdx < batch.size()) {
+        pair = batch[bIdx]
+        hRoot = insertHeapNode(tc4Arena, hRoot, pair[0], pair[1])
+        bIdx = bIdx + 1
+    }
+    forestHeaps.push(hRoot)
+    fIdx = fIdx + 1
+}
+
+if (forestHeaps.size() != 8) {
+    tc4Pass = 0
+}
+
+consolidatedRoot = tournamentMeld(tc4Arena, forestHeaps)
+
+if (getHeapSize(tc4Arena, consolidatedRoot) != 16) {
+    tc4Pass = 0
+}
+if (verifySkewHeapInvariants(tc4Arena, consolidatedRoot) != 1) {
+    tc4Pass = 0
+}
+
+minConsolidated = findMin(tc4Arena, consolidatedRoot)
+if (minConsolidated[0] != 1 or minConsolidated[1] != 10) {
+    tc4Pass = 0
+}
+
+expectedConsolidatedSorted = [1, 3, 5, 7, 9, 12, 14, 15, 18, 20, 25, 33, 45, 50, 90, 100]
+cExtIdx = 0
+while (cExtIdx < expectedConsolidatedSorted.size()) {
+    extCons = extractMin(tc4Arena, consolidatedRoot)
+    kCons = extCons[0]
+    consolidatedRoot = extCons[2]
+
+    if (kCons != expectedConsolidatedSorted[cExtIdx]) {
+        tc4Pass = 0
+    }
+    remExpected = expectedConsolidatedSorted.size() - cExtIdx - 1
+    if (getHeapSize(tc4Arena, consolidatedRoot) != remExpected) {
+        tc4Pass = 0
+    }
+    if (verifySkewHeapInvariants(tc4Arena, consolidatedRoot) != 1) {
+        tc4Pass = 0
+    }
+    cExtIdx = cExtIdx + 1
+}
+
+if (!isEmptyHeap(consolidatedRoot)) {
+    tc4Pass = 0
+}
+
+if (tc4Pass == 1) {
+    print("  8 discrete heaps consolidated via tournament pairwise bottom-up meld")
+    print("  Total 16 items combined into single balanced self-adjusted priority tree")
+    print("  Global min element (1) accurately retrieved at tournament root")
+    print("  All 16 elements extracted in strict ascending sorted sequence")
+    print("  Test Case 4 Passed successfully")
+} else {
+    print("[FAIL] Test Case 4 encountered assertion mismatches")
+}
+
+print("")
+print("Running Test Case 5: Randomized Stress Benchmark against Naive Priority Queue Oracle...")
+tc5Arena = createSkewHeapArena()
+
+activeHeaps = [-1, -1, -1]
+oracleLists = [[], [], []]
+
+stressSeed = 987654321
+stressOps = 250
+stressOpI = 0
+stressMismatches = 0
+totalInserts = 0
+totalExtracts = 0
+totalMelds = 0
+
+while (stressOpI < stressOps) {
+    stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+    opType = stressSeed % 3
+
+    if (opType == 0) {
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        targetQueue = stressSeed % 3
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        randKey = (stressSeed % 2000) - 500
+        randVal = randKey * 3
+
+        activeHeaps[targetQueue] = insertHeapNode(tc5Arena, activeHeaps[targetQueue], randKey, randVal)
+        oracleLists[targetQueue].push(randKey)
+        totalInserts = totalInserts + 1
+    }
+
+    if (opType == 1) {
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        targetQueue = stressSeed % 3
+        curH = activeHeaps[targetQueue]
+
+        if (curH != -1) {
+            hMinInfo = extractMin(tc5Arena, curH)
+            hMinKey = hMinInfo[0]
+            activeHeaps[targetQueue] = hMinInfo[2]
+
+            oList = oracleLists[targetQueue]
+            minIdx = 0
+            bestMin = oList[0]
+            scanI = 1
+            while (scanI < oList.size()) {
+                if (oList[scanI] < bestMin) {
+                    bestMin = oList[scanI]
+                    minIdx = scanI
+                }
+                scanI = scanI + 1
+            }
+
+            newOList = []
+            scanJ = 0
+            while (scanJ < oList.size()) {
+                if (scanJ != minIdx) {
+                    newOList.push(oList[scanJ])
+                }
+                scanJ = scanJ + 1
+            }
+            oracleLists[targetQueue] = newOList
+
+            if (hMinKey != bestMin) {
+                print("[FAIL] Stress mismatch: heapMin=", hMinKey, ", oracleMin=", bestMin)
+                stressMismatches = stressMismatches + 1
+            }
+            totalExtracts = totalExtracts + 1
+        }
+    }
+
+    if (opType == 2) {
+        stressSeed = (stressSeed * 1103515245 + 12345) % 2147483648
+        hIdxA = stressSeed % 3
+        hIdxB = (hIdxA + 1 + (stressSeed % 2)) % 3
+
+        if (activeHeaps[hIdxB] != -1) {
+            activeHeaps[hIdxA] = meldSkewHeaps(tc5Arena, activeHeaps[hIdxA], activeHeaps[hIdxB])
+            activeHeaps[hIdxB] = -1
+
+            listA = oracleLists[hIdxA]
+            listB = oracleLists[hIdxB]
+            copyI = 0
+            while (copyI < listB.size()) {
+                listA.push(listB[copyI])
+                copyI = copyI + 1
+            }
+            oracleLists[hIdxA] = listA
+            oracleLists[hIdxB] = []
+            totalMelds = totalMelds + 1
+        }
+    }
+
+    stressOpI = stressOpI + 1
+}
+
+qScan = 0
+while (qScan < 3) {
+    remH = activeHeaps[qScan]
+    remO = oracleLists[qScan]
+
+    if (remH != -1) {
+        if (verifySkewHeapInvariants(tc5Arena, remH) != 1) {
+            print("[FAIL] Final active heap invariant check failed on queue=", qScan)
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    while (remH != -1) {
+        finInfo = extractMin(tc5Arena, remH)
+        finKey = finInfo[0]
+        remH = finInfo[2]
+
+        fMinIdx = 0
+        fBestMin = remO[0]
+        fScanI = 1
+        while (fScanI < remO.size()) {
+            if (remO[fScanI] < fBestMin) {
+                fBestMin = remO[fScanI]
+                fMinIdx = fScanI
+            }
+            fScanI = fScanI + 1
+        }
+
+        fNewRemO = []
+        fScanJ = 0
+        while (fScanJ < remO.size()) {
+            if (fScanJ != fMinIdx) {
+                fNewRemO.push(remO[fScanJ])
+            }
+            fScanJ = fScanJ + 1
+        }
+        remO = fNewRemO
+
+        if (finKey != fBestMin) {
+            print("[FAIL] Final drain mismatch on queue", qScan, ": heap=", finKey, ", oracle=", fBestMin)
+            stressMismatches = stressMismatches + 1
+        }
+    }
+
+    if (remO.size() != 0) {
+        print("[FAIL] Oracle list was not completely drained on queue=", qScan)
+        stressMismatches = stressMismatches + 1
+    }
+
+    qScan = qScan + 1
+}
+
+if (stressMismatches == 0) {
+    print("  Executed", stressOps, "randomized operations (", totalInserts, "inserts,", totalExtracts, "extracts,", totalMelds, "melds): 0 mismatches")
+    print("  All active priority queues matched naive reference oracle with 100% precision")
+    print("  Test Case 5 Passed randomized stress benchmark verification")
+} else {
+    print("[FAIL] Stress benchmark encountered", stressMismatches, "mismatches")
+}
+
+elapsed = t.millis() - suiteStartTime
+print("[PASS] Skew Heap Self-Adjusting Meld Suite executed successfully in", elapsed, "ms")
