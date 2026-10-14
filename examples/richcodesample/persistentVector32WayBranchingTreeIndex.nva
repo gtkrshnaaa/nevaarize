@@ -26,20 +26,20 @@ func nextVersionId() {
 
 func createNode32() {
     node = []
-    i = 0
-    while (i < 32) {
+    nodeIdx = 0
+    while (nodeIdx < 32) {
         node.push(-1)
-        i = i + 1
+        nodeIdx = nodeIdx + 1
     }
     return node
 }
 
 func cloneNode32(origNode) {
     node = []
-    i = 0
-    while (i < 32) {
-        node.push(origNode[i])
-        i = i + 1
+    cloneIdx = 0
+    while (cloneIdx < 32) {
+        node.push(origNode[cloneIdx])
+        cloneIdx = cloneIdx + 1
     }
     return node
 }
@@ -47,10 +47,10 @@ func cloneNode32(origNode) {
 func cloneArray(srcArr) {
     res = []
     sz = srcArr.size()
-    i = 0
-    while (i < sz) {
-        res.push(srcArr[i])
-        i = i + 1
+    arrIdx = 0
+    while (arrIdx < sz) {
+        res.push(srcArr[arrIdx])
+        arrIdx = arrIdx + 1
     }
     return res
 }
@@ -301,4 +301,235 @@ func vectorFromRange(startVal, countVal) {
     return vec
 }
 
-print("Core 32-way persistent vector data structures and push/get/set/pop initialized.")
+// --- Test Case 1: Empty Vector Boundaries ---
+
+print("--- Running Test Case 1: Empty Vector Boundaries ---")
+vEmpty = createEmptyVector()
+if (vectorSize(vEmpty) != 0) {
+    print("[FAIL] Test Case 1 Empty vector size not 0: ", vectorSize(vEmpty))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (vectorGet(vEmpty, 0) != -1 or vectorGet(vEmpty, -1) != -1 or vectorGet(vEmpty, 100) != -1) {
+    print("[FAIL] Test Case 1 Out of bounds lookup did not return -1")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+vEmptyPopped = vectorPop(vEmpty)
+if (vectorSize(vEmptyPopped) != 0) {
+    print("[FAIL] Test Case 1 Pop on empty vector altered size")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+vEmptySet = vectorSet(vEmpty, 0, 42)
+if (vectorSize(vEmptySet) != 0) {
+    print("[FAIL] Test Case 1 Set on empty vector altered size")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 1 Passed empty vector boundary verification")
+
+// --- Test Case 2: Tail-Only Mutations (1 to 31 elements) ---
+
+print("--- Running Test Case 2: Tail-Only Mutations (1 to 31 elements) ---")
+vTail = createEmptyVector()
+elemIdx = 0
+while (elemIdx < 31) {
+    vTail = vectorPush(vTail, elemIdx * 10)
+    elemIdx = elemIdx + 1
+}
+
+if (vectorSize(vTail) != 31) {
+    print("[FAIL] Test Case 2 Expected size 31, got ", vectorSize(vTail))
+    testSuiteFailures = testSuiteFailures + 1
+}
+// Root should still be -1 (pure tail optimization)
+if (vTail[2] != -1) {
+    print("[FAIL] Test Case 2 Expected empty root for tail-only vector")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify lookups
+lookupOk = true
+elemIdx = 0
+while (elemIdx < 31) {
+    val = vectorGet(vTail, elemIdx)
+    if (val != elemIdx * 10) {
+        lookupOk = false
+    }
+    elemIdx = elemIdx + 1
+}
+if (!lookupOk) {
+    print("[FAIL] Test Case 2 Tail lookup value mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test immutability via set
+vTailUpdated = vectorSet(vTail, 15, 9999)
+if (vectorGet(vTailUpdated, 15) != 9999) {
+    print("[FAIL] Test Case 2 Updated vector did not reflect new value at index 15")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (vectorGet(vTail, 15) != 150) {
+    print("[FAIL] Test Case 2 Original vector was mutated during set operation (Immutability violation)")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test tail pops
+vTailPop1 = vectorPop(vTail)
+if (vectorSize(vTailPop1) != 30 or vectorGet(vTailPop1, 29) != 290) {
+    print("[FAIL] Test Case 2 Pop from size 31 to 30 failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (vectorSize(vTail) != 31) {
+    print("[FAIL] Test Case 2 Original vector size mutated during pop")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 2 Passed tail-only mutations and immutability verification")
+
+// --- Test Case 3: Exact 32-Element Rollover Boundary ---
+
+print("--- Running Test Case 3: Exact 32-Element Rollover Boundary ---")
+v32 = vectorPush(vTail, 310) // Now size 32 (indices 0..31)
+if (vectorSize(v32) != 32) {
+    print("[FAIL] Test Case 3 Size 32 vector mismatch: ", vectorSize(v32))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (v32[2] != -1 or v32[3].size() != 32) {
+    print("[FAIL] Test Case 3 At exactly 32 elements, tail should hold all 32 and root should be -1")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Push 33rd element (rollover to tree!)
+v33 = vectorPush(v32, 3333)
+if (vectorSize(v33) != 33) {
+    print("[FAIL] Test Case 3 Size 33 vector mismatch: ", vectorSize(v33))
+    testSuiteFailures = testSuiteFailures + 1
+}
+// Now root must NOT be -1: root[0] holds the old tail of 32 elements!
+if (v33[2] == -1) {
+    print("[FAIL] Test Case 3 Root must be allocated when 33rd element is pushed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+// New tail should contain exactly 1 element: [3333]
+if (v33[3].size() != 1 or v33[3][0] != 3333) {
+    print("[FAIL] Test Case 3 New tail should contain exactly 1 element [3333]")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify all 33 elements lookups across tree/tail boundary
+v33LookupsOk = true
+i = 0
+while (i < 32) {
+    if (vectorGet(v33, i) != i * 10) {
+        v33LookupsOk = false
+    }
+    i = i + 1
+}
+if (vectorGet(v33, 32) != 3333) {
+    v33LookupsOk = false
+}
+if (!v33LookupsOk) {
+    print("[FAIL] Test Case 3 Rollover 33-element lookups across tree/tail boundary failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Pop 33rd element: leaf root[0] should be promoted back to tail!
+v33Popped = vectorPop(v33)
+if (vectorSize(v33Popped) != 32) {
+    print("[FAIL] Test Case 3 Popped 33rd element did not restore size 32: ", vectorSize(v33Popped))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (v33Popped[2] != -1 or v33Popped[3].size() != 32) {
+    print("[FAIL] Test Case 3 Popped 33rd element did not collapse root and restore full tail")
+    testSuiteFailures = testSuiteFailures + 1
+}
+i = 0
+popLookupsOk = true
+while (i < 32) {
+    if (vectorGet(v33Popped, i) != i * 10) {
+        popLookupsOk = false
+    }
+    i = i + 1
+}
+if (!popLookupsOk) {
+    print("[FAIL] Test Case 3 Popped 32-element lookups mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 3 Passed exact 32-element rollover and leaf promotion verification")
+
+// --- Test Case 4: Level 1 Saturation (1,024 elements) & Structural Sharing ---
+
+print("--- Running Test Case 4: Level 1 Saturation (1,024 elements) & Structural Sharing ---")
+v1024 = vectorFromRange(0, 1024)
+if (vectorSize(v1024) != 1024) {
+    print("[FAIL] Test Case 4 Size 1024 mismatch: ", vectorSize(v1024))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// All 1024 elements must be exact
+all1024Ok = true
+scanIdx = 0
+while (scanIdx < 1024) {
+    if (vectorGet(v1024, scanIdx) != scanIdx) {
+        all1024Ok = false
+    }
+    scanIdx = scanIdx + 1
+}
+if (!all1024Ok) {
+    print("[FAIL] Test Case 4 1,024 element lookup value mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Update index 500 (in leaf 15 of tree)
+v1024Mod = vectorSet(v1024, 500, 88888)
+if (vectorGet(v1024Mod, 500) != 88888) {
+    print("[FAIL] Test Case 4 Modified element not updated in new vector")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (vectorGet(v1024, 500) != 500) {
+    print("[FAIL] Test Case 4 Original vector mutated during set at index 500")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Structural Sharing Verification:
+rootOrig = v1024[2]
+rootMod = v1024Mod[2]
+if (rootOrig == rootMod) {
+    print("[FAIL] Test Case 4 Root arrays must not be identical (path copy required)")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Leaf 15 must be different
+targetLeafIdx = (500 >> 5) & 31
+if (rootOrig[targetLeafIdx] == rootMod[targetLeafIdx]) {
+    print("[FAIL] Test Case 4 Target leaf 15 was not cloned during update")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Sibling leaves must be identical (Structural Sharing)
+sharedLeavesCount = 0
+leafCheckIdx = 0
+while (leafCheckIdx < 31) {
+    if (leafCheckIdx != targetLeafIdx) {
+        if (rootOrig[leafCheckIdx] == rootMod[leafCheckIdx]) {
+            sharedLeavesCount = sharedLeavesCount + 1
+        }
+    }
+    leafCheckIdx = leafCheckIdx + 1
+}
+
+if (sharedLeavesCount != 30) {
+    print("[FAIL] Test Case 4 Structural sharing violation: expected 30 shared sibling leaves, got ", sharedLeavesCount)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 4 Passed level 1 saturation (1,024 elements) and pointer structural sharing verification (", sharedLeavesCount, "/30 leaves shared)")
+
+// --- Benchmark Timings and Final Assertion ---
+
+suiteElapsedTime = t.millis() - suiteStartTime
+
+if (testSuiteFailures == 0) {
+    print("[PASS] Persistent Vector 32-Way Branching Tree Index Suite executed successfully in ", suiteElapsedTime, " ms")
+} else {
+    print("[FAIL] Persistent Vector Suite encountered ", testSuiteFailures, " failures")
+}
+
