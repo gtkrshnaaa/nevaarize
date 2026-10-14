@@ -91,6 +91,28 @@ func dispatchThunk(fnId, a0, a1, a2) {
         nextAcc = a1 + a0
         nextN = a0 - 1
         return createMore(1, nextN, nextAcc, 0)
+    } elif (fnId == 2) {
+        // fnIdEvenTail: a0 = n
+        if (a0 == 0) {
+            return createDone(1)
+        }
+        nextN = a0 - 1
+        return createMore(3, nextN, 0, 0)
+    } elif (fnId == 3) {
+        // fnIdOddTail: a0 = n
+        if (a0 == 0) {
+            return createDone(0)
+        }
+        nextN = a0 - 1
+        return createMore(2, nextN, 0, 0)
+    } elif (fnId == 4) {
+        // fnIdFibonacciTail: a0 = n, a1 = a, a2 = b
+        if (a0 <= 0) {
+            return createDone(a1)
+        }
+        nextN = a0 - 1
+        nextFib = (a1 + a2) % 1000000007
+        return createMore(4, nextN, a2, nextFib)
     } elif (fnId == 8) {
         // fnIdDoubleCont: a0 = val, a1 = extra
         doubledVal = (a0 * 2) + a1
@@ -225,6 +247,109 @@ if (sum50kMaxDepth != 1) {
 }
 
 print("  Test Case 1 Passed core bounce primitives and linear tail recursion (50,000 steps in O(1) stack)")
+
+// --- Test Case 2: Mutual Tail Recursion (Even / Odd Co-routines) ---
+
+print("--- Running Test Case 2: Mutual Tail Recursion (Even / Odd Co-routines) ---")
+
+// Base case boundaries
+evenZero = runTrampoline(createMore(fnIdEvenTail, 0, 0, 0))
+oddZero = runTrampoline(createMore(fnIdOddTail, 0, 0, 0))
+
+if (evenZero != 1 or oddZero != 0) {
+    print("[FAIL] Test Case 2 Base case parity failed: evenZero=", evenZero, " oddZero=", oddZero)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Small values parity verification
+if (runTrampoline(createMore(fnIdEvenTail, 1, 0, 0)) != 0 or runTrampoline(createMore(fnIdOddTail, 1, 0, 0)) != 1) {
+    print("[FAIL] Test Case 2 Parity for n=1 failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (runTrampoline(createMore(fnIdEvenTail, 42, 0, 0)) != 1 or runTrampoline(createMore(fnIdOddTail, 42, 0, 0)) != 0) {
+    print("[FAIL] Test Case 2 Parity for n=42 failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (runTrampoline(createMore(fnIdEvenTail, 99, 0, 0)) != 0 or runTrampoline(createMore(fnIdOddTail, 99, 0, 0)) != 1) {
+    print("[FAIL] Test Case 2 Parity for n=99 failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Unbounded mutual tail recursion: N = 40,000 co-routine handoffs
+telemetryEven40k = runTrampolineWithTelemetry(createMore(fnIdEvenTail, 40000, 0, 0))
+even40kResult = telemetryEven40k[0]
+even40kBounces = telemetryEven40k[1]
+even40kMaxDepth = telemetryEven40k[2]
+
+if (even40kResult != 1) {
+    print("[FAIL] Test Case 2 isEven(40000) expected 1, got ", even40kResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (even40kBounces != 40001) {
+    print("[FAIL] Test Case 2 isEven(40000) expected 40001 bounces, got ", even40kBounces)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (even40kMaxDepth != 1) {
+    print("[FAIL] Test Case 2 isEven(40000) stack depth violated: expected 1, got ", even40kMaxDepth)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+odd40kResult = runTrampoline(createMore(fnIdOddTail, 40001, 0, 0))
+if (odd40kResult != 1) {
+    print("[FAIL] Test Case 2 isOdd(40001) expected 1, got ", odd40kResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 2 Passed mutual tail recursion ping-pong (40,000 co-routine handoffs in O(1) stack)")
+
+// --- Test Case 3: Fibonacci & Modular Arithmetic with Accumulator Tuples ---
+
+print("--- Running Test Case 3: Fibonacci & Modular Arithmetic with Accumulator Tuples ---")
+
+fibZero = runTrampoline(createMore(fnIdFibonacciTail, 0, 0, 1))
+fibOne = runTrampoline(createMore(fnIdFibonacciTail, 1, 0, 1))
+fibTwo = runTrampoline(createMore(fnIdFibonacciTail, 2, 0, 1))
+fibTen = runTrampoline(createMore(fnIdFibonacciTail, 10, 0, 1))
+fibTwenty = runTrampoline(createMore(fnIdFibonacciTail, 20, 0, 1))
+fibThirty = runTrampoline(createMore(fnIdFibonacciTail, 30, 0, 1))
+
+if (fibZero != 0 or fibOne != 1 or fibTwo != 1) {
+    print("[FAIL] Test Case 3 Small Fibonacci values mismatch: 0=", fibZero, " 1=", fibOne, " 2=", fibTwo)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (fibTen != 55) {
+    print("[FAIL] Test Case 3 Fib(10) expected 55, got ", fibTen)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (fibTwenty != 6765) {
+    print("[FAIL] Test Case 3 Fib(20) expected 6765, got ", fibTwenty)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (fibThirty != 832040) {
+    print("[FAIL] Test Case 3 Fib(30) expected 832040, got ", fibThirty)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Unbounded scale: F(30,000) mod 1,000,000,007
+fib30kResult = runTrampoline(createMore(fnIdFibonacciTail, 30000, 0, 1))
+fib30kPlus1Result = runTrampoline(createMore(fnIdFibonacciTail, 30001, 0, 1))
+fib30kPlus2Result = runTrampoline(createMore(fnIdFibonacciTail, 30002, 0, 1))
+
+// Invariant verification: F(n+2) == (F(n+1) + F(n)) % 1000000007
+expectedSumModulo = (fib30kResult + fib30kPlus1Result) % 1000000007
+if (fib30kPlus2Result != expectedSumModulo) {
+    print("[FAIL] Test Case 3 Fibonacci recurrence invariant violated at n=30,000")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 3 Passed Fibonacci modular recurrence (30,000 steps with tuple state preservation)")
 
 suiteElapsedTime = t.millis() - suiteStartTime
 print("Progress elapsed time: ", suiteElapsedTime, " ms")
