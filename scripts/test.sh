@@ -9,7 +9,7 @@
 set -euo pipefail
 
 IMAGE_NAME="nevaarize-test:latest"
-WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ------------------------------------------------------------------------------
 # Resource Discovery & 50% Boundary Calculation
@@ -103,7 +103,7 @@ case "$MODE" in
 
     run)
         if [ -z "${2:-}" ]; then
-            echo "[x] Error: specify script path. Usage: ./test.sh run <path/to/script.nva>"
+            echo "[x] Error: specify script path. Usage: ./scripts/test.sh run <path/to/script.nva>"
             exit 1
         fi
         run_sandbox bash -c "test -f bin/nevaarize || make release"
@@ -113,7 +113,7 @@ case "$MODE" in
 
     asan)
         if [ -z "${2:-}" ]; then
-            echo "[x] Error: specify script path. Usage: ./test.sh asan <path/to/script.nva>"
+            echo "[x] Error: specify script path. Usage: ./scripts/test.sh asan <path/to/script.nva>"
             exit 1
         fi
         echo "[*] Ensuring ASan debug binary is built..."
@@ -124,7 +124,7 @@ case "$MODE" in
 
     valgrind)
         if [ -z "${2:-}" ]; then
-            echo "[x] Error: specify script path. Usage: ./test.sh valgrind <path/to/script.nva>"
+            echo "[x] Error: specify script path. Usage: ./scripts/test.sh valgrind <path/to/script.nva>"
             exit 1
         fi
         echo "[*] Ensuring debug binary without AVX-512 is built for Valgrind..."
@@ -183,7 +183,7 @@ case "$MODE" in
         ;;
 
     help|--help|-h)
-        echo "Usage: ./test.sh [command] [args]"
+        echo "Usage: ./scripts/test.sh [command] [args]"
         echo ""
         echo "Commands:"
         echo "  all                  Clean build and run smoke tests (default)"
@@ -210,7 +210,7 @@ case "$MODE" in
             fi
         else
             echo "[x] Unknown command or file: $MODE"
-            echo "Run './test.sh help' for usage."
+            echo "Run './scripts/test.sh help' for usage."
             exit 1
         fi
         ;;

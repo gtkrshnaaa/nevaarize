@@ -116,7 +116,7 @@ make
 
 To protect developer workstation stability from memory exhaustion, swap thrashing, or thermal shutdowns during language and algorithm development, **all test runs and script verifications must execute inside the Docker sandbox**. Unverified JIT scripts, custom allocators, and complex dynamic structures can trigger unbounded memory growth. Running in the isolated sandbox guarantees that runaway memory usage is intercepted cleanly by container cgroups (exit code 137: OOMKilled) without impacting host OS responsiveness.
 
-The sandbox runner (`test.sh`) automatically probes host capacity and enforces a hard resource ceiling:
+The sandbox runner (`scripts/test.sh`) automatically probes host capacity and enforces a hard resource ceiling:
 - **CPU Core Cap**: 50% of physical host CPU cores (`nproc / 2`).
 - **RAM Cap**: 50% of physical host memory.
 - **Swap Thrash Guard**: Swap limit equals physical memory limit (prevents disk thrashing).
@@ -125,19 +125,19 @@ The sandbox runner (`test.sh`) automatically probes host capacity and enforces a
 
 ```bash
 # Run any script inside the isolated container sandbox
-./test.sh run examples/basics.nva
+./scripts/test.sh run examples/basics.nva
 
 # Run with AddressSanitizer and LeakSanitizer for memory safety
-./test.sh asan examples/basics.nva
+./scripts/test.sh asan examples/basics.nva
 
 # Run Valgrind memcheck for byte-level heap and pointer diagnostics
-./test.sh valgrind examples/basics.nva
+./scripts/test.sh valgrind examples/basics.nva
 
 # Clean build and run regression smoke suite inside sandbox
-./test.sh all
+./scripts/test.sh all
 
 # Compile release binary safely inside container
-./test.sh build
+./scripts/test.sh build
 ```
 
 #### Alternative Docker Compose Invocations

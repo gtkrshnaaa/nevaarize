@@ -21,13 +21,13 @@ All development workflows and tests must be executed inside the containerized Do
 
 ```bash
 # Execute quarantine test suite
-./test.sh quarantine
+./scripts/test.sh quarantine
 
 # Execute full test suite
-./test.sh all
+./scripts/test.sh all
 
 # Build native compiler binary
-./test.sh build
+./scripts/test.sh build
 ```
 
 ### 2. Code Organization
