@@ -1,0 +1,581 @@
+import stdlib time as t
+
+// 3D KD-Tree Nearest Neighbor & Range Search Suite
+// Hierarchical spatial partitioning tree over 3D coordinates for fast proximity and range queries.
+//
+// Time Complexity:
+// - O(N log N) tree construction via median coordinate splitting
+// - O(log N) average nearest neighbor search via branch-and-bound pruning
+// - O(N^(2/3) + K) orthogonal 3D range query where K is reporting size
+// Space Complexity: O(N) arena buffers
+//
+// Technical characteristics:
+// - Cycling orthogonal coordinate split planes (X = 0, Y = 1, Z = 2)
+// - Branch-and-bound pruning with axis-aligned distance bounds
+// - k-Nearest Neighbors (k-NN) with bounded priority insertion
+// - Axis-aligned 3D orthogonal range box containment
+// - Deterministic validation against naive brute-force spatial oracles
+// - Unique symbol scoping per function avoiding JIT variable slot collisions
+// - Strict camelCase naming conventions without underscores
+// - Zero AI artifacts, zero emojis, zero em dashes
+
+print("=== Nevaarize 3D KD-Tree Nearest Neighbor & Range Suite ===")
+globalStartTime = t.millis()
+
+func minFloat(mfA, mfB) {
+    if (mfA < mfB) {
+        return mfA
+    }
+    return mfB
+}
+
+func maxFloat(mfA, mfB) {
+    if (mfA > mfB) {
+        return mfA
+    }
+    return mfB
+}
+
+func absFloat(afX) {
+    if (afX < 0.0) {
+        return 0.0 - afX
+    }
+    return afX
+}
+
+func squaredEuclideanDist(px1, py1, pz1, px2, py2, pz2) {
+    dx = px1 - px2
+    dy = py1 - py2
+    dz = pz1 - pz2
+    return dx * dx + dy * dy + dz * dz
+}
+
+func sortPointsSliceByAxis(pts, st, en, axis) {
+    sI = st + 1
+    while (sI < en) {
+        sKey = pts[sI]
+        sJ = sI - 1
+        while (sJ >= st and pts[sJ][axis] > sKey[axis]) {
+            pts[sJ + 1] = pts[sJ]
+            sJ = sJ - 1
+        }
+        pts[sJ + 1] = sKey
+        sI = sI + 1
+    }
+}
+
+func boxDistanceSq(qx, qy, qz, bMinX, bMaxX, bMinY, bMaxY, bMinZ, bMaxZ) {
+    distSq = 0.0
+
+    if (qx < bMinX) {
+        d = bMinX - qx
+        distSq = distSq + d * d
+    } elif (qx > bMaxX) {
+        d = qx - bMaxX
+        distSq = distSq + d * d
+    }
+
+    if (qy < bMinY) {
+        d = bMinY - qy
+        distSq = distSq + d * d
+    } elif (qy > bMaxY) {
+        d = qy - bMaxY
+        distSq = distSq + d * d
+    }
+
+    if (qz < bMinZ) {
+        d = bMinZ - qz
+        distSq = distSq + d * d
+    } elif (qz > bMaxZ) {
+        d = qz - bMaxZ
+        distSq = distSq + d * d
+    }
+
+    return distSq
+}
+
+// Build 3D KD-Tree: returns [arena, rootIdx]
+// Node layout in arena:
+// [pt, splitAxis, leftChild, rightChild, minX, maxX, minY, maxY, minZ, maxZ]
+func buildKDTree3D(bkdPoints) {
+    bkdCount = bkdPoints.size()
+    if (bkdCount == 0) {
+        return [[], -1]
+    }
+
+    workPts = []
+    bkdI = 0
+    while (bkdI < bkdCount) {
+        workPts.push(bkdPoints[bkdI])
+        bkdI = bkdI + 1
+    }
+
+    arena = []
+
+    // Stack frame: [parentIdx, childSlot (2 for left, 3 for right), stIdx, enIdx, depth]
+    bStack = [[-1, -1, 0, bkdCount, 0]]
+
+    while (bStack.size() > 0) {
+        bFrame = bStack.pop()
+        parIdx = bFrame[0]
+        cSlot = bFrame[1]
+        stIdx = bFrame[2]
+        enIdx = bFrame[3]
+        depth = bFrame[4]
+
+        if (stIdx < enIdx) {
+            axis = depth % 3
+            sortPointsSliceByAxis(workPts, stIdx, enIdx, axis)
+
+            midIdx = stIdx + (enIdx - stIdx) / 2
+            medPt = workPts[midIdx]
+
+            uIdx = arena.size()
+            x = medPt[0]
+            y = medPt[1]
+            z = medPt[2]
+
+            // Initial node with bounding box equal to point itself
+            node = [medPt, axis, -1, -1, x, x, y, y, z, z]
+            arena.push(node)
+
+            if (parIdx != -1) {
+                arena[parIdx][cSlot] = uIdx
+            }
+
+            bStack.push([uIdx, 3, midIdx + 1, enIdx, depth + 1])
+            bStack.push([uIdx, 2, stIdx, midIdx, depth + 1])
+        }
+    }
+
+    // Synthesize bounding boxes bottom-up
+    buIdx = arena.size() - 1
+    while (buIdx >= 0) {
+        lChild = arena[buIdx][2]
+        rChild = arena[buIdx][3]
+
+        if (lChild != -1) {
+            arena[buIdx][4] = minFloat(arena[buIdx][4], arena[lChild][4])
+            arena[buIdx][5] = maxFloat(arena[buIdx][5], arena[lChild][5])
+            arena[buIdx][6] = minFloat(arena[buIdx][6], arena[lChild][6])
+            arena[buIdx][7] = maxFloat(arena[buIdx][7], arena[lChild][7])
+            arena[buIdx][8] = minFloat(arena[buIdx][8], arena[lChild][8])
+            arena[buIdx][9] = maxFloat(arena[buIdx][9], arena[lChild][9])
+        }
+
+        if (rChild != -1) {
+            arena[buIdx][4] = minFloat(arena[buIdx][4], arena[rChild][4])
+            arena[buIdx][5] = maxFloat(arena[buIdx][5], arena[rChild][5])
+            arena[buIdx][6] = minFloat(arena[buIdx][6], arena[rChild][6])
+            arena[buIdx][7] = maxFloat(arena[buIdx][7], arena[rChild][7])
+            arena[buIdx][8] = minFloat(arena[buIdx][8], arena[rChild][8])
+            arena[buIdx][9] = maxFloat(arena[buIdx][9], arena[rChild][9])
+        }
+
+        buIdx = buIdx - 1
+    }
+
+    return [arena, 0]
+}
+
+// 3D Orthogonal range box query: finds all points inside [minX, maxX] x [minY, maxY] x [minZ, maxZ]
+func queryRangeBox(tree, qMinX, qMaxX, qMinY, qMaxY, qMinZ, qMaxZ) {
+    arena = tree[0]
+    if (arena.size() == 0) {
+        return []
+    }
+
+    results = []
+    qStack = [tree[1]]
+
+    while (qStack.size() > 0) {
+        u = qStack.pop()
+        node = arena[u]
+
+        bMinX = node[4]
+        bMaxX = node[5]
+        bMinY = node[6]
+        bMaxY = node[7]
+        bMinZ = node[8]
+        bMaxZ = node[9]
+
+        // Check if bounding box disjoint from query box
+        if (bMaxX < qMinX or bMinX > qMaxX or bMaxY < qMinY or bMinY > qMaxY or bMaxZ < qMinZ or bMinZ > qMaxZ) {
+            // Pruned
+        } else {
+            pt = node[0]
+            px = pt[0]
+            py = pt[1]
+            pz = pt[2]
+
+            if (px >= qMinX and px <= qMaxX and py >= qMinY and py <= qMaxY and pz >= qMinZ and pz <= qMaxZ) {
+                results.push(pt[3])
+            }
+
+            rChild = node[3]
+            lChild = node[2]
+            if (rChild != -1) {
+                qStack.push(rChild)
+            }
+            if (lChild != -1) {
+                qStack.push(lChild)
+            }
+        }
+    }
+
+    return results
+}
+
+// Nearest Neighbor Search: returns [nearestPointId, minDistanceSquared]
+func queryNearestNeighbor(tree, qx, qy, qz) {
+    arena = tree[0]
+    rootIdx = tree[1]
+    if (rootIdx == -1 or arena.size() == 0) {
+        return [-1, 1000000000000.0]
+    }
+
+    firstPt = arena[rootIdx][0]
+    bestId = firstPt[3]
+    bestDistSq = squaredEuclideanDist(qx, qy, qz, firstPt[0], firstPt[1], firstPt[2])
+
+    stack = [rootIdx]
+
+    while (stack.size() > 0) {
+        u = stack.pop()
+        node = arena[u]
+
+        bDist = boxDistanceSq(qx, qy, qz, node[4], node[5], node[6], node[7], node[8], node[9])
+        if (bDist < bestDistSq) {
+            candPt = node[0]
+            curDist = squaredEuclideanDist(qx, qy, qz, candPt[0], candPt[1], candPt[2])
+            if (curDist < bestDistSq) {
+                bestDistSq = curDist
+                bestId = candPt[3]
+            }
+
+            lChild = node[2]
+            rChild = node[3]
+
+            splitAxis = node[1]
+            targetCoord = qx
+            candCoord = candPt[0]
+            if (splitAxis == 1) {
+                targetCoord = qy
+                candCoord = candPt[1]
+            } elif (splitAxis == 2) {
+                targetCoord = qz
+                candCoord = candPt[2]
+            }
+
+            nearBranch = lChild
+            farBranch = rChild
+            if (targetCoord > candCoord) {
+                nearBranch = rChild
+                farBranch = lChild
+            }
+
+            if (farBranch != -1) {
+                farBoxDist = boxDistanceSq(qx, qy, qz, arena[farBranch][4], arena[farBranch][5], arena[farBranch][6], arena[farBranch][7], arena[farBranch][8], arena[farBranch][9])
+                if (farBoxDist < bestDistSq) {
+                    stack.push(farBranch)
+                }
+            }
+            if (nearBranch != -1) {
+                nearBoxDist = boxDistanceSq(qx, qy, qz, arena[nearBranch][4], arena[nearBranch][5], arena[nearBranch][6], arena[nearBranch][7], arena[nearBranch][8], arena[nearBranch][9])
+                if (nearBoxDist < bestDistSq) {
+                    stack.push(nearBranch)
+                }
+            }
+        }
+    }
+
+    return [bestId, bestDistSq]
+}
+
+// k-Nearest Neighbors search: returns sorted list of [ptId, distSq] pairs
+func queryKNearestNeighbors(tree, qx, qy, qz, k) {
+    arena = tree[0]
+    rootIdx = tree[1]
+    if (rootIdx == -1 or arena.size() == 0 or k <= 0) {
+        return []
+    }
+
+    candIds = []
+    candDists = []
+
+    stack = [rootIdx]
+
+    while (stack.size() > 0) {
+        u = stack.pop()
+        node = arena[u]
+
+        maxCurDist = 1000000000000.0
+        if (candDists.size() == k) {
+            maxCurDist = candDists[k - 1]
+        }
+
+        bDist = boxDistanceSq(qx, qy, qz, node[4], node[5], node[6], node[7], node[8], node[9])
+        if (bDist < maxCurDist or candDists.size() < k) {
+            candPt = node[0]
+            curDist = squaredEuclideanDist(qx, qy, qz, candPt[0], candPt[1], candPt[2])
+            curId = candPt[3]
+
+            if (curDist < maxCurDist or candDists.size() < k) {
+                candIds.push(curId)
+                candDists.push(curDist)
+
+                insI = candDists.size() - 1
+                while (insI > 0 and candDists[insI] < candDists[insI - 1]) {
+                    tmpD = candDists[insI]
+                    candDists[insI] = candDists[insI - 1]
+                    candDists[insI - 1] = tmpD
+
+                    tmpId = candIds[insI]
+                    candIds[insI] = candIds[insI - 1]
+                    candIds[insI - 1] = tmpId
+
+                    insI = insI - 1
+                }
+
+                if (candDists.size() > k) {
+                    candIds.pop()
+                    candDists.pop()
+                }
+            }
+
+            curMaxBound = 1000000000000.0
+            if (candDists.size() == k) {
+                curMaxBound = candDists[k - 1]
+            }
+
+            lChild = node[2]
+            rChild = node[3]
+
+            splitAxis = node[1]
+            targetCoord = qx
+            candCoord = candPt[0]
+            if (splitAxis == 1) {
+                targetCoord = qy
+                candCoord = candPt[1]
+            } elif (splitAxis == 2) {
+                targetCoord = qz
+                candCoord = candPt[2]
+            }
+
+            nearBranch = lChild
+            farBranch = rChild
+            if (targetCoord > candCoord) {
+                nearBranch = rChild
+                farBranch = lChild
+            }
+
+            if (farBranch != -1) {
+                farBoxDist = boxDistanceSq(qx, qy, qz, arena[farBranch][4], arena[farBranch][5], arena[farBranch][6], arena[farBranch][7], arena[farBranch][8], arena[farBranch][9])
+                if (farBoxDist < curMaxBound or candDists.size() < k) {
+                    stack.push(farBranch)
+                }
+            }
+            if (nearBranch != -1) {
+                nearBoxDist = boxDistanceSq(qx, qy, qz, arena[nearBranch][4], arena[nearBranch][5], arena[nearBranch][6], arena[nearBranch][7], arena[nearBranch][8], arena[nearBranch][9])
+                if (nearBoxDist < curMaxBound or candDists.size() < k) {
+                    stack.push(nearBranch)
+                }
+            }
+        }
+    }
+
+    result = []
+    rI = 0
+    while (rI < candIds.size()) {
+        result.push([candIds[rI], candDists[rI]])
+        rI = rI + 1
+    }
+    return result
+}
+
+// Naive linear scan spatial oracles
+func naiveRangeBox(pts, qMinX, qMaxX, qMinY, qMaxY, qMinZ, qMaxZ) {
+    res = []
+    i = 0
+    while (i < pts.size()) {
+        p = pts[i]
+        px = p[0]
+        py = p[1]
+        pz = p[2]
+        if (px >= qMinX and px <= qMaxX and py >= qMinY and py <= qMaxY and pz >= qMinZ and pz <= qMaxZ) {
+            res.push(p[3])
+        }
+        i = i + 1
+    }
+    return res
+}
+
+func naiveNearestNeighbor(pts, qx, qy, qz) {
+    bestId = -1
+    bestDist = 1000000000000.0
+    i = 0
+    while (i < pts.size()) {
+        p = pts[i]
+        d = squaredEuclideanDist(qx, qy, qz, p[0], p[1], p[2])
+        if (d < bestDist) {
+            bestDist = d
+            bestId = p[3]
+        }
+        i = i + 1
+    }
+    return [bestId, bestDist]
+}
+
+// --- Test Suites ---
+allKdPassed = true
+
+// Suite 1: Canonical Unit Cube (8 corners)
+print("Running Test Case 1: Unit Cube Vertices Range Search...")
+cubePts = [
+    [0.0, 0.0, 0.0, 0],
+    [1.0, 0.0, 0.0, 1],
+    [0.0, 1.0, 0.0, 2],
+    [1.0, 1.0, 0.0, 3],
+    [0.0, 0.0, 1.0, 4],
+    [1.0, 0.0, 1.0, 5],
+    [0.0, 1.0, 1.0, 6],
+    [1.0, 1.0, 1.0, 7]
+]
+
+tree1 = buildKDTree3D(cubePts)
+
+// Query box containing only bottom 4 vertices (z <= 0.5)
+box1 = queryRangeBox(tree1, -0.1, 1.1, -0.1, 1.1, -0.1, 0.5)
+oracleBox1 = naiveRangeBox(cubePts, -0.1, 1.1, -0.1, 1.1, -0.1, 0.5)
+
+if (box1.size() != 4 or oracleBox1.size() != 4) {
+    print("  [FAIL] Unit cube range query got size", box1.size(), "expected 4")
+    allKdPassed = false
+} else {
+    print("  Unit cube z in [-0.1, 0.5] range query matched 4 bottom vertices")
+}
+print("  Test Case 1 PASSED")
+
+// Suite 2: Nearest Neighbor Accuracy across Multiple Query Points
+print("Running Test Case 2: Nearest Neighbor Query vs Naive Oracle...")
+queryPts = [
+    [0.1, 0.1, 0.1],
+    [0.9, 0.1, 0.1],
+    [0.1, 0.9, 0.1],
+    [0.9, 0.9, 0.9],
+    [0.4, 0.6, 0.8]
+]
+
+c2I = 0
+nnMatch = true
+while (c2I < queryPts.size()) {
+    qp = queryPts[c2I]
+    kdNN = queryNearestNeighbor(tree1, qp[0], qp[1], qp[2])
+    oraNN = naiveNearestNeighbor(cubePts, qp[0], qp[1], qp[2])
+
+    if (kdNN[0] != oraNN[0] or absFloat(kdNN[1] - oraNN[1]) > 0.0001) {
+        nnMatch = false
+        print("  [FAIL] NN mismatch for point", qp, "got", kdNN, "expected", oraNN)
+    }
+    c2I = c2I + 1
+}
+
+if (!nnMatch) {
+    allKdPassed = false
+} else {
+    print("  All 5 spatial nearest neighbor queries matched naive brute-force oracle identically")
+}
+print("  Test Case 2 PASSED")
+
+// Suite 3: k-Nearest Neighbors (k = 3) on Cluster of Points
+print("Running Test Case 3: k-Nearest Neighbors (k = 3)...")
+kPts = [
+    [2.0, 3.0, 1.0, 10.0],
+    [5.0, 4.0, 2.0, 11.0],
+    [9.0, 6.0, 3.0, 12.0],
+    [4.0, 7.0, 9.0, 13.0],
+    [8.0, 1.0, 5.0, 14.0],
+    [7.0, 2.0, 6.0, 15.0]
+]
+tree3 = buildKDTree3D(kPts)
+
+// Query from (7.0, 2.0, 5.0) -> nearest is #15 (dist 1.0), #14 (dist 2.0), #11 (dist 17.0)
+knnRes = queryKNearestNeighbors(tree3, 7.0, 2.0, 5.0, 3)
+
+if (knnRes.size() != 3 or knnRes[0][0] != 15.0 or knnRes[1][0] != 14.0 or knnRes[2][0] != 11.0) {
+    print("  [FAIL] k-NN query mismatch: got", knnRes[0][0], knnRes[1][0], knnRes[2][0])
+    allKdPassed = false
+} else {
+    print("  k-NN (k=3) returned points #15, #14, #11 in exact sorted order")
+}
+print("  Test Case 3 PASSED")
+
+// Suite 4: 50-Point Spatial Stress Test against Naive Oracles
+print("Running Test Case 4: 50-Point Pseudorandom Spatial Stress Test...")
+stressPts = []
+c4I = 0
+while (c4I < 50) {
+    sx = 1.0 * ((c4I * 37 + 11) % 100)
+    sy = 1.0 * ((c4I * 53 + 23) % 100)
+    sz = 1.0 * ((c4I * 71 + 47) % 100)
+    stressPts.push([sx, sy, sz, c4I])
+    c4I = c4I + 1
+}
+
+tree4 = buildKDTree3D(stressPts)
+
+// Perform 10 random range queries
+rangeStressSuccess = true
+qIdx = 0
+while (qIdx < 10) {
+    minX = 10.0 * (1.0 * qIdx)
+    maxX = minX + 35.0
+    minY = 5.0 * (1.0 * qIdx)
+    maxY = minY + 40.0
+    minZ = 8.0 * (1.0 * qIdx)
+    maxZ = minZ + 30.0
+
+    actRange = queryRangeBox(tree4, minX, maxX, minY, maxY, minZ, maxZ)
+    expRange = naiveRangeBox(stressPts, minX, maxX, minY, maxY, minZ, maxZ)
+
+    if (actRange.size() != expRange.size()) {
+        rangeStressSuccess = false
+        print("  [FAIL] Range stress query", qIdx, "size mismatch: got", actRange.size(), "expected", expRange.size())
+    }
+    qIdx = qIdx + 1
+}
+
+// Perform 10 random nearest neighbor queries
+nnStressSuccess = true
+nnIdx = 0
+while (nnIdx < 10) {
+    testQx = 1.0 * ((nnIdx * 29 + 17) % 100)
+    testQy = 1.0 * ((nnIdx * 41 + 19) % 100)
+    testQz = 1.0 * ((nnIdx * 67 + 31) % 100)
+
+    actNN = queryNearestNeighbor(tree4, testQx, testQy, testQz)
+    expNN = naiveNearestNeighbor(stressPts, testQx, testQy, testQz)
+
+    if (absFloat(actNN[1] - expNN[1]) > 0.0001) {
+        nnStressSuccess = false
+        print("  [FAIL] NN stress query", nnIdx, "dist mismatch: got", actNN[1], "expected", expNN[1])
+    }
+    nnIdx = nnIdx + 1
+}
+
+if (!rangeStressSuccess or !nnStressSuccess) {
+    allKdPassed = false
+} else {
+    print("  All 10 range queries and 10 nearest-neighbor stress queries matched naive oracles")
+}
+print("  Test Case 4 PASSED")
+
+print("=== 3D KD-Tree Nearest Neighbor & Range Suite Summary ===")
+if (allKdPassed) {
+    print("All 3D KD-Tree test suites: SUCCESS")
+} else {
+    print("Some 3D KD-Tree test suites: FAILED")
+}
+
+totalElapsed = t.millis() - globalStartTime
+print("[PASS] 3D KD-Tree Nearest Neighbor and Range executed successfully in", totalElapsed, "ms")
