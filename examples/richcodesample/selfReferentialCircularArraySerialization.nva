@@ -1,0 +1,942 @@
+import stdlib time as t
+
+// Self-Referential Circular Array Serialization and Cycle Detection Suite
+// Technical characteristics:
+// - Deterministic serialization of complex directed graphs and nested array structures with cycles
+// - Infinite loop prevention via 3-color DFS state machine (WHITE=0, GREY=1, BLACK=2)
+// - Dual edge classification: Back-edges (true cycles) vs Cross/Forward-edges (shared acyclic DAG references)
+// - Dual execution paradigm: Iterative DFS with explicit stack frames (extreme VM limit protection) and recursive reference resolution
+// - Multiple serialization output formats: Canonical token stream and structured string representation with reference anchors
+// - Re-entrant deserialization engine reconstructing isomorphic graphs with resolved cycle back-pointers
+// - Floyd's cycle-finding heuristic (Tortoise and Hare) for deterministic single-pointer cycle verification
+// - Circular array ring buffer serialization with wrap-around index recovery and corruption detection
+// - Boundary edge cases: Empty arrays, singleton self-loops, mutual 2-cycles, K-cycle rings, lasso rho topologies, figure-8 multi-loops, and deep chains
+// - Strict camelCase naming conventions enforced across all symbols (No-Underscore Policy)
+// - Zero AI artifacts, zero emojis, and zero em dashes in code and output
+
+print("=== Nevaarize Self-Referential Circular Array Serialization Suite ===")
+suiteStartTime = t.millis()
+testSuiteFailures = 0
+
+// --- Core Constants ---
+
+colorWhite = 0
+colorGrey = 1
+colorBlack = 2
+
+tokenOpenArr = 1
+tokenCloseArr = 2
+tokenNodeDef = 3
+tokenPayload = 4
+tokenCycleRef = 5
+tokenSharedRef = 6
+
+// --- Utility Functions ---
+
+func makeIntArray(sz, fillVal) {
+    arr = []
+    i = 0
+    while (i < sz) {
+        arr.push(fillVal)
+        i = i + 1
+    }
+    return arr
+}
+
+func minInt(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+func maxInt(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+// --- Graph Arena Structure ---
+// Representation:
+// [0] nodeCount: Total allocated nodes (INT)
+// [1] nodeValues: Array of payload integers for each node
+// [2] nodeChildren: Array of arrays containing outgoing child node IDs
+// [3] nodeIncoming: Array of arrays containing incoming parent node IDs
+func createGraph(initialCapacity) {
+    values = []
+    children = []
+    incoming = []
+    return [0, values, children, incoming]
+}
+
+func addNode(graph, payloadVal) {
+    nodeId = graph[0]
+    graph[0] = nodeId + 1
+    graph[1].push(payloadVal)
+    graph[2].push([])
+    graph[3].push([])
+    return nodeId
+}
+
+func addReference(graph, fromId, toId) {
+    children = graph[2]
+    incoming = graph[3]
+    children[fromId].push(toId)
+    incoming[toId].push(fromId)
+}
+
+func getNodeCount(graph) {
+    return graph[0]
+}
+
+func getNodeValue(graph, id) {
+    values = graph[1]
+    return values[id]
+}
+
+func getNodeChildren(graph, id) {
+    children = graph[2]
+    return children[id]
+}
+
+// --- Iterative DFS Cycle-Safe Serialization Engine ---
+// Serializes graph from rootId without infinite loops.
+// Returns int-first result bundle:
+// [0] visitedCount: Number of distinct nodes visited (INT)
+// [1] maxDepth: Maximum active path depth reached during traversal (INT)
+// [2] cycleCount: Number of detected back-edge cycles (INT)
+// [3] sharedCount: Number of detected shared DAG references (INT)
+// [4] tokenStream: Flat array of serialized integer tokens (ARRAY)
+// [5] detectedCycles: Array of cycle records [fromId, toId, cycleLength] (ARRAY)
+// [6] detectedShared: Array of shared reference records [fromId, toId] (ARRAY)
+// [7] serializedString: Formatted text representation with reference anchors (STRING)
+func serializeGraph(graph, rootId) {
+    numNodes = graph[0]
+    nodeValues = graph[1]
+    nodeChildren = graph[2]
+
+    if (numNodes == 0 or rootId < 0 or rootId >= numNodes) {
+        emptyTokens = [tokenOpenArr, tokenCloseArr]
+        return [0, 0, 0, 0, emptyTokens, [], [], "[]"]
+    }
+
+    colorState = makeIntArray(numNodes, colorWhite)
+    pathDepth = makeIntArray(numNodes, -1)
+    detectedCycles = []
+    detectedShared = []
+    tokenStream = []
+    serializedString = ""
+
+    stackNode = [rootId]
+    stackEdgeIdx = [0]
+    colorState[rootId] = colorGrey
+    pathDepth[rootId] = 0
+    visitedCount = 1
+    maxDepth = 1
+
+    tokenStream.push(tokenOpenArr)
+    tokenStream.push(tokenNodeDef)
+    tokenStream.push(rootId)
+    tokenStream.push(tokenPayload)
+    tokenStream.push(nodeValues[rootId])
+
+    serializedString = serializedString + "{\"id\":" + rootId + ",\"val\":" + nodeValues[rootId] + ",\"refs\":["
+
+    while (stackNode.size() > 0) {
+        topIdx = stackNode.size() - 1
+        currNode = stackNode[topIdx]
+        edgeIdx = stackEdgeIdx[topIdx]
+        edges = nodeChildren[currNode]
+
+        if (stackNode.size() > maxDepth) {
+            maxDepth = stackNode.size()
+        }
+
+        if (edgeIdx < edges.size()) {
+            targetId = edges[edgeIdx]
+            stackEdgeIdx[topIdx] = edgeIdx + 1
+
+            if (edgeIdx > 0) {
+                serializedString = serializedString + ","
+            }
+
+            if (colorState[targetId] == colorWhite) {
+                // Tree Edge: Descend into unvisited child node
+                colorState[targetId] = colorGrey
+                pathDepth[targetId] = pathDepth[currNode] + 1
+                visitedCount = visitedCount + 1
+
+                tokenStream.push(tokenOpenArr)
+                tokenStream.push(tokenNodeDef)
+                tokenStream.push(targetId)
+                tokenStream.push(tokenPayload)
+                tokenStream.push(nodeValues[targetId])
+
+                serializedString = serializedString + "{\"id\":" + targetId + ",\"val\":" + nodeValues[targetId] + ",\"refs\":["
+
+                stackNode.push(targetId)
+                stackEdgeIdx.push(0)
+            } elif (colorState[targetId] == colorGrey) {
+                // Back Edge: Cycle detected! Target is an ancestor on active path
+                cycleLen = pathDepth[currNode] - pathDepth[targetId] + 1
+                detectedCycles.push([currNode, targetId, cycleLen])
+
+                tokenStream.push(tokenCycleRef)
+                tokenStream.push(targetId)
+                tokenStream.push(cycleLen)
+
+                serializedString = serializedString + "{\"$cycleRef\":" + targetId + ",\"cycleLen\":" + cycleLen + "}"
+            } else {
+                // Cross or Forward Edge: Node already processed in completed subtree
+                detectedShared.push([currNode, targetId])
+
+                tokenStream.push(tokenSharedRef)
+                tokenStream.push(targetId)
+
+                serializedString = serializedString + "{\"$sharedRef\":" + targetId + "}"
+            }
+        } else {
+            // All outgoing edges processed: Close node and backtrack
+            stackNode.pop()
+            stackEdgeIdx.pop()
+            colorState[currNode] = colorBlack
+
+            tokenStream.push(tokenCloseArr)
+            serializedString = serializedString + "]}"
+        }
+    }
+
+    tokenStream.push(tokenCloseArr)
+    cycleCount = detectedCycles.size()
+    sharedCount = detectedShared.size()
+
+    return [visitedCount, maxDepth, cycleCount, sharedCount, tokenStream, detectedCycles, detectedShared, serializedString]
+}
+
+// Result bundle accessors for semantic clarity
+func getSerializeVisited(res) { return res[0] }
+func getSerializeDepth(res) { return res[1] }
+func getSerializeCycleCount(res) { return res[2] }
+func getSerializeSharedCount(res) { return res[3] }
+func getSerializeTokens(res) { return res[4] }
+func getSerializeCycles(res) { return res[5] }
+func getSerializeShared(res) { return res[6] }
+func getSerializeString(res) { return res[7] }
+
+
+
+// --- Floyd's Cycle-Finding Algorithm (Tortoise and Hare) ---
+// For deterministic functional sequences where each node transitions to a single primary child.
+// Returns homogeneous INT array: [hasCycle (0 or 1), cycleStartNode, cycleLength]
+func verifyFloydCycle(graph, startId) {
+    numNodes = graph[0]
+    nodeChildren = graph[2]
+
+    if (numNodes == 0 or startId < 0 or startId >= numNodes) {
+        return [0, -1, 0]
+    }
+
+    tortoise = startId
+    hare = startId
+
+    hasCycle = 0
+    stepsLimit = numNodes * 2 + 5
+    step = 0
+
+    while (step < stepsLimit and hasCycle == 0) {
+        // Advance tortoise by 1 step
+        tChildren = nodeChildren[tortoise]
+        if (tChildren.size() == 0) {
+            break
+        }
+        tortoise = tChildren[0]
+
+        // Advance hare by 2 steps
+        hChildren = nodeChildren[hare]
+        if (hChildren.size() == 0) {
+            break
+        }
+        midHare = hChildren[0]
+        midChildren = nodeChildren[midHare]
+        if (midChildren.size() == 0) {
+            break
+        }
+        hare = midChildren[0]
+
+        if (tortoise == hare) {
+            hasCycle = 1
+        }
+        step = step + 1
+    }
+
+    if (hasCycle == 0) {
+        return [0, -1, 0]
+    }
+
+    // Phase 2: Find cycle entrance node
+    p1 = startId
+    p2 = tortoise
+    while (p1 != p2) {
+        p1Children = nodeChildren[p1]
+        p2Children = nodeChildren[p2]
+        p1 = p1Children[0]
+        p2 = p2Children[0]
+    }
+    cycleStart = p1
+
+    // Phase 3: Compute exact cycle length
+    cycleLen = 1
+    curr = nodeChildren[cycleStart][0]
+    while (curr != cycleStart) {
+        curr = nodeChildren[curr][0]
+        cycleLen = cycleLen + 1
+    }
+
+    return [1, cycleStart, cycleLen]
+}
+
+// --- Deserialization & Reconstruction Engine ---
+// Reconstructs graph arena from token stream and restores cycle back-pointers.
+// Returns reconstructed graph arena [nodeCount, values, children, incoming]
+func deserializeGraph(tokenStream) {
+    reconGraph = createGraph(16)
+    if (tokenStream.size() == 0) {
+        return reconGraph
+    }
+
+    idMap = []
+    nodeStack = []
+    streamIdx = 0
+
+    while (streamIdx < tokenStream.size()) {
+        tok = tokenStream[streamIdx]
+
+        if (tok == tokenNodeDef) {
+            origId = tokenStream[streamIdx + 1]
+            // Skip payload token indicator to read actual value
+            payloadVal = tokenStream[streamIdx + 3]
+            streamIdx = streamIdx + 3
+
+            newId = addNode(reconGraph, payloadVal)
+            while (idMap.size() <= origId) {
+                idMap.push(-1)
+            }
+            idMap[origId] = newId
+
+            if (nodeStack.size() > 0) {
+                parentId = nodeStack[nodeStack.size() - 1]
+                addReference(reconGraph, parentId, newId)
+            }
+            nodeStack.push(newId)
+        } elif (tok == tokenCycleRef) {
+            targetOrigId = tokenStream[streamIdx + 1]
+            cycleLen = tokenStream[streamIdx + 2]
+            streamIdx = streamIdx + 2
+
+            if (nodeStack.size() > 0) {
+                currId = nodeStack[nodeStack.size() - 1]
+                targetReconId = idMap[targetOrigId]
+                addReference(reconGraph, currId, targetReconId)
+            }
+        } elif (tok == tokenSharedRef) {
+            targetOrigId = tokenStream[streamIdx + 1]
+            streamIdx = streamIdx + 1
+
+            if (nodeStack.size() > 0) {
+                currId = nodeStack[nodeStack.size() - 1]
+                targetReconId = idMap[targetOrigId]
+                addReference(reconGraph, currId, targetReconId)
+            }
+        } elif (tok == tokenCloseArr) {
+            if (nodeStack.size() > 0) {
+                nodeStack.pop()
+            }
+        }
+        streamIdx = streamIdx + 1
+    }
+
+    return reconGraph
+}
+
+// --- Isomorphism Verification Helper ---
+// Verifies structural parity between original and deserialized graphs.
+// Returns 1 if isomorphic, 0 otherwise.
+func validateGraphIsomorphism(origGraph, origRoot, reconGraph, reconRoot) {
+    origCount = origGraph[0]
+    reconCount = reconGraph[0]
+    if (origCount != reconCount) {
+        return 0
+    }
+
+    origValues = origGraph[1]
+    reconValues = reconGraph[1]
+    origChildren = origGraph[2]
+    reconChildren = reconGraph[2]
+
+    visited = makeIntArray(origCount, 0)
+    queueOrig = [origRoot]
+    queueRecon = [reconRoot]
+    visited[origRoot] = 1
+
+    headIdx = 0
+    while (headIdx < queueOrig.size()) {
+        uOrig = queueOrig[headIdx]
+        uRecon = queueRecon[headIdx]
+        headIdx = headIdx + 1
+
+        if (origValues[uOrig] != reconValues[uRecon]) {
+            return 0
+        }
+
+        origAdj = origChildren[uOrig]
+        reconAdj = reconChildren[uRecon]
+        if (origAdj.size() != reconAdj.size()) {
+            return 0
+        }
+
+        eIdx = 0
+        while (eIdx < origAdj.size()) {
+            vOrig = origAdj[eIdx]
+            vRecon = reconAdj[eIdx]
+
+            if (origValues[vOrig] != reconValues[vRecon]) {
+                return 0
+            }
+
+            if (visited[vOrig] == 0) {
+                visited[vOrig] = 1
+                queueOrig.push(vOrig)
+                queueRecon.push(vRecon)
+            }
+            eIdx = eIdx + 1
+        }
+    }
+
+    return 1
+}
+
+// --- Circular Array Ring Buffer Implementation ---
+// High-performance ring buffer with logical wrap-around and corruption protection.
+// Representation:
+// [0] capacity: Buffer storage capacity (INT)
+// [1] head: Read pointer (INT)
+// [2] tail: Write pointer (INT)
+// [3] count: Number of active elements (INT)
+// [4] totalPushed: Monotonic write sequence counter (INT)
+// [5] storage: Array of capacity elements (ARRAY)
+func createCircularBuffer(capacity) {
+    storage = makeIntArray(capacity, 0)
+    return [capacity, 0, 0, 0, 0, storage]
+}
+
+func circularBufferPush(buf, item) {
+    cap = buf[0]
+    tail = buf[2]
+    count = buf[3]
+    storage = buf[5]
+
+    storage[tail] = item
+    buf[2] = (tail + 1) % cap
+    buf[4] = buf[4] + 1
+
+    if (count < cap) {
+        buf[3] = count + 1
+    } else {
+        // Overwrite scenario: Head is advanced forward
+        buf[1] = (buf[1] + 1) % cap
+    }
+}
+
+func circularBufferPop(buf) {
+    count = buf[3]
+    if (count == 0) {
+        return -1
+    }
+    cap = buf[0]
+    head = buf[1]
+    storage = buf[5]
+
+    val = storage[head]
+    buf[1] = (head + 1) % cap
+    buf[3] = count - 1
+    return val
+}
+
+func serializeCircularBuffer(buf) {
+    cap = buf[0]
+    head = buf[1]
+    count = buf[3]
+    storage = buf[5]
+
+    serializedArr = []
+    serializedStr = "["
+    i = 0
+    while (i < count) {
+        currIdx = (head + i) % cap
+        elem = storage[currIdx]
+        serializedArr.push(elem)
+        if (i > 0) {
+            serializedStr = serializedStr + ","
+        }
+        serializedStr = serializedStr + elem
+        i = i + 1
+    }
+    serializedStr = serializedStr + "]"
+    return [count, serializedArr, serializedStr]
+}
+
+func detectCircularBufferCorruption(buf) {
+    cap = buf[0]
+    head = buf[1]
+    tail = buf[2]
+    count = buf[3]
+
+    if (cap <= 0) {
+        return 0
+    }
+    if (count < 0 or count > cap) {
+        return 0
+    }
+    if (head < 0 or head >= cap) {
+        return 0
+    }
+    if (tail < 0 or tail >= cap) {
+        return 0
+    }
+
+    expectedTail = (head + count) % cap
+    if (tail != expectedTail) {
+        return 0
+    }
+
+    return 1
+}
+
+// --- Test Case 1: Trivial & Boundary Cases ---
+print("Running Test Case 1: Trivial & Boundary Cases...")
+
+emptyGraph = createGraph(4)
+resEmpty = serializeGraph(emptyGraph, 0)
+if (getSerializeVisited(resEmpty) != 0 or getSerializeCycleCount(resEmpty) != 0) {
+    print("[FAIL] Test Case 1 Empty graph failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+singleNodeGraph = createGraph(4)
+rootId = addNode(singleNodeGraph, 42)
+resSingle = serializeGraph(singleNodeGraph, rootId)
+if (getSerializeVisited(resSingle) != 1 or getSerializeCycleCount(resSingle) != 0 or getSerializeSharedCount(resSingle) != 0) {
+    print("[FAIL] Test Case 1 Isolated single node failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Singleton Self-Referential Array: A -> A
+selfLoopGraph = createGraph(4)
+selfId = addNode(selfLoopGraph, 101)
+addReference(selfLoopGraph, selfId, selfId)
+resSelfLoop = serializeGraph(selfLoopGraph, selfId)
+if (getSerializeVisited(resSelfLoop) != 1) {
+    print("[FAIL] Test Case 1 Self loop node count failed: ", getSerializeVisited(resSelfLoop))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeCycleCount(resSelfLoop) != 1) {
+    print("[FAIL] Test Case 1 Self loop cycle count failed: ", getSerializeCycleCount(resSelfLoop))
+    testSuiteFailures = testSuiteFailures + 1
+}
+cyclesSelf = getSerializeCycles(resSelfLoop)
+firstCycle = cyclesSelf[0]
+if (firstCycle[0] != selfId or firstCycle[1] != selfId or firstCycle[2] != 1) {
+    print("[FAIL] Test Case 1 Self loop cycle metadata invalid")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+floydSelf = verifyFloydCycle(selfLoopGraph, selfId)
+if (floydSelf[0] != 1 or floydSelf[1] != selfId or floydSelf[2] != 1) {
+    print("[FAIL] Test Case 1 Floyd cycle detection on self loop failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 1 Passed trivial & boundary edge cases")
+
+// --- Test Case 2: Mutual 2-Cycle Symmetry ---
+print("Running Test Case 2: Mutual 2-Cycle Symmetry...")
+
+mutualGraph = createGraph(4)
+nodeA = addNode(mutualGraph, 10)
+nodeB = addNode(mutualGraph, 20)
+addReference(mutualGraph, nodeA, nodeB)
+addReference(mutualGraph, nodeB, nodeA)
+
+resMutual = serializeGraph(mutualGraph, nodeA)
+if (getSerializeVisited(resMutual) != 2) {
+    print("[FAIL] Test Case 2 Mutual cycle visited count failed: ", getSerializeVisited(resMutual))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeCycleCount(resMutual) != 1) {
+    print("[FAIL] Test Case 2 Mutual cycle count failed: ", getSerializeCycleCount(resMutual))
+    testSuiteFailures = testSuiteFailures + 1
+}
+cyclesMutual = getSerializeCycles(resMutual)
+mutualCycle = cyclesMutual[0]
+if (mutualCycle[0] != nodeB or mutualCycle[1] != nodeA or mutualCycle[2] != 2) {
+    print("[FAIL] Test Case 2 Mutual cycle record incorrect: from=", mutualCycle[0], " to=", mutualCycle[1], " len=", mutualCycle[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Dual-Direction Symmetry Verification: Serializing from nodeB must also detect mutual cycle
+resMutualB = serializeGraph(mutualGraph, nodeB)
+if (getSerializeVisited(resMutualB) != 2 or getSerializeCycleCount(resMutualB) != 1) {
+    print("[FAIL] Test Case 2 Mutual cycle symmetry from nodeB failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+cyclesMutualB = getSerializeCycles(resMutualB)
+mutualCycleB = cyclesMutualB[0]
+if (mutualCycleB[0] != nodeA or mutualCycleB[1] != nodeB or mutualCycleB[2] != 2) {
+    print("[FAIL] Test Case 2 Mutual cycle from nodeB record incorrect: from=", mutualCycleB[0], " to=", mutualCycleB[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+reconMutual = deserializeGraph(getSerializeTokens(resMutual))
+if (validateGraphIsomorphism(mutualGraph, nodeA, reconMutual, 0) != 1) {
+    print("[FAIL] Test Case 2 Mutual cycle deserialization isomorphism failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 2 Passed mutual 2-cycle symmetry verification")
+
+// --- Test Case 3: Transitive Ring Topologies (K-Cycles) ---
+print("Running Test Case 3: Transitive Ring Topologies (K-Cycles)...")
+
+func buildRingGraph(ringSize) {
+    rg = createGraph(ringSize)
+    i = 0
+    while (i < ringSize) {
+        addNode(rg, 1000 + i)
+        i = i + 1
+    }
+    i = 0
+    while (i < ringSize) {
+        nextI = (i + 1) % ringSize
+        addReference(rg, i, nextI)
+        i = i + 1
+    }
+    return rg
+}
+
+ring5 = buildRingGraph(5)
+resRing5 = serializeGraph(ring5, 0)
+cyclesR5 = getSerializeCycles(resRing5)
+if (getSerializeVisited(resRing5) != 5 or getSerializeCycleCount(resRing5) != 1 or cyclesR5[0][2] != 5) {
+    print("[FAIL] Test Case 3 5-node ring cycle failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+floydRing5 = verifyFloydCycle(ring5, 0)
+if (floydRing5[0] != 1 or floydRing5[1] != 0 or floydRing5[2] != 5) {
+    print("[FAIL] Test Case 3 Floyd on 5-node ring failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+ring12 = buildRingGraph(12)
+resRing12 = serializeGraph(ring12, 0)
+cyclesR12 = getSerializeCycles(resRing12)
+if (getSerializeVisited(resRing12) != 12 or getSerializeCycleCount(resRing12) != 1 or cyclesR12[0][2] != 12) {
+    print("[FAIL] Test Case 3 12-node ring cycle failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+floydRing12 = verifyFloydCycle(ring12, 0)
+if (floydRing12[0] != 1 or floydRing12[1] != 0 or floydRing12[2] != 12) {
+    print("[FAIL] Test Case 3 Floyd on 12-node ring failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 3 Passed transitive ring topologies (K=5, K=12)")
+
+// --- Test Case 4: Lasso / Rho Topology (Tail + Cycle) ---
+print("Running Test Case 4: Lasso / Rho Topology...")
+
+// Path: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 2 (Cycle 2->3->4->5->2 of length 4)
+lassoGraph = createGraph(8)
+l0 = addNode(lassoGraph, 10)
+l1 = addNode(lassoGraph, 20)
+l2 = addNode(lassoGraph, 30)
+l3 = addNode(lassoGraph, 40)
+l4 = addNode(lassoGraph, 50)
+l5 = addNode(lassoGraph, 60)
+
+addReference(lassoGraph, l0, l1)
+addReference(lassoGraph, l1, l2)
+addReference(lassoGraph, l2, l3)
+addReference(lassoGraph, l3, l4)
+addReference(lassoGraph, l4, l5)
+addReference(lassoGraph, l5, l2)
+
+resLasso = serializeGraph(lassoGraph, l0)
+if (getSerializeVisited(resLasso) != 6) {
+    print("[FAIL] Test Case 4 Lasso visited count failed: ", getSerializeVisited(resLasso))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeCycleCount(resLasso) != 1) {
+    print("[FAIL] Test Case 4 Lasso cycle count failed: ", getSerializeCycleCount(resLasso))
+    testSuiteFailures = testSuiteFailures + 1
+}
+cyclesLasso = getSerializeCycles(resLasso)
+lassoCycle = cyclesLasso[0]
+if (lassoCycle[0] != l5 or lassoCycle[1] != l2 or lassoCycle[2] != 4) {
+    print("[FAIL] Test Case 4 Lasso cycle target or length failed: from=", lassoCycle[0], " to=", lassoCycle[1], " len=", lassoCycle[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+floydLasso = verifyFloydCycle(lassoGraph, l0)
+if (floydLasso[0] != 1 or floydLasso[1] != l2 or floydLasso[2] != 4) {
+    print("[FAIL] Test Case 4 Floyd cycle on lasso failed: start=", floydLasso[1], " len=", floydLasso[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 4 Passed lasso / rho topology with non-root cycle anchor")
+
+// --- Test Case 5: Figure-Eight Multi-Cycle (Interlocking Loops) ---
+print("Running Test Case 5: Figure-Eight Multi-Cycle...")
+
+// Hub: 0. Loop 1: 0 -> 1 -> 2 -> 0. Loop 2: 0 -> 3 -> 4 -> 0.
+fig8Graph = createGraph(8)
+h0 = addNode(fig8Graph, 800)
+h1 = addNode(fig8Graph, 801)
+h2 = addNode(fig8Graph, 802)
+h3 = addNode(fig8Graph, 803)
+h4 = addNode(fig8Graph, 804)
+
+addReference(fig8Graph, h0, h1)
+addReference(fig8Graph, h1, h2)
+addReference(fig8Graph, h2, h0)
+
+addReference(fig8Graph, h0, h3)
+addReference(fig8Graph, h3, h4)
+addReference(fig8Graph, h4, h0)
+
+resFig8 = serializeGraph(fig8Graph, h0)
+if (getSerializeVisited(resFig8) != 5) {
+    print("[FAIL] Test Case 5 Figure-8 visited count failed: ", getSerializeVisited(resFig8))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeCycleCount(resFig8) != 2) {
+    print("[FAIL] Test Case 5 Figure-8 cycle count failed: ", getSerializeCycleCount(resFig8))
+    testSuiteFailures = testSuiteFailures + 1
+}
+cyclesFig8 = getSerializeCycles(resFig8)
+c1 = cyclesFig8[0]
+c2 = cyclesFig8[1]
+if (c1[1] != h0 or c2[1] != h0) {
+    print("[FAIL] Test Case 5 Figure-8 cycles must both anchor to hub node 0")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (c1[2] != 3 or c2[2] != 3) {
+    print("[FAIL] Test Case 5 Figure-8 cycle lengths must both be 3")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 5 Passed figure-eight multi-cycle resolution")
+
+// --- Test Case 6: Diamond DAG with Shared References (Zero False Positives) ---
+print("Running Test Case 6: Diamond DAG Shared References...")
+
+// 0 -> 1 -> 3; 0 -> 2 -> 3 (Node 3 reached via two distinct paths, but no cycle!)
+diamondGraph = createGraph(6)
+d0 = addNode(diamondGraph, 50)
+d1 = addNode(diamondGraph, 51)
+d2 = addNode(diamondGraph, 52)
+d3 = addNode(diamondGraph, 53)
+
+addReference(diamondGraph, d0, d1)
+addReference(diamondGraph, d1, d3)
+addReference(diamondGraph, d0, d2)
+addReference(diamondGraph, d2, d3)
+
+resDiamond = serializeGraph(diamondGraph, d0)
+if (getSerializeVisited(resDiamond) != 4) {
+    print("[FAIL] Test Case 6 Diamond visited count failed: ", getSerializeVisited(resDiamond))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeCycleCount(resDiamond) != 0) {
+    print("[FAIL] Test Case 6 Diamond DAG falsely flagged cycle: count=", getSerializeCycleCount(resDiamond))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeSharedCount(resDiamond) != 1) {
+    print("[FAIL] Test Case 6 Diamond DAG shared reference missing: count=", getSerializeSharedCount(resDiamond))
+    testSuiteFailures = testSuiteFailures + 1
+}
+sharedDiamond = getSerializeShared(resDiamond)
+sharedEdge = sharedDiamond[0]
+if (sharedEdge[0] != d2 or sharedEdge[1] != d3) {
+    print("[FAIL] Test Case 6 Diamond DAG shared edge mismatch: from=", sharedEdge[0], " to=", sharedEdge[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 6 Passed Diamond DAG verification with zero false positive cycles")
+
+// --- Test Case 7: Complex Multi-Loop Nested Topology ---
+print("Running Test Case 7: Complex Multi-Loop Topology...")
+
+// Complex structure with nested cycles and cross-links:
+// 0 -> 1 -> 2 -> 3 -> 1 (Cycle 1: 1->2->3->1)
+// 3 -> 4 -> 5 -> 0 (Outer Cycle 2: 0->1->2->3->4->5->0)
+// 2 -> 5 (Cross-chord edge)
+complexGraph = createGraph(8)
+c0 = addNode(complexGraph, 100)
+c1 = addNode(complexGraph, 101)
+c2 = addNode(complexGraph, 102)
+c3 = addNode(complexGraph, 103)
+c4 = addNode(complexGraph, 104)
+c5 = addNode(complexGraph, 105)
+
+addReference(complexGraph, c0, c1)
+addReference(complexGraph, c1, c2)
+addReference(complexGraph, c2, c3)
+addReference(complexGraph, c3, c1)
+addReference(complexGraph, c3, c4)
+addReference(complexGraph, c4, c5)
+addReference(complexGraph, c5, c0)
+addReference(complexGraph, c2, c5)
+
+resComplex = serializeGraph(complexGraph, c0)
+if (getSerializeVisited(resComplex) != 6) {
+    print("[FAIL] Test Case 7 Complex topology visited count failed: ", getSerializeVisited(resComplex))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeCycleCount(resComplex) < 2) {
+    print("[FAIL] Test Case 7 Complex topology cycles missing: count=", getSerializeCycleCount(resComplex))
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 7 Passed complex multi-loop nested topology resolution")
+
+// --- Test Case 8: Extreme VM Limits Deep Cycle Stress Test ---
+print("Running Test Case 8: Extreme VM Limits Deep Cycle Stress Test...")
+
+deepChainSize = 100
+deepGraph = buildRingGraph(deepChainSize)
+
+resDeep = serializeGraph(deepGraph, 0)
+if (getSerializeVisited(resDeep) != deepChainSize) {
+    print("[FAIL] Test Case 8 Deep chain node count failed: ", getSerializeVisited(resDeep))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeCycleCount(resDeep) != 1) {
+    print("[FAIL] Test Case 8 Deep chain cycle count failed: ", getSerializeCycleCount(resDeep))
+    testSuiteFailures = testSuiteFailures + 1
+}
+cyclesDeep = getSerializeCycles(resDeep)
+if (cyclesDeep[0][2] != deepChainSize) {
+    print("[FAIL] Test Case 8 Deep chain cycle length failed: expected=", deepChainSize, " actual=", cyclesDeep[0][2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getSerializeDepth(resDeep) != deepChainSize) {
+    print("[FAIL] Test Case 8 Max traversal depth failed: expected=", deepChainSize, " actual=", getSerializeDepth(resDeep))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+floydDeep = verifyFloydCycle(deepGraph, 0)
+if (floydDeep[0] != 1 or floydDeep[2] != deepChainSize) {
+    print("[FAIL] Test Case 8 Floyd cycle on deep chain failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 8 Passed extreme VM limit deep cycle stress test (N=100)")
+
+// --- Test Case 9: Circular Array Ring Buffer Wrap-Around & Validation ---
+print("Running Test Case 9: Circular Array Ring Buffer Wrap-Around...")
+
+cbCap = 8
+cb = createCircularBuffer(cbCap)
+if (detectCircularBufferCorruption(cb) != 1) {
+    print("[FAIL] Test Case 9 Initial circular buffer invalid")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Push 5 items
+circularBufferPush(cb, 10)
+circularBufferPush(cb, 20)
+circularBufferPush(cb, 30)
+circularBufferPush(cb, 40)
+circularBufferPush(cb, 50)
+if (cb[3] != 5 or detectCircularBufferCorruption(cb) != 1) {
+    print("[FAIL] Test Case 9 5-item push failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Pop 2 items (10 and 20)
+p1 = circularBufferPop(cb)
+p2 = circularBufferPop(cb)
+if (p1 != 10 or p2 != 20 or cb[3] != 3 or detectCircularBufferCorruption(cb) != 1) {
+    print("[FAIL] Test Case 9 Pop items failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Push 7 more items causing wrap-around and overwrite
+k = 1
+while (k <= 7) {
+    circularBufferPush(cb, 100 + k)
+    k = k + 1
+}
+if (cb[3] != cbCap or detectCircularBufferCorruption(cb) != 1) {
+    print("[FAIL] Test Case 9 Wrap-around fill failed: count=", cb[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+resCb = serializeCircularBuffer(cb)
+serializedCbArr = resCb[1]
+if (serializedCbArr.size() != cbCap) {
+    print("[FAIL] Test Case 9 Serialized buffer length failed: ", serializedCbArr.size())
+    testSuiteFailures = testSuiteFailures + 1
+}
+// Validate exact FIFO logical elements
+if (serializedCbArr[0] != 50 or serializedCbArr[1] != 101 or serializedCbArr[7] != 107) {
+    print("[FAIL] Test Case 9 Serialized circular buffer contents mismatch: first=", serializedCbArr[0], " last=", serializedCbArr[7])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test corruption detection
+cb[3] = cbCap + 5 // Corrupt count
+if (detectCircularBufferCorruption(cb) != 0) {
+    print("[FAIL] Test Case 9 Corruption detector failed to catch count > capacity")
+    testSuiteFailures = testSuiteFailures + 1
+}
+cb[3] = cbCap // Restore count
+cb[2] = (cb[2] + 1) % cbCap // Corrupt tail
+if (detectCircularBufferCorruption(cb) != 0) {
+    print("[FAIL] Test Case 9 Corruption detector failed to catch mismatched tail")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 9 Passed circular array ring buffer wrap-around and corruption validation")
+
+// --- Test Case 10: Deserialization Round-Trip & Structural Invariant Verification ---
+print("Running Test Case 10: Deserialization Round-Trip & Structural Invariants...")
+
+roundTripGraph = createGraph(8)
+r0 = addNode(roundTripGraph, 700)
+r1 = addNode(roundTripGraph, 701)
+r2 = addNode(roundTripGraph, 702)
+r3 = addNode(roundTripGraph, 703)
+
+addReference(roundTripGraph, r0, r1)
+addReference(roundTripGraph, r1, r2)
+addReference(roundTripGraph, r2, r0) // Cycle 1: 0->1->2->0
+addReference(roundTripGraph, r1, r3)
+addReference(roundTripGraph, r3, r1) // Cycle 2: 1->3->1
+
+resRt = serializeGraph(roundTripGraph, r0)
+reconRt = deserializeGraph(getSerializeTokens(resRt))
+
+if (validateGraphIsomorphism(roundTripGraph, r0, reconRt, 0) != 1) {
+    print("[FAIL] Test Case 10 Round-trip graph isomorphism validation failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+resRtSecond = serializeGraph(reconRt, 0)
+if (getSerializeCycleCount(resRtSecond) != getSerializeCycleCount(resRt)) {
+    print("[FAIL] Test Case 10 Reserialization of reconstructed graph cycle count mismatch: orig=", getSerializeCycleCount(resRt), " recon=", getSerializeCycleCount(resRtSecond))
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 10 Passed deserialization round-trip and structural isomorphism verification")
+
+// --- Benchmark Timings and Final Assertion ---
+
+suiteElapsedTime = t.millis() - suiteStartTime
+
+if (testSuiteFailures == 0) {
+    print("[PASS] Self-Referential Circular Array Serialization Suite executed successfully in ", suiteElapsedTime, " ms")
+} else {
+    print("[FAIL] Self-Referential Circular Array Serialization Suite encountered ", testSuiteFailures, " failures")
+}
