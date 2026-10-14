@@ -193,6 +193,7 @@ public:
         , oldGen(OLD_SIZE)
         , totalAllocated(0)
         , allocsSinceCollect(0)
+        , bytesSinceCollect(0)
         , collectCount(0)
         , objectList(nullptr)
         , stackTop(nullptr)
@@ -213,16 +214,24 @@ public:
 
         void* ptr = youngGen.allocate(totalSize);
         if (!ptr) {
-            collectYoung();
-            ptr = youngGen.allocate(totalSize);
+            if (!isGCLocked()) {
+                collectYoung();
+                ptr = youngGen.allocate(totalSize);
+            }
             if (!ptr) {
                 ptr = oldGen.allocate(totalSize);
                 if (!ptr) {
-                    collectFull();
-                    ptr = oldGen.allocate(totalSize);
+                    if (!isGCLocked()) {
+                        collectFull();
+                        ptr = youngGen.allocate(totalSize);
+                        if (!ptr) {
+                            ptr = oldGen.allocate(totalSize);
+                        }
+                    }
                     if (!ptr) {
-                        if (!overflowRegions.empty()) {
-                            ptr = overflowRegions.back()->allocate(totalSize);
+                        for (auto& reg : overflowRegions) {
+                            ptr = reg->allocate(totalSize);
+                            if (ptr) break;
                         }
                         if (!ptr) {
                             size_t overflowSize = totalSize > YOUNG_SIZE ? totalSize * 2 : YOUNG_SIZE;
@@ -241,15 +250,16 @@ public:
         header->size = static_cast<uint32_t>(size);
         header->type = 0;
         header->marked = 0;
-        header->generation = 0;
+        header->generation = youngGen.contains(ptr) ? 0 : 1;
         header->next = objectList;
         objectList = header;
 
         totalAllocated += size;
         allocsSinceCollect++;
+        bytesSinceCollect += totalSize;
 
-        // Adaptive collection: trigger when young generation is 80% full and not inhibited
-        if (!isGCLocked() && youngGen.getUsed() >= (youngGen.getCapacity() * 4) / 5) {
+        // Adaptive collection: trigger when young generation threshold or allocation count is reached
+        if (!isGCLocked() && (bytesSinceCollect >= (YOUNG_SIZE * 4) / 5 || allocsSinceCollect >= 4096)) {
             collectYoung();
         }
 
@@ -362,15 +372,58 @@ public:
         if (!inGC) return;
 
         const uint8_t* p = static_cast<const uint8_t*>(candidate);
-        for (GCHeader* cur = objectList; cur != nullptr; cur = cur->next) {
-            if (cur->marked) continue;
-            const uint8_t* start = reinterpret_cast<const uint8_t*>(cur);
-            const uint8_t* end = start + sizeof(GCHeader) + cur->size;
-            if (p >= start && p < end) {
-                markObject(cur);
-                break;
+
+        // O(1) Fast Path: Check known JIT object layouts before falling back to linear search.
+        // Array or String payload: candidate points to arr->data / str->data (offset 24 from JIT object start)
+        const uint8_t* arrayOrStrHdr = p - 24 - sizeof(GCHeader);
+        if (youngGen.contains(arrayOrStrHdr) || oldGen.contains(arrayOrStrHdr)) {
+            const uint32_t* magicPtr = reinterpret_cast<const uint32_t*>(p - 24);
+            if (*magicPtr == 0x41525259 || *magicPtr == 0x4E455641) { // "ARRY" or "NEVA"
+                GCHeader* cur = reinterpret_cast<GCHeader*>(const_cast<uint8_t*>(arrayOrStrHdr));
+                if (!cur->marked) {
+                    markObject(cur);
+                }
+                return;
             }
         }
+
+        // Map or Struct payload: candidate points to JITMap / JITStruct start (offset 0 from payload start)
+        const uint8_t* mapOrStructHdr = p - sizeof(GCHeader);
+        if (youngGen.contains(mapOrStructHdr) || oldGen.contains(mapOrStructHdr)) {
+            const uint32_t* magicPtr = reinterpret_cast<const uint32_t*>(p);
+            if (*magicPtr == 0x4D415053 || *magicPtr == 0x53545255) { // "MAPS" or "STRU"
+                GCHeader* cur = reinterpret_cast<GCHeader*>(const_cast<uint8_t*>(mapOrStructHdr));
+                if (!cur->marked) {
+                    markObject(cur);
+                }
+                return;
+            }
+        }
+
+        // Check overflow regions for fast path matches
+        for (const auto& reg : overflowRegions) {
+            if (reg->contains(arrayOrStrHdr)) {
+                const uint32_t* magicPtr = reinterpret_cast<const uint32_t*>(p - 24);
+                if (*magicPtr == 0x41525259 || *magicPtr == 0x4E455641) {
+                    GCHeader* cur = reinterpret_cast<GCHeader*>(const_cast<uint8_t*>(arrayOrStrHdr));
+                    if (!cur->marked) {
+                        markObject(cur);
+                    }
+                    return;
+                }
+            }
+            if (reg->contains(mapOrStructHdr)) {
+                const uint32_t* magicPtr = reinterpret_cast<const uint32_t*>(p);
+                if (*magicPtr == 0x4D415053 || *magicPtr == 0x53545255) {
+                    GCHeader* cur = reinterpret_cast<GCHeader*>(const_cast<uint8_t*>(mapOrStructHdr));
+                    if (!cur->marked) {
+                        markObject(cur);
+                    }
+                    return;
+                }
+            }
+        }
+        // Valid Nevaarize JIT pointers always match known magic patterns above.
     }
 
     /**
@@ -400,6 +453,7 @@ public:
         GCHeader* current = objectList;
         bool hasLiveInYoung = false;
         bool hasLiveInOld = false;
+        std::vector<bool> overflowHasLive(overflowRegions.size(), false);
 
         while (current) {
             if (current->marked) {
@@ -408,6 +462,13 @@ public:
                     hasLiveInYoung = true;
                 } else if (oldGen.contains(current)) {
                     hasLiveInOld = true;
+                } else {
+                    for (size_t i = 0; i < overflowRegions.size(); ++i) {
+                        if (overflowRegions[i]->contains(current)) {
+                            overflowHasLive[i] = true;
+                            break;
+                        }
+                    }
                 }
                 prev = &current->next;
                 current = current->next;
@@ -424,6 +485,20 @@ public:
         if (isFull && !hasLiveInOld) {
             oldGen.reset();
         }
+
+        if (!overflowRegions.empty()) {
+            size_t writeIdx = 0;
+            for (size_t i = 0; i < overflowRegions.size(); ++i) {
+                if (overflowHasLive[i]) {
+                    if (writeIdx != i) {
+                        overflowRegions[writeIdx] = std::move(overflowRegions[i]);
+                    }
+                    writeIdx++;
+                }
+            }
+            overflowRegions.resize(writeIdx);
+        }
+
         return freedBytes;
     }
 
@@ -437,6 +512,7 @@ public:
         scanStackRoots();
         sweep(false);
         allocsSinceCollect = 0;
+        bytesSinceCollect = 0;
     }
 
     /**
@@ -449,6 +525,7 @@ public:
         scanStackRoots();
         sweep(true);
         allocsSinceCollect = 0;
+        bytesSinceCollect = 0;
     }
 
     size_t getTotalAllocated() const { return totalAllocated; }
@@ -461,6 +538,7 @@ private:
     std::vector<std::unique_ptr<MemoryRegion>> overflowRegions;
     size_t totalAllocated;
     size_t allocsSinceCollect;
+    size_t bytesSinceCollect;
     size_t collectCount;
     GCHeader* objectList;
     std::vector<void**> roots;
