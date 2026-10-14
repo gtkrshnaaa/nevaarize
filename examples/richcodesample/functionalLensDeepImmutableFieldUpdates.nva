@@ -628,5 +628,142 @@ if (origCoolingSubsystem != updatedCoolingSubsystem) {
 
 print("  Test Case 5 Passed pointer structural sharing verification (untouched subtrees shared by pointer)")
 
+// --- Test Case 6: Historical Version Branching & Timeline Divergence ---
+
+print("--- Running Test Case 6: Historical Version Branching & Timeline Divergence ---")
+
+baseSecurity = {"firewallEnabled": 1, "tlsVersion": "1.3"}
+baseEngine = {"workers": 4, "cacheSizeMb": 512, "security": baseSecurity}
+baseConfig = {"region": "ap-southeast-1", "engine": baseEngine}
+baseSnapshot = {
+    "version": 100,
+    "systemState": "nominal",
+    "config": baseConfig
+}
+
+regionLens = composeLensList([createPropLens("config"), createPropLens("region")])
+workersLens = composeLensList([createPropLens("config"), createPropLens("engine"), createPropLens("workers")])
+cacheLens = composeLensList([createPropLens("config"), createPropLens("engine"), createPropLens("cacheSizeMb")])
+tlsLens = composeLensList([createPropLens("config"), createPropLens("engine"), createPropLens("security"), createPropLens("tlsVersion")])
+versionLens = createPropLens("version")
+
+// Branch Alpha: Europe Expansion
+branchAlpha = lensSet(regionLens, "eu-west-1", baseSnapshot)
+branchAlpha = lensSet(workersLens, 16, branchAlpha)
+branchAlpha = lensSet(versionLens, 101, branchAlpha)
+
+// Branch Beta: US-West Edge Optimization
+branchBeta = lensSet(regionLens, "us-west-2", baseSnapshot)
+branchBeta = lensSet(workersLens, 2, branchBeta)
+branchBeta = lensSet(cacheLens, 256, branchBeta)
+branchBeta = lensSet(versionLens, 102, branchBeta)
+
+// Branch Gamma: Hardened Security Node
+branchGamma = lensSet(tlsLens, "1.4-draft", baseSnapshot)
+branchGamma = lensModify(workersLens, "mul", 2, branchGamma)
+branchGamma = lensSet(versionLens, 103, branchGamma)
+
+// Assert baseSnapshot remains completely untouched and frozen
+if (lensView(versionLens, baseSnapshot) != 100 or lensView(regionLens, baseSnapshot) != "ap-southeast-1" or lensView(workersLens, baseSnapshot) != 4) {
+    print("[FAIL] Test Case 6 Base snapshot corrupted by branching")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Assert Branch Alpha invariants
+if (lensView(versionLens, branchAlpha) != 101 or lensView(regionLens, branchAlpha) != "eu-west-1" or lensView(workersLens, branchAlpha) != 16) {
+    print("[FAIL] Test Case 6 Branch Alpha invariants violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Assert Branch Beta invariants
+if (lensView(versionLens, branchBeta) != 102 or lensView(regionLens, branchBeta) != "us-west-2" or lensView(cacheLens, branchBeta) != 256 or lensView(workersLens, branchBeta) != 2) {
+    print("[FAIL] Test Case 6 Branch Beta invariants violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Assert Branch Gamma invariants
+if (lensView(versionLens, branchGamma) != 103 or lensView(tlsLens, branchGamma) != "1.4-draft" or lensView(workersLens, branchGamma) != 8) {
+    print("[FAIL] Test Case 6 Branch Gamma invariants violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Sibling subtrees across branches: Branch Alpha and Branch Beta share unmodified security by pointer
+if (branchAlpha["config"]["engine"]["security"] != baseSnapshot["config"]["engine"]["security"]) {
+    print("[FAIL] Test Case 6 Branch Alpha security structural sharing violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (branchBeta["config"]["engine"]["security"] != baseSnapshot["config"]["engine"]["security"]) {
+    print("[FAIL] Test Case 6 Branch Beta security structural sharing violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 6 Passed historical version branching and independent timeline divergence")
+
+// --- Test Case 7: High-Volume Mutation & Stress Benchmark ---
+
+print("--- Running Test Case 7: High-Volume Mutation & Stress Benchmark ---")
+
+stressStart = t.millis()
+
+benchMetrics = {"requestsTotal": 0, "errorsTotal": 0, "latencyMs": 15}
+benchNode = {"nodeName": "node-benchmark", "metrics": benchMetrics}
+benchState = {"iteration": 0, "node": benchNode}
+
+reqLens = composeLensList([createPropLens("node"), createPropLens("metrics"), createPropLens("requestsTotal")])
+errLens = composeLensList([createPropLens("node"), createPropLens("metrics"), createPropLens("errorsTotal")])
+iterLens = createPropLens("iteration")
+
+stressIter = 0
+stressRecord = benchState
+
+while (stressIter < 500) {
+    stressRecord = lensModify(reqLens, "add", 3, stressRecord)
+    if (stressIter % 10 == 0) {
+        stressRecord = lensModify(errLens, "add", 1, stressRecord)
+    }
+    stressRecord = lensSet(iterLens, stressIter + 1, stressRecord)
+    stressIter = stressIter + 1
+}
+
+expectedRequests = 1500
+expectedErrors = 50
+expectedIteration = 500
+
+finalRequests = lensView(reqLens, stressRecord)
+finalErrors = lensView(errLens, stressRecord)
+finalIteration = lensView(iterLens, stressRecord)
+
+if (finalRequests != expectedRequests) {
+    print("[FAIL] Test Case 7 Stress requests count mismatch: expected ", expectedRequests, " got ", finalRequests)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (finalErrors != expectedErrors) {
+    print("[FAIL] Test Case 7 Stress errors count mismatch: expected ", expectedErrors, " got ", finalErrors)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (finalIteration != expectedIteration) {
+    print("[FAIL] Test Case 7 Stress iteration mismatch: expected ", expectedIteration, " got ", finalIteration)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Invariance check: benchState remains unchanged at initial values
+if (lensView(reqLens, benchState) != 0 or lensView(iterLens, benchState) != 0) {
+    print("[FAIL] Test Case 7 Initial benchState mutated in stress loop")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+stressDuration = t.millis() - stressStart
+print("  Test Case 7 Passed high-volume stress benchmark (1,050 operations in ", stressDuration, " ms)")
+
+// --- Benchmark Timings and Final Assertion ---
+
 suiteElapsedTime = t.millis() - suiteStartTime
-print("Progress elapsed time: ", suiteElapsedTime, " ms")
+
+if (testSuiteFailures == 0) {
+    print("[PASS] Functional Lens Deep Immutable Field Updates Suite executed successfully in ", suiteElapsedTime, " ms")
+} else {
+    print("[FAIL] Functional Lens Suite encountered ", testSuiteFailures, " failures")
+}
