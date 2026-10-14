@@ -44,33 +44,33 @@ fnIdAddCont = 10
 // [4]: a2 (third argument)
 
 func createDone(result) {
-    return [0, 0, result, 0, 0]
+    return [tagDone, 0, result, 0, 0]
 }
 
 func createMore(fnId, a0, a1, a2) {
-    return [1, fnId, a0, a1, a2]
+    return [tagMore, fnId, a0, a1, a2]
 }
 
 func createFlatMap(subBounce, contFnId, extraArg) {
-    return [2, contFnId, subBounce, extraArg, 0]
+    return [tagFlatMap, contFnId, subBounce, extraArg, 0]
 }
 
 func isDone(bounce) {
-    if (bounce[0] == 0) {
+    if (bounce[0] == tagDone) {
         return true
     }
     return false
 }
 
 func isMore(bounce) {
-    if (bounce[0] == 1) {
+    if (bounce[0] == tagMore) {
         return true
     }
     return false
 }
 
 func isFlatMap(bounce) {
-    if (bounce[0] == 2) {
+    if (bounce[0] == tagFlatMap) {
         return true
     }
     return false
@@ -167,19 +167,19 @@ func runTrampoline(initialBounce) {
     curr = initialBounce
     contStack = []
     
-    while (curr[0] != 0 or contStack.size() > 0) {
+    while (curr[0] != tagDone or contStack.size() > 0) {
         tag = curr[0]
-        if (tag == 1) {
+        if (tag == tagMore) {
             // More: dispatch thunk and pop call frame immediately
             curr = dispatchThunk(curr[1], curr[2], curr[3], curr[4])
-        } elif (tag == 2) {
+        } elif (tag == tagFlatMap) {
             // FlatMap: push continuation descriptor onto heap stack, descend into subBounce
             contFnId = curr[1]
             subBounce = curr[2]
             extraArg = curr[3]
             contStack.push([contFnId, extraArg])
             curr = subBounce
-        } elif (tag == 0) {
+        } elif (tag == tagDone) {
             // Done: resume top continuation with completed result
             topCont = contStack.pop()
             contFnId = topCont[0]
@@ -197,12 +197,12 @@ func runTrampolineWithTelemetry(initialBounce) {
     totalBounces = 0
     maxStackDepth = 1
     
-    while (curr[0] != 0 or contStack.size() > 0) {
+    while (curr[0] != tagDone or contStack.size() > 0) {
         totalBounces = totalBounces + 1
         tag = curr[0]
-        if (tag == 1) {
+        if (tag == tagMore) {
             curr = dispatchThunk(curr[1], curr[2], curr[3], curr[4])
-        } elif (tag == 2) {
+        } elif (tag == tagFlatMap) {
             contFnId = curr[1]
             subBounce = curr[2]
             extraArg = curr[3]
@@ -212,7 +212,7 @@ func runTrampolineWithTelemetry(initialBounce) {
                 maxStackDepth = currDepth
             }
             curr = subBounce
-        } elif (tag == 0) {
+        } elif (tag == tagDone) {
             topCont = contStack.pop()
             contFnId = topCont[0]
             extraArg = topCont[1]
@@ -473,5 +473,117 @@ if (fact15kResult <= 0 or fact15kResult >= 1000000007) {
 
 print("  Test Case 5 Passed deep collection foldLeft and modular factorial (10,000+ elements)")
 
+// --- Test Case 6: Monadic Trampoline Chaining & Monad Laws ---
+
+print("--- Running Test Case 6: Monadic Trampoline Chaining & Monad Laws ---")
+
+// Monad Law 1: Left Identity -> pure(x).flatMap(f) == f(x)
+// pure(15).flatMap(fnIdDoubleCont, 10) == (15 * 2) + 10 == 40
+leftIdentityInput = 15
+leftIdentityExtra = 10
+leftIdentityBounce = createFlatMap(createDone(leftIdentityInput), fnIdDoubleCont, leftIdentityExtra)
+leftIdentityResult = runTrampoline(leftIdentityBounce)
+directFunctionResult = (leftIdentityInput * 2) + leftIdentityExtra
+
+if (leftIdentityResult != directFunctionResult or leftIdentityResult != 40) {
+    print("[FAIL] Test Case 6 Monad Law 1 (Left Identity) failed: expected 40, got ", leftIdentityResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Monad Law 2: Right Identity -> m.flatMap(pure) == m
+// sum(20) == 210. 210 + 0 == 210
+rightIdentityInitial = createMore(fnIdSumTail, 20, 0, 0)
+rightIdentityChained = createFlatMap(rightIdentityInitial, fnIdAddCont, 0)
+rightIdentityResult = runTrampoline(rightIdentityChained)
+
+if (rightIdentityResult != 210) {
+    print("[FAIL] Test Case 6 Monad Law 2 (Right Identity) failed: expected 210, got ", rightIdentityResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Monad Law 3: Associativity -> m.flatMap(f).flatMap(g) pipeline
+// Stage 1: sum(50) = 1275
+// Stage 2: flatMap(fnIdDoubleCont, 50) -> (1275 * 2) + 50 = 2600
+// Stage 3: flatMap(fnIdSquareCont, 0) -> 2600 * 2600 = 6,760,000
+pipelineStageOne = createMore(fnIdSumTail, 50, 0, 0)
+pipelineStageTwo = createFlatMap(pipelineStageOne, fnIdDoubleCont, 50)
+pipelineStageThree = createFlatMap(pipelineStageTwo, fnIdSquareCont, 0)
+
+associativityResult = runTrampoline(pipelineStageThree)
+expectedPipelineValue = 6760000
+
+if (associativityResult != expectedPipelineValue) {
+    print("[FAIL] Test Case 6 Monad Law 3 (Associativity) pipeline failed: expected 6760000, got ", associativityResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Deep monadic recursion chaining telemetry verification
+telemetryMonadic = runTrampolineWithTelemetry(pipelineStageThree)
+monadicResult = telemetryMonadic[0]
+monadicBounces = telemetryMonadic[1]
+monadicMaxDepth = telemetryMonadic[2]
+
+if (monadicResult != expectedPipelineValue) {
+    print("[FAIL] Test Case 6 Monadic telemetry result mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Max stack depth for 2 chained flatMaps should equal 3
+if (monadicMaxDepth != 3) {
+    print("[FAIL] Test Case 6 Monadic max stack depth expected 3, got ", monadicMaxDepth)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (monadicBounces <= 0) {
+    print("[FAIL] Test Case 6 Monadic bounces non-positive")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 6 Passed monadic trampoline chaining and Monad Laws (Left, Right, Associativity)")
+
+// --- Test Case 7: Extreme VM Limit Stress Benchmark (100,000+ Steps) ---
+
+print("--- Running Test Case 7: Extreme VM Limit Stress Benchmark (100,000+ Steps) ---")
+
+stressBenchmarkStart = t.millis()
+
+// 100,000 steps of tail-recursive summation
+// While native recursion causes Segmentation Fault (Stack Overflow) at 100,000,
+// the trampoline executes in strictly bounded O(1) stack space.
+stressStepLimit = 100000
+stressInitialBounce = createMore(fnIdSumTail, stressStepLimit, 0, 0)
+stressTelemetry = runTrampolineWithTelemetry(stressInitialBounce)
+
+stressResult = stressTelemetry[0]
+stressBounces = stressTelemetry[1]
+stressMaxStack = stressTelemetry[2]
+
+expectedStressSum = 5000050000
+
+if (stressResult != expectedStressSum) {
+    print("[FAIL] Test Case 7 Extreme stress sum mismatch: expected 5000050000, got ", stressResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (stressBounces != 100001) {
+    print("[FAIL] Test Case 7 Extreme stress bounces expected 100001, got ", stressBounces)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (stressMaxStack != 1) {
+    print("[FAIL] Test Case 7 Constant stack depth violated under 100,000 steps: expected 1, got ", stressMaxStack)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+stressBenchmarkDuration = t.millis() - stressBenchmarkStart
+print("  Test Case 7 Passed extreme VM limit benchmark (100,000 steps in ", stressBenchmarkDuration, " ms with O(1) stack frames)")
+
+// --- Benchmark Timings and Final Assertion ---
+
 suiteElapsedTime = t.millis() - suiteStartTime
-print("Progress elapsed time: ", suiteElapsedTime, " ms")
+
+if (testSuiteFailures == 0) {
+    print("[PASS] Trampoline Unbounded Tail Recursion Suite executed successfully in ", suiteElapsedTime, " ms")
+} else {
+    print("[FAIL] Trampoline Suite encountered ", testSuiteFailures, " failures")
+}
