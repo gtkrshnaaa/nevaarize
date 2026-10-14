@@ -113,6 +113,38 @@ func dispatchThunk(fnId, a0, a1, a2) {
         nextN = a0 - 1
         nextFib = (a1 + a2) % 1000000007
         return createMore(4, nextN, a2, nextFib)
+    } elif (fnId == 5) {
+        // fnIdCollatzTail: a0 = n, a1 = steps, a2 = peakVal
+        newPeak = a2
+        if (a0 > newPeak) {
+            newPeak = a0
+        }
+        if (a0 <= 1) {
+            return createDone([a1, newPeak])
+        }
+        if (a0 % 2 == 0) {
+            nextN = a0 / 2
+        } else {
+            nextN = (a0 * 3) + 1
+        }
+        nextSteps = a1 + 1
+        return createMore(5, nextN, nextSteps, newPeak)
+    } elif (fnId == 6) {
+        // fnIdFactorialModTail: a0 = n, a1 = acc, a2 = mod
+        if (a0 <= 1) {
+            return createDone(a1)
+        }
+        nextAcc = (a1 * a0) % a2
+        nextN = a0 - 1
+        return createMore(6, nextN, nextAcc, a2)
+    } elif (fnId == 7) {
+        // fnIdListFoldTail: a0 = list, a1 = idx, a2 = acc
+        if (a1 >= a0.size()) {
+            return createDone(a2)
+        }
+        nextAcc = a2 + a0[a1]
+        nextIdx = a1 + 1
+        return createMore(7, a0, nextIdx, nextAcc)
     } elif (fnId == 8) {
         // fnIdDoubleCont: a0 = val, a1 = extra
         doubledVal = (a0 * 2) + a1
@@ -350,6 +382,96 @@ if (fib30kPlus2Result != expectedSumModulo) {
 }
 
 print("  Test Case 3 Passed Fibonacci modular recurrence (30,000 steps with tuple state preservation)")
+
+// --- Test Case 4: Collatz Conjecture Hailstone Trajectory ---
+
+print("--- Running Test Case 4: Collatz Conjecture Hailstone Trajectory ---")
+
+collatzOne = runTrampoline(createMore(fnIdCollatzTail, 1, 0, 1))
+if (collatzOne[0] != 0 or collatzOne[1] != 1) {
+    print("[FAIL] Test Case 4 Collatz(1) mismatch: steps=", collatzOne[0], " peak=", collatzOne[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+collatzTwo = runTrampoline(createMore(fnIdCollatzTail, 2, 0, 2))
+if (collatzTwo[0] != 1 or collatzTwo[1] != 2) {
+    print("[FAIL] Test Case 4 Collatz(2) mismatch: steps=", collatzTwo[0], " peak=", collatzTwo[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+collatzThree = runTrampoline(createMore(fnIdCollatzTail, 3, 0, 3))
+if (collatzThree[0] != 7 or collatzThree[1] != 16) {
+    print("[FAIL] Test Case 4 Collatz(3) mismatch: steps=", collatzThree[0], " peak=", collatzThree[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Classical hailstone benchmark: n = 27 takes exactly 111 steps with peak 9232
+collatz27 = runTrampoline(createMore(fnIdCollatzTail, 27, 0, 27))
+if (collatz27[0] != 111 or collatz27[1] != 9232) {
+    print("[FAIL] Test Case 4 Collatz(27) mismatch: steps=", collatz27[0], " peak=", collatz27[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Higher benchmark: n = 871 takes 178 steps with peak 190996
+collatz871 = runTrampoline(createMore(fnIdCollatzTail, 871, 0, 871))
+if (collatz871[0] != 178 or collatz871[1] != 190996) {
+    print("[FAIL] Test Case 4 Collatz(871) mismatch: steps=", collatz871[0], " peak=", collatz871[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Deep trajectory benchmark: n = 6171 takes 261 steps with peak 975400
+collatz6171 = runTrampoline(createMore(fnIdCollatzTail, 6171, 0, 6171))
+if (collatz6171[0] != 261 or collatz6171[1] != 975400) {
+    print("[FAIL] Test Case 4 Collatz(6171) mismatch: steps=", collatz6171[0], " peak=", collatz6171[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 4 Passed Collatz conjecture hailstone trajectories (deterministic steps and peak values)")
+
+// --- Test Case 5: Deep Collection Linearization & Modular Factorial ---
+
+print("--- Running Test Case 5: Deep Collection Linearization & Modular Factorial ---")
+
+// Empty list boundary
+emptyList = []
+emptyFoldResult = runTrampoline(createMore(fnIdListFoldTail, emptyList, 0, 999))
+if (emptyFoldResult != 999) {
+    print("[FAIL] Test Case 5 Empty list fold failed: expected 999, got ", emptyFoldResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Array reduction across 10,000 elements
+listTenThousand = []
+elemIdx = 0
+expectedTotalSum = 0
+while (elemIdx < 10000) {
+    elementVal = (elemIdx * 3) % 100
+    listTenThousand.push(elementVal)
+    expectedTotalSum = expectedTotalSum + elementVal
+    elemIdx = elemIdx + 1
+}
+
+foldTenThousandResult = runTrampoline(createMore(fnIdListFoldTail, listTenThousand, 0, 0))
+if (foldTenThousandResult != expectedTotalSum) {
+    print("[FAIL] Test Case 5 List fold 10k mismatch: expected ", expectedTotalSum, " got ", foldTenThousandResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Modular factorial verification: 10! == 3,628,800
+factTenResult = runTrampoline(createMore(fnIdFactorialModTail, 10, 1, 1000000007))
+if (factTenResult != 3628800) {
+    print("[FAIL] Test Case 5 Factorial(10) expected 3628800, got ", factTenResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Deep modular factorial across 15,000 steps without call stack growth
+fact15kResult = runTrampoline(createMore(fnIdFactorialModTail, 15000, 1, 1000000007))
+if (fact15kResult <= 0 or fact15kResult >= 1000000007) {
+    print("[FAIL] Test Case 5 Factorial(15000) out of modular bounds: ", fact15kResult)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 5 Passed deep collection foldLeft and modular factorial (10,000+ elements)")
 
 suiteElapsedTime = t.millis() - suiteStartTime
 print("Progress elapsed time: ", suiteElapsedTime, " ms")
