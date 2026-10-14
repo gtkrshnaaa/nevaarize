@@ -523,6 +523,166 @@ if (sharedLeavesCount != 30) {
 }
 print("  Test Case 4 Passed level 1 saturation (1,024 elements) and pointer structural sharing verification (", sharedLeavesCount, "/30 leaves shared)")
 
+// --- Test Case 5: Multi-Level Trie Scaling (Level 2: 2,048 elements, shift = 10) ---
+
+print("--- Running Test Case 5: Multi-Level Trie Scaling (Level 2: 2,048 elements) ---")
+v2048 = vectorFromRange(0, 2048)
+if (vectorSize(v2048) != 2048) {
+    print("[FAIL] Test Case 5 Size 2048 mismatch: ", vectorSize(v2048))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (v2048[1] != 10) {
+    print("[FAIL] Test Case 5 Expected shift 10 for 2,048 elements, got: ", v2048[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+all2048Ok = true
+i2048 = 0
+while (i2048 < 2048) {
+    if (vectorGet(v2048, i2048) != i2048) {
+        all2048Ok = false
+    }
+    i2048 = i2048 + 1
+}
+if (!all2048Ok) {
+    print("[FAIL] Test Case 5 2,048-element lookup value mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Multi-branch immutable update in second internal branch (index 1500)
+v2048Mod = vectorSet(v2048, 1500, 777777)
+if (vectorGet(v2048Mod, 1500) != 777777) {
+    print("[FAIL] Test Case 5 Modified element at index 1500 not reflected in updated vector")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (vectorGet(v2048, 1500) != 1500) {
+    print("[FAIL] Test Case 5 Original vector mutated during set at index 1500")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify structural sharing across 2 levels of hierarchy:
+root2048Orig = v2048[2]
+root2048Mod = v2048Mod[2]
+if (root2048Orig == root2048Mod) {
+    print("[FAIL] Test Case 5 Multi-level root was not cloned")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (root2048Orig[0] != root2048Mod[0]) {
+    print("[FAIL] Test Case 5 Multi-level structural sharing failed: branch 0 was not shared")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (root2048Orig[1] == root2048Mod[1]) {
+    print("[FAIL] Test Case 5 Branch 1 should have been cloned along the mutation path")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+subLeafIdx = (1500 >> 5) & 31
+branch1Orig = root2048Orig[1]
+branch1Mod = root2048Mod[1]
+if (branch1Orig[subLeafIdx] == branch1Mod[subLeafIdx]) {
+    print("[FAIL] Test Case 5 Target sub-leaf in branch 1 was not cloned")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+branch1SharedLeaves = 0
+chkIdx = 0
+while (chkIdx < 32) {
+    if (chkIdx != subLeafIdx) {
+        if (branch1Orig[chkIdx] == branch1Mod[chkIdx]) {
+            branch1SharedLeaves = branch1SharedLeaves + 1
+        }
+    }
+    chkIdx = chkIdx + 1
+}
+if (branch1SharedLeaves < 30) {
+    print("[FAIL] Test Case 5 Multi-level sibling leaves not structurally shared in branch 1: ", branch1SharedLeaves)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 5 Passed multi-level trie scaling (2,048 elements) and 2-level structural sharing")
+
+// --- Test Case 6: Historical Version Branching & Timeline Divergence ---
+
+print("--- Running Test Case 6: Historical Version Branching & Timeline Divergence ---")
+vBase = vectorFromRange(100, 50)
+
+vBranchA = vBase
+pushIdx = 0
+while (pushIdx < 20) {
+    vBranchA = vectorPush(vBranchA, 1000 + pushIdx)
+    pushIdx = pushIdx + 1
+}
+vBranchA = vectorSet(vBranchA, 10, 8888)
+
+vBranchB = vBase
+popIdx = 0
+while (popIdx < 20) {
+    vBranchB = vectorPop(vBranchB)
+    popIdx = popIdx + 1
+}
+vBranchB = vectorSet(vBranchB, 10, 9999)
+
+vBranchC = vectorSet(vBase, 25, 55555)
+
+if (vectorSize(vBase) != 50 or vectorGet(vBase, 10) != 110 or vectorGet(vBase, 25) != 125) {
+    print("[FAIL] Test Case 6 Base vector corrupted by timeline branching")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (vectorSize(vBranchA) != 70 or vectorGet(vBranchA, 10) != 8888 or vectorGet(vBranchA, 69) != 1019) {
+    print("[FAIL] Test Case 6 Branch A invariants violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (vectorSize(vBranchB) != 30 or vectorGet(vBranchB, 10) != 9999 or vectorGet(vBranchB, 29) != 129) {
+    print("[FAIL] Test Case 6 Branch B invariants violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (vectorSize(vBranchC) != 50 or vectorGet(vBranchC, 10) != 110 or vectorGet(vBranchC, 25) != 55555) {
+    print("[FAIL] Test Case 6 Branch C invariants violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 6 Passed historical version branching and independent timeline divergence")
+
+// --- Test Case 7: High-Volume Mutation & Stress Benchmark ---
+
+print("--- Running Test Case 7: High-Volume Mutation & Stress Benchmark ---")
+stressStart = t.millis()
+vStress = createEmptyVector()
+stressIdx = 0
+while (stressIdx < 2000) {
+    vStress = vectorPush(vStress, stressIdx * 3)
+    stressIdx = stressIdx + 1
+}
+
+stressIdx = 0
+while (stressIdx < 500) {
+    targetIdx = stressIdx * 4
+    vStress = vectorSet(vStress, targetIdx, targetIdx * 7)
+    stressIdx = stressIdx + 1
+}
+
+stressIdx = 0
+while (stressIdx < 300) {
+    vStress = vectorPop(vStress)
+    stressIdx = stressIdx + 1
+}
+
+expectedStressSize = 1700
+if (vectorSize(vStress) != expectedStressSize) {
+    print("[FAIL] Test Case 7 Stress size mismatch: expected 1700, got ", vectorSize(vStress))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (vectorGet(vStress, 0) != 0 or vectorGet(vStress, 4) != 28 or vectorGet(vStress, 1) != 3 or vectorGet(vStress, 1699) != 1699 * 3) {
+    print("[FAIL] Test Case 7 Stress spot check values mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+stressDuration = t.millis() - stressStart
+print("  Test Case 7 Passed high-volume stress benchmark (2,800 operations in ", stressDuration, " ms)")
+
 // --- Benchmark Timings and Final Assertion ---
 
 suiteElapsedTime = t.millis() - suiteStartTime
