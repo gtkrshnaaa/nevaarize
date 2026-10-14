@@ -594,4 +594,455 @@ func analyzeSurrogateIntegrity(bytesArr) {
     return [highCount, lowCount, pairedCount, orphanLead]
 }
 
-print("UTF-8 boundary slicing engine and surrogate analyzer initialized.")
+// --- Deterministic Pseudo-Random Generator (LCG) ---
+
+func createLcg(seedVal) {
+    return [seedVal]
+}
+
+func nextLcg(lcgState, maxLimit) {
+    cur = lcgState[0]
+    nextVal = ((cur * 1103515245) + 12345) & 2147483647
+    lcgState[0] = nextVal
+    if (maxLimit <= 0) {
+        return 0
+    }
+    return nextVal % maxLimit
+}
+
+// --- Test Case 1: Pure ASCII Boundary Slicing ---
+
+print("--- Running Test Case 1: Pure ASCII Boundary Slicing ---")
+asciiStr = "Nevaarize Compiler Architecture"
+asciiBytes = stringToByteArray(asciiStr)
+asciiMap = buildBoundaryIndexMap(asciiBytes)
+
+if (asciiBytes.size() != 31 or getCodepointCount(asciiMap) != 31) {
+    print("[FAIL] Test Case 1 ASCII size mismatch: ", asciiBytes.size(), " expected 31")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Check every offset is a boundary
+allAsciiBoundariesValid = true
+offsetIdx = 0
+while (offsetIdx <= 31) {
+    if (!isLegalBoundary(asciiMap, offsetIdx)) {
+        allAsciiBoundariesValid = false
+    }
+    offsetIdx = offsetIdx + 1
+}
+if (!allAsciiBoundariesValid) {
+    print("[FAIL] Test Case 1 Not all ASCII offsets are valid boundaries")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Slice "Nevaarize" (0..9)
+asciiSliceRes = sliceUtf8ByByteRange(asciiBytes, asciiMap, 0, 9, policyStrict)
+if (!asciiSliceRes[3] or asciiSliceRes[0].size() != 9 or asciiSliceRes[0][0] != 78) {
+    print("[FAIL] Test Case 1 Slicing ASCII 'Nevaarize' failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 1 Passed pure ASCII boundary verification (31 codepoints)")
+
+// --- Test Case 2: 2-Byte Multi-Byte Boundary Slicing ---
+
+print("--- Running Test Case 2: 2-Byte Greek Sequence Slicing ---")
+// String: "αβγδ"
+// α: 206, 177 (U+03B1)
+// β: 206, 178 (U+03B2)
+// γ: 206, 179 (U+03B3)
+// δ: 206, 180 (U+03B4)
+greekStr = "αβγδ"
+greekBytes = stringToByteArray(greekStr)
+greekMap = buildBoundaryIndexMap(greekBytes)
+
+if (greekBytes.size() != 8 or getCodepointCount(greekMap) != 4) {
+    print("[FAIL] Test Case 2 Greek size mismatch: ", greekBytes.size(), " bytes, ", getCodepointCount(greekMap), " codepoints")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Boundaries: 0, 2, 4, 6, 8. Non-boundaries: 1, 3, 5, 7.
+if (!isLegalBoundary(greekMap, 0) or !isLegalBoundary(greekMap, 2) or !isLegalBoundary(greekMap, 4)) {
+    print("[FAIL] Test Case 2 Legal boundaries false negative")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (isLegalBoundary(greekMap, 1) or isLegalBoundary(greekMap, 3) or isLegalBoundary(greekMap, 5)) {
+    print("[FAIL] Test Case 2 Continuation byte false positive boundary")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Strict slicing at illegal boundary [1, 5) MUST fail
+strictGreekRes = sliceUtf8ByByteRange(greekBytes, greekMap, 1, 5, policyStrict)
+if (strictGreekRes[3]) {
+    print("[FAIL] Test Case 2 Strict policy should reject split multi-byte slice [1, 5)")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Clamp Inward: 1 -> 2, 5 -> 4. Result [2, 4) should be 'β' [206, 178]
+clampGreekRes = sliceUtf8ByByteRange(greekBytes, greekMap, 1, 5, policyClampInward)
+if (!clampGreekRes[3] or clampGreekRes[1] != 2 or clampGreekRes[2] != 4 or clampGreekRes[0].size() != 2) {
+    print("[FAIL] Test Case 2 Clamp inward failed: effStart=", clampGreekRes[1], " effEnd=", clampGreekRes[2])
+    testSuiteFailures = testSuiteFailures + 1
+} elif (clampGreekRes[0][0] != 206 or clampGreekRes[0][1] != 178) {
+    print("[FAIL] Test Case 2 Clamp inward extracted wrong bytes for beta")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Expand Outward: 1 -> 0, 5 -> 6. Result [0, 6) should be 'αβγ' (6 bytes)
+expandGreekRes = sliceUtf8ByByteRange(greekBytes, greekMap, 1, 5, policyExpandOutward)
+if (!expandGreekRes[3] or expandGreekRes[1] != 0 or expandGreekRes[2] != 6 or expandGreekRes[0].size() != 6) {
+    print("[FAIL] Test Case 2 Expand outward failed: effStart=", expandGreekRes[1], " effEnd=", expandGreekRes[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Sanitize Replace: raw [1, 5) -> [177, 206, 178, 206].
+// 177 -> orphan continuation -> [239, 191, 189]
+// 206, 178 -> valid beta -> [206, 178]
+// 206 -> orphan lead -> [239, 191, 189]
+// Total: 3 + 2 + 3 = 8 bytes
+sanitizeGreekRes = sliceUtf8ByByteRange(greekBytes, greekMap, 1, 5, policySanitizeReplace)
+if (!sanitizeGreekRes[3] or sanitizeGreekRes[0].size() != 8) {
+    print("[FAIL] Test Case 2 Sanitize replace size mismatch: ", sanitizeGreekRes[0].size(), " expected 8")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 2 Passed 2-byte multi-byte boundary verification")
+
+// --- Test Case 3: 3-Byte CJK Multi-Byte Boundary Slicing ---
+
+print("--- Running Test Case 3: 3-Byte CJK Sequence Slicing ---")
+// String: "日本語" (Japanese Nihongo)
+// 日 (U+65E5): 230, 151, 165
+// 本 (U+672C): 230, 156, 172
+// 語 (U+8A9E): 232, 170, 158
+cjkStr = "日本語"
+cjkBytes = stringToByteArray(cjkStr)
+cjkMap = buildBoundaryIndexMap(cjkBytes)
+
+if (cjkBytes.size() != 9 or getCodepointCount(cjkMap) != 3) {
+    print("[FAIL] Test Case 3 CJK size mismatch: ", cjkBytes.size(), " bytes, ", getCodepointCount(cjkMap), " codepoints")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Scalar value verification
+cjkValues = cjkMap[2]
+if (cjkValues[0] != 26085 or cjkValues[1] != 26412 or cjkValues[2] != 35486) {
+    print("[FAIL] Test Case 3 Scalar value decode mismatch: ", cjkValues[0], ", ", cjkValues[1], ", ", cjkValues[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Slicing [1, 8) with ClampInward: 1 -> 3, 8 -> 6. Result is middle character '本'
+cjkClampRes = sliceUtf8ByByteRange(cjkBytes, cjkMap, 1, 8, policyClampInward)
+if (!cjkClampRes[3] or cjkClampRes[1] != 3 or cjkClampRes[2] != 6) {
+    print("[FAIL] Test Case 3 CJK clamp inward offsets mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+} elif (cjkClampRes[0][0] != 230 or cjkClampRes[0][1] != 156 or cjkClampRes[0][2] != 172) {
+    print("[FAIL] Test Case 3 CJK clamp inward bytes mismatch for '本'")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Slicing [1, 8) with ExpandOutward: 1 -> 0, 8 -> 9. Result is all 3 characters (9 bytes)
+cjkExpandRes = sliceUtf8ByByteRange(cjkBytes, cjkMap, 1, 8, policyExpandOutward)
+if (!cjkExpandRes[3] or cjkExpandRes[1] != 0 or cjkExpandRes[2] != 9 or cjkExpandRes[0].size() != 9) {
+    print("[FAIL] Test Case 3 CJK expand outward mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Codepoint slicing: codepoint 1, count 1 -> '本'
+cjkCharRes = sliceUtf8ByCodepoints(cjkBytes, cjkMap, 1, 1)
+if (cjkCharRes.size() != 3 or cjkCharRes[0] != 230 or cjkCharRes[1] != 156 or cjkCharRes[2] != 172) {
+    print("[FAIL] Test Case 3 Codepoint slicing failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 3 Passed 3-byte CJK boundary verification")
+
+// --- Test Case 4: 4-Byte SMP Multi-Byte Boundary Slicing ---
+
+print("--- Running Test Case 4: 4-Byte SMP Sequence Slicing ---")
+// Synthesize 4-byte Mathematical Fraktur symbols via encodeCodepointToBytes:
+// U+1D504 (Fraktur A: 120068) -> 240, 157, 148, 132
+// U+1D505 (Fraktur B: 120069) -> 240, 157, 148, 133
+// U+1D507 (Fraktur D: 120071) -> 240, 157, 148, 135
+smpBytes = []
+frakturA = encodeCodepointToBytes(120068)
+frakturB = encodeCodepointToBytes(120069)
+frakturD = encodeCodepointToBytes(120071)
+
+kIdx = 0
+while (kIdx < 4) {
+    smpBytes.push(frakturA[kIdx])
+    kIdx = kIdx + 1
+}
+kIdx = 0
+while (kIdx < 4) {
+    smpBytes.push(frakturB[kIdx])
+    kIdx = kIdx + 1
+}
+kIdx = 0
+while (kIdx < 4) {
+    smpBytes.push(frakturD[kIdx])
+    kIdx = kIdx + 1
+}
+
+smpMap = buildBoundaryIndexMap(smpBytes)
+if (smpBytes.size() != 12 or getCodepointCount(smpMap) != 3) {
+    print("[FAIL] Test Case 4 SMP size mismatch: ", smpBytes.size(), " bytes, ", getCodepointCount(smpMap), " chars")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Boundaries must be exactly 0, 4, 8, 12
+if (!isLegalBoundary(smpMap, 0) or !isLegalBoundary(smpMap, 4) or !isLegalBoundary(smpMap, 8) or !isLegalBoundary(smpMap, 12)) {
+    print("[FAIL] Test Case 4 SMP legal boundaries not detected")
+    testSuiteFailures = testSuiteFailures + 1
+}
+// Interior non-boundaries: 1, 2, 3, 5, 6, 7, 9, 10, 11
+smpTestOffsets = [1, 2, 3, 5, 6, 7, 9, 10, 11]
+smpOffIdx = 0
+while (smpOffIdx < smpTestOffsets.size()) {
+    targetOff = smpTestOffsets[smpOffIdx]
+    if (isLegalBoundary(smpMap, targetOff)) {
+        print("[FAIL] Test Case 4 Offset ", targetOff, " falsely reported as legal boundary")
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    smpOffIdx = smpOffIdx + 1
+}
+
+// Test clamp inward at boundary split [2, 10) -> [4, 8) which is Fraktur B (4 bytes)
+smpClampRes = sliceUtf8ByByteRange(smpBytes, smpMap, 2, 10, policyClampInward)
+if (!smpClampRes[3] or smpClampRes[1] != 4 or smpClampRes[2] != 8 or smpClampRes[0].size() != 4) {
+    print("[FAIL] Test Case 4 SMP clamp inward failed: effStart=", smpClampRes[1], " effEnd=", smpClampRes[2])
+    testSuiteFailures = testSuiteFailures + 1
+} elif (smpClampRes[0][0] != 240 or smpClampRes[0][3] != 133) {
+    print("[FAIL] Test Case 4 SMP clamp inward byte values mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 4 Passed 4-byte SMP boundary verification")
+
+// --- Test Case 5: Heterogeneous Mixed Text Slicing ---
+
+print("--- Running Test Case 5: Heterogeneous Mixed Text Slicing ---")
+// Interleave ASCII (1-byte), Greek (2-byte), CJK (3-byte), and SMP (4-byte)
+// ASCII "Id:" (3) + Greek "α" (2) + ASCII "-" (1) + CJK "字" (3) + ASCII "-" (1) + SMP FrakturA (4)
+mixedBytes = []
+// "Id:"
+mixedBytes.push(73)
+mixedBytes.push(100)
+mixedBytes.push(58)
+// 'α'
+mixedBytes.push(206)
+mixedBytes.push(177)
+// '-'
+mixedBytes.push(45)
+// '字' (U+5B57: 229, 173, 151)
+mixedBytes.push(229)
+mixedBytes.push(173)
+mixedBytes.push(151)
+// '-'
+mixedBytes.push(45)
+// Fraktur A (240, 157, 148, 132)
+mixedBytes.push(240)
+mixedBytes.push(157)
+mixedBytes.push(148)
+mixedBytes.push(132)
+
+// Total bytes: 3 + 2 + 1 + 3 + 1 + 4 = 14 bytes
+// Total characters: 3 + 1 + 1 + 1 + 1 + 1 = 8 characters
+mixedMap = buildBoundaryIndexMap(mixedBytes)
+if (mixedBytes.size() != 14 or getCodepointCount(mixedMap) != 8) {
+    print("[FAIL] Test Case 5 Mixed size mismatch: ", mixedBytes.size(), " bytes, ", getCodepointCount(mixedMap), " chars")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Slice codepoint 3 ('α') -> byte offset 3..5
+charAlphaBytes = sliceUtf8ByCodepoints(mixedBytes, mixedMap, 3, 1)
+if (charAlphaBytes.size() != 2 or charAlphaBytes[0] != 206 or charAlphaBytes[1] != 177) {
+    print("[FAIL] Test Case 5 Slicing 'α' by codepoint index failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Slice codepoint 5 ('字') -> byte offset 6..9
+charKanjiBytes = sliceUtf8ByCodepoints(mixedBytes, mixedMap, 5, 1)
+if (charKanjiBytes.size() != 3 or charKanjiBytes[0] != 229 or charKanjiBytes[2] != 151) {
+    print("[FAIL] Test Case 5 Slicing '字' by codepoint index failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Slice codepoint 7 (Fraktur A) -> byte offset 10..14
+charSmpBytes = sliceUtf8ByCodepoints(mixedBytes, mixedMap, 7, 1)
+if (charSmpBytes.size() != 4 or charSmpBytes[0] != 240 or charSmpBytes[3] != 132) {
+    print("[FAIL] Test Case 5 Slicing Fraktur A by codepoint index failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 5 Passed heterogeneous mixed text slicing verification")
+
+// --- Test Case 6: Surrogate Pair & Split Surrogate Integrity Verification ---
+
+print("--- Running Test Case 6: Surrogate Integrity & Split Surrogate Prevention ---")
+// Construct CESU-8 surrogate pair:
+// High surrogate U+D801: 237, 160, 129
+// Low surrogate U+DC00: 237, 176, 128
+surrogateBytes = [237, 160, 129, 237, 176, 128]
+
+// decodeCodepointAt on surrogate lead MUST reject as statusErrSurrogate
+decSurr = decodeCodepointAt(surrogateBytes, 0)
+if (decSurr[2] != statusErrSurrogate) {
+    print("[FAIL] Test Case 6 High surrogate not flagged as statusErrSurrogate: code=", decSurr[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Surrogate analyzer should identify 1 high, 1 low, and 1 paired surrogate sequence
+surrStats = analyzeSurrogateIntegrity(surrogateBytes)
+if (surrStats[0] != 1 or surrStats[1] != 1 or surrStats[2] != 1) {
+    print("[FAIL] Test Case 6 Surrogate stats mismatch: high=", surrStats[0], " low=", surrStats[1], " paired=", surrStats[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Split the surrogate pair: extract only high surrogate half [0, 3)
+splitSurrHalf = sliceByteArray(surrogateBytes, 0, 3)
+splitStats = analyzeSurrogateIntegrity(splitSurrHalf)
+if (splitStats[0] != 1 or splitStats[1] != 0 or splitStats[2] != 0) {
+    print("[FAIL] Test Case 6 Split surrogate half not detected as isolated: high=", splitStats[0], " paired=", splitStats[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Sanitizing the surrogate sequence must replace both surrogate halves with U+FFFD (6 bytes)
+sanitizedSurr = sanitizeCorruptedByteStream(surrogateBytes)
+if (sanitizedSurr.size() != 6 or sanitizedSurr[0] != 239 or sanitizedSurr[1] != 191 or sanitizedSurr[2] != 189) {
+    print("[FAIL] Test Case 6 Sanitization of surrogate sequence failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 6 Passed surrogate integrity & split surrogate prevention")
+
+// --- Test Case 7: Malformed UTF-8 Boundary Edge Cases ---
+
+print("--- Running Test Case 7: Malformed UTF-8 Boundary Edge Cases ---")
+// Overlong 2-byte encoding: 192, 129 (0xC0 0x81)
+decOverlong2 = decodeCodepointAt([192, 129], 0)
+if (decOverlong2[2] != statusErrInvalidLead and decOverlong2[2] != statusErrOverlong) {
+    print("[FAIL] Test Case 7 2-byte overlong not rejected")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Overlong 3-byte encoding: 224, 128, 160 (0xE0 0x80 0xA0)
+decOverlong3 = decodeCodepointAt([224, 128, 160], 0)
+if (decOverlong3[2] != statusErrOverlong) {
+    print("[FAIL] Test Case 7 3-byte overlong not rejected: code=", decOverlong3[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Out of range codepoint: 244, 144, 128, 128 (U+110000)
+decOutOfRange = decodeCodepointAt([244, 144, 128, 128], 0)
+if (decOutOfRange[2] != statusErrOutOfRange) {
+    print("[FAIL] Test Case 7 Out of range codepoint not rejected: code=", decOutOfRange[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Premature end (truncated 3-byte sequence): [230, 151]
+decTrunc = decodeCodepointAt([230, 151], 0)
+if (decTrunc[2] != statusErrPrematureEnd) {
+    print("[FAIL] Test Case 7 Truncated sequence not flagged as premature end: code=", decTrunc[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Empty byte array
+emptyMap = buildBoundaryIndexMap([])
+if (emptyMap[6] != 0 or getCodepointCount(emptyMap) != 0 or !isLegalBoundary(emptyMap, 0)) {
+    print("[FAIL] Test Case 7 Empty array boundary handling failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Test Case 7 Passed malformed UTF-8 boundary edge cases")
+
+// --- Test Case 8: High-Volume Boundary Fuzzing & Timing Benchmarks ---
+
+print("--- Running Test Case 8: High-Volume Boundary Fuzzing & Timing Benchmarks ---")
+fuzzBenchStart = t.millis()
+
+// Build synthetic multi-byte buffer of 500 repetitions of 10-byte pattern (5000 bytes)
+fuzzBuffer = []
+repCount = 0
+while (repCount < 500) {
+    // 1-byte ASCII (2 bytes): 'O', 'K'
+    fuzzBuffer.push(79)
+    fuzzBuffer.push(75)
+    // 2-byte Greek (2 bytes): 'α' (206, 177)
+    fuzzBuffer.push(206)
+    fuzzBuffer.push(177)
+    // 3-byte CJK (3 bytes): '語' (232, 170, 158)
+    fuzzBuffer.push(232)
+    fuzzBuffer.push(170)
+    fuzzBuffer.push(158)
+    // 4-byte SMP (4 bytes): Fraktur A (240, 157, 148, 132)
+    fuzzBuffer.push(240)
+    fuzzBuffer.push(157)
+    fuzzBuffer.push(148)
+    fuzzBuffer.push(132)
+    repCount = repCount + 1
+}
+
+fuzzTotalBytes = fuzzBuffer.size()
+fuzzMap = buildBoundaryIndexMap(fuzzBuffer)
+fuzzCharCount = getCodepointCount(fuzzMap)
+
+print("  Fuzz buffer generated: ", fuzzTotalBytes, " bytes, ", fuzzCharCount, " valid codepoints")
+
+// Execute 500 random boundary slice operations with snapping verification
+lcg = createLcg(424242)
+queryIdx = 0
+queryViolations = 0
+
+while (queryIdx < 500) {
+    rA = nextLcg(lcg, fuzzTotalBytes)
+    rB = nextLcg(lcg, fuzzTotalBytes)
+    rawS = rA
+    rawE = rB
+    if (rawS > rawE) {
+        temp = rawS
+        rawS = rawE
+        rawE = temp
+    }
+
+    // Test Clamp Inward
+    clampRes = sliceUtf8ByByteRange(fuzzBuffer, fuzzMap, rawS, rawE, policyClampInward)
+    if (!clampRes[3]) {
+        queryViolations = queryViolations + 1
+    } else {
+        resStart = clampRes[1]
+        resEnd = clampRes[2]
+        if (!isLegalBoundary(fuzzMap, resStart) or !isLegalBoundary(fuzzMap, resEnd)) {
+            queryViolations = queryViolations + 1
+        }
+    }
+
+    // Test Expand Outward
+    expandRes = sliceUtf8ByByteRange(fuzzBuffer, fuzzMap, rawS, rawE, policyExpandOutward)
+    if (!expandRes[3]) {
+        queryViolations = queryViolations + 1
+    } else {
+        resStart = expandRes[1]
+        resEnd = expandRes[2]
+        if (!isLegalBoundary(fuzzMap, resStart) or !isLegalBoundary(fuzzMap, resEnd)) {
+            queryViolations = queryViolations + 1
+        }
+    }
+
+    queryIdx = queryIdx + 1
+}
+
+fuzzBenchTime = t.millis() - fuzzBenchStart
+
+if (queryViolations > 0) {
+    print("[FAIL] Test Case 8 Fuzzing encountered ", queryViolations, " boundary violations")
+    testSuiteFailures = testSuiteFailures + 1
+} else {
+    print("  Test Case 8 Verified 1000 clamped/expanded boundary slice queries with zero corruption (", fuzzBenchTime, " ms)")
+}
+
+// --- Benchmark Timings and Final Assertion ---
+
+suiteElapsedTime = t.millis() - suiteStartTime
+
+if (testSuiteFailures == 0) {
+    print("[PASS] UTF-8 Multi-Byte Boundary Slicing Integrity Suite executed successfully in ", suiteElapsedTime, " ms")
+} else {
+    print("[FAIL] UTF-8 Multi-Byte Boundary Slicing Integrity Suite encountered ", testSuiteFailures, " failures")
+}
+
