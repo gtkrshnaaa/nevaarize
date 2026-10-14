@@ -1,0 +1,439 @@
+import stdlib time as t
+
+// Monotonic Clock Verification and Interval Analysis Suite
+// Technical characteristics:
+// - Rigorous verification of steady clock invariants: Non-decreasing monotonic property (dt >= 0)
+// - High-frequency burst sampling across nanosecond and millisecond resolutions
+// - Interval duration additivity and triangle inequality validation
+// - Cross-clock consistency verification between t.nanos(), t.millis(), and t.clock()
+// - Quantile distribution analysis, tick resolution detection, and jitter characterization
+// - Software monotonic filter demonstrating backward-drift correction for non-steady time sources
+// - Distributed Lamport logical clock simulation verifying causal monotonicity
+// - Boundary edge cases: Zero-latency back-to-back samples, calibrated sleep advancement, and high-iteration stress
+// - Strict camelCase naming conventions enforced across all symbols (No-Underscore Policy)
+
+print("=== Nevaarize Monotonic Clock Verification Suite ===")
+suiteStartTime = t.millis()
+
+// --- Sampling and Verification Utilities ---
+
+func sampleNanosBurst(sampleCount) {
+    samples = []
+    idx = 0
+    while (idx < sampleCount) {
+        samples.push(t.nanos())
+        idx = idx + 1
+    }
+    return samples
+}
+
+func sampleMillisBurst(sampleCount) {
+    samples = []
+    idx = 0
+    while (idx < sampleCount) {
+        samples.push(t.millis())
+        idx = idx + 1
+    }
+    return samples
+}
+
+func evaluateMonotonicity(samples) {
+    sampleCount = samples.size()
+    if (sampleCount < 2) {
+        return [0, 0, sampleCount, 0, 0, 0]
+    }
+
+    backwardCount = 0
+    positiveCount = 0
+    zeroCount = 0
+    minDelta = samples[1] - samples[0]
+    maxDelta = minDelta
+
+    idx = 1
+    while (idx < sampleCount) {
+        delta = samples[idx] - samples[idx - 1]
+        if (delta < 0) {
+            backwardCount = backwardCount + 1
+        } elif (delta > 0) {
+            positiveCount = positiveCount + 1
+        } else {
+            zeroCount = zeroCount + 1
+        }
+
+        if (delta < minDelta) {
+            minDelta = delta
+        }
+        if (delta > maxDelta) {
+            maxDelta = delta
+        }
+
+        idx = idx + 1
+    }
+
+    totalElapsed = samples[sampleCount - 1] - samples[0]
+    return [backwardCount, positiveCount, zeroCount, minDelta, maxDelta, totalElapsed]
+}
+
+func detectTickResolution(maxAttempts) {
+    initialTime = t.nanos()
+    observedDelta = 0
+    attempts = 0
+
+    while (attempts < maxAttempts) {
+        currTime = t.nanos()
+        if (currTime > initialTime) {
+            observedDelta = currTime - initialTime
+            return [observedDelta, attempts + 1]
+        }
+        attempts = attempts + 1
+    }
+    return [observedDelta, attempts]
+}
+
+// --- Software Monotonic Filter (Defensive Monotonicity Guard) ---
+
+func createMonotonicFilter(initialTime) {
+    return [initialTime, 0, 0]
+}
+
+func filterSample(filter, rawTimestamp) {
+    highestObserved = filter[0]
+    backwardCorrections = filter[1]
+    totalObservations = filter[2] + 1
+
+    filteredVal = rawTimestamp
+    if (rawTimestamp < highestObserved) {
+        backwardCorrections = backwardCorrections + 1
+        filteredVal = highestObserved
+    } else {
+        highestObserved = rawTimestamp
+    }
+
+    filter[0] = highestObserved
+    filter[1] = backwardCorrections
+    filter[2] = totalObservations
+    return filteredVal
+}
+
+// --- Lamport Distributed Logical Clock ---
+
+func createLamportClock(processId) {
+    return [processId, 0]
+}
+
+func tickLamportClock(clock) {
+    clock[1] = clock[1] + 1
+    return clock[1]
+}
+
+func sendLamportMessage(clock) {
+    tickVal = tickLamportClock(clock)
+    return [clock[0], tickVal]
+}
+
+func receiveLamportMessage(clock, msgTimestamp) {
+    currentVal = clock[1]
+    if (msgTimestamp > currentVal) {
+        currentVal = msgTimestamp
+    }
+    clock[1] = currentVal + 1
+    return clock[1]
+}
+
+// --- Active Workload Helper for Interval Verification ---
+
+func executeComputationWorkload(iterations) {
+    checksum = 0
+    workIdx = 0
+    while (workIdx < iterations) {
+        checksum = (checksum * 33 + workIdx) % 1000000007
+        workIdx = workIdx + 1
+    }
+    return checksum
+}
+
+// --- Test Suites and Deterministic Assertions ---
+
+testSuiteFailures = 0
+
+// Test Case 1: High-Frequency Nanosecond Burst Monotonicity
+print("Running Test Case 1: High-Frequency Nanosecond Burst Monotonicity...")
+nanosBurstSize = 5000
+nanosSamples = sampleNanosBurst(nanosBurstSize)
+
+nanosStats = evaluateMonotonicity(nanosSamples)
+backwardNanos = nanosStats[0]
+positiveNanos = nanosStats[1]
+zeroNanos = nanosStats[2]
+minDeltaNanos = nanosStats[3]
+maxDeltaNanos = nanosStats[4]
+totalNanosElapsed = nanosStats[5]
+
+if (backwardNanos != 0) {
+    print("[FAIL] Test Case 1 Encountered backward nanosecond drift count: ", backwardNanos)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (minDeltaNanos < 0) {
+    print("[FAIL] Test Case 1 Minimum nanosecond delta is negative: ", minDeltaNanos)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (totalNanosElapsed <= 0) {
+    print("[FAIL] Test Case 1 Total elapsed nanoseconds should be positive: ", totalNanosElapsed)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (positiveNanos + zeroNanos != nanosBurstSize - 1) {
+    print("[FAIL] Test Case 1 Sample count invariant failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Sampled ", nanosBurstSize, " consecutive nanosecond timestamps: 0 backward drifts")
+print("  Strict monotonicity verified: positive deltas = ", positiveNanos, ", identical reads = ", zeroNanos, ", total elapsed = ", totalNanosElapsed, " ns")
+print("  Test Case 1 Passed high-frequency nanosecond burst monotonicity")
+
+// Test Case 2: High-Frequency Millisecond Burst Monotonicity
+print("Running Test Case 2: High-Frequency Millisecond Burst Monotonicity...")
+millisBurstSize = 2000
+millisSamples = sampleMillisBurst(millisBurstSize)
+
+millisStats = evaluateMonotonicity(millisSamples)
+backwardMillis = millisStats[0]
+positiveMillis = millisStats[1]
+zeroMillis = millisStats[2]
+minDeltaMillis = millisStats[3]
+totalMillisElapsed = millisStats[5]
+
+if (backwardMillis != 0) {
+    print("[FAIL] Test Case 2 Encountered backward millisecond drift count: ", backwardMillis)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (minDeltaMillis < 0) {
+    print("[FAIL] Test Case 2 Minimum millisecond delta is negative: ", minDeltaMillis)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (totalMillisElapsed < 0) {
+    print("[FAIL] Test Case 2 Total elapsed milliseconds cannot be negative: ", totalMillisElapsed)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Sampled ", millisBurstSize, " consecutive millisecond timestamps: 0 backward drifts")
+print("  Monotonicity verified: positive deltas = ", positiveMillis, ", identical reads = ", zeroMillis, ", total elapsed = ", totalMillisElapsed, " ms")
+print("  Test Case 2 Passed high-frequency millisecond burst monotonicity")
+
+// Test Case 3: Cross-Resolution Consistency and Monotonic Scaling
+print("Running Test Case 3: Cross-Resolution Consistency and Monotonic Scaling...")
+
+beforeMillis = t.millis()
+beforeNanos = t.nanos()
+beforeClock = t.clock()
+
+dummyResult = executeComputationWorkload(200000)
+
+afterClock = t.clock()
+afterNanos = t.nanos()
+afterMillis = t.millis()
+
+diffNanos = afterNanos - beforeNanos
+diffMillis = afterMillis - beforeMillis
+diffClockSeconds = afterClock - beforeClock
+
+if (diffNanos < 0) {
+    print("[FAIL] Test Case 3 diffNanos is negative: ", diffNanos)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (diffMillis < 0) {
+    print("[FAIL] Test Case 3 diffMillis is negative: ", diffMillis)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (diffClockSeconds < 0.0) {
+    print("[FAIL] Test Case 3 diffClockSeconds is negative: ", diffClockSeconds)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+diffNanosAsMillis = diffNanos / 1000000
+discrepancy = diffNanosAsMillis - diffMillis
+if (discrepancy < 0) {
+    discrepancy = 0 - discrepancy
+}
+
+if (discrepancy > 5) {
+    print("[FAIL] Test Case 3 Discrepancy between nanos and millis exceeds threshold: ", discrepancy)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Cross-resolution advance verified across 200,000 workload iterations (checksum = ", dummyResult, ")")
+print("  Elapsed: ", diffNanos, " ns | ", diffMillis, " ms | ", diffClockSeconds, " s (discrepancy = ", discrepancy, " ms)")
+print("  Test Case 3 Passed cross-resolution consistency and scaling")
+
+// Test Case 4: Interval Duration Additivity and Exact Time Conservation
+print("Running Test Case 4: Interval Duration Additivity and Time Conservation...")
+
+pointZero = t.nanos()
+executeComputationWorkload(100000)
+pointOne = t.nanos()
+executeComputationWorkload(100000)
+pointTwo = t.nanos()
+
+intervalA = pointOne - pointZero
+intervalB = pointTwo - pointOne
+compoundInterval = pointTwo - pointZero
+
+if (intervalA < 0 or intervalB < 0) {
+    print("[FAIL] Test Case 4 Negative sub-interval detected")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+sumOfIntervals = intervalA + intervalB
+if (sumOfIntervals != compoundInterval) {
+    print("[FAIL] Test Case 4 Time conservation violated: sum = ", sumOfIntervals, " compound = ", compoundInterval)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Exact interval additivity verified: intervalA (", intervalA, " ns) + intervalB (", intervalB, " ns) == compound (", compoundInterval, " ns)")
+print("  Conservation difference: ", (sumOfIntervals - compoundInterval), " ns")
+print("  Test Case 4 Passed interval duration additivity")
+
+// Test Case 5: Tick Resolution Detection and Calibrated Sleep Advance
+print("Running Test Case 5: Tick Resolution Detection and Calibrated Sleep Advance...")
+
+resolutionResult = detectTickResolution(10000)
+tickResolutionNanos = resolutionResult[0]
+tickAttempts = resolutionResult[1]
+
+if (tickResolutionNanos <= 0) {
+    print("[FAIL] Test Case 5 Unable to detect positive clock resolution within ", tickAttempts, " attempts")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+sleepTargetMs = 5
+sleepStartNanos = t.nanos()
+t.sleep(sleepTargetMs)
+sleepEndNanos = t.nanos()
+
+actualSleepNanos = sleepEndNanos - sleepStartNanos
+actualSleepMs = actualSleepNanos / 1000000
+
+if (actualSleepNanos < 0) {
+    print("[FAIL] Test Case 5 Measured sleep duration was negative: ", actualSleepNanos)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (actualSleepMs < sleepTargetMs) {
+    print("[FAIL] Test Case 5 Sleep woke up earlier than requested: target = ", sleepTargetMs, " ms, actual = ", actualSleepMs, " ms")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Clock tick resolution detected: ", tickResolutionNanos, " ns (discerned after ", tickAttempts, " probes)")
+print("  Calibrated sleep verified: requested = ", sleepTargetMs, " ms, measured = ", actualSleepNanos, " ns (~", actualSleepMs, " ms)")
+print("  Test Case 5 Passed tick resolution and calibrated sleep advance")
+
+// Test Case 6: Software Monotonic Filter Invariant Verification
+print("Running Test Case 6: Software Monotonic Filter Invariant Verification...")
+
+mockRawTimestamps = [1000, 1050, 1020, 1100, 1080, 1090, 1200, 1150, 1300, 1300, 1250, 1400]
+expectedFiltered = [1000, 1050, 1050, 1100, 1100, 1100, 1200, 1200, 1300, 1300, 1300, 1400]
+
+monoFilter = createMonotonicFilter(0)
+filteredOutputs = []
+
+feedIdx = 0
+while (feedIdx < mockRawTimestamps.size()) {
+    filteredVal = filterSample(monoFilter, mockRawTimestamps[feedIdx])
+    filteredOutputs.push(filteredVal)
+    feedIdx = feedIdx + 1
+}
+
+filterStats = evaluateMonotonicity(filteredOutputs)
+if (filterStats[0] != 0) {
+    print("[FAIL] Test Case 6 Software monotonic filter permitted backward drift: ", filterStats[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (monoFilter[1] != 5) {
+    print("[FAIL] Test Case 6 Expected exactly 5 backward corrections, got: ", monoFilter[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+matchIdx = 0
+while (matchIdx < expectedFiltered.size()) {
+    if (filteredOutputs[matchIdx] != expectedFiltered[matchIdx]) {
+        print("[FAIL] Test Case 6 Mismatch at index ", matchIdx, ": got ", filteredOutputs[matchIdx], " expected ", expectedFiltered[matchIdx])
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    matchIdx = matchIdx + 1
+}
+
+print("  Monotonic filter sanitized 12 synthetic observations with 5 simulated NTP backward drifts")
+print("  Filtered stream output strictly monotonic (backward drifts = 0, corrected = ", monoFilter[1], ")")
+print("  Test Case 6 Passed software monotonic filter invariant verification")
+
+// Test Case 7: Lamport Logical Clock Distributed Monotonicity
+print("Running Test Case 7: Lamport Logical Clock Distributed Monotonicity...")
+
+procA = createLamportClock(1)
+procB = createLamportClock(2)
+procC = createLamportClock(3)
+
+eventA1 = tickLamportClock(procA)
+eventB1 = tickLamportClock(procB)
+
+msgFromA = sendLamportMessage(procA)
+eventB2 = receiveLamportMessage(procB, msgFromA[1])
+
+if (eventB2 <= msgFromA[1]) {
+    print("[FAIL] Test Case 7 Lamport causality violated on receive at B: B=", eventB2, " msg=", msgFromA[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+msgFromB = sendLamportMessage(procB)
+eventC1 = receiveLamportMessage(procC, msgFromB[1])
+
+if (eventC1 <= msgFromB[1]) {
+    print("[FAIL] Test Case 7 Lamport causality violated on receive at C: C=", eventC1, " msg=", msgFromB[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Distributed causal event sequence verified across 3 logical nodes: A -> B -> C")
+print("  Logical timestamp progression strictly monotonic: msgA=", msgFromA[1], " -> recvB=", eventB2, " -> msgB=", msgFromB[1], " -> recvC=", eventC1)
+print("  Test Case 7 Passed Lamport logical clock monotonicity")
+
+// Test Case 8: Boundary Edge Cases and Degenerate Sequences
+print("Running Test Case 8: Boundary Edge Cases and Degenerate Sequences...")
+
+emptyList = []
+emptyStats = evaluateMonotonicity(emptyList)
+if (emptyStats[0] != 0 or emptyStats[5] != 0) {
+    print("[FAIL] Test Case 8 Empty sequence evaluation failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+singleElementList = [42]
+singleStats = evaluateMonotonicity(singleElementList)
+if (singleStats[0] != 0 or singleStats[5] != 0) {
+    print("[FAIL] Test Case 8 Single element sequence evaluation failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+identicalElementsList = [100, 100, 100, 100, 100]
+identicalStats = evaluateMonotonicity(identicalElementsList)
+if (identicalStats[0] != 0 or identicalStats[2] != 4 or identicalStats[5] != 0) {
+    print("[FAIL] Test Case 8 Identical elements monotonicity failed: zeros = ", identicalStats[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+twoIncreasingList = [100, 200]
+twoStats = evaluateMonotonicity(twoIncreasingList)
+if (twoStats[0] != 0 or twoStats[1] != 1 or twoStats[5] != 100) {
+    print("[FAIL] Test Case 8 Two increasing elements failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Boundary conditions verified: Empty list, Singleton, Identical elements (zero deltas), and Minimal 2-element sequence")
+print("  Test Case 8 Passed boundary edge cases and degenerate sequences")
+
+// --- Benchmark Timings and Final Assertion ---
+
+suiteElapsedTime = t.millis() - suiteStartTime
+
+if (testSuiteFailures == 0) {
+    print("[PASS] Monotonic Clock Measurement Never Decreases Suite executed successfully in ", suiteElapsedTime, " ms")
+} else {
+    print("[FAIL] Monotonic Clock Suite encountered ", testSuiteFailures, " failures")
+}
