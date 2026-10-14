@@ -365,5 +365,78 @@ if (deepMapEquals(nestedDoublePutRecord["location"], nestedDirectPutRecord["loca
 
 print("  Test Case 2 Passed canonical lens laws (Get-Put, Put-Get, Put-Put) verification")
 
+// --- Test Case 3: Binary & Multi-Lens Composition with Heterogeneous Structures ---
+
+print("--- Running Test Case 3: Multi-Lens Composition with Heterogeneous Structures ---")
+
+svcOneA = {"serviceName": "httpGateway", "port": 8080, "protocol": "tcp"}
+svcOneB = {"serviceName": "metricsExporter", "port": 9100, "protocol": "http"}
+nodeOneServices = [svcOneA, svcOneB]
+nodeOne = {"nodeId": "worker-1", "services": nodeOneServices, "healthy": 1}
+
+svcZeroA = {"serviceName": "dnsProxy", "port": 53, "protocol": "udp"}
+nodeZeroServices = [svcZeroA]
+nodeZero = {"nodeId": "worker-0", "services": nodeZeroServices, "healthy": 1}
+
+clusterNodes = [nodeZero, nodeOne]
+clusterRecord = {
+    "clusterId": "stellarum-cluster-alpha",
+    "region": "ap-southeast-1",
+    "nodes": clusterNodes
+}
+
+// Compose multi-step lens: cluster -> nodes -> index 1 -> services -> index 0 -> port
+multiLensChain = [
+    createPropLens("nodes"),
+    createIndexLens(1),
+    createPropLens("services"),
+    createIndexLens(0),
+    createPropLens("port")
+]
+clusterServicePortLens = composeLensList(multiLensChain)
+
+initialPort = lensView(clusterServicePortLens, clusterRecord)
+if (initialPort != 8080) {
+    print("[FAIL] Test Case 3 Initial port view mismatch: expected 8080, got ", initialPort)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+updatedCluster = lensSet(clusterServicePortLens, 8443, clusterRecord)
+modifiedCluster = lensModify(clusterServicePortLens, "add", 10, updatedCluster)
+
+if (lensView(clusterServicePortLens, updatedCluster) != 8443) {
+    print("[FAIL] Test Case 3 Updated cluster port mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (lensView(clusterServicePortLens, modifiedCluster) != 8453) {
+    print("[FAIL] Test Case 3 Modified cluster port mismatch: expected 8453, got ", lensView(clusterServicePortLens, modifiedCluster))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Invariance & Immutability checks: original clusterRecord remains unchanged
+if (clusterRecord["nodes"][1]["services"][0]["port"] != 8080) {
+    print("[FAIL] Test Case 3 Original clusterRecord mutated in-place")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Sibling data integrity checks
+if (updatedCluster["region"] != "ap-southeast-1" or updatedCluster["clusterId"] != "stellarum-cluster-alpha") {
+    print("[FAIL] Test Case 3 Root sibling fields corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedCluster["nodes"][0]["services"][0]["port"] != 53) {
+    print("[FAIL] Test Case 3 Sibling node 0 corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedCluster["nodes"][1]["services"][1]["port"] != 9100) {
+    print("[FAIL] Test Case 3 Sibling service 1 on node 1 corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 3 Passed multi-lens composition with heterogeneous structures verification")
+
 suiteElapsedTime = t.millis() - suiteStartTime
 print("Progress elapsed time: ", suiteElapsedTime, " ms")
