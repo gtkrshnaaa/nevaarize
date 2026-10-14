@@ -438,5 +438,195 @@ if (updatedCluster["nodes"][1]["services"][1]["port"] != 9100) {
 
 print("  Test Case 3 Passed multi-lens composition with heterogeneous structures verification")
 
+// --- Test Case 4: Deep Path Lens (10 Levels of Nesting) ---
+
+print("--- Running Test Case 4: Deep Path Lens (10 Levels of Nesting) ---")
+
+// Construct 10-level deep record hierarchy bottom-up
+sharedCooling = {"chillerId": "chiller-9", "fanRpm": 3200}
+sharedStorage = {"volumeIds": ["vol-1", "vol-2"], "redundancy": "raid10"}
+
+lvl10Config = {
+    "memoryLimitMb": 8192,
+    "evictionPolicy": "lru",
+    "bufferSlots": 128
+}
+
+lvl9Process = {
+    "processName": "jitDaemon",
+    "pid": 4819,
+    "config": lvl10Config
+}
+
+lvl8Vm = {
+    "vmId": "vm-prod-007",
+    "vCpu": 16,
+    "process": lvl9Process
+}
+
+lvl7Node = {
+    "nodeId": "srv-rack-12",
+    "cpuCores": 64,
+    "vm": lvl8Vm
+}
+
+lvl6Rack = {
+    "rackUnit": 24,
+    "coolingSubsystem": sharedCooling,
+    "node": lvl7Node
+}
+
+lvl5Datacenter = {
+    "datacenterRoom": "hall-c",
+    "powerKw": 450,
+    "rack": lvl6Rack
+}
+
+lvl4Region = {
+    "regionCode": "us-east-1",
+    "zoneCount": 3,
+    "datacenter": lvl5Datacenter
+}
+
+lvl3Cluster = {
+    "clusterState": "ready",
+    "storageSubsystem": sharedStorage,
+    "region": lvl4Region
+}
+
+lvl2Platform = {
+    "platformEnvironment": "production",
+    "tier": "enterprise",
+    "cluster": lvl3Cluster
+}
+
+lvl1System = {
+    "systemVersion": "2.6.0",
+    "organization": "Stellarum",
+    "platform": lvl2Platform
+}
+
+// Build 10-level composable lens chain
+deepTenLevelLensChain = [
+    createPropLens("platform"),
+    createPropLens("cluster"),
+    createPropLens("region"),
+    createPropLens("datacenter"),
+    createPropLens("rack"),
+    createPropLens("node"),
+    createPropLens("vm"),
+    createPropLens("process"),
+    createPropLens("config"),
+    createPropLens("memoryLimitMb")
+]
+deepTenLevelLens = composeLensList(deepTenLevelLensChain)
+
+viewedLimitMb = lensView(deepTenLevelLens, lvl1System)
+if (viewedLimitMb != 8192) {
+    print("[FAIL] Test Case 4 Deep 10-level lens view mismatch: expected 8192, got ", viewedLimitMb)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+updatedTenLevelSystem = lensSet(deepTenLevelLens, 16384, lvl1System)
+modifiedTenLevelSystem = lensModify(deepTenLevelLens, "sub", 2048, updatedTenLevelSystem)
+
+if (lensView(deepTenLevelLens, updatedTenLevelSystem) != 16384) {
+    print("[FAIL] Test Case 4 Deep 10-level lens set mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (lensView(deepTenLevelLens, modifiedTenLevelSystem) != 14336) {
+    print("[FAIL] Test Case 4 Deep 10-level lens modify mismatch: expected 14336, got ", lensView(deepTenLevelLens, modifiedTenLevelSystem))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify immutability of original 10-level root
+if (lensView(deepTenLevelLens, lvl1System) != 8192) {
+    print("[FAIL] Test Case 4 Original 10-level root corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify sibling fields across all levels remain intact
+if (updatedTenLevelSystem["systemVersion"] != "2.6.0" or updatedTenLevelSystem["organization"] != "Stellarum") {
+    print("[FAIL] Test Case 4 Level 1 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["tier"] != "enterprise") {
+    print("[FAIL] Test Case 4 Level 2 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["cluster"]["clusterState"] != "ready") {
+    print("[FAIL] Test Case 4 Level 3 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["cluster"]["region"]["regionCode"] != "us-east-1") {
+    print("[FAIL] Test Case 4 Level 4 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["cluster"]["region"]["datacenter"]["powerKw"] != 450) {
+    print("[FAIL] Test Case 4 Level 5 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["cluster"]["region"]["datacenter"]["rack"]["rackUnit"] != 24) {
+    print("[FAIL] Test Case 4 Level 6 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["cluster"]["region"]["datacenter"]["rack"]["node"]["cpuCores"] != 64) {
+    print("[FAIL] Test Case 4 Level 7 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["cluster"]["region"]["datacenter"]["rack"]["node"]["vm"]["vCpu"] != 16) {
+    print("[FAIL] Test Case 4 Level 8 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["cluster"]["region"]["datacenter"]["rack"]["node"]["vm"]["process"]["pid"] != 4819) {
+    print("[FAIL] Test Case 4 Level 9 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (updatedTenLevelSystem["platform"]["cluster"]["region"]["datacenter"]["rack"]["node"]["vm"]["process"]["config"]["evictionPolicy"] != "lru") {
+    print("[FAIL] Test Case 4 Level 10 sibling corrupted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 4 Passed deep path lens (10 levels of nesting) verification")
+
+// --- Test Case 5: Pointer Structural Sharing Verification ---
+
+print("--- Running Test Case 5: Pointer Structural Sharing Verification ---")
+
+// Root instances must be distinct (non-destructive update allocation)
+if (lvl1System == updatedTenLevelSystem) {
+    print("[FAIL] Test Case 5 Root instances unexpectedly identical (in-place mutation detected)")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Untouched subtrees along branches off the path must maintain identical heap pointers
+origStorageSubsystem = lvl1System["platform"]["cluster"]["storageSubsystem"]
+updatedStorageSubsystem = updatedTenLevelSystem["platform"]["cluster"]["storageSubsystem"]
+
+if (origStorageSubsystem != updatedStorageSubsystem) {
+    print("[FAIL] Test Case 5 Structural sharing violated on level 3 storageSubsystem")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+origCoolingSubsystem = lvl1System["platform"]["cluster"]["region"]["datacenter"]["rack"]["coolingSubsystem"]
+updatedCoolingSubsystem = updatedTenLevelSystem["platform"]["cluster"]["region"]["datacenter"]["rack"]["coolingSubsystem"]
+
+if (origCoolingSubsystem != updatedCoolingSubsystem) {
+    print("[FAIL] Test Case 5 Structural sharing violated on level 6 coolingSubsystem")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 5 Passed pointer structural sharing verification (untouched subtrees shared by pointer)")
+
 suiteElapsedTime = t.millis() - suiteStartTime
 print("Progress elapsed time: ", suiteElapsedTime, " ms")
