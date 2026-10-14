@@ -253,5 +253,117 @@ if (initialArray[0] != 100 or initialArray[2] != 300) {
 
 print("  Test Case 1 Passed primitive prop and index lens verification")
 
+// --- Test Case 2: Canonical Lens Laws Verification ---
+
+print("--- Running Test Case 2: Canonical Lens Laws Verification ---")
+
+// Law 1: Get-Put (Identity) -> lensSet(l, lensView(l, s), s) == s
+testRecordAlpha = {
+    "moduleName": "nevaarizeJit",
+    "targetArch": "x86_64",
+    "optLevel": 3
+}
+
+optLevelLens = createPropLens("optLevel")
+currentOptVal = lensView(optLevelLens, testRecordAlpha)
+identityReconstructed = lensSet(optLevelLens, currentOptVal, testRecordAlpha)
+
+if (deepMapEquals(identityReconstructed, testRecordAlpha) == 0) {
+    print("[FAIL] Test Case 2 Law 1 (Get-Put) violated on map record")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify Law 1 on Array index lens
+testSequenceAlpha = [10, 20, 30, 40, 50]
+seqLens = createIndexLens(2)
+currSeqVal = lensView(seqLens, testSequenceAlpha)
+identitySeqReconstructed = lensSet(seqLens, currSeqVal, testSequenceAlpha)
+
+if (deepArrayEquals(identitySeqReconstructed, testSequenceAlpha) == 0) {
+    print("[FAIL] Test Case 2 Law 1 (Get-Put) violated on array sequence")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Law 2: Put-Get (Retention) -> lensView(l, lensSet(l, v, s)) == v
+targetNewOptVal = 4
+putGetRecord = lensSet(optLevelLens, targetNewOptVal, testRecordAlpha)
+retrievedOptVal = lensView(optLevelLens, putGetRecord)
+
+if (retrievedOptVal != targetNewOptVal) {
+    print("[FAIL] Test Case 2 Law 2 (Put-Get) violated on map record: expected ", targetNewOptVal, " got ", retrievedOptVal)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+targetNewSeqVal = 99
+putGetSequence = lensSet(seqLens, targetNewSeqVal, testSequenceAlpha)
+retrievedSeqVal = lensView(seqLens, putGetSequence)
+
+if (retrievedSeqVal != targetNewSeqVal) {
+    print("[FAIL] Test Case 2 Law 2 (Put-Get) violated on array sequence: expected ", targetNewSeqVal, " got ", retrievedSeqVal)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Law 3: Put-Put (Idempotence / Overwrite) -> lensSet(l, v2, lensSet(l, v1, s)) == lensSet(l, v2, s)
+firstCandidateVal = 1
+finalCandidateVal = 5
+
+intermediatePutRecord = lensSet(optLevelLens, firstCandidateVal, testRecordAlpha)
+doublePutRecord = lensSet(optLevelLens, finalCandidateVal, intermediatePutRecord)
+directPutRecord = lensSet(optLevelLens, finalCandidateVal, testRecordAlpha)
+
+if (deepMapEquals(doublePutRecord, directPutRecord) == 0) {
+    print("[FAIL] Test Case 2 Law 3 (Put-Put) violated on map record")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+firstCandidateSeqVal = 77
+finalCandidateSeqVal = 88
+
+intermediatePutSeq = lensSet(seqLens, firstCandidateSeqVal, testSequenceAlpha)
+doublePutSeq = lensSet(seqLens, finalCandidateSeqVal, intermediatePutSeq)
+directPutSeq = lensSet(seqLens, finalCandidateSeqVal, testSequenceAlpha)
+
+if (deepArrayEquals(doublePutSeq, directPutSeq) == 0) {
+    print("[FAIL] Test Case 2 Law 3 (Put-Put) violated on array sequence")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Canonical Lens Laws on Composed Nested Structure
+nestedGeoRecord = {
+    "location": {
+        "city": "Tokyo",
+        "zipCode": 1000001
+    }
+}
+
+locationLens = createPropLens("location")
+cityLens = createPropLens("city")
+composedCityLens = createComposeLens(locationLens, cityLens)
+
+// Nested Law 1: Get-Put
+currentCityVal = lensView(composedCityLens, nestedGeoRecord)
+nestedIdentityRecord = lensSet(composedCityLens, currentCityVal, nestedGeoRecord)
+if (deepMapEquals(nestedIdentityRecord["location"], nestedGeoRecord["location"]) == 0) {
+    print("[FAIL] Test Case 2 Nested Law 1 (Get-Put) violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Nested Law 2: Put-Get
+nestedPutGetRecord = lensSet(composedCityLens, "Kyoto", nestedGeoRecord)
+if (lensView(composedCityLens, nestedPutGetRecord) != "Kyoto") {
+    print("[FAIL] Test Case 2 Nested Law 2 (Put-Get) violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Nested Law 3: Put-Put
+nestedDoublePutRecord = lensSet(composedCityLens, "Osaka", nestedPutGetRecord)
+nestedDirectPutRecord = lensSet(composedCityLens, "Osaka", nestedGeoRecord)
+if (deepMapEquals(nestedDoublePutRecord["location"], nestedDirectPutRecord["location"]) == 0) {
+    print("[FAIL] Test Case 2 Nested Law 3 (Put-Put) violated")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 2 Passed canonical lens laws (Get-Put, Put-Get, Put-Put) verification")
+
 suiteElapsedTime = t.millis() - suiteStartTime
 print("Progress elapsed time: ", suiteElapsedTime, " ms")
