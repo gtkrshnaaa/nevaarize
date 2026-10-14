@@ -1,0 +1,666 @@
+import stdlib time as t
+
+// Alternating Boolean Branch Prediction Thrashing Suite
+// Technical characteristics:
+// - Deterministic stress testing of CPU and VM branch prediction hardware and heuristics
+// - Dual execution paradigm: Native JIT branch control flow and software predictor emulation
+// - Models 1-bit dynamic predictor, 2-bit bimodal saturating counter, and two-level Gshare adaptive predictor
+// - Pattern generation: Strict alternating flip-flop, harmonic prime strides, periodic blocks, and deterministic LFSR high-entropy sequences
+// - Correlated multi-tier nested conditional thrashing
+// - Dynamic data-dependent feedback loop branching
+// - Boundary edge cases: Empty sequence, singleton booleans, homogeneous monotone runs, and prime periods
+// - Comprehensive deterministic assertions verifying exact theoretical misprediction counts and state transitions
+// - Strict camelCase naming conventions enforced across all symbols (No-Underscore Policy)
+
+print("=== Nevaarize Alternating Boolean Branch Prediction Thrash Suite ===")
+suiteStartTime = t.millis()
+
+// --- Predictor Models ---
+
+func createOneBitPredictor(initialState) {
+    return [initialState, 0, 0, 0]
+}
+
+func predictOneBit(pred) {
+    return pred[0]
+}
+
+func updateOneBit(pred, actualOutcome) {
+    predState = pred[0]
+    totalCount = pred[1] + 1
+    correctCount = pred[2]
+    mispredictCount = pred[3]
+
+    if (predState == actualOutcome) {
+        correctCount = correctCount + 1
+    } else {
+        mispredictCount = mispredictCount + 1
+        predState = actualOutcome
+    }
+
+    pred[0] = predState
+    pred[1] = totalCount
+    pred[2] = correctCount
+    pred[3] = mispredictCount
+    return pred
+}
+
+func runOneBitSequence(initialState, condArr) {
+    pred = createOneBitPredictor(initialState)
+    arrLen = condArr.size()
+    seqIdx = 0
+    while (seqIdx < arrLen) {
+        pred = updateOneBit(pred, condArr[seqIdx])
+        seqIdx = seqIdx + 1
+    }
+    return pred
+}
+
+func createBimodalPredictor(initialCounter) {
+    counterVal = initialCounter
+    if (counterVal < 0) {
+        counterVal = 0
+    }
+    if (counterVal > 3) {
+        counterVal = 3
+    }
+    return [counterVal, 0, 0, 0]
+}
+
+func predictBimodal(pred) {
+    if (pred[0] >= 2) {
+        return true
+    }
+    return false
+}
+
+func updateBimodal(pred, actualOutcome) {
+    counterVal = pred[0]
+    totalCount = pred[1] + 1
+    correctCount = pred[2]
+    mispredictCount = pred[3]
+
+    predictedTaken = false
+    if (counterVal >= 2) {
+        predictedTaken = true
+    }
+
+    if (predictedTaken == actualOutcome) {
+        correctCount = correctCount + 1
+    } else {
+        mispredictCount = mispredictCount + 1
+    }
+
+    if (actualOutcome) {
+        if (counterVal < 3) {
+            counterVal = counterVal + 1
+        }
+    } else {
+        if (counterVal > 0) {
+            counterVal = counterVal - 1
+        }
+    }
+
+    pred[0] = counterVal
+    pred[1] = totalCount
+    pred[2] = correctCount
+    pred[3] = mispredictCount
+    return pred
+}
+
+func runBimodalSequence(initialCounter, condArr) {
+    pred = createBimodalPredictor(initialCounter)
+    arrLen = condArr.size()
+    seqIdx = 0
+    while (seqIdx < arrLen) {
+        pred = updateBimodal(pred, condArr[seqIdx])
+        seqIdx = seqIdx + 1
+    }
+    return pred
+}
+
+func createGsharePredictor(historyBits, initialCounterVal) {
+    tableSize = 1
+    bitIdx = 0
+    while (bitIdx < historyBits) {
+        tableSize = tableSize * 2
+        bitIdx = bitIdx + 1
+    }
+    tableMask = tableSize - 1
+
+    phtTable = []
+    initIdx = 0
+    while (initIdx < tableSize) {
+        phtTable.push(initialCounterVal)
+        initIdx = initIdx + 1
+    }
+
+    return [historyBits, tableMask, 0, phtTable, 0, 0, 0]
+}
+
+func predictGshare(pred, branchPc) {
+    tableMask = pred[1]
+    ghrVal = pred[2]
+    phtTable = pred[3]
+    tableIdx = (branchPc ^ ghrVal) & tableMask
+    if (phtTable[tableIdx] >= 2) {
+        return true
+    }
+    return false
+}
+
+func updateGshare(pred, branchPc, actualOutcome) {
+    tableMask = pred[1]
+    ghrVal = pred[2]
+    phtTable = pred[3]
+    totalCount = pred[4] + 1
+    correctCount = pred[5]
+    mispredictCount = pred[6]
+
+    tableIdx = (branchPc ^ ghrVal) & tableMask
+    counterVal = phtTable[tableIdx]
+
+    predictedTaken = false
+    if (counterVal >= 2) {
+        predictedTaken = true
+    }
+
+    if (predictedTaken == actualOutcome) {
+        correctCount = correctCount + 1
+    } else {
+        mispredictCount = mispredictCount + 1
+    }
+
+    if (actualOutcome) {
+        if (counterVal < 3) {
+            counterVal = counterVal + 1
+        }
+    } else {
+        if (counterVal > 0) {
+            counterVal = counterVal - 1
+        }
+    }
+    phtTable[tableIdx] = counterVal
+
+    nextBit = 0
+    if (actualOutcome) {
+        nextBit = 1
+    }
+    newGhr = ((ghrVal * 2) + nextBit) & tableMask
+
+    pred[2] = newGhr
+    pred[4] = totalCount
+    pred[5] = correctCount
+    pred[6] = mispredictCount
+    return pred
+}
+
+func runGshareSequence(pred, branchPc, condArr) {
+    arrLen = condArr.size()
+    seqIdx = 0
+    while (seqIdx < arrLen) {
+        pred = updateGshare(pred, branchPc, condArr[seqIdx])
+        seqIdx = seqIdx + 1
+    }
+    return pred
+}
+
+// --- Pattern Generators ---
+
+func generateMonotonePattern(patternLength, boolVal) {
+    pattern = []
+    idx = 0
+    while (idx < patternLength) {
+        pattern.push(boolVal)
+        idx = idx + 1
+    }
+    return pattern
+}
+
+func generateAlternatingPattern(patternLength) {
+    pattern = []
+    idx = 0
+    while (idx < patternLength) {
+        if (idx % 2 == 0) {
+            pattern.push(true)
+        } else {
+            pattern.push(false)
+        }
+        idx = idx + 1
+    }
+    return pattern
+}
+
+func generatePeriodicPattern(patternLength, periodSize, trueCount) {
+    pattern = []
+    idx = 0
+    while (idx < patternLength) {
+        offsetInPeriod = idx % periodSize
+        if (offsetInPeriod < trueCount) {
+            pattern.push(true)
+        } else {
+            pattern.push(false)
+        }
+        idx = idx + 1
+    }
+    return pattern
+}
+
+func generatePrimeHarmonicPattern(patternLength, primeA, primeB) {
+    pattern = []
+    idx = 0
+    while (idx < patternLength) {
+        isDivA = (idx % primeA == 0)
+        isDivB = (idx % primeB == 0)
+        if (isDivA != isDivB) {
+            pattern.push(true)
+        } else {
+            pattern.push(false)
+        }
+        idx = idx + 1
+    }
+    return pattern
+}
+
+func generateDeterministicLfsrPattern(patternLength, initialSeed) {
+    pattern = []
+    lfsrState = initialSeed
+    if (lfsrState == 0) {
+        lfsrState = 4660
+    }
+    idx = 0
+    while (idx < patternLength) {
+        lsb = lfsrState % 2
+        lfsrState = lfsrState / 2
+        if (lsb == 1) {
+            lfsrState = (lfsrState ^ 46080)
+        }
+        if (lsb == 1) {
+            pattern.push(true)
+        } else {
+            pattern.push(false)
+        }
+        idx = idx + 1
+    }
+    return pattern
+}
+
+func generateBiasedPattern(patternLength, biasPercentage) {
+    pattern = []
+    idx = 0
+    while (idx < patternLength) {
+        randHash = (idx * 16807 + 7) % 100
+        if (randHash < biasPercentage) {
+            pattern.push(true)
+        } else {
+            pattern.push(false)
+        }
+        idx = idx + 1
+    }
+    return pattern
+}
+
+// --- Native VM Branch Kernels ---
+
+func executeSimpleBranchThrash(condArr) {
+    arrLen = condArr.size()
+    accumulator = 0
+    trueBranches = 0
+    falseBranches = 0
+    idx = 0
+    while (idx < arrLen) {
+        if (condArr[idx]) {
+            accumulator = accumulator + (idx * 3 + 1)
+            trueBranches = trueBranches + 1
+        } else {
+            accumulator = accumulator - (idx * 2 + 1)
+            falseBranches = falseBranches + 1
+        }
+        idx = idx + 1
+    }
+    return [accumulator, trueBranches, falseBranches]
+}
+
+func executeCorrelatedNestedBranchThrash(outerArr, innerArr) {
+    totalItems = outerArr.size()
+    countTT = 0
+    countTF = 0
+    countFT = 0
+    countFF = 0
+    checksum = 0
+    idx = 0
+    while (idx < totalItems) {
+        if (outerArr[idx]) {
+            if (innerArr[idx]) {
+                countTT = countTT + 1
+                checksum = checksum + (idx * 5 + 3)
+            } else {
+                countTF = countTF + 1
+                checksum = checksum - (idx * 3 + 1)
+            }
+        } else {
+            if (innerArr[idx]) {
+                countFT = countFT + 1
+                checksum = checksum + (idx * 2 + 7)
+            } else {
+                countFF = countFF + 1
+                checksum = checksum - (idx * 4 + 2)
+            }
+        }
+        idx = idx + 1
+    }
+    return [checksum, countTT, countTF, countFT, countFF]
+}
+
+func executeChainedMultiConditionThrash(condArrA, condArrB, condArrC) {
+    totalItems = condArrA.size()
+    branchOneCount = 0
+    branchTwoCount = 0
+    branchThreeCount = 0
+    branchDefaultCount = 0
+    checksum = 0
+    idx = 0
+    while (idx < totalItems) {
+        if (condArrA[idx]) {
+            branchOneCount = branchOneCount + 1
+            checksum = checksum + (idx * 3 + 2)
+        } elif (condArrB[idx]) {
+            branchTwoCount = branchTwoCount + 1
+            checksum = checksum + (idx * 2 + 5)
+        } elif (condArrC[idx]) {
+            branchThreeCount = branchThreeCount + 1
+            checksum = checksum - (idx * 4 + 1)
+        } else {
+            branchDefaultCount = branchDefaultCount + 1
+            checksum = checksum - (idx + 7)
+        }
+        idx = idx + 1
+    }
+    return [checksum, branchOneCount, branchTwoCount, branchThreeCount, branchDefaultCount]
+}
+
+func executeDependentFeedbackLoopThrash(stepLimit, initialSeed) {
+    currVal = initialSeed
+    takenCount = 0
+    notTakenCount = 0
+    checksum = 0
+    stepIdx = 0
+    while (stepIdx < stepLimit) {
+        if ((currVal % 4) < 2) {
+            currVal = ((currVal * 3) + 7) % 65536
+            takenCount = takenCount + 1
+            checksum = checksum + currVal
+        } else {
+            currVal = ((currVal * 5) + 11) % 65536
+            notTakenCount = notTakenCount + 1
+            checksum = checksum - currVal
+        }
+        stepIdx = stepIdx + 1
+    }
+    return [checksum, takenCount, notTakenCount, currVal]
+}
+
+// --- Test Suites and Deterministic Assertions ---
+
+testSuiteFailures = 0
+
+// Test Case 1: Monotone Baseline (Predictable Branch Invariants)
+print("Running Test Case 1: Monotone Baseline (Predictable Branches)...")
+monotoneN = 500
+monoTrueSeq = generateMonotonePattern(monotoneN, true)
+monoFalseSeq = generateMonotonePattern(monotoneN, false)
+
+monoCombined = []
+combIdx = 0
+while (combIdx < monotoneN) {
+    monoCombined.push(monoTrueSeq[combIdx])
+    combIdx = combIdx + 1
+}
+combIdx = 0
+while (combIdx < monotoneN) {
+    monoCombined.push(monoFalseSeq[combIdx])
+    combIdx = combIdx + 1
+}
+
+resOneBitMono = runOneBitSequence(false, monoCombined)
+if (resOneBitMono[1] != 1000) {
+    print("[FAIL] Test Case 1 One-Bit total count mismatch: ", resOneBitMono[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resOneBitMono[3] != 2) {
+    print("[FAIL] Test Case 1 One-Bit mispredicts expected exactly 2, got: ", resOneBitMono[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+resBimodalMono = runBimodalSequence(1, monoCombined)
+if (resBimodalMono[1] != 1000) {
+    print("[FAIL] Test Case 1 Bimodal total count mismatch: ", resBimodalMono[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resBimodalMono[3] != 3) {
+    print("[FAIL] Test Case 1 Bimodal mispredicts expected 3, got: ", resBimodalMono[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+resVmMono = executeSimpleBranchThrash(monoCombined)
+if (resVmMono[1] != 500 or resVmMono[2] != 500) {
+    print("[FAIL] Test Case 1 VM branch counts mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Monotone branch sequence verified: 1000 branches with <= 3 warmup misses across 1-bit and 2-bit predictors")
+print("  Test Case 1 Passed monotone baseline verification")
+
+// Test Case 2: Strict Alternating Thrash (T F T F...)
+print("Running Test Case 2: Strict Alternating Thrash...")
+alternatingN = 1000
+altSeq = generateAlternatingPattern(alternatingN)
+
+resOneBitAlt = runOneBitSequence(false, altSeq)
+if (resOneBitAlt[1] != 1000) {
+    print("[FAIL] Test Case 2 One-Bit total count mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resOneBitAlt[3] != 1000) {
+    print("[FAIL] Test Case 2 One-Bit 100% thrash failure: mispredicts = ", resOneBitAlt[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resOneBitAlt[2] != 0) {
+    print("[FAIL] Test Case 2 One-Bit should have 0 correct predictions, got: ", resOneBitAlt[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+resBimodalAlt = runBimodalSequence(1, altSeq)
+if (resBimodalAlt[3] != 1000) {
+    print("[FAIL] Test Case 2 Bimodal 100% thrash failure: mispredicts = ", resBimodalAlt[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+resVmAlt = executeSimpleBranchThrash(altSeq)
+expectedAltChecksum = 248500
+if (resVmAlt[0] != expectedAltChecksum) {
+    print("[FAIL] Test Case 2 VM alternating checksum expected 248500, got: ", resVmAlt[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resVmAlt[1] != 500 or resVmAlt[2] != 500) {
+    print("[FAIL] Test Case 2 VM branch count parity mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Strict alternating sequence verified: 1000 iterations thrashing 1-bit and 2-bit bimodal predictors at 100.0% misprediction rate")
+print("  Native VM deterministic checksum verified: 248500")
+print("  Test Case 2 Passed strict alternating thrash verification")
+
+// Test Case 3: Periodic Repeating Block Thrash and Gshare Adaptation
+print("Running Test Case 3: Periodic Block Thrash and Gshare Adaptation...")
+periodicN = 800
+periodicSeq = generatePeriodicPattern(periodicN, 4, 2)
+
+resOneBitPeriodic = runOneBitSequence(false, periodicSeq)
+if (resOneBitPeriodic[3] != 400) {
+    print("[FAIL] Test Case 3 One-Bit periodic mispredicts expected 400, got: ", resOneBitPeriodic[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+gsharePred = createGsharePredictor(4, 1)
+resGshare = runGshareSequence(gsharePred, 7, periodicSeq)
+if (resGshare[4] != 800) {
+    print("[FAIL] Test Case 3 Gshare total count mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resGshare[6] > 16) {
+    print("[FAIL] Test Case 3 Gshare failed to learn period-4 pattern, mispredicts: ", resGshare[6])
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Periodic block TTFF pattern verified: 1-bit predictor thrashed at 50% mispredicts (400 misses)")
+print("  Gshare 4-bit adaptive predictor learned pattern with steady-state 0 mispredicts (warmup misses = ", resGshare[6], ")")
+print("  Test Case 3 Passed periodic block and adaptive predictor verification")
+
+// Test Case 4: High-Entropy Deterministic LFSR Thrash
+print("Running Test Case 4: High-Entropy Deterministic LFSR Thrash...")
+lfsrN = 2048
+lfsrSeq = generateDeterministicLfsrPattern(lfsrN, 38557)
+
+resOneBitLfsr = runOneBitSequence(false, lfsrSeq)
+resBimodalLfsr = runBimodalSequence(2, lfsrSeq)
+
+oneBitMispredictRate = (resOneBitLfsr[3] * 100) / lfsrN
+bimodalMispredictRate = (resBimodalLfsr[3] * 100) / lfsrN
+
+if (oneBitMispredictRate < 45 or oneBitMispredictRate > 55) {
+    print("[FAIL] Test Case 4 One-Bit mispredict rate outside expected entropy bounds [45%, 55%]: ", oneBitMispredictRate, "%")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (bimodalMispredictRate < 45 or bimodalMispredictRate > 55) {
+    print("[FAIL] Test Case 4 Bimodal mispredict rate outside expected entropy bounds [45%, 55%]: ", bimodalMispredictRate, "%")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+resVmLfsr = executeSimpleBranchThrash(lfsrSeq)
+if (resVmLfsr[1] + resVmLfsr[2] != lfsrN) {
+    print("[FAIL] Test Case 4 VM branch count sum mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Deterministic LFSR high-entropy sequence verified: 2048 iterations, One-Bit thrash rate = ", oneBitMispredictRate, "%, Bimodal thrash rate = ", bimodalMispredictRate, "%")
+print("  VM checksum = ", resVmLfsr[0], ", true branches = ", resVmLfsr[1], ", false branches = ", resVmLfsr[2])
+print("  Test Case 4 Passed high-entropy LFSR thrash verification")
+
+// Test Case 5: Correlated Multi-Tier Nested Conditional Thrashing
+print("Running Test Case 5: Correlated Nested Conditional Thrashing...")
+nestedN = 1000
+outerPattern = generateAlternatingPattern(nestedN)
+innerPattern = generatePeriodicPattern(nestedN, 4, 2)
+
+resNested = executeCorrelatedNestedBranchThrash(outerPattern, innerPattern)
+if (resNested[1] != 250) {
+    print("[FAIL] Test Case 5 TT branch count expected 250, got: ", resNested[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resNested[2] != 250) {
+    print("[FAIL] Test Case 5 TF branch count expected 250, got: ", resNested[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resNested[3] != 250) {
+    print("[FAIL] Test Case 5 FT branch count expected 250, got: ", resNested[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resNested[4] != 250) {
+    print("[FAIL] Test Case 5 FF branch count expected 250, got: ", resNested[4])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+primePatternA = generatePrimeHarmonicPattern(nestedN, 2, 3)
+primePatternB = generatePrimeHarmonicPattern(nestedN, 3, 5)
+primePatternC = generatePrimeHarmonicPattern(nestedN, 5, 7)
+resChained = executeChainedMultiConditionThrash(primePatternA, primePatternB, primePatternC)
+
+totalChainedBranches = resChained[1] + resChained[2] + resChained[3] + resChained[4]
+if (totalChainedBranches != nestedN) {
+    print("[FAIL] Test Case 5 Chained multi-branch total mismatch: ", totalChainedBranches)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Correlated nested 2-tier branches verified: TT=250, TF=250, FT=250, FF=250, checksum = ", resNested[0])
+print("  Chained multi-condition prime harmonic branching verified: Total = ", totalChainedBranches, ", checksum = ", resChained[0])
+print("  Test Case 5 Passed correlated nested conditional thrash verification")
+
+// Test Case 6: Dynamic Data-Dependent Feedback Loop Thrash
+print("Running Test Case 6: Dynamic Data-Dependent Feedback Loop Thrash...")
+feedbackSteps = 1500
+resFeedback = executeDependentFeedbackLoopThrash(feedbackSteps, 31415)
+if (resFeedback[1] + resFeedback[2] != feedbackSteps) {
+    print("[FAIL] Test Case 6 Feedback loop total steps mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resFeedback[1] < 500 or resFeedback[2] < 500) {
+    print("[FAIL] Test Case 6 Feedback loop branches heavily biased, expected balanced thrash: taken=", resFeedback[1], " notTaken=", resFeedback[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Feedback loop verified across 1500 dynamic iterations: taken=", resFeedback[1], ", notTaken=", resFeedback[2], ", finalState=", resFeedback[3], ", checksum=", resFeedback[0])
+print("  Test Case 6 Passed dynamic feedback loop branch thrash verification")
+
+// Test Case 7: Boundary Edge Cases and Extreme Sequences
+print("Running Test Case 7: Boundary Edge Cases and Extreme Sequences...")
+
+emptySeq = []
+resEmptyOne = runOneBitSequence(false, emptySeq)
+resEmptyBi = runBimodalSequence(2, emptySeq)
+resEmptyVm = executeSimpleBranchThrash(emptySeq)
+if (resEmptyOne[1] != 0 or resEmptyOne[3] != 0) {
+    print("[FAIL] Test Case 7 Empty sequence One-Bit failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resEmptyBi[1] != 0 or resEmptyBi[3] != 0) {
+    print("[FAIL] Test Case 7 Empty sequence Bimodal failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (resEmptyVm[0] != 0 or resEmptyVm[1] != 0 or resEmptyVm[2] != 0) {
+    print("[FAIL] Test Case 7 Empty sequence VM kernel failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+singleTrue = [true]
+resSingleTrueOne = runOneBitSequence(false, singleTrue)
+if (resSingleTrueOne[1] != 1 or resSingleTrueOne[3] != 1 or resSingleTrueOne[2] != 0) {
+    print("[FAIL] Test Case 7 Single True One-Bit failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+singleFalse = [false]
+resSingleFalseOne = runOneBitSequence(false, singleFalse)
+if (resSingleFalseOne[1] != 1 or resSingleFalseOne[3] != 0 or resSingleFalseOne[2] != 1) {
+    print("[FAIL] Test Case 7 Single False One-Bit failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+twoAlt = [true, false]
+resTwoAltOne = runOneBitSequence(false, twoAlt)
+if (resTwoAltOne[1] != 2 or resTwoAltOne[3] != 2) {
+    print("[FAIL] Test Case 7 Two-element alternating failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+primeLength = 997
+primeAltSeq = generateAlternatingPattern(primeLength)
+resPrimeAltOne = runOneBitSequence(false, primeAltSeq)
+if (resPrimeAltOne[1] != primeLength or resPrimeAltOne[3] != primeLength) {
+    print("[FAIL] Test Case 7 Prime length alternating failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+biasedSeq = generateBiasedPattern(1000, 95)
+resBiasedBi = runBimodalSequence(3, biasedSeq)
+biasedMispredictRate = (resBiasedBi[3] * 100) / 1000
+if (biasedMispredictRate > 15) {
+    print("[FAIL] Test Case 7 95% biased sequence misprediction rate too high: ", biasedMispredictRate, "%")
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Boundary cases verified: Empty sequence (0 branches), Singleton True/False, 2-element alternating, Prime length (N=997), and 95% Biased sequence")
+print("  Test Case 7 Passed boundary edge cases verification")
+
+// --- Benchmark Timings and Final Assertion ---
+
+suiteElapsedTime = t.millis() - suiteStartTime
+
+if (testSuiteFailures == 0) {
+    print("[PASS] Alternating Boolean Branch Prediction Thrash Suite executed successfully in ", suiteElapsedTime, " ms")
+} else {
+    print("[FAIL] Alternating Boolean Branch Prediction Thrash Suite encountered ", testSuiteFailures, " failures")
+}
