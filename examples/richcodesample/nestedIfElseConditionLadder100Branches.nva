@@ -1301,6 +1301,92 @@ func classifyInterval100(val) {
     }
 }
 
+// --- Topology 3: Deeply Nested Guard Cascade ---
+
+func evaluateDeepGuardCascade(flags) {
+    if (flags[0] > 0) {
+        if (flags[1] > 1) {
+            if (flags[2] > 2) {
+                if (flags[3] > 3) {
+                    if (flags[4] > 4) {
+                        if (flags[5] > 5) {
+                            if (flags[6] > 6) {
+                                if (flags[7] > 7) {
+                                    if (flags[8] > 8) {
+                                        if (flags[9] > 9) {
+                                            return 1000
+                                        } else {
+                                            return 9
+                                        }
+                                    } else {
+                                        return 8
+                                    }
+                                } else {
+                                    return 7
+                                }
+                            } else {
+                                return 6
+                            }
+                        } else {
+                            return 5
+                        }
+                    } else {
+                        return 4
+                    }
+                } else {
+                    return 3
+                }
+            } else {
+                return 2
+            }
+        } else {
+            return 1
+        }
+    } else {
+        return 0
+    }
+}
+
+// --- VM Branch Jump Offset Relative Displacement Simulator ---
+
+func calcRelativeDisplacement(fromAddress, instructionSize, targetAddress) {
+    return targetAddress - (fromAddress + instructionSize)
+}
+
+func isShortJumpDisplacement(displacement) {
+    if (displacement >= -128 and displacement <= 127) {
+        return 1
+    }
+    return 0
+}
+
+func simulate100BranchLadderOffsets(bodyByteSize, defaultByteSize) {
+    testSize = 8
+    exitJmpSize = 5
+    branchSize = testSize + bodyByteSize + exitJmpSize
+    totalBranches = 100
+    endAddress = (totalBranches * branchSize) + defaultByteSize
+
+    branchExitDisplacements = []
+    shortJumpCount = 0
+    nearJumpCount = 0
+
+    bIdx = 0
+    while (bIdx < totalBranches) {
+        exitJmpAddr = (bIdx * branchSize) + testSize + bodyByteSize
+        disp = calcRelativeDisplacement(exitJmpAddr, exitJmpSize, endAddress)
+        branchExitDisplacements.push(disp)
+        if (isShortJumpDisplacement(disp) == 1) {
+            shortJumpCount = shortJumpCount + 1
+        } else {
+            nearJumpCount = nearJumpCount + 1
+        }
+        bIdx = bIdx + 1
+    }
+
+    return [shortJumpCount, nearJumpCount, branchExitDisplacements]
+}
+
 // --- Test Case 1: Exhaustive 100-Branch Linear Sweep and Boundary Conditions ---
 
 print("--- Running Test Case 1: Exhaustive 100-Branch Linear Sweep ---")
@@ -1431,11 +1517,78 @@ if (outLow != -1 or outLow2 != -1 or outHigh != -1 or outHigh2 != -1 or outHigh3
 
 print("  Test Case 3 Passed 100-Interval Range Classifier (all 100 buckets, boundaries, and out-of-range)")
 
+// --- Test Case 4: Deeply Nested Guard Cascade Verification ---
+
+print("--- Running Test Case 4: Deeply Nested Guard Cascade ---")
+
+allPassFlags = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+cascadeSuccess = evaluateDeepGuardCascade(allPassFlags)
+if (cascadeSuccess != 1000) {
+    print("[FAIL] Test Case 4 Cascade full success failed: expected 1000, got ", cascadeSuccess)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test failure at each level from 0 to 9
+failLvl = 0
+while (failLvl < 10) {
+    testFlags = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    testFlags[failLvl] = failLvl
+    failResult = evaluateDeepGuardCascade(testFlags)
+    if (failResult != failLvl) {
+        print("[FAIL] Test Case 4 Cascade failure at level ", failLvl, " expected ", failLvl, " got ", failResult)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    failLvl = failLvl + 1
+}
+
+print("  Test Case 4 Passed Deeply Nested Guard Cascade (all 10 failure levels and full pass 1000)")
+
+// --- Test Case 5: VM Branch Jump Offset Encoding & Rel8 vs Rel32 Sizing ---
+
+print("--- Running Test Case 5: VM Branch Jump Offset Encoding ---")
+
+simResult = simulate100BranchLadderOffsets(16, 12)
+shortJumps = simResult[0]
+nearJumps = simResult[1]
+displacements = simResult[2]
+
+// First branch (index 0) jumps over 99 branches + default block -> 2883 bytes
+firstBranchDisp = displacements[0]
+if (firstBranchDisp != 2883) {
+    print("[FAIL] Test Case 5 First branch displacement expected 2883, got ", firstBranchDisp)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Last branch (index 99) jumps only over default block -> 12 bytes
+lastBranchDisp = displacements[99]
+if (lastBranchDisp != 12) {
+    print("[FAIL] Test Case 5 Last branch displacement expected 12, got ", lastBranchDisp)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Invariant: Short jumps count must be exactly 4 (indices 96, 97, 98, 99) and Near jumps 96
+if (shortJumps != 4 or nearJumps != 96) {
+    print("[FAIL] Test Case 5 Jump sizing distribution mismatch: short=", shortJumps, " near=", nearJumps)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Monotonicity verification: exit displacements must strictly decrease as branch index increases
+monoIdx = 0
+while (monoIdx < 99) {
+    if (displacements[monoIdx] <= displacements[monoIdx + 1]) {
+        print("[FAIL] Test Case 5 Monotonicity violated between branch ", monoIdx, " and ", monoIdx + 1)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    monoIdx = monoIdx + 1
+}
+
+print("  Test Case 5 Passed VM Branch Jump Offset Encoding (2883 to 12 bytes, ", nearJumps, " near32 jumps, ", shortJumps, " short8 jumps)")
+
 // --- Summary Telemetry ---
 
 elapsed = t.millis() - suiteStartTime
 if (testSuiteFailures == 0) {
-    print("[PASS] Stage 2 Passed in ", elapsed, " ms")
+    print("[PASS] Stage 3 Passed in ", elapsed, " ms")
 } else {
-    print("[FAIL] Stage 2 encountered ", testSuiteFailures, " failures")
+    print("[FAIL] Stage 3 encountered ", testSuiteFailures, " failures")
 }
