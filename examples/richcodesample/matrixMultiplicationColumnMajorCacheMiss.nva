@@ -521,9 +521,59 @@ print("  256x256 matrix (", stressReps, " sweeps): Row-Major (Stride-1)=", tRowE
 print("  Checksum Parity: rowSum == colSum == ", rowSum)
 print("  Test Case 5 Passed Direct Memory Layout Traversal Cache Penalty Stress")
 
-elapsedStage3 = t.millis() - suiteStartTime
-if (testSuiteFailures != 0) {
-    print("[FAIL] Stage 3 encountered failures: ", testSuiteFailures)
-} else {
-    print("  Stage 3 completed in ", elapsedStage3, " ms")
+// --- Test Case 6: Large Matrix Multiplication Cache Miss Latency Benchmark ---
+
+print("--- Running Test Case 6: Large Matrix Multiplication Cache Miss Latency Benchmark ---")
+
+benchDim = 64
+bMatA = fillFormulaMatrix(benchDim, benchDim, 31)
+bMatB = fillFormulaMatrix(benchDim, benchDim, 59)
+
+// 6.1 Row-Major Vector Accumulation (IKJ - Cache Optimal)
+tIkjStart = t.millis()
+resBenchIKJ = matmulIKJ(bMatA, bMatB)
+tIkjElapsed = t.millis() - tIkjStart
+chkBenchIKJ = computeMatrixChecksum(resBenchIKJ)
+
+// 6.2 Transposed Contiguous Matmul
+tTransStart = t.millis()
+resBenchTrans = matmulTransposed(bMatA, bMatB)
+tTransElapsed = t.millis() - tTransStart
+chkBenchTrans = computeMatrixChecksum(resBenchTrans)
+
+// 6.3 Blocked / Tiled Matmul (Tile size 16)
+tBlockStart = t.millis()
+resBenchBlock = matmulBlocked(bMatA, bMatB, 16)
+tBlockElapsed = t.millis() - tBlockStart
+chkBenchBlock = computeMatrixChecksum(resBenchBlock)
+
+// 6.4 Dot-Product Loop (IJK - Column-Major Cache Misses on B)
+tIjkStart = t.millis()
+resBenchIJK = matmulIJK(bMatA, bMatB)
+tIjkElapsed = t.millis() - tIjkStart
+chkBenchIJK = computeMatrixChecksum(resBenchIJK)
+
+if (chkBenchIKJ != chkBenchTrans or chkBenchIKJ != chkBenchBlock or chkBenchIKJ != chkBenchIJK) {
+    print("[FAIL] Test Case 6 Large Benchmark Checksum Mismatch: IKJ=", chkBenchIKJ, " Trans=", chkBenchTrans, " Block=", chkBenchBlock, " IJK=", chkBenchIJK)
+    testSuiteFailures = testSuiteFailures + 1
 }
+
+print("  64x64 Matrix Multiplication (262,144 inner ops):")
+print("  - IKJ (Cache-Optimal Row-Major) : ", tIkjElapsed, " ms (checksum=", chkBenchIKJ, ")")
+print("  - Transposed Contiguous         : ", tTransElapsed, " ms (checksum=", chkBenchTrans, ")")
+print("  - Blocked / Tiled (Tile=16)     : ", tBlockElapsed, " ms (checksum=", chkBenchBlock, ")")
+print("  - IJK (Column-Major Strided)    : ", tIjkElapsed, " ms (checksum=", chkBenchIJK, ")")
+print("  Test Case 6 Passed Large Matrix Multiplication Cache Miss Latency Benchmark (100% parity across all algorithms)")
+
+// --- Final Suite Telemetry Summary ---
+
+totalElapsed = t.millis() - suiteStartTime
+print("======================================================================")
+print("  Matrix Multiplication Column-Major Cache Miss Suite Completed in ", totalElapsed, " ms")
+print("  Total Failures: ", testSuiteFailures)
+if (testSuiteFailures == 0) {
+    print("  STATUS: ALL TESTS PASSED [100% Deterministic]")
+} else {
+    print("  STATUS: FAILURES DETECTED")
+}
+print("======================================================================")

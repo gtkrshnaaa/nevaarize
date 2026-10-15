@@ -918,7 +918,7 @@ This document lists all 245 algorithm cases that are planned for implementation 
   - **Target File**: `examples/richcodesample/multiMegabyteNumericArraySortRecursion.nva`
   - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
   - **Objective**: Sorting large numeric arrays testing in-place algorithm stability and recursion depth.
-- [ ] **#982** `feat(algorithms): implement matrixMultiplicationColumnMajorCacheMiss in richcodesamples`
+- [x] **#982** `feat(algorithms): implement matrixMultiplicationColumnMajorCacheMiss in richcodesamples`
   - **Target File**: `examples/richcodesample/matrixMultiplicationColumnMajorCacheMiss.nva`
   - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
   - **Objective**: Large matrix multiplication traversing column-major orders testing cache miss resilience.
