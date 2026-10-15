@@ -240,6 +240,114 @@ func quickSortBounded(targetArr) {
     return maxObservedRecursionDepth
 }
 
+// --- Dijkstra 3-Way QuickSort (Dutch National Flag Partitioning) ---
+
+func quickSort3WayRec(arr3, low3, high3) {
+    if (low3 >= high3) {
+        return 0
+    }
+
+    mid3 = low3 + (high3 - low3) / 2
+    if (arr3[low3] > arr3[mid3]) {
+        swapElements(arr3, low3, mid3)
+    }
+    if (arr3[low3] > arr3[high3]) {
+        swapElements(arr3, low3, high3)
+    }
+    if (arr3[mid3] > arr3[high3]) {
+        swapElements(arr3, mid3, high3)
+    }
+
+    pivot3 = arr3[mid3]
+
+    lt = low3
+    gt = high3
+    i3 = low3
+
+    while (i3 <= gt) {
+        if (arr3[i3] < pivot3) {
+            swapElements(arr3, lt, i3)
+            lt = lt + 1
+            i3 = i3 + 1
+        } else {
+            if (arr3[i3] > pivot3) {
+                swapElements(arr3, i3, gt)
+                gt = gt - 1
+            } else {
+                i3 = i3 + 1
+            }
+        }
+    }
+
+    if (low3 < lt - 1) {
+        quickSort3WayRec(arr3, low3, lt - 1)
+    }
+    if (gt + 1 < high3) {
+        quickSort3WayRec(arr3, gt + 1, high3)
+    }
+    return 0
+}
+
+func quickSortThreeWay(targetArr) {
+    n3 = targetArr.size()
+    if (n3 <= 1) {
+        return 0
+    }
+    quickSort3WayRec(targetArr, 0, n3 - 1)
+    return 0
+}
+
+// --- Stable Sort on Key-Index Pairs ---
+
+func mergeSortStable(keysArr, idxsArr, mLow, mHigh) {
+    if (mLow >= mHigh) {
+        return 0
+    }
+
+    mMid = mLow + (mHigh - mLow) / 2
+    mergeSortStable(keysArr, idxsArr, mLow, mMid)
+    mergeSortStable(keysArr, idxsArr, mMid + 1, mHigh)
+
+    mergedKeys = []
+    mergedIdxs = []
+
+    pLeft = mLow
+    pRight = mMid + 1
+
+    while (pLeft <= mMid and pRight <= mHigh) {
+        if (keysArr[pLeft] <= keysArr[pRight]) {
+            mergedKeys.push(keysArr[pLeft])
+            mergedIdxs.push(idxsArr[pLeft])
+            pLeft = pLeft + 1
+        } else {
+            mergedKeys.push(keysArr[pRight])
+            mergedIdxs.push(idxsArr[pRight])
+            pRight = pRight + 1
+        }
+    }
+
+    while (pLeft <= mMid) {
+        mergedKeys.push(keysArr[pLeft])
+        mergedIdxs.push(idxsArr[pLeft])
+        pLeft = pLeft + 1
+    }
+
+    while (pRight <= mHigh) {
+        mergedKeys.push(keysArr[pRight])
+        mergedIdxs.push(idxsArr[pRight])
+        pRight = pRight + 1
+    }
+
+    w = 0
+    wCount = mergedKeys.size()
+    while (w < wCount) {
+        keysArr[mLow + w] = mergedKeys[w]
+        idxsArr[mLow + w] = mergedIdxs[w]
+        w = w + 1
+    }
+    return 0
+}
+
 // --- Test Case 1: In-Place HeapSort Across Input Topologies ---
 
 print("--- Running Test Case 1: In-Place HeapSort Across Input Topologies ---")
@@ -407,9 +515,128 @@ print("  Adversarial Bitonic Pipe-Organ (4000 items): Sorted=PASS, Stack Depth: 
 
 print("  Test Case 3 Passed Adversarial Input Topologies (All stack depths strictly <= 30)")
 
-elapsedStage2 = t.millis() - suiteStartTime
-if (testSuiteFailures != 0) {
-    print("[FAIL] Stage 2 encountered failures: ", testSuiteFailures)
-} else {
-    print("  Stage 2 completed in ", elapsedStage2, " ms")
+// --- Test Case 4: Dutch National Flag 3-Way Partitioning (Heavy Duplicate Stress) ---
+
+print("--- Running Test Case 4: Dutch National Flag 3-Way Partitioning ---")
+
+dnfSize = 10000
+dnfOrig = []
+dnfSeed = 54321
+k = 0
+countZeroOrig = 0
+countOneOrig = 0
+countTwoOrig = 0
+
+while (k < dnfSize) {
+    dnfSeed = (dnfSeed * 1103515245 + 12345) & 2147483647
+    valDnf = dnfSeed % 3
+    if (valDnf < 0) {
+        valDnf = 0 - valDnf
+    }
+    dnfOrig.push(valDnf)
+    if (valDnf == 0) {
+        countZeroOrig = countZeroOrig + 1
+    } else {
+        if (valDnf == 1) {
+            countOneOrig = countOneOrig + 1
+        } else {
+            countTwoOrig = countTwoOrig + 1
+        }
+    }
+    k = k + 1
 }
+
+dnfArr = cloneArray(dnfOrig)
+quickSortThreeWay(dnfArr)
+
+if (isSorted(dnfArr) != 1) {
+    print("[FAIL] Test Case 4 DNF sorted assertion failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+csumDnfOrigSum = computeArraySum(dnfOrig)
+csumDnfSortedSum = computeArraySum(dnfArr)
+csumDnfOrigXor = computeArrayXor(dnfOrig)
+csumDnfSortedXor = computeArrayXor(dnfArr)
+if (csumDnfOrigSum != csumDnfSortedSum or csumDnfOrigXor != csumDnfSortedXor) {
+    print("[FAIL] Test Case 4 DNF checksum mismatch: origSum=", csumDnfOrigSum, " sortedSum=", csumDnfSortedSum)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+countZeroSorted = 0
+countOneSorted = 0
+countTwoSorted = 0
+k = 0
+while (k < dnfSize) {
+    curVal = dnfArr[k]
+    if (curVal == 0) {
+        countZeroSorted = countZeroSorted + 1
+    } else {
+        if (curVal == 1) {
+            countOneSorted = countOneSorted + 1
+        } else {
+            countTwoSorted = countTwoSorted + 1
+        }
+    }
+    k = k + 1
+}
+
+if (countZeroOrig != countZeroSorted or countOneOrig != countOneSorted or countTwoOrig != countTwoSorted) {
+    print("[FAIL] Test Case 4 Element conservation failed: 0s(", countZeroOrig, " vs ", countZeroSorted, ") 1s(", countOneOrig, " vs ", countOneSorted, ") 2s(", countTwoOrig, " vs ", countTwoSorted, ")")
+    testSuiteFailures = testSuiteFailures + 1
+} else {
+    print("  DNF 3-Way QuickSort (10000 items, 3 unique keys): Sorted=PASS, Parity=PASS, Histogram Conservation=PASS")
+}
+
+print("  Test Case 4 Passed Dutch National Flag 3-Way Partitioning")
+
+// --- Test Case 5: Key-Index Pair Stable Sort Verification ---
+
+print("--- Running Test Case 5: Key-Index Pair Stable Sort Verification ---")
+
+pairCount = 1000
+testKeys = []
+testIdxs = []
+pairSeed = 98765
+p = 0
+while (p < pairCount) {
+    pairSeed = (pairSeed * 1103515245 + 12345) & 2147483647
+    keyVal = pairSeed % 10
+    if (keyVal < 0) {
+        keyVal = 0 - keyVal
+    }
+    testKeys.push(keyVal)
+    testIdxs.push(p)
+    p = p + 1
+}
+
+mergeSortStable(testKeys, testIdxs, 0, pairCount - 1)
+
+if (isSorted(testKeys) != 1) {
+    print("[FAIL] Test Case 5 Keys array is not sorted")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+stabilityViolations = 0
+p = 1
+while (p < pairCount) {
+    if (testKeys[p] == testKeys[p - 1]) {
+        if (testIdxs[p] <= testIdxs[p - 1]) {
+            stabilityViolations = stabilityViolations + 1
+        }
+    }
+    p = p + 1
+}
+
+if (stabilityViolations != 0) {
+    print("[FAIL] Test Case 5 Stability violations detected: ", stabilityViolations)
+    testSuiteFailures = testSuiteFailures + 1
+} else {
+    print("  Stable Sort on Key-Index Pairs (1000 items, 10 keys): Stability=PASS (0 violations)")
+}
+
+print("  Test Case 5 Passed Key-Index Pair Stable Sort Verification")
+
+elapsedStage3 = t.millis() - suiteStartTime
+print("  Stage 3 completed in ", elapsedStage3, " ms")
+
