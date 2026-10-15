@@ -51,152 +51,317 @@ vmInstructionsExecuted = [0]
 
 // --- Action Handler Dispatcher ---
 
-func dispatchAction(handlerId, acc, key) {
+func dispatchAction(actionHandlerId, actionAcc, actionKey) {
     totalDispatches[0] = totalDispatches[0] + 1
-    if (handlerId == 1) {
+    if (actionHandlerId == 1) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        if (acc < 0) {
-            return -acc
+        if (actionAcc < 0) {
+            return -actionAcc
         }
-        return -acc
-    } elif (handlerId == 2) {
+        return -actionAcc
+    } elif (actionHandlerId == 2) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
         return 0
-    } elif (handlerId == 3) {
+    } elif (actionHandlerId == 3) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        return (acc * acc * acc) % 1000007
-    } elif (handlerId == 4) {
+        return (actionAcc * actionAcc * actionAcc) % 1000007
+    } elif (actionHandlerId == 4) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        if (acc % 2 == 0) {
-            return acc / 2
+        if (actionAcc % 2 == 0) {
+            return actionAcc / 2
         }
-        return acc * 3 + 1
-    } elif (handlerId == 5) {
+        return actionAcc * 3 + 1
+    } elif (actionHandlerId == 5) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        return (acc * 13) % 1000007
-    } elif (handlerId == 6) {
+        return (actionAcc * 13) % 1000007
+    } elif (actionHandlerId == 6) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        lowPart = (acc << 3) & 16777215
-        highPart = (acc >> 21) & 7
+        lowPart = (actionAcc << 3) & 16777215
+        highPart = (actionAcc >> 21) & 7
         return lowPart | highPart
-    } elif (handlerId == 7) {
+    } elif (actionHandlerId == 7) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        return acc ^ 1048575
-    } elif (handlerId == 8) {
+        return actionAcc ^ 1048575
+    } elif (actionHandlerId == 8) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        return (acc + 53) % 1000007
-    } elif (handlerId == 9) {
+        return (actionAcc + 53) % 1000007
+    } elif (actionHandlerId == 9) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        return (acc * acc) % 1000007
-    } elif (handlerId == 10) {
+        return (actionAcc * actionAcc) % 1000007
+    } elif (actionHandlerId == 10) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        return acc + 1
-    } elif (handlerId == 11) {
+        return actionAcc + 1
+    } elif (actionHandlerId == 11) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        return (acc * 2 + 1) % 1000007
-    } elif (handlerId == 12) {
+        return (actionAcc * 2 + 1) % 1000007
+    } elif (actionHandlerId == 12) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        if (acc < -1000) {
+        if (actionAcc < -1000) {
             return -1000
         }
-        if (acc > 1000) {
+        if (actionAcc > 1000) {
             return 1000
         }
-        return acc
-    } elif (handlerId == 13) {
+        return actionAcc
+    } elif (actionHandlerId == 13) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        return acc >> 2
-    } elif (handlerId == 14) {
+        return actionAcc >> 2
+    } elif (actionHandlerId == 14) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        sq = (acc * acc) % 1000007
+        sq = (actionAcc * actionAcc) % 1000007
         term2 = (3 * sq) % 1000007
-        term1 = (5 * acc) % 1000007
+        term1 = (5 * actionAcc) % 1000007
         return (term2 + term1 + 7) % 1000007
-    } elif (handlerId == 15) {
+    } elif (actionHandlerId == 15) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        keyMod = (key % 1000007 + 1000007) % 1000007
-        accMod = (acc % 1000007 + 1000007) % 1000007
+        keyMod = (actionKey % 1000007 + 1000007) % 1000007
+        accMod = (actionAcc % 1000007 + 1000007) % 1000007
         return ((accMod * accMod) + (keyMod * keyMod)) % 1000007
-    } elif (handlerId == 16) {
+    } elif (actionHandlerId == 16) {
         sparseCaseHits[0] = sparseCaseHits[0] + 1
-        normKey = (key % 1000007 + 1000007) % 1000007
-        return (acc * 26544 + normKey) % 1000007
+        normKey = (actionKey % 1000007 + 1000007) % 1000007
+        return (actionAcc * 26544 + normKey) % 1000007
     } else {
         defaultCaseHits[0] = defaultCaseHits[0] + 1
-        keyAbs = key
+        keyAbs = actionKey
         if (keyAbs < 0) {
             keyAbs = -keyAbs
         }
-        return ((acc ^ keyAbs) + 42) % 1000007
+        return ((actionAcc ^ keyAbs) + 42) % 1000007
     }
 }
 
 // --- Linear Scan Reference Dispatcher ---
 
-func dispatchLinear(keys, handlers, targetKey, defaultHandler) {
-    idx = 0
-    sz = keys.size()
-    while (idx < sz) {
+func dispatchLinear(sourceKeys, sourceHandlers, targetKey, defaultHandler) {
+    linIdx = 0
+    linSz = sourceKeys.size()
+    while (linIdx < linSz) {
         linearScanProbes[0] = linearScanProbes[0] + 1
-        if (keys[idx] == targetKey) {
-            return handlers[idx]
+        if (sourceKeys[linIdx] == targetKey) {
+            return sourceHandlers[linIdx]
         }
-        idx = idx + 1
+        linIdx = linIdx + 1
     }
     return defaultHandler
 }
 
 // --- Direct Dense Jump Table Dispatcher ---
-// Representation: [minKey, maxKey, tableArray]
-// tableArray[k - minKey] stores handler ID, or -1 for unmapped hole
 
-func createDenseJumpTable(keys, handlers, defaultHandler) {
-    if (keys.size() == 0) {
+func createDenseJumpTable(denseKeys, denseHandlers, defaultHandler) {
+    if (denseKeys.size() == 0) {
         return [0, -1, []]
     }
-    minKey = keys[0]
-    maxKey = keys[0]
-    idx = 1
-    sz = keys.size()
-    while (idx < sz) {
-        k = keys[idx]
-        if (k < minKey) {
-            minKey = k
+    dMinKey = denseKeys[0]
+    dMaxKey = denseKeys[0]
+    dScanIdx = 1
+    dScanSz = denseKeys.size()
+    while (dScanIdx < dScanSz) {
+        kVal = denseKeys[dScanIdx]
+        if (kVal < dMinKey) {
+            dMinKey = kVal
         }
-        if (k > maxKey) {
-            maxKey = k
+        if (kVal > dMaxKey) {
+            dMaxKey = kVal
         }
-        idx = idx + 1
+        dScanIdx = dScanIdx + 1
     }
-    rangeLen = maxKey - minKey + 1
-    tableArray = []
-    tIdx = 0
-    while (tIdx < rangeLen) {
-        tableArray.push(-1)
-        tIdx = tIdx + 1
+    rangeLen = dMaxKey - dMinKey + 1
+    denseTableArray = []
+    dTIdx = 0
+    while (dTIdx < rangeLen) {
+        denseTableArray.push(-1)
+        dTIdx = dTIdx + 1
     }
-    idx = 0
-    while (idx < sz) {
-        offset = keys[idx] - minKey
-        tableArray[offset] = handlers[idx]
-        idx = idx + 1
+    dPopIdx = 0
+    while (dPopIdx < dScanSz) {
+        offset = denseKeys[dPopIdx] - dMinKey
+        denseTableArray[offset] = denseHandlers[dPopIdx]
+        dPopIdx = dPopIdx + 1
     }
-    return [minKey, maxKey, tableArray]
+    return [dMinKey, dMaxKey, denseTableArray]
 }
 
-func dispatchDenseJumpTable(denseTable, targetKey, defaultHandler) {
-    minKey = denseTable[0]
-    maxKey = denseTable[1]
-    if (targetKey < minKey or targetKey > maxKey) {
+func dispatchDenseJumpTable(denseTableRef, targetKey, defaultHandler) {
+    tableMinKey = denseTableRef[0]
+    tableMaxKey = denseTableRef[1]
+    if (targetKey < tableMinKey or targetKey > tableMaxKey) {
         return defaultHandler
     }
-    tableArray = denseTable[2]
-    offset = targetKey - minKey
-    handler = tableArray[offset]
-    if (handler == -1) {
+    tableSlots = denseTableRef[2]
+    slotOffset = targetKey - tableMinKey
+    foundHandler = tableSlots[slotOffset]
+    if (foundHandler == -1) {
         return defaultHandler
     }
-    return handler
+    return foundHandler
+}
+
+// --- Binary Search Decision Tree Jump Table ---
+
+func sortKeyHandlerPairs(unsortedKeys, unsortedHandlers) {
+    pairSz = unsortedKeys.size()
+    sortedKeysArr = []
+    sortedHandlersArr = []
+    sortInitIdx = 0
+    while (sortInitIdx < pairSz) {
+        sortedKeysArr.push(unsortedKeys[sortInitIdx])
+        sortedHandlersArr.push(unsortedHandlers[sortInitIdx])
+        sortInitIdx = sortInitIdx + 1
+    }
+    sortOuter = 1
+    while (sortOuter < pairSz) {
+        insKey = sortedKeysArr[sortOuter]
+        insHandler = sortedHandlersArr[sortOuter]
+        sortInner = sortOuter - 1
+        isShifting = 1
+        while (sortInner >= 0 and isShifting == 1) {
+            if (sortedKeysArr[sortInner] > insKey) {
+                sortedKeysArr[sortInner + 1] = sortedKeysArr[sortInner]
+                sortedHandlersArr[sortInner + 1] = sortedHandlersArr[sortInner]
+                sortInner = sortInner - 1
+            } else {
+                isShifting = 0
+            }
+        }
+        sortedKeysArr[sortInner + 1] = insKey
+        sortedHandlersArr[sortInner + 1] = insHandler
+        sortOuter = sortOuter + 1
+    }
+    return [sortedKeysArr, sortedHandlersArr]
+}
+
+func createBinarySearchJumpTable(sourceKeys, sourceHandlers) {
+    return sortKeyHandlerPairs(sourceKeys, sourceHandlers)
+}
+
+func dispatchBinarySearch(bstTableRef, targetKey, defaultHandler) {
+    bstKeys = bstTableRef[0]
+    bstHandlers = bstTableRef[1]
+    bstLow = 0
+    bstHigh = bstKeys.size() - 1
+    while (bstLow <= bstHigh) {
+        binarySearchProbes[0] = binarySearchProbes[0] + 1
+        bstMid = bstLow + (bstHigh - bstLow) / 2
+        midKey = bstKeys[bstMid]
+        if (midKey == targetKey) {
+            return bstHandlers[bstMid]
+        }
+        if (targetKey < midKey) {
+            bstHigh = bstMid - 1
+        } else {
+            bstLow = bstMid + 1
+        }
+    }
+    return defaultHandler
+}
+
+// --- Open-Addressing Hash Jump Table ---
+
+func createHashJumpTable(inputKeys, inputHandlers, defaultHandler) {
+    htSz = inputKeys.size()
+    htCap = htSz * 2 + 11
+    htKeys = []
+    htHandlers = []
+    htOccupied = []
+    htInitIdx = 0
+    while (htInitIdx < htCap) {
+        htKeys.push(0)
+        htHandlers.push(defaultHandler)
+        htOccupied.push(false)
+        htInitIdx = htInitIdx + 1
+    }
+    htInsertIdx = 0
+    while (htInsertIdx < htSz) {
+        insKey = inputKeys[htInsertIdx]
+        insHandler = inputHandlers[htInsertIdx]
+        normKey = insKey
+        if (normKey < 0) {
+            normKey = (-normKey) * 31 + 7
+        }
+        slot = ((normKey * 26544 + 1013904223) % htCap + htCap) % htCap
+        while (htOccupied[slot]) {
+            slot = (slot + 1) % htCap
+        }
+        htKeys[slot] = insKey
+        htHandlers[slot] = insHandler
+        htOccupied[slot] = true
+        htInsertIdx = htInsertIdx + 1
+    }
+    return [htCap, htKeys, htHandlers, htOccupied]
+}
+
+func dispatchHashJumpTable(hashTableRef, targetKey, defaultHandler) {
+    htCap = hashTableRef[0]
+    htKeys = hashTableRef[1]
+    htHandlers = hashTableRef[2]
+    htOccupied = hashTableRef[3]
+    normKey = targetKey
+    if (normKey < 0) {
+        normKey = (-normKey) * 31 + 7
+    }
+    slot = ((normKey * 26544 + 1013904223) % htCap + htCap) % htCap
+    probeCount = 0
+    while (htOccupied[slot] and probeCount < htCap) {
+        hashTableProbes[0] = hashTableProbes[0] + 1
+        if (htKeys[slot] == targetKey) {
+            return htHandlers[slot]
+        }
+        slot = (slot + 1) % htCap
+        probeCount = probeCount + 1
+    }
+    return defaultHandler
+}
+
+// --- Clustered Two-Level Segmented Jump Table ---
+
+func createClusteredJumpTable(clusterSpecs, outlierKeys, outlierHandlers, defaultHandler) {
+    compiledClusters = []
+    cSpecIdx = 0
+    while (cSpecIdx < clusterSpecs.size()) {
+        spec = clusterSpecs[cSpecIdx]
+        cMin = spec[0]
+        cMax = spec[1]
+        cKeys = spec[2]
+        cHandlers = spec[3]
+        cLen = cMax - cMin + 1
+        cArray = []
+        cFillIdx = 0
+        while (cFillIdx < cLen) {
+            cArray.push(-1)
+            cFillIdx = cFillIdx + 1
+        }
+        cPopIdx = 0
+        while (cPopIdx < cKeys.size()) {
+            offset = cKeys[cPopIdx] - cMin
+            cArray[offset] = cHandlers[cPopIdx]
+            cPopIdx = cPopIdx + 1
+        }
+        compiledClusters.push([cMin, cMax, cArray])
+        cSpecIdx = cSpecIdx + 1
+    }
+    compiledOutliers = createBinarySearchJumpTable(outlierKeys, outlierHandlers)
+    return [compiledClusters, compiledOutliers]
+}
+
+func dispatchClusteredJumpTable(clusteredTableRef, targetKey, defaultHandler) {
+    clusteredTableProbes[0] = clusteredTableProbes[0] + 1
+    clClusters = clusteredTableRef[0]
+    clOutliers = clusteredTableRef[1]
+    clIdx = 0
+    while (clIdx < clClusters.size()) {
+        clusterItem = clClusters[clIdx]
+        if (targetKey >= clusterItem[0] and targetKey <= clusterItem[1]) {
+            clOffset = targetKey - clusterItem[0]
+            clH = clusterItem[2][clOffset]
+            if (clH != -1) {
+                return clH
+            }
+            return defaultHandler
+        }
+        clIdx = clIdx + 1
+    }
+    return dispatchBinarySearch(clOutliers, targetKey, defaultHandler)
 }
 
 // --- Test Case 1: Core Dispatch Models & Default Fallback Validation ---
@@ -214,33 +379,207 @@ caseHandlers1 = [
 ]
 
 denseTable1 = createDenseJumpTable(caseKeys1, caseHandlers1, handlerIdDefault)
+bstTable1 = createBinarySearchJumpTable(caseKeys1, caseHandlers1)
+hashTable1 = createHashJumpTable(caseKeys1, caseHandlers1, handlerIdDefault)
 
-// Verify exact matches on dense table
-cIdx = 0
-while (cIdx < caseKeys1.size()) {
-    targetK = caseKeys1[cIdx]
-    expectedH = caseHandlers1[cIdx]
-    linearH = dispatchLinear(caseKeys1, caseHandlers1, targetK, handlerIdDefault)
-    denseH = dispatchDenseJumpTable(denseTable1, targetK, handlerIdDefault)
-    if (linearH != expectedH or denseH != expectedH) {
-        print("[FAIL] Test Case 1 Mismatch for key ", targetK, ": linear=", linearH, " dense=", denseH)
+// Verify exact matches on dense, bst, and hash tables
+cIdx1 = 0
+while (cIdx1 < caseKeys1.size()) {
+    targetK1 = caseKeys1[cIdx1]
+    expectedH1 = caseHandlers1[cIdx1]
+    linearH1 = dispatchLinear(caseKeys1, caseHandlers1, targetK1, handlerIdDefault)
+    denseH1 = dispatchDenseJumpTable(denseTable1, targetK1, handlerIdDefault)
+    bstH1 = dispatchBinarySearch(bstTable1, targetK1, handlerIdDefault)
+    hashH1 = dispatchHashJumpTable(hashTable1, targetK1, handlerIdDefault)
+    if (linearH1 != expectedH1 or denseH1 != expectedH1 or bstH1 != expectedH1 or hashH1 != expectedH1) {
+        print("[FAIL] Test Case 1 Mismatch for key ", targetK1, ": lin=", linearH1, " dense=", denseH1, " bst=", bstH1, " hash=", hashH1)
         testSuiteFailures = testSuiteFailures + 1
     }
-    cIdx = cIdx + 1
+    cIdx1 = cIdx1 + 1
 }
 
 // Verify unmapped holes and boundary fallbacks
 outsideKeys1 = [99, 106, 0, 50, 200, -1]
-oIdx = 0
-while (oIdx < outsideKeys1.size()) {
-    outK = outsideKeys1[oIdx]
-    linearH = dispatchLinear(caseKeys1, caseHandlers1, outK, handlerIdDefault)
-    denseH = dispatchDenseJumpTable(denseTable1, outK, handlerIdDefault)
-    if (linearH != handlerIdDefault or denseH != handlerIdDefault) {
-        print("[FAIL] Test Case 1 Expected default for key ", outK, ": linear=", linearH, " dense=", denseH)
+oIdx1 = 0
+while (oIdx1 < outsideKeys1.size()) {
+    outK1 = outsideKeys1[oIdx1]
+    linearH1 = dispatchLinear(caseKeys1, caseHandlers1, outK1, handlerIdDefault)
+    denseH1 = dispatchDenseJumpTable(denseTable1, outK1, handlerIdDefault)
+    bstH1 = dispatchBinarySearch(bstTable1, outK1, handlerIdDefault)
+    hashH1 = dispatchHashJumpTable(hashTable1, outK1, handlerIdDefault)
+    if (linearH1 != handlerIdDefault or denseH1 != handlerIdDefault or bstH1 != handlerIdDefault or hashH1 != handlerIdDefault) {
+        print("[FAIL] Test Case 1 Expected default for key ", outK1, ": lin=", linearH1, " dense=", denseH1, " bst=", bstH1, " hash=", hashH1)
         testSuiteFailures = testSuiteFailures + 1
     }
-    oIdx = oIdx + 1
+    oIdx1 = oIdx1 + 1
 }
 
 print("  Test Case 1 Passed Core Dispatch Models and Default Fallbacks")
+
+// --- Test Case 2: Boundary Edge Cases and Extreme Sparse Distribution ---
+
+print("--- Running Test Case 2: Boundary Edge Cases and Extreme Sparse Distribution ---")
+
+sparseKeys2 = [-500, 0, 3, 17, 42, 100, 101, 102, 103, 104, 105, 500, 1024, 8192, 65536, 1000000]
+sparseHandlers2 = [
+    handlerIdNegateAbs,
+    handlerIdResetZero,
+    handlerIdCube,
+    handlerIdCollatzStep,
+    handlerIdMultiply13,
+    handlerIdBitRotateLeft,
+    handlerIdBitXorMask,
+    handlerIdModAdd53,
+    handlerIdSquare,
+    handlerIdIncrement,
+    handlerIdFibonacciStep,
+    handlerIdClamp1000,
+    handlerIdShiftRight2,
+    handlerIdPolynomialStep,
+    handlerIdHypotSquared,
+    handlerIdGoldenRatioStep
+]
+
+bstTable2 = createBinarySearchJumpTable(sparseKeys2, sparseHandlers2)
+hashTable2 = createHashJumpTable(sparseKeys2, sparseHandlers2, handlerIdDefault)
+
+clusterDenseKeys = [100, 101, 102, 103, 104, 105]
+clusterDenseHandlers = [
+    handlerIdBitRotateLeft,
+    handlerIdBitXorMask,
+    handlerIdModAdd53,
+    handlerIdSquare,
+    handlerIdIncrement,
+    handlerIdFibonacciStep
+]
+clusterSpecs2 = [
+    [100, 105, clusterDenseKeys, clusterDenseHandlers]
+]
+outliersKeys2 = [-500, 0, 3, 17, 42, 500, 1024, 8192, 65536, 1000000]
+outliersHandlers2 = [
+    handlerIdNegateAbs,
+    handlerIdResetZero,
+    handlerIdCube,
+    handlerIdCollatzStep,
+    handlerIdMultiply13,
+    handlerIdClamp1000,
+    handlerIdShiftRight2,
+    handlerIdPolynomialStep,
+    handlerIdHypotSquared,
+    handlerIdGoldenRatioStep
+]
+clusteredTable2 = createClusteredJumpTable(clusterSpecs2, outliersKeys2, outliersHandlers2, handlerIdDefault)
+
+// Verify exact match across all models for all 16 sparse cases
+sIdx2 = 0
+while (sIdx2 < sparseKeys2.size()) {
+    targetKey2 = sparseKeys2[sIdx2]
+    expectedH2 = sparseHandlers2[sIdx2]
+    linH2 = dispatchLinear(sparseKeys2, sparseHandlers2, targetKey2, handlerIdDefault)
+    bstH2 = dispatchBinarySearch(bstTable2, targetKey2, handlerIdDefault)
+    hashH2 = dispatchHashJumpTable(hashTable2, targetKey2, handlerIdDefault)
+    clusH2 = dispatchClusteredJumpTable(clusteredTable2, targetKey2, handlerIdDefault)
+    if (linH2 != expectedH2 or bstH2 != expectedH2 or hashH2 != expectedH2 or clusH2 != expectedH2) {
+        print("[FAIL] Test Case 2 Mismatch on sparse key ", targetKey2, ": expected=", expectedH2, " lin=", linH2, " bst=", bstH2, " hash=", hashH2, " clus=", clusH2)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    sIdx2 = sIdx2 + 1
+}
+
+// Verify off-by-one boundary holes & extreme out-of-range keys
+holeKeys2 = [
+    -501, -499,
+    -1, 1, 2, 4,
+    16, 18,
+    41, 43,
+    99, 106,
+    499, 501,
+    1023, 1025,
+    8191, 8193,
+    65535, 65537,
+    999999, 1000001,
+    -9999999, 99999999
+]
+hIdx2 = 0
+while (hIdx2 < holeKeys2.size()) {
+    holeK2 = holeKeys2[hIdx2]
+    linH2 = dispatchLinear(sparseKeys2, sparseHandlers2, holeK2, handlerIdDefault)
+    bstH2 = dispatchBinarySearch(bstTable2, holeK2, handlerIdDefault)
+    hashH2 = dispatchHashJumpTable(hashTable2, holeK2, handlerIdDefault)
+    clusH2 = dispatchClusteredJumpTable(clusteredTable2, holeK2, handlerIdDefault)
+    if (linH2 != handlerIdDefault or bstH2 != handlerIdDefault or hashH2 != handlerIdDefault or clusH2 != handlerIdDefault) {
+        print("[FAIL] Test Case 2 Expected default fallback on hole key ", holeK2, ": lin=", linH2, " bst=", bstH2, " hash=", hashH2, " clus=", clusH2)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    hIdx2 = hIdx2 + 1
+}
+
+print("  Test Case 2 Passed Boundary Edge Cases and Extreme Sparse Distribution")
+
+// --- Test Case 3: Handler Mathematical Invariants & Reversibility ---
+
+print("--- Running Test Case 3: Handler Mathematical Invariants ---")
+
+testAcc = 7
+testKey = 42
+
+// Test handlerIdNegateAbs
+valNeg = dispatchAction(handlerIdNegateAbs, -125, testKey)
+if (valNeg != 125 and valNeg != -125) {
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test handlerIdResetZero
+valZero = dispatchAction(handlerIdResetZero, 9999, testKey)
+if (valZero != 0) {
+    print("[FAIL] Test Case 3 handlerIdResetZero expected 0, got ", valZero)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test handlerIdCube: 7^3 = 343
+valCube = dispatchAction(handlerIdCube, 7, testKey)
+if (valCube != 343) {
+    print("[FAIL] Test Case 3 handlerIdCube expected 343, got ", valCube)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test handlerIdCollatzStep: even 10 -> 5, odd 7 -> 22
+collatzEven = dispatchAction(handlerIdCollatzStep, 10, testKey)
+collatzOdd = dispatchAction(handlerIdCollatzStep, 7, testKey)
+if (collatzEven != 5 or collatzOdd != 22) {
+    print("[FAIL] Test Case 3 handlerIdCollatzStep failed: even=", collatzEven, " odd=", collatzOdd)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test handlerIdMultiply13: 10 * 13 = 130
+valMul13 = dispatchAction(handlerIdMultiply13, 10, testKey)
+if (valMul13 != 130) {
+    print("[FAIL] Test Case 3 handlerIdMultiply13 expected 130, got ", valMul13)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test handlerIdClamp1000: clamp bounds [-1000, 1000]
+valClampHigh = dispatchAction(handlerIdClamp1000, 2500, testKey)
+valClampLow = dispatchAction(handlerIdClamp1000, -2500, testKey)
+valClampMid = dispatchAction(handlerIdClamp1000, 450, testKey)
+if (valClampHigh != 1000 or valClampLow != -1000 or valClampMid != 450) {
+    print("[FAIL] Test Case 3 handlerIdClamp1000 failed: high=", valClampHigh, " low=", valClampLow, " mid=", valClampMid)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test handlerIdShiftRight2: 64 >> 2 = 16
+valShr2 = dispatchAction(handlerIdShiftRight2, 64, testKey)
+if (valShr2 != 16) {
+    print("[FAIL] Test Case 3 handlerIdShiftRight2 expected 16, got ", valShr2)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Test handlerIdDefault fallback deterministic behavior
+valDef1 = dispatchAction(handlerIdDefault, 100, 55)
+valDef2 = dispatchAction(handlerIdDefault, 100, 55)
+if (valDef1 != valDef2 or valDef1 != (((100 ^ 55) + 42) % 1000007)) {
+    print("[FAIL] Test Case 3 handlerIdDefault non-deterministic or mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 3 Passed Handler Mathematical Invariants")
