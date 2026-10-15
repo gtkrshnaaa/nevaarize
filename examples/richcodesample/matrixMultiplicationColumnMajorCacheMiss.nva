@@ -63,6 +63,17 @@ func fillFormulaMatrix(fRows, fCols, seedMultiplier) {
     return fMat
 }
 
+func createIdentityMatrix(dimVal) {
+    idMat = createMatrix(dimVal, dimVal, 0)
+    idData = idMat[2]
+    idIdx = 0
+    while (idIdx < dimVal) {
+        idData[idIdx * dimVal + idIdx] = 1
+        idIdx = idIdx + 1
+    }
+    return idMat
+}
+
 func computeMatrixChecksum(mat) {
     data = mat[2]
     n = data.size()
@@ -411,9 +422,108 @@ if (outerOutIKJ[0] != 16 or outerOutIKJ[1] != 16 or areMatricesEqual(outerOutIKJ
 print("  Non-square dimensions verified (Rectangular 12x16, Dot Product 1x1, Outer Product 16x16)")
 print("  Test Case 3 Passed Non-Square Rectangular & Degenerate Dimensions")
 
-elapsedStage2 = t.millis() - suiteStartTime
+// --- Test Case 4: Algebraic Properties (Identity, Transpose of Product, Associativity) ---
+
+print("--- Running Test Case 4: Algebraic Properties ---")
+
+algDim = 16
+matrixA = fillFormulaMatrix(algDim, algDim, 13)
+matrixB = fillFormulaMatrix(algDim, algDim, 29)
+matrixC = fillFormulaMatrix(algDim, algDim, 47)
+identityMat = createIdentityMatrix(algDim)
+
+// 4.1 Identity Matrix: A x I == A and I x A == A
+aTimesI = matmulIKJ(matrixA, identityMat)
+iTimesA = matmulIKJ(identityMat, matrixA)
+if (areMatricesEqual(matrixA, aTimesI) != 1 or areMatricesEqual(matrixA, iTimesA) != 1) {
+    print("[FAIL] Test Case 4 Identity Matrix property failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 4.2 Transpose of Product: (A x B)^T == B^T x A^T
+abProd = matmulIKJ(matrixA, matrixB)
+abProdTrans = transposeMatrix(abProd)
+
+transA = transposeMatrix(matrixA)
+transB = transposeMatrix(matrixB)
+btTimesAt = matmulIKJ(transB, transA)
+
+if (areMatricesEqual(abProdTrans, btTimesAt) != 1) {
+    print("[FAIL] Test Case 4 Transpose of Product (AB)^T == B^T A^T failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 4.3 Associativity: (A x B) x C == A x (B x C)
+abThenC = matmulIKJ(abProd, matrixC)
+bcProd = matmulIKJ(matrixB, matrixC)
+aThenBC = matmulIKJ(matrixA, bcProd)
+
+if (areMatricesEqual(abThenC, aThenBC) != 1) {
+    print("[FAIL] Test Case 4 Associativity (AB)C == A(BC) failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Algebraic properties verified (Identity A x I == A, Transpose (AB)^T == B^T A^T, Associativity (AB)C == A(BC))")
+print("  Test Case 4 Passed Algebraic Properties")
+
+// --- Test Case 5: Direct Memory Layout Traversal Cache Penalty Stress ---
+
+print("--- Running Test Case 5: Direct Memory Layout Traversal Cache Penalty Stress ---")
+
+stressDim = 256
+stressMat = fillFormulaMatrix(stressDim, stressDim, 73)
+stressData = stressMat[2]
+stressReps = 20
+
+// 5.1 Row-Major Contiguous Scan (Stride 1)
+tRowStart = t.millis()
+rep = 0
+rowSum = 0
+while (rep < stressReps) {
+    r = 0
+    while (r < stressDim) {
+        rowOff = r * stressDim
+        c = 0
+        while (c < stressDim) {
+            rowSum = (rowSum + stressData[rowOff + c]) % 1000000007
+            c = c + 1
+        }
+        r = r + 1
+    }
+    rep = rep + 1
+}
+tRowElapsed = t.millis() - tRowStart
+
+// 5.2 Column-Major Strided Scan (Stride 256 - Cache Line Jumping)
+tColStart = t.millis()
+rep = 0
+colSum = 0
+while (rep < stressReps) {
+    c = 0
+    while (c < stressDim) {
+        r = 0
+        while (r < stressDim) {
+            colSum = (colSum + stressData[r * stressDim + c]) % 1000000007
+            r = r + 1
+        }
+        c = c + 1
+    }
+    rep = rep + 1
+}
+tColElapsed = t.millis() - tColStart
+
+if (rowSum != colSum) {
+    print("[FAIL] Test Case 5 Sum mismatch between Row-major and Column-major: rowSum=", rowSum, " colSum=", colSum)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  256x256 matrix (", stressReps, " sweeps): Row-Major (Stride-1)=", tRowElapsed, " ms | Column-Major (Stride-256)=", tColElapsed, " ms")
+print("  Checksum Parity: rowSum == colSum == ", rowSum)
+print("  Test Case 5 Passed Direct Memory Layout Traversal Cache Penalty Stress")
+
+elapsedStage3 = t.millis() - suiteStartTime
 if (testSuiteFailures != 0) {
-    print("[FAIL] Stage 2 encountered failures: ", testSuiteFailures)
+    print("[FAIL] Stage 3 encountered failures: ", testSuiteFailures)
 } else {
-    print("  Stage 2 completed in ", elapsedStage2, " ms")
+    print("  Stage 3 completed in ", elapsedStage3, " ms")
 }
