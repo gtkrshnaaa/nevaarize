@@ -922,7 +922,7 @@ This document lists all 245 algorithm cases that are planned for implementation 
   - **Target File**: `examples/richcodesample/matrixMultiplicationColumnMajorCacheMiss.nva`
   - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
   - **Objective**: Large matrix multiplication traversing column-major orders testing cache miss resilience.
-- [ ] **#983** `feat(algorithms): implement sequentialArrayScanVsRandomPointerJump in richcodesamples`
+- [x] **#983** `feat(algorithms): implement sequentialArrayScanVsRandomPointerJump in richcodesamples`
   - **Target File**: `examples/richcodesample/sequentialArrayScanVsRandomPointerJump.nva`
   - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
   - **Objective**: Comparative memory access latency benchmark comparing sequential array scans and random pointer jumps.

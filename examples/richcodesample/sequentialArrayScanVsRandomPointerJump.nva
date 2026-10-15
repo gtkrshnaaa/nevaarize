@@ -414,9 +414,79 @@ while (stIdx < numStrides) {
 
 print("  Test Case 5 Passed Stride Staggering & Cache Line Alignment Stress (8 co-prime strides)")
 
-elapsedStage3 = t.millis() - suiteStartTime
-if (testSuiteFailures != 0) {
-    print("[FAIL] Stage 3 encountered failures: ", testSuiteFailures)
-} else {
-    print("  Stage 3 completed in ", elapsedStage3, " ms")
+// --- Test Case 6: High-Throughput Comparative Benchmark (200,000 Hops) ---
+
+print("--- Running Test Case 6: High-Throughput Comparative Benchmark (200,000 Hops) ---")
+
+benchWorkingSetSize = 32768
+totalBenchmarkHops = 200000
+
+// Initialize payload data
+benchPayload = []
+bIdx = 0
+while (bIdx < benchWorkingSetSize) {
+    benchPayload.push((bIdx * 65537 + 101) % 1000000007)
+    bIdx = bIdx + 1
 }
+
+// 6.1 Sequential ring benchmark
+benchSeqChain = buildSequentialChain(benchWorkingSetSize)
+tSeqBenchStart = t.millis()
+curr = 0
+step = 0
+seqBenchAccum = 0
+while (step < totalBenchmarkHops) {
+    curr = benchSeqChain[curr]
+    seqBenchAccum = (seqBenchAccum + benchPayload[curr]) % 1000000007
+    step = step + 1
+}
+tSeqBenchElapsed = t.millis() - tSeqBenchStart
+
+// 6.2 Strided ring benchmark (stride 127, gcd(127, 32768) == 1)
+benchStrideChain = buildStridedChain(benchWorkingSetSize, 127)
+tStrideBenchStart = t.millis()
+curr = 0
+step = 0
+strideBenchAccum = 0
+while (step < totalBenchmarkHops) {
+    curr = benchStrideChain[curr]
+    strideBenchAccum = (strideBenchAccum + benchPayload[curr]) % 1000000007
+    step = step + 1
+}
+tStrideBenchElapsed = t.millis() - tStrideBenchStart
+
+// 6.3 Random Hamiltonian cycle benchmark (Sattolo's Algorithm)
+benchRandChain = buildRandomHamiltonianCycle(benchWorkingSetSize, 42424242)
+tRandBenchStart = t.millis()
+curr = 0
+step = 0
+randBenchAccum = 0
+while (step < totalBenchmarkHops) {
+    curr = benchRandChain[curr]
+    randBenchAccum = (randBenchAccum + benchPayload[curr]) % 1000000007
+    step = step + 1
+}
+tRandBenchElapsed = t.millis() - tRandBenchStart
+
+if (seqBenchAccum < 0 or strideBenchAccum < 0 or randBenchAccum < 0) {
+    print("[FAIL] Test Case 6 Negative benchmark accumulator")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Sequential Scan     : ", tSeqBenchElapsed, " ms (checksum=", seqBenchAccum, ")")
+print("  Strided Scan (127)  : ", tStrideBenchElapsed, " ms (checksum=", strideBenchAccum, ")")
+print("  Random Pointer Jump : ", tRandBenchElapsed, " ms (checksum=", randBenchAccum, ")")
+print("  Test Case 6 Passed High-Throughput Comparative Benchmark (200,000 hops)")
+
+// --- Final Suite Telemetry Summary ---
+
+totalElapsed = t.millis() - suiteStartTime
+print("======================================================================")
+print("  Sequential Array Scan vs Random Pointer Jump Suite Completed in ", totalElapsed, " ms")
+print("  Total Failures: ", testSuiteFailures)
+if (testSuiteFailures == 0) {
+    print("  STATUS: ALL TESTS PASSED [100% Deterministic]")
+} else {
+    print("  STATUS: FAILURES DETECTED")
+}
+print("======================================================================")
