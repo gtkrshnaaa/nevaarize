@@ -37,6 +37,8 @@ fnIdDeepPoly16 = 16
 fnIdDeepSum32 = 17
 fnIdDeepFold64 = 18
 fnIdDeepStress100 = 19
+fnIdFlippedSubtract = 20
+fnIdFlippedModulo = 21
 
 // --- Telemetry Counters ---
 
@@ -192,6 +194,12 @@ func dispatchRegistry(fnId, args) {
             stIdx = stIdx + 1
         }
         return stressState
+    } elif (fnId == 20) {
+        // Flipped Subtract: b - a
+        return args[1] - args[0]
+    } elif (fnId == 21) {
+        // Flipped Modulo: b % a
+        return args[1] % args[0]
     }
     return 0
 }
@@ -254,6 +262,63 @@ func applyAndMaybeInvoke(closure, argVal) {
 
 func uncurryDirect(fnId, args) {
     return dispatchRegistry(fnId, args)
+}
+
+// --- High-Order Combinators ---
+
+func partialApply(closure, argsList) {
+    currClosure = closure
+    aIdx = 0
+    aTotal = argsList.size()
+    while (aIdx < aTotal) {
+        argVal = argsList[aIdx]
+        nextStep = applyAndMaybeInvoke(currClosure, argVal)
+        if (aIdx == aTotal - 1) {
+            return nextStep
+        }
+        currClosure = nextStep
+        aIdx = aIdx + 1
+    }
+    return currClosure
+}
+
+func applyChain(closure, argsList) {
+    return partialApply(closure, argsList)
+}
+
+func executeComposedUnary(closureG, closureF, xVal) {
+    stepF = applyAndMaybeInvoke(closureF, xVal)
+    stepG = applyAndMaybeInvoke(closureG, stepF)
+    return stepG
+}
+
+func executeUnaryPipeline(pipelineClosures, initialVal) {
+    currVal = initialVal
+    pIdx = 0
+    pCount = pipelineClosures.size()
+    while (pIdx < pCount) {
+        currVal = applyAndMaybeInvoke(pipelineClosures[pIdx], currVal)
+        pIdx = pIdx + 1
+    }
+    return currVal
+}
+
+func curriedMap(unaryClosure, list) {
+    mapped = []
+    for (elem in list) {
+        val = applyAndMaybeInvoke(unaryClosure, elem)
+        mapped.push(val)
+    }
+    return mapped
+}
+
+func curriedFold(binaryClosure, initialAcc, list) {
+    acc = initialAcc
+    for (elem in list) {
+        step1 = applyAndMaybeInvoke(binaryClosure, acc)
+        acc = applyAndMaybeInvoke(step1, elem)
+    }
+    return acc
 }
 
 // --- Test Case 1: Currying-Uncurrying Isomorphism and Arity Verification ---
@@ -389,11 +454,209 @@ if (convResult != 36 or convResult != convExpected) {
 
 print("  Test Case 1 Passed Currying-Uncurrying Isomorphism across arities 1, 2, 3, 4, 5")
 
+// --- Test Case 2: Sibling Branching and Lexical Environment Immutability ---
+
+print("--- Running Test Case 2: Sibling Branching and Immutability ---")
+
+// Branching at Depth 1: Base closure with first argument bound to 50
+baseAdd50 = applyCurriedArg(createRootClosure(fnIdAdd, 2), 50)
+
+// 5 Distinct sibling closures branching independently from baseAdd50
+sibResA = applyAndMaybeInvoke(baseAdd50, 10)
+sibResB = applyAndMaybeInvoke(baseAdd50, -20)
+sibResC = applyAndMaybeInvoke(baseAdd50, 100)
+sibResD = applyAndMaybeInvoke(baseAdd50, 0)
+sibResE = applyAndMaybeInvoke(baseAdd50, 950)
+
+if (sibResA != 60) {
+    print("[FAIL] Test Case 2 Sibling A failed: expected 60, got ", sibResA)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (sibResB != 30) {
+    print("[FAIL] Test Case 2 Sibling B failed: expected 30, got ", sibResB)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (sibResC != 150) {
+    print("[FAIL] Test Case 2 Sibling C failed: expected 150, got ", sibResC)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (sibResD != 50) {
+    print("[FAIL] Test Case 2 Sibling D failed: expected 50, got ", sibResD)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (sibResE != 1000) {
+    print("[FAIL] Test Case 2 Sibling E failed: expected 1000, got ", sibResE)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify base closure immutability: re-applying 25 must yield 75
+baseReapply = applyAndMaybeInvoke(baseAdd50, 25)
+if (baseReapply != 75 or baseAdd50[4] != 1 or baseAdd50[2] != 50) {
+    print("[FAIL] Test Case 2 Base closure mutation detected: expected 75 and depth 1")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Multi-Generation Tree Branching:
+// Root: Quaternary Quadratic a*x^2 + b*x + c (Arity 4)
+quadTreeRoot = createRootClosure(fnIdQuadratic, 4)
+
+// Generation 1: Bind a = 3
+quadGen1 = applyCurriedArg(quadTreeRoot, 3)
+
+// Generation 2: Branch into b = 2 and b = -4
+quadGen2A = applyCurriedArg(quadGen1, 2)
+quadGen2B = applyCurriedArg(quadGen1, -4)
+
+// Generation 3: Branch from quadGen2A into c = 10 and c = -5; from quadGen2B into c = 7
+quadGen3A1 = applyCurriedArg(quadGen2A, 10)
+quadGen3A2 = applyCurriedArg(quadGen2A, -5)
+quadGen3B1 = applyCurriedArg(quadGen2B, 7)
+
+// Evaluate each leaf at x = 5:
+// Leaf 1: 3 * 25 + 2 * 5 + 10 = 75 + 10 + 10 = 95
+leafRes1 = applyAndMaybeInvoke(quadGen3A1, 5)
+// Leaf 2: 3 * 25 + 2 * 5 - 5 = 75 + 10 - 5 = 80
+leafRes2 = applyAndMaybeInvoke(quadGen3A2, 5)
+// Leaf 3: 3 * 25 - 4 * 5 + 7 = 75 - 20 + 7 = 62
+leafRes3 = applyAndMaybeInvoke(quadGen3B1, 5)
+
+if (leafRes1 != 95) {
+    print("[FAIL] Test Case 2 Leaf 1 failed: expected 95, got ", leafRes1)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (leafRes2 != 80) {
+    print("[FAIL] Test Case 2 Leaf 2 failed: expected 80, got ", leafRes2)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (leafRes3 != 62) {
+    print("[FAIL] Test Case 2 Leaf 3 failed: expected 62, got ", leafRes3)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Check leaf 1 evaluated at x = 0 to verify constant c = 10 is isolated
+leafRes1AtZero = applyAndMaybeInvoke(quadGen3A1, 0)
+if (leafRes1AtZero != 10) {
+    print("[FAIL] Test Case 2 Leaf 1 constant isolation failed: expected 10, got ", leafRes1AtZero)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 2 Passed Sibling Branching and Multi-Generation Tree Immutability")
+
+// --- Test Case 3: Partial Application Associativity and Argument Flip Combinator ---
+
+print("--- Running Test Case 3: Partial Application Associativity and Flip ---")
+
+// Clamp (low=10, high=50, val)
+clampRoot3 = createRootClosure(fnIdClamp, 3)
+
+// Prefix partial application with 2 arguments [10, 50] leaving arity 1
+clamp10To50 = partialApply(clampRoot3, [10, 50])
+if (clamp10To50[4] != 2) {
+    print("[FAIL] Test Case 3 Partial clamp depth expected 2, got ", clamp10To50[4])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+partClampLow = applyAndMaybeInvoke(clamp10To50, 2)
+partClampMid = applyAndMaybeInvoke(clamp10To50, 35)
+partClampHigh = applyAndMaybeInvoke(clamp10To50, 88)
+
+if (partClampLow != 10 or partClampMid != 35 or partClampHigh != 50) {
+    print("[FAIL] Test Case 3 Partial clamp results mismatch: low=", partClampLow, " mid=", partClampMid, " high=", partClampHigh)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Associativity: ((c + [a]) + [b]) + [c] == c + [a, b, c]
+// Tested on Bezier curve: p0=0, p1=80, p2=160, p3=240 -> expected 120
+bezierRoot3 = createRootClosure(fnIdBezierCubic, 4)
+bezPartPrefix = partialApply(bezierRoot3, [0, 80])
+bezPartPath1 = partialApply(bezPartPrefix, [160, 240])
+bezPartPath2 = partialApply(bezierRoot3, [0, 80, 160, 240])
+bezPartPrefix3 = partialApply(bezierRoot3, [0, 80, 160])
+bezPartPath3 = applyAndMaybeInvoke(bezPartPrefix3, 240)
+
+if (bezPartPath1 != 120 or bezPartPath2 != 120 or bezPartPath3 != 120) {
+    print("[FAIL] Test Case 3 Partial application associativity mismatch: p1=", bezPartPath1, " p2=", bezPartPath2, " p3=", bezPartPath3)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Empty argument list partial application (idempotence)
+bezEmptyPart = partialApply(bezierRoot3, [])
+if (bezEmptyPart[4] != 0 or bezEmptyPart[5] != 1) {
+    print("[FAIL] Test Case 3 Empty partial apply modified root closure state")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Flipped Binary Subtraction: standard sub(100, 30) = 70; flipped sub(100, 30) = 30 - 100 = -70
+flipSubRoot = createRootClosure(fnIdFlippedSubtract, 2)
+flipSubRes = partialApply(flipSubRoot, [100, 30])
+if (flipSubRes != -70) {
+    print("[FAIL] Test Case 3 Flipped subtraction failed: expected -70, got ", flipSubRes)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Flipped Binary Modulo: standard mod(50, 8) = 2; flipped mod(50, 8) = 8 % 50 = 8
+flipModRoot = createRootClosure(fnIdFlippedModulo, 2)
+flipModRes = partialApply(flipModRoot, [50, 8])
+if (flipModRes != 8) {
+    print("[FAIL] Test Case 3 Flipped modulo failed: expected 8, got ", flipModRes)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 3 Passed Partial Application Associativity and Flipped Binary Combinators")
+
+// --- Test Case 4: Higher-Order Function Composition and Pipeline Transformation ---
+
+print("--- Running Test Case 4: Function Composition and Pipeline ---")
+
+// Unary functions: Square (x^2), Collatz (3x+1 for odd), Negate (-x)
+// For x = 7:
+// f(7) = 49
+// g(49) = 3 * 49 + 1 = 148
+// h(148) = -148
+
+compStep1 = executeComposedUnary(collatzRoot, sqRoot, 7)
+if (compStep1 != 148) {
+    print("[FAIL] Test Case 4 Composition g(f(7)) failed: expected 148, got ", compStep1)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Associativity: h(g(f(x))) via pipeline vs nested composition
+pipeRes = executeUnaryPipeline([sqRoot, collatzRoot, negRoot], 7)
+if (pipeRes != -148) {
+    print("[FAIL] Test Case 4 Pipeline execution failed: expected -148, got ", pipeRes)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+sqSeven = applyAndMaybeInvoke(sqRoot, 7)
+compResNested = executeComposedUnary(negRoot, collatzRoot, sqSeven)
+if (compResNested != -148) {
+    print("[FAIL] Test Case 4 Nested composition failed: expected -148, got ", compResNested)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Functor/Collection Combinators: curriedMap and curriedFold
+testNumbers = [1, 2, 3, 4, 5]
+squaredNumbers = curriedMap(sqRoot, testNumbers)
+// [1, 4, 9, 16, 25]
+if (squaredNumbers.size() != 5 or squaredNumbers[0] != 1 or squaredNumbers[4] != 25) {
+    print("[FAIL] Test Case 4 curriedMap failed on square transform")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+sumOfSquares = curriedFold(addRoot, 0, squaredNumbers)
+// 1 + 4 + 9 + 16 + 25 = 55
+if (sumOfSquares != 55) {
+    print("[FAIL] Test Case 4 curriedFold failed: expected 55, got ", sumOfSquares)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 4 Passed Higher-Order Function Composition, Pipeline, and Collection Combinators")
+
 // --- Summary Telemetry ---
 
 elapsed = t.millis() - suiteStartTime
 if (testSuiteFailures == 0) {
-    print("[PASS] Initial Stage 1 Passed in ", elapsed, " ms")
+    print("[PASS] Stage 2 Passed in ", elapsed, " ms")
 } else {
-    print("[FAIL] Initial Stage 1 encountered ", testSuiteFailures, " failures")
+    print("[FAIL] Stage 2 encountered ", testSuiteFailures, " failures")
 }
