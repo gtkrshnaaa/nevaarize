@@ -298,3 +298,309 @@ func foldList(binId, initialAcc, list, param1) {
     }
     return acc
 }
+
+func comparePairArrays(arr1, arr2) {
+    sz1 = arr1.size()
+    sz2 = arr2.size()
+    if (sz1 != sz2) {
+        return false
+    }
+    idx = 0
+    while (idx < sz1) {
+        if (arr1[idx][0] != arr2[idx][0] or arr1[idx][1] != arr2[idx][1]) {
+            return false
+        }
+        idx = idx + 1
+    }
+    return true
+}
+
+func zipLists(listA, listB) {
+    result = []
+    szA = listA.size()
+    szB = listB.size()
+    minSz = szA
+    if (szB < minSz) {
+        minSz = szB
+    }
+    idx = 0
+    while (idx < minSz) {
+        zipCount[0] = zipCount[0] + 1
+        itemsProcessed[0] = itemsProcessed[0] + 2
+        pair = [listA[idx], listB[idx]]
+        result.push(pair)
+        idx = idx + 1
+    }
+    return result
+}
+
+func unzipLists(pairList) {
+    listA = []
+    listB = []
+    for (pair in pairList) {
+        itemsProcessed[0] = itemsProcessed[0] + 1
+        listA.push(pair[0])
+        listB.push(pair[1])
+    }
+    return [listA, listB]
+}
+
+func zipWithLists(binId, listA, listB, param1) {
+    result = []
+    szA = listA.size()
+    szB = listB.size()
+    minSz = szA
+    if (szB < minSz) {
+        minSz = szB
+    }
+    idx = 0
+    while (idx < minSz) {
+        zipCount[0] = zipCount[0] + 1
+        itemsProcessed[0] = itemsProcessed[0] + 2
+        combined = dispatchBinary(binId, listA[idx], listB[idx], param1)
+        result.push(combined)
+        idx = idx + 1
+    }
+    return result
+}
+
+func foldRightList(binId, initialAcc, list, param1) {
+    acc = initialAcc
+    sz = list.size()
+    idx = sz - 1
+    while (idx >= 0) {
+        itemsProcessed[0] = itemsProcessed[0] + 1
+        acc = dispatchBinary(binId, list[idx], acc, param1)
+        idx = idx - 1
+    }
+    return acc
+}
+
+func scanList(binId, initialAcc, list, param1) {
+    result = []
+    acc = initialAcc
+    result.push(acc)
+    for (elem in list) {
+        itemsProcessed[0] = itemsProcessed[0] + 1
+        acc = dispatchBinary(binId, acc, elem, param1)
+        result.push(acc)
+    }
+    return result
+}
+
+func takeList(list, count) {
+    result = []
+    limit = count
+    sz = list.size()
+    if (limit > sz) {
+        limit = sz
+    }
+    idx = 0
+    while (idx < limit) {
+        result.push(list[idx])
+        idx = idx + 1
+    }
+    return result
+}
+
+func dropList(list, count) {
+    result = []
+    sz = list.size()
+    idx = count
+    if (idx < 0) {
+        idx = 0
+    }
+    while (idx < sz) {
+        result.push(list[idx])
+        idx = idx + 1
+    }
+    return result
+}
+
+func partitionList(predId, list, param1, param2) {
+    passed = []
+    failed = []
+    for (elem in list) {
+        itemsProcessed[0] = itemsProcessed[0] + 1
+        if (dispatchPredicate(predId, elem, param1, param2)) {
+            passed.push(elem)
+        } else {
+            failed.push(elem)
+        }
+    }
+    return [passed, failed]
+}
+
+func windowList(list, windowSize) {
+    result = []
+    sz = list.size()
+    if (windowSize <= 0 or windowSize > sz) {
+        return result
+    }
+    idx = 0
+    while (idx <= sz - windowSize) {
+        win = []
+        wIdx = 0
+        while (wIdx < windowSize) {
+            win.push(list[idx + wIdx])
+            wIdx = wIdx + 1
+        }
+        result.push(win)
+        idx = idx + 1
+    }
+    return result
+}
+
+// --- Test Case 1: Functor Laws, Predicates, and Boundary Conditions ---
+
+print("--- Running Test Case 1: Functor Laws, Predicates, and Boundaries ---")
+
+sampleList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+// 1. Identity law: map(id, xs) == xs
+mappedId = mapList(fnIdIdentity, sampleList, 0, 0)
+if (compareArrays(mappedId, sampleList) == false) {
+    print("[FAIL] Test Case 1 Identity law failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 2. Composition law: map(g, map(f, xs)) == map(g o f, xs)
+// f = Square, g = Increment: (x^2) + 1
+mappedF = mapList(fnIdSquare, sampleList, 0, 0)
+mappedGF = mapList(fnIdIncrement, mappedF, 0, 0)
+expectedGF = [2, 5, 10, 17, 26, 37, 50, 65, 82, 101]
+if (compareArrays(mappedGF, expectedGF) == false) {
+    print("[FAIL] Test Case 1 Functor composition law failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 3. Predicate filtering: IsEven and IsPrime
+filteredEven = filterList(predIdIsEven, sampleList, 0, 0)
+expectedEven = [2, 4, 6, 8, 10]
+if (compareArrays(filteredEven, expectedEven) == false) {
+    print("[FAIL] Test Case 1 IsEven filter failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+filteredPrime = filterList(predIdIsPrime, sampleList, 0, 0)
+expectedPrime = [2, 3, 5, 7]
+if (compareArrays(filteredPrime, expectedPrime) == false) {
+    print("[FAIL] Test Case 1 IsPrime filter failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 4. Boundary cases: empty list, all matching, none matching
+emptyList = []
+emptyMapped = mapList(fnIdDouble, emptyList, 0, 0)
+if (emptyMapped.size() != 0) {
+    print("[FAIL] Test Case 1 Empty map failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+emptyFiltered = filterList(predIdIsEven, emptyList, 0, 0)
+if (emptyFiltered.size() != 0) {
+    print("[FAIL] Test Case 1 Empty filter failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+noneMatching = filterList(predIdGreaterThanThreshold, sampleList, 100, 0)
+if (noneMatching.size() != 0) {
+    print("[FAIL] Test Case 1 None-matching filter failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+allMatching = filterList(predIdGreaterThanThreshold, sampleList, 0, 0)
+if (compareArrays(allMatching, sampleList) == false) {
+    print("[FAIL] Test Case 1 All-matching filter failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 5. Commutativity of independent filter intersections
+filterStageA = filterList(predIdGreaterThanThreshold, sampleList, 3, 0)
+filterStageAB = filterList(predIdLessThanThreshold, filterStageA, 8, 0)
+
+filterStageB = filterList(predIdLessThanThreshold, sampleList, 8, 0)
+filterStageBA = filterList(predIdGreaterThanThreshold, filterStageB, 3, 0)
+
+expectedIntersect = [4, 5, 6, 7]
+if (compareArrays(filterStageAB, expectedIntersect) == false or compareArrays(filterStageBA, expectedIntersect) == false) {
+    print("[FAIL] Test Case 1 Filter commutativity failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 1 Passed Functor Laws, Predicates, and Boundary Conditions")
+
+// --- Test Case 2: Zip, Unzip, and ZipWith Pairwise Combinators ---
+
+print("--- Running Test Case 2: Zip, Unzip, and ZipWith Pairwise Combinators ---")
+
+listX = [10, 20, 30, 40, 50]
+listY = [1, 2, 3, 4, 5]
+
+// 1. Equal-length zip
+zippedXY = zipLists(listX, listY)
+if (zippedXY.size() != 5) {
+    print("[FAIL] Test Case 2 Zip size mismatch: expected 5, got ", zippedXY.size())
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (zippedXY[0][0] != 10 or zippedXY[0][1] != 1 or zippedXY[4][0] != 50 or zippedXY[4][1] != 5) {
+    print("[FAIL] Test Case 2 Zip content mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 2. Zip-Unzip Isomorphism: unzip(zip(xs, ys)) == [xs, ys]
+unzippedXY = unzipLists(zippedXY)
+if (compareArrays(unzippedXY[0], listX) == false or compareArrays(unzippedXY[1], listY) == false) {
+    print("[FAIL] Test Case 2 Zip-Unzip isomorphism failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 3. Asymmetric truncation boundary handling
+listShort = [100, 200]
+listLong = [1, 2, 3, 4, 5, 6, 7]
+
+zipShortLong = zipLists(listShort, listLong)
+if (zipShortLong.size() != 2 or zipShortLong[1][0] != 200 or zipShortLong[1][1] != 2) {
+    print("[FAIL] Test Case 2 Asymmetric zip truncation (left shorter) failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+zipLongShort = zipLists(listLong, listShort)
+if (zipLongShort.size() != 2 or zipLongShort[1][0] != 2 or zipLongShort[1][1] != 200) {
+    print("[FAIL] Test Case 2 Asymmetric zip truncation (right shorter) failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+zipWithEmpty = zipLists(listShort, [])
+if (zipWithEmpty.size() != 0) {
+    print("[FAIL] Test Case 2 Zip with empty list failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 4. ZipWith Dot Product: zipWith(mul, vA, vB) followed by fold(add, 0)
+vecA = [3, 4, 5, 6]
+vecB = [7, 8, 9, 10]
+pairwiseProducts = zipWithLists(binIdMultiply, vecA, vecB, 0)
+expectedProducts = [21, 32, 45, 60]
+if (compareArrays(pairwiseProducts, expectedProducts) == false) {
+    print("[FAIL] Test Case 2 ZipWith multiply failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+dotProduct = foldList(binIdAdd, 0, pairwiseProducts, 0)
+if (dotProduct != 158) {
+    print("[FAIL] Test Case 2 Dot product aggregation failed: expected 158, got ", dotProduct)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 5. ZipWith Squared Euclidean Distance: dx^2 + dy^2
+ptsA = [0, 10, 20]
+ptsB = [3, 6, 25]
+distSqList = zipWithLists(binIdEuclideanDistanceSquared, ptsA, ptsB, 0)
+expectedDistSq = [9, 16, 25]
+if (compareArrays(distSqList, expectedDistSq) == false) {
+    print("[FAIL] Test Case 2 ZipWith Euclidean distance squared failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 2 Passed Zip, Unzip, and ZipWith Pairwise Combinators")
