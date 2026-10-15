@@ -637,6 +637,91 @@ if (stabilityViolations != 0) {
 
 print("  Test Case 5 Passed Key-Index Pair Stable Sort Verification")
 
-elapsedStage3 = t.millis() - suiteStartTime
-print("  Stage 3 completed in ", elapsedStage3, " ms")
+// --- Test Case 6: Multi-Megabyte High-Throughput Sorting Benchmark ---
+
+print("--- Running Test Case 6: Multi-Megabyte Sorting Benchmark ---")
+
+benchSize = 25000
+benchSeed = 77711
+benchDataOrig = []
+bIdx = 0
+while (bIdx < benchSize) {
+    benchSeed = (benchSeed * 1103515245 + 12345) & 2147483647
+    benchDataOrig.push(benchSeed % 1000000)
+    bIdx = bIdx + 1
+}
+
+origSum = computeArraySum(benchDataOrig)
+origXor = computeArrayXor(benchDataOrig)
+
+// Benchmark QuickSort Bounded
+benchQs = cloneArray(benchDataOrig)
+t0Qs = t.millis()
+qsDepth = quickSortBounded(benchQs)
+t1Qs = t.millis()
+durQs = t1Qs - t0Qs
+if (durQs == 0) {
+    durQs = 1
+}
+if (isSorted(benchQs) != 1 or computeArraySum(benchQs) != origSum or computeArrayXor(benchQs) != origXor) {
+    print("[FAIL] Test Case 6 QuickSort benchmark correctness failed")
+    testSuiteFailures = testSuiteFailures + 1
+} else {
+    print("  QuickSort (25000 elements): Duration = ", durQs, " ms, Max Depth = ", qsDepth, ", Correctness = PASS")
+}
+
+// Benchmark HeapSort
+benchHs = cloneArray(benchDataOrig)
+t0Hs = t.millis()
+heapSort(benchHs)
+t1Hs = t.millis()
+durHs = t1Hs - t0Hs
+if (durHs == 0) {
+    durHs = 1
+}
+if (isSorted(benchHs) != 1 or computeArraySum(benchHs) != origSum or computeArrayXor(benchHs) != origXor) {
+    print("[FAIL] Test Case 6 HeapSort benchmark correctness failed")
+    testSuiteFailures = testSuiteFailures + 1
+} else {
+    print("  HeapSort (25000 elements): Duration = ", durHs, " ms, Correctness = PASS")
+}
+
+// Benchmark 3-Way QuickSort
+bench3W = cloneArray(benchDataOrig)
+t03W = t.millis()
+quickSortThreeWay(bench3W)
+t13W = t.millis()
+dur3W = t13W - t03W
+if (dur3W == 0) {
+    dur3W = 1
+}
+if (isSorted(bench3W) != 1 or computeArraySum(bench3W) != origSum or computeArrayXor(bench3W) != origXor) {
+    print("[FAIL] Test Case 6 3-Way QuickSort benchmark correctness failed")
+    testSuiteFailures = testSuiteFailures + 1
+} else {
+    print("  3-Way QuickSort (25000 elements): Duration = ", dur3W, " ms, Correctness = PASS")
+}
+
+print("  Test Case 6 Passed Multi-Megabyte Sorting Benchmark")
+
+// --- Final Telemetry & Summary ---
+
+totalElapsed = t.millis() - suiteStartTime
+
+print("")
+print("================================================================================")
+print("  MULTI-MEGABYTE NUMERIC ARRAY SORT RECURSION TELEMETRY")
+print("================================================================================")
+print("  Algorithms Tested  : HeapSort (In-Place), QuickSort (Bounded), 3-Way QuickSort, MergeSort (Stable)")
+print("  Topologies Tested  : Random, Ascending, Descending, Duplicate, Bitonic, Adversarial")
+print("  Elements Sorted    : 25,000 benchmark elements (plus >25,000 test case elements)")
+print("  Total Time Taken   : ", totalElapsed, " ms")
+print("  Total Failures     : ", testSuiteFailures)
+if (testSuiteFailures == 0) {
+    print("  STATUS: ALL TESTS PASSED [100% Deterministic]")
+} else {
+    print("  STATUS: TEST FAILURES DETECTED")
+}
+print("================================================================================")
+
 

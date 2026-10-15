@@ -914,7 +914,7 @@ This document lists all 245 algorithm cases that are planned for implementation 
   - **Target File**: `examples/richcodesample/jitDeoptimizationUnexpectedTypeFallback.nva`
   - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
   - **Objective**: JIT de-optimization fallback triggered by sudden unexpected variable type mutation.
-- [ ] **#981** `feat(algorithms): implement multiMegabyteNumericArraySortRecursion in richcodesamples`
+- [x] **#981** `feat(algorithms): implement multiMegabyteNumericArraySortRecursion in richcodesamples`
   - **Target File**: `examples/richcodesample/multiMegabyteNumericArraySortRecursion.nva`
   - **Complexity**: Time `O(1) - O(N^2)` | Space `O(1) - O(N)`
   - **Objective**: Sorting large numeric arrays testing in-place algorithm stability and recursion depth.
