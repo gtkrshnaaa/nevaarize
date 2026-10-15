@@ -138,6 +138,36 @@ func countBitDifferences(a, b) {
     return bits
 }
 
+func prngNextRaw(genType, genState) {
+    if (genType == 1) {
+        return lcgNext(genState)
+    }
+    if (genType == 2) {
+        return xorshift32Next(genState)
+    }
+    return splitMix32Next(genState)
+}
+
+func prngNextRange(genType, genState, minVal, maxVal) {
+    if (minVal == maxVal) {
+        return minVal
+    }
+    low = minVal
+    high = maxVal
+    if (low > high) {
+        temp = low
+        low = high
+        high = temp
+    }
+    rangeSpan = (high - low) + 1
+    rawVal = prngNextRaw(genType, genState)
+    rem = rawVal % rangeSpan
+    if (rem < 0) {
+        rem = rem + rangeSpan
+    }
+    return low + rem
+}
+
 // --- Test Case 1: Identical Seed Absolute Reproduction Across Independent Streams ---
 
 print("--- Running Test Case 1: Identical Seed Absolute Reproduction ---")
@@ -438,9 +468,186 @@ print("  SplitMix32 Multi-Tier Rollback (Tiers 250, 500 & 750) matched 100% exac
 
 print("  Test Case 3 Passed State Checkpointing, Rollback & Branch Streams")
 
-elapsedStage2 = t.millis() - suiteStartTime
+// --- Test Case 4: Statistical Uniformity & Chi-Square Goodness-of-Fit ---
+
+print("--- Running Test Case 4: Statistical Uniformity & Chi-Square Goodness-of-Fit ---")
+
+numBuckets = 10
+samplesPerTest = 50000
+expectedPerBucket = samplesPerTest / numBuckets
+
+// 4.1 LCG Uniformity
+bucketsLcg = makeIntArray(numBuckets, 0)
+chiLcgState = makeLcg(314159265)
+uIdx = 0
+while (uIdx < samplesPerTest) {
+    b = prngNextRange(1, chiLcgState, 0, 9)
+    bucketsLcg[b] = bucketsLcg[b] + 1
+    uIdx = uIdx + 1
+}
+
+scaledChiLcg = 0
+b = 0
+while (b < numBuckets) {
+    diff = bucketsLcg[b] - expectedPerBucket
+    scaledChiLcg = scaledChiLcg + ((diff * diff * 100) / expectedPerBucket)
+    if (bucketsLcg[b] < 4500 or bucketsLcg[b] > 5500) {
+        print("[FAIL] Test Case 4 LCG Bucket ", b, " out of expected range: count=", bucketsLcg[b])
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    b = b + 1
+}
+
+if (scaledChiLcg > 2167) {
+    print("[FAIL] Test Case 4 LCG Chi-Square exceeds threshold: scaledChi=", scaledChiLcg)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  LCG 50,000 samples 10-bucket Chi-Square: ", scaledChiLcg / 100, ".", scaledChiLcg % 100, " (threshold: 21.67)")
+
+// 4.2 Xorshift32 Uniformity
+bucketsXor = makeIntArray(numBuckets, 0)
+chiXorState = makeXorshift32(271828182)
+uIdx = 0
+while (uIdx < samplesPerTest) {
+    b = prngNextRange(2, chiXorState, 0, 9)
+    bucketsXor[b] = bucketsXor[b] + 1
+    uIdx = uIdx + 1
+}
+
+scaledChiXor = 0
+b = 0
+while (b < numBuckets) {
+    diff = bucketsXor[b] - expectedPerBucket
+    scaledChiXor = scaledChiXor + ((diff * diff * 100) / expectedPerBucket)
+    if (bucketsXor[b] < 4500 or bucketsXor[b] > 5500) {
+        print("[FAIL] Test Case 4 Xorshift32 Bucket ", b, " out of expected range: count=", bucketsXor[b])
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    b = b + 1
+}
+
+if (scaledChiXor > 2167) {
+    print("[FAIL] Test Case 4 Xorshift32 Chi-Square exceeds threshold: scaledChi=", scaledChiXor)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Xorshift32 50,000 samples 10-bucket Chi-Square: ", scaledChiXor / 100, ".", scaledChiXor % 100, " (threshold: 21.67)")
+
+// 4.3 SplitMix32 Uniformity
+bucketsSplit = makeIntArray(numBuckets, 0)
+chiSplitState = makeSplitMix32(141421356)
+uIdx = 0
+while (uIdx < samplesPerTest) {
+    b = prngNextRange(3, chiSplitState, 0, 9)
+    bucketsSplit[b] = bucketsSplit[b] + 1
+    uIdx = uIdx + 1
+}
+
+scaledChiSplit = 0
+b = 0
+while (b < numBuckets) {
+    diff = bucketsSplit[b] - expectedPerBucket
+    scaledChiSplit = scaledChiSplit + ((diff * diff * 100) / expectedPerBucket)
+    if (bucketsSplit[b] < 4500 or bucketsSplit[b] > 5500) {
+        print("[FAIL] Test Case 4 SplitMix32 Bucket ", b, " out of expected range: count=", bucketsSplit[b])
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    b = b + 1
+}
+
+if (scaledChiSplit > 2167) {
+    print("[FAIL] Test Case 4 SplitMix32 Chi-Square exceeds threshold: scaledChi=", scaledChiSplit)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  SplitMix32 50,000 samples 10-bucket Chi-Square: ", scaledChiSplit / 100, ".", scaledChiSplit % 100, " (threshold: 21.67)")
+
+print("  Test Case 4 Passed Statistical Uniformity & Chi-Square Goodness-of-Fit (all generators p > 0.01)")
+
+// --- Test Case 5: Bounded Range & Boundary Edge Cases ---
+
+print("--- Running Test Case 5: Bounded Range & Boundary Edge Cases ---")
+
+rangeState = makeSplitMix32(88888888)
+
+// 5.1 Degenerate single point range [42, 42]
+rIdx = 0
+while (rIdx < 200) {
+    val = prngNextRange(3, rangeState, 42, 42)
+    if (val != 42) {
+        print("[FAIL] Test Case 5 Degenerate [42, 42] failed: got ", val)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    rIdx = rIdx + 1
+}
+
+// 5.2 Zero range [0, 0]
+rIdx = 0
+while (rIdx < 200) {
+    val = prngNextRange(3, rangeState, 0, 0)
+    if (val != 0) {
+        print("[FAIL] Test Case 5 Zero range [0, 0] failed: got ", val)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    rIdx = rIdx + 1
+}
+
+// 5.3 Inverted order [100, 50] (should auto-swap to [50, 100])
+rIdx = 0
+while (rIdx < 500) {
+    val = prngNextRange(3, rangeState, 100, 50)
+    if (val < 50 or val > 100) {
+        print("[FAIL] Test Case 5 Inverted [100, 50] out of bounds: got ", val)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    rIdx = rIdx + 1
+}
+
+// 5.4 Symmetric negative-positive range [-50, 50]
+rIdx = 0
+while (rIdx < 1000) {
+    val = prngNextRange(3, rangeState, -50, 50)
+    if (val < -50 or val > 50) {
+        print("[FAIL] Test Case 5 Negative-positive [-50, 50] out of bounds: got ", val)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    rIdx = rIdx + 1
+}
+
+// 5.5 Strictly negative range [-200, -100]
+rIdx = 0
+while (rIdx < 1000) {
+    val = prngNextRange(3, rangeState, -200, -100)
+    if (val < -200 or val > -100) {
+        print("[FAIL] Test Case 5 Negative range [-200, -100] out of bounds: got ", val)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    rIdx = rIdx + 1
+}
+
+// 5.6 Boundary coverage test: ensure both min and max endpoints are reached
+minReached = 0
+maxReached = 0
+rIdx = 0
+while (rIdx < 2000) {
+    val = prngNextRange(3, rangeState, 1, 5)
+    if (val == 1) {
+        minReached = 1
+    }
+    if (val == 5) {
+        maxReached = 1
+    }
+    rIdx = rIdx + 1
+}
+
+if (minReached != 1 or maxReached != 1) {
+    print("[FAIL] Test Case 5 Boundary coverage failed: minReached=", minReached, " maxReached=", maxReached)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 5 Passed Bounded Range & Boundary Edge Cases (single point, zero, inverted, negative, boundary coverage)")
+
+elapsedStage3 = t.millis() - suiteStartTime
 if (testSuiteFailures != 0) {
-    print("[FAIL] Stage 2 encountered failures: ", testSuiteFailures)
+    print("[FAIL] Stage 3 encountered failures: ", testSuiteFailures)
 } else {
-    print("  Stage 2 completed in ", elapsedStage2, " ms")
+    print("  Stage 3 completed in ", elapsedStage3, " ms")
 }
