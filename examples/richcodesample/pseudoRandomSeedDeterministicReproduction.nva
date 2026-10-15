@@ -116,6 +116,28 @@ func splitMix32Next(stateArr) {
     return z
 }
 
+func copyLcgState(stateArr) {
+    return [stateArr[0], stateArr[1], stateArr[2], stateArr[3]]
+}
+
+func copyXorState(stateArr) {
+    return [stateArr[0]]
+}
+
+func copySplitState(stateArr) {
+    return [stateArr[0]]
+}
+
+func countBitDifferences(a, b) {
+    diff = (a ^ b) & 2147483647
+    bits = 0
+    while (diff > 0) {
+        bits = bits + (diff & 1)
+        diff = diff >> 1
+    }
+    return bits
+}
+
 // --- Test Case 1: Identical Seed Absolute Reproduction Across Independent Streams ---
 
 print("--- Running Test Case 1: Identical Seed Absolute Reproduction ---")
@@ -208,9 +230,217 @@ print("  SplitMix32 10,000 samples matched 100% (FNV-1a Hash: ", hashSplitA, ")"
 
 print("  Test Case 1 Passed Identical Seed Absolute Reproduction (30,000 values, 0 divergence)")
 
-elapsedStage1 = t.millis() - suiteStartTime
+// --- Test Case 2: Seed Sensitivity & Instant Avalanche Divergence ---
+
+print("--- Running Test Case 2: Seed Sensitivity & Avalanche Divergence ---")
+
+sensitivitySamples = 1000
+
+// 2.1 LCG 1-bit seed perturbation divergence
+baseSeed = 100000000
+perturbedSeed = 100000001
+sensLcgA = makeLcg(baseSeed)
+sensLcgB = makeLcg(perturbedSeed)
+
+mismatchCountLcg = 0
+totalBitDiffLcg = 0
+sIdx = 0
+while (sIdx < sensitivitySamples) {
+    vA = lcgNext(sensLcgA)
+    vB = lcgNext(sensLcgB)
+    if (vA != vB) {
+        mismatchCountLcg = mismatchCountLcg + 1
+    }
+    totalBitDiffLcg = totalBitDiffLcg + countBitDifferences(vA, vB)
+    sIdx = sIdx + 1
+}
+
+if (mismatchCountLcg != sensitivitySamples) {
+    print("[FAIL] Test Case 2 LCG failed to diverge on all samples: mismatches=", mismatchCountLcg)
+    testSuiteFailures = testSuiteFailures + 1
+}
+avgBitDiffLcg = totalBitDiffLcg / sensitivitySamples
+print("  LCG 1-bit seed difference: ", mismatchCountLcg, "/1000 mismatches, avg bit diff: ", avgBitDiffLcg)
+
+// 2.2 Xorshift32 1-bit seed perturbation divergence
+sensXorA = makeXorshift32(baseSeed)
+sensXorB = makeXorshift32(perturbedSeed)
+
+mismatchCountXor = 0
+totalBitDiffXor = 0
+sIdx = 0
+while (sIdx < sensitivitySamples) {
+    vA = xorshift32Next(sensXorA)
+    vB = xorshift32Next(sensXorB)
+    if (vA != vB) {
+        mismatchCountXor = mismatchCountXor + 1
+    }
+    totalBitDiffXor = totalBitDiffXor + countBitDifferences(vA, vB)
+    sIdx = sIdx + 1
+}
+
+if (mismatchCountXor != sensitivitySamples) {
+    print("[FAIL] Test Case 2 Xorshift32 failed to diverge on all samples: mismatches=", mismatchCountXor)
+    testSuiteFailures = testSuiteFailures + 1
+}
+avgBitDiffXor = totalBitDiffXor / sensitivitySamples
+print("  Xorshift32 1-bit seed difference: ", mismatchCountXor, "/1000 mismatches, avg bit diff: ", avgBitDiffXor)
+
+// 2.3 SplitMix32 1-bit seed perturbation divergence
+sensSplitA = makeSplitMix32(baseSeed)
+sensSplitB = makeSplitMix32(perturbedSeed)
+
+mismatchCountSplit = 0
+totalBitDiffSplit = 0
+sIdx = 0
+while (sIdx < sensitivitySamples) {
+    vA = splitMix32Next(sensSplitA)
+    vB = splitMix32Next(sensSplitB)
+    if (vA != vB) {
+        mismatchCountSplit = mismatchCountSplit + 1
+    }
+    totalBitDiffSplit = totalBitDiffSplit + countBitDifferences(vA, vB)
+    sIdx = sIdx + 1
+}
+
+if (mismatchCountSplit != sensitivitySamples) {
+    print("[FAIL] Test Case 2 SplitMix32 failed to diverge on all samples: mismatches=", mismatchCountSplit)
+    testSuiteFailures = testSuiteFailures + 1
+}
+avgBitDiffSplit = totalBitDiffSplit / sensitivitySamples
+print("  SplitMix32 1-bit seed difference: ", mismatchCountSplit, "/1000 mismatches, avg bit diff: ", avgBitDiffSplit)
+
+print("  Test Case 2 Passed Seed Sensitivity & Avalanche Divergence (100% immediate divergence across all generators)")
+
+// --- Test Case 3: State Checkpointing, Rollback & Branch Streams ---
+
+print("--- Running Test Case 3: State Checkpointing & Branch Streams ---")
+
+checkpointTotalSteps = 1000
+checkpointAt = 500
+
+// 3.1 LCG State Checkpointing & Branch Stream
+ckptLcgStream = makeLcg(54321)
+ckptLcgHistory = []
+step = 0
+ckptLcgSavedState = []
+
+while (step < checkpointTotalSteps) {
+    if (step == checkpointAt) {
+        ckptLcgSavedState = copyLcgState(ckptLcgStream)
+    }
+    val = lcgNext(ckptLcgStream)
+    ckptLcgHistory.push(val)
+    step = step + 1
+}
+
+// Restore saved state at step 500 into a branch stream
+branchLcgStream = copyLcgState(ckptLcgSavedState)
+bIdx = checkpointAt
+while (bIdx < checkpointTotalSteps) {
+    branchVal = lcgNext(branchLcgStream)
+    expectedVal = ckptLcgHistory[bIdx]
+    if (branchVal != expectedVal) {
+        print("[FAIL] Test Case 3 LCG Branch mismatch at step ", bIdx, ": expected ", expectedVal, " got ", branchVal)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    bIdx = bIdx + 1
+}
+print("  LCG State Rollback: steps 500..1000 matched 100% exactly")
+
+// 3.2 Xorshift32 State Checkpointing & Branch Stream
+ckptXorStream = makeXorshift32(98765)
+ckptXorHistory = []
+step = 0
+ckptXorSavedState = []
+
+while (step < checkpointTotalSteps) {
+    if (step == checkpointAt) {
+        ckptXorSavedState = copyXorState(ckptXorStream)
+    }
+    val = xorshift32Next(ckptXorStream)
+    ckptXorHistory.push(val)
+    step = step + 1
+}
+
+branchXorStream = copyXorState(ckptXorSavedState)
+bIdx = checkpointAt
+while (bIdx < checkpointTotalSteps) {
+    branchVal = xorshift32Next(branchXorStream)
+    expectedVal = ckptXorHistory[bIdx]
+    if (branchVal != expectedVal) {
+        print("[FAIL] Test Case 3 Xorshift32 Branch mismatch at step ", bIdx, ": expected ", expectedVal, " got ", branchVal)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    bIdx = bIdx + 1
+}
+print("  Xorshift32 State Rollback: steps 500..1000 matched 100% exactly")
+
+// 3.3 SplitMix32 Multiple Tier Checkpoints (250, 500, 750)
+ckptSplitStream = makeSplitMix32(13579)
+ckptSplitHistory = []
+step = 0
+ckptSplit250 = []
+ckptSplit500 = []
+ckptSplit750 = []
+
+while (step < checkpointTotalSteps) {
+    if (step == 250) {
+        ckptSplit250 = copySplitState(ckptSplitStream)
+    }
+    if (step == 500) {
+        ckptSplit500 = copySplitState(ckptSplitStream)
+    }
+    if (step == 750) {
+        ckptSplit750 = copySplitState(ckptSplitStream)
+    }
+    val = splitMix32Next(ckptSplitStream)
+    ckptSplitHistory.push(val)
+    step = step + 1
+}
+
+// Validate branch from step 250
+bStream250 = copySplitState(ckptSplit250)
+bIdx = 250
+while (bIdx < 500) {
+    bVal = splitMix32Next(bStream250)
+    if (bVal != ckptSplitHistory[bIdx]) {
+        print("[FAIL] Test Case 3 SplitMix32 Tier 250 mismatch at step ", bIdx)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    bIdx = bIdx + 1
+}
+
+// Validate branch from step 500
+bStream500 = copySplitState(ckptSplit500)
+bIdx = 500
+while (bIdx < 750) {
+    bVal = splitMix32Next(bStream500)
+    if (bVal != ckptSplitHistory[bIdx]) {
+        print("[FAIL] Test Case 3 SplitMix32 Tier 500 mismatch at step ", bIdx)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    bIdx = bIdx + 1
+}
+
+// Validate branch from step 750
+bStream750 = copySplitState(ckptSplit750)
+bIdx = 750
+while (bIdx < checkpointTotalSteps) {
+    bVal = splitMix32Next(bStream750)
+    if (bVal != ckptSplitHistory[bIdx]) {
+        print("[FAIL] Test Case 3 SplitMix32 Tier 750 mismatch at step ", bIdx)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    bIdx = bIdx + 1
+}
+print("  SplitMix32 Multi-Tier Rollback (Tiers 250, 500 & 750) matched 100% exactly")
+
+print("  Test Case 3 Passed State Checkpointing, Rollback & Branch Streams")
+
+elapsedStage2 = t.millis() - suiteStartTime
 if (testSuiteFailures != 0) {
-    print("[FAIL] Stage 1 encountered failures: ", testSuiteFailures)
+    print("[FAIL] Stage 2 encountered failures: ", testSuiteFailures)
 } else {
-    print("  Stage 1 completed in ", elapsedStage1, " ms")
+    print("  Stage 2 completed in ", elapsedStage2, " ms")
 }
