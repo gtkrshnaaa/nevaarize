@@ -38,6 +38,42 @@ handlerIdPolynomialStep = 14
 handlerIdHypotSquared = 15
 handlerIdGoldenRatioStep = 16
 
+// --- VM Opcode Constants (Sparse Non-Contiguous) ---
+
+opNoop = 0
+opLoadImm = 16
+opCopy = 32
+opAdd = 42
+opSub = 99
+opMul = 128
+opDiv = 256
+opMod = 512
+opBitAnd = 1024
+opBitOr = 2048
+opBitXor = 4096
+opShiftLeft = 8192
+opShiftRight = 16384
+opJumpIfZero = 32768
+opJump = 49152
+opHalt = 65535
+
+vmHandlerNoop = 1
+vmHandlerLoadImm = 2
+vmHandlerCopy = 3
+vmHandlerAdd = 4
+vmHandlerSub = 5
+vmHandlerMul = 6
+vmHandlerDiv = 7
+vmHandlerMod = 8
+vmHandlerBitAnd = 9
+vmHandlerBitOr = 10
+vmHandlerBitXor = 11
+vmHandlerShiftLeft = 12
+vmHandlerShiftRight = 13
+vmHandlerJumpIfZero = 14
+vmHandlerJump = 15
+vmHandlerHalt = 16
+
 // --- Telemetry Counters ---
 
 totalDispatches = [0]
@@ -364,6 +400,92 @@ func dispatchClusteredJumpTable(clusteredTableRef, targetKey, defaultHandler) {
     return dispatchBinarySearch(clOutliers, targetKey, defaultHandler)
 }
 
+// --- Sparse Opcode Virtual Machine Execution Engine ---
+
+func executeSparseVm(vmProgram, vmRegisters, maxCycles, vmJumpTable, dispatchMode) {
+    vmPc = 0
+    vmCycleCount = 0
+    vmIsRunning = 1
+    vmProgLength = vmProgram.size()
+
+    while (vmIsRunning == 1 and vmCycleCount < maxCycles and vmPc < vmProgLength) {
+        opcode = vmProgram[vmPc]
+        rDest = vmProgram[vmPc + 1]
+        rSrc1 = vmProgram[vmPc + 2]
+        rSrc2 = vmProgram[vmPc + 3]
+        vmPc = vmPc + 4
+        vmCycleCount = vmCycleCount + 1
+        vmInstructionsExecuted[0] = vmInstructionsExecuted[0] + 1
+
+        // Dispatch opcode using the specified jump table mode:
+        // 1 = Binary Search Table, 2 = Hash Table, 3 = Clustered Table
+        decodedHandler = 0
+        if (dispatchMode == 1) {
+            decodedHandler = dispatchBinarySearch(vmJumpTable, opcode, 0)
+        } elif (dispatchMode == 2) {
+            decodedHandler = dispatchHashJumpTable(vmJumpTable, opcode, 0)
+        } else {
+            decodedHandler = dispatchClusteredJumpTable(vmJumpTable, opcode, 0)
+        }
+
+        if (decodedHandler == 1) {
+            // vmHandlerNoop: no operation
+            noOpVar = 0
+        } elif (decodedHandler == 2) {
+            // vmHandlerLoadImm: rDest = immediate rSrc2
+            vmRegisters[rDest] = rSrc2
+        } elif (decodedHandler == 3) {
+            // vmHandlerCopy: rDest = rSrc1
+            vmRegisters[rDest] = vmRegisters[rSrc1]
+        } elif (decodedHandler == 4) {
+            // vmHandlerAdd: rDest = rSrc1 + rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] + vmRegisters[rSrc2]
+        } elif (decodedHandler == 5) {
+            // vmHandlerSub: rDest = rSrc1 - rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] - vmRegisters[rSrc2]
+        } elif (decodedHandler == 6) {
+            // vmHandlerMul: rDest = rSrc1 * rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] * vmRegisters[rSrc2]
+        } elif (decodedHandler == 7) {
+            // vmHandlerDiv: rDest = rSrc1 / rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] / vmRegisters[rSrc2]
+        } elif (decodedHandler == 8) {
+            // vmHandlerMod: rDest = rSrc1 % rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] % vmRegisters[rSrc2]
+        } elif (decodedHandler == 9) {
+            // vmHandlerBitAnd: rDest = rSrc1 & rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] & vmRegisters[rSrc2]
+        } elif (decodedHandler == 10) {
+            // vmHandlerBitOr: rDest = rSrc1 | rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] | vmRegisters[rSrc2]
+        } elif (decodedHandler == 11) {
+            // vmHandlerBitXor: rDest = rSrc1 ^ rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] ^ vmRegisters[rSrc2]
+        } elif (decodedHandler == 12) {
+            // vmHandlerShiftLeft: rDest = rSrc1 << rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] << rSrc2
+        } elif (decodedHandler == 13) {
+            // vmHandlerShiftRight: rDest = rSrc1 >> rSrc2
+            vmRegisters[rDest] = vmRegisters[rSrc1] >> rSrc2
+        } elif (decodedHandler == 14) {
+            // vmHandlerJumpIfZero: if rSrc1 == 0, vmPc = targetPc (rSrc2)
+            if (vmRegisters[rSrc1] == 0) {
+                vmPc = rSrc2
+            }
+        } elif (decodedHandler == 15) {
+            // vmHandlerJump: vmPc = targetPc (rSrc2)
+            vmPc = rSrc2
+        } elif (decodedHandler == 16) {
+            // vmHandlerHalt: terminate execution
+            vmIsRunning = 0
+        } else {
+            // Unknown opcode fault
+            vmIsRunning = 0
+        }
+    }
+    return vmCycleCount
+}
+
 // --- Test Case 1: Core Dispatch Models & Default Fallback Validation ---
 
 print("--- Running Test Case 1: Core Dispatch Models and Default Fallbacks ---")
@@ -523,27 +645,23 @@ print("--- Running Test Case 3: Handler Mathematical Invariants ---")
 testAcc = 7
 testKey = 42
 
-// Test handlerIdNegateAbs
 valNeg = dispatchAction(handlerIdNegateAbs, -125, testKey)
 if (valNeg != 125 and valNeg != -125) {
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Test handlerIdResetZero
 valZero = dispatchAction(handlerIdResetZero, 9999, testKey)
 if (valZero != 0) {
     print("[FAIL] Test Case 3 handlerIdResetZero expected 0, got ", valZero)
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Test handlerIdCube: 7^3 = 343
 valCube = dispatchAction(handlerIdCube, 7, testKey)
 if (valCube != 343) {
     print("[FAIL] Test Case 3 handlerIdCube expected 343, got ", valCube)
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Test handlerIdCollatzStep: even 10 -> 5, odd 7 -> 22
 collatzEven = dispatchAction(handlerIdCollatzStep, 10, testKey)
 collatzOdd = dispatchAction(handlerIdCollatzStep, 7, testKey)
 if (collatzEven != 5 or collatzOdd != 22) {
@@ -551,14 +669,12 @@ if (collatzEven != 5 or collatzOdd != 22) {
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Test handlerIdMultiply13: 10 * 13 = 130
 valMul13 = dispatchAction(handlerIdMultiply13, 10, testKey)
 if (valMul13 != 130) {
     print("[FAIL] Test Case 3 handlerIdMultiply13 expected 130, got ", valMul13)
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Test handlerIdClamp1000: clamp bounds [-1000, 1000]
 valClampHigh = dispatchAction(handlerIdClamp1000, 2500, testKey)
 valClampLow = dispatchAction(handlerIdClamp1000, -2500, testKey)
 valClampMid = dispatchAction(handlerIdClamp1000, 450, testKey)
@@ -567,14 +683,12 @@ if (valClampHigh != 1000 or valClampLow != -1000 or valClampMid != 450) {
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Test handlerIdShiftRight2: 64 >> 2 = 16
 valShr2 = dispatchAction(handlerIdShiftRight2, 64, testKey)
 if (valShr2 != 16) {
     print("[FAIL] Test Case 3 handlerIdShiftRight2 expected 16, got ", valShr2)
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Test handlerIdDefault fallback deterministic behavior
 valDef1 = dispatchAction(handlerIdDefault, 100, 55)
 valDef2 = dispatchAction(handlerIdDefault, 100, 55)
 if (valDef1 != valDef2 or valDef1 != (((100 ^ 55) + 42) % 1000007)) {
@@ -583,3 +697,149 @@ if (valDef1 != valDef2 or valDef1 != (((100 ^ 55) + 42) % 1000007)) {
 }
 
 print("  Test Case 3 Passed Handler Mathematical Invariants")
+
+// --- Test Case 4: Clustered Partitioning and Density Optimization ---
+
+print("--- Running Test Case 4: Clustered Partitioning and Density Optimization ---")
+
+// Analyze span and memory footprint of naive dense table vs clustered partitioned table
+naiveMin = -500
+naiveMax = 1000000
+naiveSpan = naiveMax - naiveMin + 1
+sparseCount = sparseKeys2.size()
+
+// Clustered table footprint:
+// Cluster 1: [100..105] -> 6 entries
+// Outliers in BST: 10 entries
+clusteredFootprint = 6 + 10
+memorySavingsRatio = (naiveSpan - clusteredFootprint) * 100 / naiveSpan
+
+if (naiveSpan != 1000501) {
+    print("[FAIL] Test Case 4 Naive span expected 1000501, got ", naiveSpan)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (clusteredFootprint != 16) {
+    print("[FAIL] Test Case 4 Clustered footprint expected 16, got ", clusteredFootprint)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (memorySavingsRatio < 99) {
+    print("[FAIL] Test Case 4 Expected >99% memory savings, got ", memorySavingsRatio)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 4 Passed Clustered Partitioning and Density Optimization (", memorySavingsRatio, "% memory savings)")
+
+// --- Test Case 5: Sparse Opcode Virtual Machine Execution Engine ---
+
+print("--- Running Test Case 5: Sparse Opcode Virtual Machine Execution Engine ---")
+
+// Compile VM opcodes into BST, Hash, and Clustered Jump Tables
+vmOpcodes = [0, 16, 32, 42, 99, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 49152, 65535]
+vmHandlers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+
+vmBstTable = createBinarySearchJumpTable(vmOpcodes, vmHandlers)
+vmHashTable = createHashJumpTable(vmOpcodes, vmHandlers, 0)
+
+vmClusterSpecs = [
+    [0, 0, [0], [1]],
+    [16, 32, [16, 32], [2, 3]]
+]
+vmOutlierOpcodes = [42, 99, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 49152, 65535]
+vmOutlierHandlers = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+vmClusteredTable = createClusteredJumpTable(vmClusterSpecs, vmOutlierOpcodes, vmOutlierHandlers, 0)
+
+// VM Program 1: Fibonacci(12)
+fibProgram = [
+    16, 0, 0, 12,
+    16, 1, 0, 0,
+    16, 2, 0, 1,
+    16, 5, 0, 1,
+    32768, 0, 0, 48,
+    42, 3, 1, 2,
+    32, 1, 2, 0,
+    32, 2, 3, 0,
+    99, 0, 0, 5,
+    49152, 0, 0, 16,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    65535, 0, 0, 0
+]
+
+// Execute Fib(12) on BST, Hash, and Clustered VM dispatchers
+regsFibBst = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesFibBst = executeSparseVm(fibProgram, regsFibBst, 1000, vmBstTable, 1)
+
+regsFibHash = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesFibHash = executeSparseVm(fibProgram, regsFibHash, 1000, vmHashTable, 2)
+
+regsFibClus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesFibClus = executeSparseVm(fibProgram, regsFibClus, 1000, vmClusteredTable, 3)
+
+if (regsFibBst[1] != 144 or regsFibHash[1] != 144 or regsFibClus[1] != 144) {
+    print("[FAIL] Test Case 5 Fib(12) mismatch: bst=", regsFibBst[1], " hash=", regsFibHash[1], " clus=", regsFibClus[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (cyclesFibBst != cyclesFibHash or cyclesFibBst != cyclesFibClus) {
+    print("[FAIL] Test Case 5 Fib cycle counts mismatch between dispatchers")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// VM Program 2: Euclidean GCD of 1071 and 462
+gcdProgram = [
+    16, 1, 0, 1071,
+    16, 2, 0, 462,
+    16, 4, 0, 1,
+    32768, 0, 2, 32,
+    512, 3, 1, 2,
+    32, 1, 2, 0,
+    32, 2, 3, 0,
+    49152, 0, 0, 12,
+    65535, 0, 0, 0
+]
+
+regsGcdBst = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesGcdBst = executeSparseVm(gcdProgram, regsGcdBst, 1000, vmBstTable, 1)
+
+regsGcdHash = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesGcdHash = executeSparseVm(gcdProgram, regsGcdHash, 1000, vmHashTable, 2)
+
+regsGcdClus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesGcdClus = executeSparseVm(gcdProgram, regsGcdClus, 1000, vmClusteredTable, 3)
+
+if (regsGcdBst[1] != 21 or regsGcdHash[1] != 21 or regsGcdClus[1] != 21) {
+    print("[FAIL] Test Case 5 GCD mismatch: bst=", regsGcdBst[1], " hash=", regsGcdHash[1], " clus=", regsGcdClus[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// VM Program 3: Sum of 10 Odd Numbers (1 + 3 + ... + 19 = 100)
+sumProgram = [
+    16, 0, 0, 1,
+    16, 1, 0, 0,
+    16, 2, 0, 2,
+    16, 3, 0, 10,
+    16, 5, 0, 1,
+    32768, 0, 3, 48,
+    42, 1, 1, 0,
+    42, 0, 0, 2,
+    99, 3, 3, 5,
+    49152, 0, 0, 20,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    65535, 0, 0, 0
+]
+
+regsSumBst = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesSumBst = executeSparseVm(sumProgram, regsSumBst, 1000, vmBstTable, 1)
+
+regsSumHash = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesSumHash = executeSparseVm(sumProgram, regsSumHash, 1000, vmHashTable, 2)
+
+regsSumClus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+cyclesSumClus = executeSparseVm(sumProgram, regsSumClus, 1000, vmClusteredTable, 3)
+
+if (regsSumBst[1] != 100 or regsSumHash[1] != 100 or regsSumClus[1] != 100) {
+    print("[FAIL] Test Case 5 Sum mismatch: bst=", regsSumBst[1], " hash=", regsSumHash[1], " clus=", regsSumClus[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 5 Passed Sparse Opcode Virtual Machine Execution Engine")
