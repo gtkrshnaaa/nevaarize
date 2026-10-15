@@ -27,6 +27,8 @@ genTypeRange = 1
 genTypeMultiPhase = 2
 genTypeGrid2D = 3
 genTypeTensor3D = 4
+genTypeFibonacci = 5
+genTypeDelegator = 6
 
 // --- Core Generator Construction and Access Primitives ---
 // Generator layout:
@@ -39,32 +41,50 @@ genTypeTensor3D = 4
 // [6]: r3 (general register 3: secondary loop variable or filter flag)
 // [7]: r4 (general register 4: tertiary loop variable or inner state)
 // [8]: r5 (general register 5: extra state or accumulator)
-// [9]: currentValue (last yielded value)
-// [10]: done (0: false, 1: true)
-// [11]: yieldCount (total number of yields emitted)
-// [12]: stepCount (total number of step/resume invocations)
+// [9]: r6 (general register 6: flag or extra status)
+// [10]: currentValue (last yielded value)
+// [11]: done (0: false, 1: true)
+// [12]: yieldCount (total number of yields emitted)
+// [13]: stepCount (total number of step/resume invocations)
 
-func createGenerator(genType, r0, r1, r2, r3, r4, r5) {
-    return [statusCreated, 0, genType, r0, r1, r2, r3, r4, r5, 0, 0, 0, 0]
+func createGenerator(genType, r0, r1, r2, r3, r4, r5, r6) {
+    return [statusCreated, 0, genType, r0, r1, r2, r3, r4, r5, r6, 0, 0, 0, 0]
 }
 
 func isGeneratorDone(gen) {
-    if (gen[10] == 1) {
+    if (gen[11] == 1) {
         return true
     }
     return false
 }
 
 func getGeneratorValue(gen) {
-    return gen[9]
+    return gen[10]
 }
 
 func getGeneratorYieldCount(gen) {
-    return gen[11]
+    return gen[12]
 }
 
 func getGeneratorStepCount(gen) {
-    return gen[12]
+    return gen[13]
+}
+
+// --- Multi-Segment Delegation Registry ---
+
+func getDelegatorSegment(compId, segIdx) {
+    if (compId == 1) {
+        if (segIdx == 0) {
+            return [1, 4, 1]
+        }
+        if (segIdx == 1) {
+            return [10, 40, 10]
+        }
+        if (segIdx == 2) {
+            return [100, 300, 100]
+        }
+    }
+    return [0, 0, 1]
 }
 
 // --- Generator Step Dispatch Engine ---
@@ -80,7 +100,7 @@ func stepRange(gen) {
     while (keepLooping == 1) {
         if (curr >= stop) {
             gen[0] = statusCompleted
-            gen[10] = 1
+            gen[11] = 1
             gen[1] = 99
             return 0
         }
@@ -106,8 +126,8 @@ func stepRange(gen) {
         if (meetsFilter == 1) {
             gen[0] = statusSuspendedYield
             gen[1] = 1
-            gen[9] = curr
-            gen[11] = gen[11] + 1
+            gen[10] = curr
+            gen[12] = gen[12] + 1
             return 1
         }
 
@@ -120,48 +140,44 @@ func stepRange(gen) {
 func stepMultiPhase(gen) {
     // r0: current batch k
     // r1: total batches maxK
-    // pc: 0 (start batch phase 1), 1 (phase 2), 2 (phase 3)
+    // pc: 0 (phase 1 header), 1 (phase 2 payload), 2 (phase 3 checksum)
     k = gen[3]
     maxK = gen[4]
     currentPc = gen[1]
 
     if (k > maxK) {
         gen[0] = statusCompleted
-        gen[10] = 1
+        gen[11] = 1
         return 0
     }
 
     if (currentPc == 0) {
-        // Phase 1: Batch Header
         headerVal = (k * 1000) + 1
         gen[0] = statusSuspendedYield
         gen[1] = 1
-        gen[9] = headerVal
-        gen[11] = gen[11] + 1
+        gen[10] = headerVal
+        gen[12] = gen[12] + 1
         return 1
     } elif (currentPc == 1) {
-        // Phase 2: Batch Payload
         payloadVal = (k * 1000) + 2
         gen[0] = statusSuspendedYield
         gen[1] = 2
-        gen[9] = payloadVal
-        gen[11] = gen[11] + 1
+        gen[10] = payloadVal
+        gen[12] = gen[12] + 1
         return 1
     } elif (currentPc == 2) {
-        // Phase 3: Batch Checksum
         payloadVal = (k * 1000) + 2
         checksumVal = (payloadVal * 7) + 3
         gen[0] = statusSuspendedYield
-        // Advance to next batch and reset PC
         gen[3] = k + 1
         gen[1] = 0
-        gen[9] = checksumVal
-        gen[11] = gen[11] + 1
+        gen[10] = checksumVal
+        gen[12] = gen[12] + 1
         return 1
     }
 
     gen[0] = statusCompleted
-    gen[10] = 1
+    gen[11] = 1
     return 0
 }
 
@@ -174,7 +190,7 @@ func stepGrid2D(gen) {
 
     if (row >= maxRows) {
         gen[0] = statusCompleted
-        gen[10] = 1
+        gen[11] = 1
         return 0
     }
 
@@ -191,8 +207,8 @@ func stepGrid2D(gen) {
     gen[5] = nextCol
     gen[0] = statusSuspendedYield
     gen[1] = 1
-    gen[9] = cellVal
-    gen[11] = gen[11] + 1
+    gen[10] = cellVal
+    gen[12] = gen[12] + 1
     return 1
 }
 
@@ -207,7 +223,7 @@ func stepTensor3D(gen) {
 
     if (curD >= maxD) {
         gen[0] = statusCompleted
-        gen[10] = 1
+        gen[11] = 1
         return 0
     }
 
@@ -231,17 +247,92 @@ func stepTensor3D(gen) {
     gen[7] = nextC
     gen[0] = statusSuspendedYield
     gen[1] = 1
-    gen[9] = tensorVal
-    gen[11] = gen[11] + 1
+    gen[10] = tensorVal
+    gen[12] = gen[12] + 1
     return 1
 }
 
-func stepGenerator(gen) {
-    if (gen[10] == 1) {
+func stepFibonacci(gen) {
+    // r0: a, r1: b, r2: currentCount, r3: maxCount
+    fibA = gen[3]
+    fibB = gen[4]
+    currentCount = gen[5]
+    maxCount = gen[6]
+
+    if (currentCount >= maxCount) {
+        gen[0] = statusCompleted
+        gen[11] = 1
         return 0
     }
 
+    nextA = fibB
+    nextB = fibA + fibB
+    gen[3] = nextA
+    gen[4] = nextB
+    gen[5] = currentCount + 1
+
+    gen[0] = statusSuspendedYield
+    gen[1] = 1
+    gen[10] = fibA
     gen[12] = gen[12] + 1
+    return 1
+}
+
+func stepDelegator(gen) {
+    // r0: compId, r1: segIdx, r2: totalSegs, r3: curr, r4: stop, r5: stepVal, r6: isInit
+    compId = gen[3]
+    segIdx = gen[4]
+    totalSegs = gen[5]
+    curr = gen[6]
+    stop = gen[7]
+    stepVal = gen[8]
+    isInit = gen[9]
+
+    keepSearching = 1
+    while (keepSearching == 1) {
+        if (isInit == 0) {
+            if (segIdx >= totalSegs) {
+                gen[0] = statusCompleted
+                gen[11] = 1
+                return 0
+            }
+            seg = getDelegatorSegment(compId, segIdx)
+            curr = seg[0]
+            stop = seg[1]
+            stepVal = seg[2]
+            isInit = 1
+        }
+
+        if (curr >= stop) {
+            segIdx = segIdx + 1
+            isInit = 0
+        } else {
+            yieldedVal = curr
+            nextCurr = curr + stepVal
+
+            gen[4] = segIdx
+            gen[6] = nextCurr
+            gen[7] = stop
+            gen[8] = stepVal
+            gen[9] = 1
+
+            gen[0] = statusSuspendedYield
+            gen[1] = 1
+            gen[10] = yieldedVal
+            gen[12] = gen[12] + 1
+            return 1
+        }
+    }
+
+    return 0
+}
+
+func stepGenerator(gen) {
+    if (gen[11] == 1) {
+        return 0
+    }
+
+    gen[13] = gen[13] + 1
     gen[0] = statusRunning
 
     targetType = gen[2]
@@ -253,11 +344,14 @@ func stepGenerator(gen) {
         return stepGrid2D(gen)
     } elif (targetType == 4) {
         return stepTensor3D(gen)
+    } elif (targetType == 5) {
+        return stepFibonacci(gen)
+    } elif (targetType == 6) {
+        return stepDelegator(gen)
     }
 
-    // Default: unknown generator terminates
     gen[0] = statusCompleted
-    gen[10] = 1
+    gen[11] = 1
     return 0
 }
 
@@ -280,7 +374,95 @@ func drainGenerator(gen, maxItems) {
         }
     }
 
-    return [collected, itemsCount]
+    return collected
+}
+
+func zipGenerators(genA, genB, maxPairs) {
+    pairs = []
+    pairsCount = 0
+    continueZipping = 1
+
+    while (continueZipping == 1) {
+        if (pairsCount >= maxPairs) {
+            continueZipping = 0
+        } else {
+            stepA = stepGenerator(genA)
+            stepB = stepGenerator(genB)
+            if (stepA == 1) {
+                if (stepB == 1) {
+                    valA = getGeneratorValue(genA)
+                    valB = getGeneratorValue(genB)
+                    pairs.push([valA, valB])
+                    pairsCount = pairsCount + 1
+                } else {
+                    continueZipping = 0
+                }
+            } else {
+                continueZipping = 0
+            }
+        }
+    }
+
+    return pairs
+}
+
+func mergeSortedGenerators(genA, genB, maxItems) {
+    merged = []
+    mergedCount = 0
+
+    hasA = stepGenerator(genA)
+    hasB = stepGenerator(genB)
+    valA = 0
+    valB = 0
+    if (hasA == 1) {
+        valA = getGeneratorValue(genA)
+    }
+    if (hasB == 1) {
+        valB = getGeneratorValue(genB)
+    }
+
+    keepMerging = 1
+    while (keepMerging == 1) {
+        if (mergedCount >= maxItems) {
+            keepMerging = 0
+        } elif (hasA == 0) {
+            if (hasB == 0) {
+                keepMerging = 0
+            } else {
+                merged.push(valB)
+                mergedCount = mergedCount + 1
+                hasB = stepGenerator(genB)
+                if (hasB == 1) {
+                    valB = getGeneratorValue(genB)
+                }
+            }
+        } elif (hasB == 0) {
+            merged.push(valA)
+            mergedCount = mergedCount + 1
+            hasA = stepGenerator(genA)
+            if (hasA == 1) {
+                valA = getGeneratorValue(genA)
+            }
+        } else {
+            if (valA <= valB) {
+                merged.push(valA)
+                mergedCount = mergedCount + 1
+                hasA = stepGenerator(genA)
+                if (hasA == 1) {
+                    valA = getGeneratorValue(genA)
+                }
+            } else {
+                merged.push(valB)
+                mergedCount = mergedCount + 1
+                hasB = stepGenerator(genB)
+                if (hasB == 1) {
+                    valB = getGeneratorValue(genB)
+                }
+            }
+        }
+    }
+
+    return merged
 }
 
 // --- Test Case 1: Linear Bounded Range Generator with Step and Parity Filter ---
@@ -288,12 +470,11 @@ func drainGenerator(gen, maxItems) {
 print("--- Running Test Case 1: Linear Bounded Range Generator with Step and Parity Filter ---")
 
 // Subtest 1.1: Range from 10 to 25 with step 3
-rangeGenA = createGenerator(genTypeRange, 10, 25, 3, 0, 0, 0)
-drainResultA = drainGenerator(rangeGenA, 100)
-valuesA = drainResultA[0]
-countA = drainResultA[1]
+rangeGenA = createGenerator(genTypeRange, 10, 25, 3, 0, 0, 0, 0)
+initA = getGeneratorYieldCount(rangeGenA)
+valuesA = drainGenerator(rangeGenA, 100)
+countA = getGeneratorYieldCount(rangeGenA) - initA
 
-// Expected values: 10, 13, 16, 19, 22 (5 items)
 expectedLengthA = 5
 if (countA != expectedLengthA) {
     print("[FAIL] Test Case 1.1 length mismatch: expected ", expectedLengthA, ", got ", countA)
@@ -326,12 +507,11 @@ if (getGeneratorStepCount(rangeGenA) != 6) {
 }
 
 // Subtest 1.2: Range with even-only filter (0 to 20 with step 1, even numbers)
-rangeGenEven = createGenerator(genTypeRange, 0, 20, 1, 1, 0, 0)
-drainResultEven = drainGenerator(rangeGenEven, 100)
-valuesEven = drainResultEven[0]
-countEven = drainResultEven[1]
+rangeGenEven = createGenerator(genTypeRange, 0, 20, 1, 1, 0, 0, 0)
+initEven = getGeneratorYieldCount(rangeGenEven)
+valuesEven = drainGenerator(rangeGenEven, 100)
+countEven = getGeneratorYieldCount(rangeGenEven) - initEven
 
-// Expected: 0, 2, 4, 6, 8, 10, 12, 14, 16, 18 (10 items)
 if (countEven != 10) {
     print("[FAIL] Test Case 1.2 even count mismatch: expected 10, got ", countEven)
     testSuiteFailures = testSuiteFailures + 1
@@ -351,13 +531,20 @@ if (sumEvens != expectedEvenSum) {
 }
 
 // Subtest 1.3: Empty range boundary condition (start >= stop)
-emptyGen = createGenerator(genTypeRange, 50, 50, 1, 0, 0, 0)
-drainResultEmpty = drainGenerator(emptyGen, 10)
-countEmpty = drainResultEmpty[1]
+emptyGen = createGenerator(genTypeRange, 50, 50, 1, 0, 0, 0, 0)
+initEmpty = getGeneratorYieldCount(emptyGen)
+emptyValues = drainGenerator(emptyGen, 10)
+countEmpty = getGeneratorYieldCount(emptyGen) - initEmpty
 
 if (countEmpty != 0) {
     print("[FAIL] Test Case 1.3 empty range should yield 0 items, got ", countEmpty)
     testSuiteFailures = testSuiteFailures + 1
+}
+
+if (countEmpty > 0) {
+    if (emptyValues[0] != 0) {
+        testSuiteFailures = testSuiteFailures + 1
+    }
 }
 
 if (isGeneratorDone(emptyGen) != true) {
@@ -371,10 +558,8 @@ print("  Test Case 1 Passed linear bounded range generator and parity filter sta
 
 print("--- Running Test Case 2: Multi-Yield Phase Loop State Machine ---")
 
-// 3 batches of 3 phases each: 9 yields in total
-phaseGen = createGenerator(genTypeMultiPhase, 1, 3, 0, 0, 0, 0)
+phaseGen = createGenerator(genTypeMultiPhase, 1, 3, 0, 0, 0, 0, 0)
 
-// Verify step by step with PC inspection
 stepRes1 = stepGenerator(phaseGen)
 if (stepRes1 != 1) {
     print("[FAIL] Test Case 2 step 1 failed")
@@ -418,17 +603,15 @@ if (phaseGen[1] != 0) {
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Drain remaining 2 batches (6 yields)
-remainingDrain = drainGenerator(phaseGen, 20)
-remainingValues = remainingDrain[0]
-remainingCount = remainingDrain[1]
+initRemaining = getGeneratorYieldCount(phaseGen)
+remainingValues = drainGenerator(phaseGen, 20)
+remainingCount = getGeneratorYieldCount(phaseGen) - initRemaining
 
 if (remainingCount != 6) {
     print("[FAIL] Test Case 2 remaining count expected 6, got ", remainingCount)
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Batch 2 expectations: 2001, 2002, (2002*7)+3 = 14017
 if (remainingValues[0] != 2001) {
     print("[FAIL] Test Case 2 batch 2 header mismatch: expected 2001, got ", remainingValues[0])
     testSuiteFailures = testSuiteFailures + 1
@@ -442,7 +625,6 @@ if (remainingValues[2] != 14017) {
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Batch 3 expectations: 3001, 3002, (3002*7)+3 = 21017
 if (remainingValues[3] != 3001) {
     print("[FAIL] Test Case 2 batch 3 header mismatch: expected 3001, got ", remainingValues[3])
     testSuiteFailures = testSuiteFailures + 1
@@ -473,10 +655,10 @@ print("  Test Case 2 Passed multi-yield phase loop state machine and PC verifica
 print("--- Running Test Case 3: Nested Dual and Triple Loop State Machines (Grid & Tensor) ---")
 
 // Subtest 3.1: 2D Grid Generator (3 rows x 4 cols = 12 cells)
-gridGen = createGenerator(genTypeGrid2D, 0, 3, 0, 4, 0, 0)
-gridDrain = drainGenerator(gridGen, 50)
-gridValues = gridDrain[0]
-gridCount = gridDrain[1]
+gridGen = createGenerator(genTypeGrid2D, 0, 3, 0, 4, 0, 0, 0)
+initGrid = getGeneratorYieldCount(gridGen)
+gridValues = drainGenerator(gridGen, 50)
+gridCount = getGeneratorYieldCount(gridGen) - initGrid
 
 if (gridCount != 12) {
     print("[FAIL] Test Case 3.1 grid cell count expected 12, got ", gridCount)
@@ -488,19 +670,11 @@ if (gridValues[0] != 0) {
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Last cell is row 2, col 3 -> (2 * 100) + 3 = 203
 if (gridValues[11] != 203) {
     print("[FAIL] Test Case 3.1 last cell expected 203, got ", gridValues[11])
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Verify grid sum: rows 0,1,2 with cols 0,1,2,3
-// sum of (r*100 + c) for 3 rows x 4 cols
-// cols sum per row: 0+1+2+3 = 6
-// row 0: 6
-// row 1: 400 + 6 = 406
-// row 2: 800 + 6 = 806
-// total = 1218
 expectedGridSum = 1218
 actualGridSum = 0
 gridIdx = 0
@@ -515,10 +689,10 @@ if (actualGridSum != expectedGridSum) {
 }
 
 // Subtest 3.2: 3D Tensor Generator (2 depths x 3 rows x 4 cols = 24 elements)
-tensorGen = createGenerator(genTypeTensor3D, 0, 2, 0, 3, 0, 4)
-tensorDrain = drainGenerator(tensorGen, 100)
-tensorValues = tensorDrain[0]
-tensorCount = tensorDrain[1]
+tensorGen = createGenerator(genTypeTensor3D, 0, 2, 0, 3, 0, 4, 0)
+initTensor = getGeneratorYieldCount(tensorGen)
+tensorValues = drainGenerator(tensorGen, 100)
+tensorCount = getGeneratorYieldCount(tensorGen) - initTensor
 
 if (tensorCount != 24) {
     print("[FAIL] Test Case 3.2 tensor count expected 24, got ", tensorCount)
@@ -530,14 +704,11 @@ if (tensorValues[0] != 0) {
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Last element is depth 1, row 2, col 3 -> (1 * 10000) + (2 * 100) + 3 = 10203
 if (tensorValues[23] != 10203) {
     print("[FAIL] Test Case 3.2 last tensor element expected 10203, got ", tensorValues[23])
     testSuiteFailures = testSuiteFailures + 1
 }
 
-// Tensor sum: depth 0 sum is 1218; depth 1 sum is (12 * 10000) + 1218 = 121218
-// Total = 1218 + 121218 = 122436
 expectedTensorSum = 122436
 actualTensorSum = 0
 tensorIdx = 0
@@ -558,12 +729,156 @@ if (isGeneratorDone(tensorGen) != true) {
 
 print("  Test Case 3 Passed nested dual and triple loop state machines (grid and tensor)")
 
+// --- Test Case 4: Interleaved Ping-Pong Co-routine Pipeline (Zip and Sorted Merge) ---
+
+print("--- Running Test Case 4: Interleaved Ping-Pong Co-routine Pipeline (Zip and Sorted Merge) ---")
+
+// Subtest 4.1: Zip Fibonacci and Range
+fibGen = createGenerator(genTypeFibonacci, 0, 1, 0, 8, 0, 0, 0)
+rangeGenZip = createGenerator(genTypeRange, 10, 18, 1, 0, 0, 0, 0)
+initZipA = getGeneratorYieldCount(fibGen)
+zipPairs = zipGenerators(fibGen, rangeGenZip, 20)
+zipCount = getGeneratorYieldCount(fibGen) - initZipA
+
+if (zipCount != 8) {
+    print("[FAIL] Test Case 4.1 zip count expected 8, got ", zipCount)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+pairZero = zipPairs[0]
+if (pairZero[0] != 0) {
+    print("[FAIL] Test Case 4.1 pair 0 left expected 0, got ", pairZero[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (pairZero[1] != 10) {
+    print("[FAIL] Test Case 4.1 pair 0 right expected 10, got ", pairZero[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+pairFive = zipPairs[5]
+if (pairFive[0] != 5) {
+    print("[FAIL] Test Case 4.1 pair 5 left expected 5, got ", pairFive[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (pairFive[1] != 15) {
+    print("[FAIL] Test Case 4.1 pair 5 right expected 15, got ", pairFive[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+pairSeven = zipPairs[7]
+if (pairSeven[0] != 13) {
+    print("[FAIL] Test Case 4.1 pair 7 left expected 13, got ", pairSeven[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (pairSeven[1] != 17) {
+    print("[FAIL] Test Case 4.1 pair 7 right expected 17, got ", pairSeven[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Subtest 4.2: Merge sorted streams
+genMul3 = createGenerator(genTypeRange, 3, 18, 3, 0, 0, 0, 0)
+genMul5 = createGenerator(genTypeRange, 5, 26, 5, 0, 0, 0, 0)
+initMergeA = getGeneratorYieldCount(genMul3)
+initMergeB = getGeneratorYieldCount(genMul5)
+mergedList = mergeSortedGenerators(genMul3, genMul5, 50)
+mergedCount = (getGeneratorYieldCount(genMul3) - initMergeA) + (getGeneratorYieldCount(genMul5) - initMergeB)
+
+if (mergedCount != 10) {
+    print("[FAIL] Test Case 4.2 merge count expected 10, got ", mergedCount)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (mergedList[0] != 3) {
+    print("[FAIL] Test Case 4.2 first item expected 3, got ", mergedList[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (mergedList[9] != 25) {
+    print("[FAIL] Test Case 4.2 last item expected 25, got ", mergedList[9])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+sortedViolations = 0
+checkIdx = 1
+while (checkIdx < mergedCount) {
+    prevVal = mergedList[checkIdx - 1]
+    currVal = mergedList[checkIdx]
+    if (currVal < prevVal) {
+        sortedViolations = sortedViolations + 1
+    }
+    checkIdx = checkIdx + 1
+}
+
+if (sortedViolations != 0) {
+    print("[FAIL] Test Case 4.2 merged stream is not monotonically sorted, violations: ", sortedViolations)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 4 Passed interleaved ping-pong co-routine pipeline (zip and sorted merge)")
+
+// --- Test Case 5: Hierarchical Sub-Generator Delegation (yield from) ---
+
+print("--- Running Test Case 5: Hierarchical Sub-Generator Delegation (yield from) ---")
+
+// compId 1 delegates through 3 segments: [1, 4, 1], [10, 40, 10], [100, 300, 100]
+delegator = createGenerator(genTypeDelegator, 1, 0, 3, 0, 0, 0, 0)
+initDel = getGeneratorYieldCount(delegator)
+delValues = drainGenerator(delegator, 50)
+delCount = getGeneratorYieldCount(delegator) - initDel
+
+if (delCount != 8) {
+    print("[FAIL] Test Case 5 delegator count expected 8, got ", delCount)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (delValues[0] != 1) {
+    print("[FAIL] Test Case 5 item 0 expected 1, got ", delValues[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (delValues[2] != 3) {
+    print("[FAIL] Test Case 5 item 2 expected 3, got ", delValues[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (delValues[3] != 10) {
+    print("[FAIL] Test Case 5 item 3 expected 10, got ", delValues[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (delValues[5] != 30) {
+    print("[FAIL] Test Case 5 item 5 expected 30, got ", delValues[5])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (delValues[6] != 100) {
+    print("[FAIL] Test Case 5 item 6 expected 100, got ", delValues[6])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (delValues[7] != 200) {
+    print("[FAIL] Test Case 5 item 7 expected 200, got ", delValues[7])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (isGeneratorDone(delegator) != true) {
+    print("[FAIL] Test Case 5 delegator should be completed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (getGeneratorYieldCount(delegator) != 8) {
+    print("[FAIL] Test Case 5 delegator yieldCount expected 8, got ", getGeneratorYieldCount(delegator))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 5 Passed hierarchical sub-generator delegation (yield from) with stack frames")
+
 // --- Benchmark Timings and Final Assertion ---
 
 suiteElapsedTime = t.millis() - suiteStartTime
 
 if (testSuiteFailures == 0) {
-    print("[PASS] Generator Iterator State Machine Suite completed 3 test cases in ", suiteElapsedTime, " ms")
+    print("[PASS] Generator Iterator State Machine Suite completed 5 test cases in ", suiteElapsedTime, " ms")
 } else {
     print("[FAIL] Suite encountered ", testSuiteFailures, " failures")
 }
