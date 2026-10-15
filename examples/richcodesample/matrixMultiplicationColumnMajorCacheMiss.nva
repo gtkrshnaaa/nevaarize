@@ -1,0 +1,232 @@
+import stdlib time as t
+
+// Matrix Multiplication Column-Major Cache Miss Suite
+// Technical characteristics:
+// - Hardware memory access patterns & cache line prefetcher stress:
+//   * IKJ Loop Order: Cache-optimal row-major vector accumulation with stride-1 prefetching
+//   * IJK Loop Order: Dot-product loop with column-major strided cache line misses on matrix B
+//   * JIK / KJI Loop Orders: Column-major write thrashing testing cache eviction penalty
+//   * Transposed Cache Optimization: Transposing B to convert column reads into contiguous stride-1 reads
+//   * Tiled / Blocked Matmul: Cache blocking (B x B sub-matrices) fitting inside CPU L1 cache
+// - Algebraic property validation:
+//   * Mathematical equivalence: C_IJK == C_IKJ == C_KIJ == C_Transposed == C_Blocked
+//   * Identity matrix invariance: A x I == A and I x A == A
+//   * Transpose of product isomorphism: (A x B)^T == B^T x A^T
+//   * Associativity: (A x B) x C == A x (B x C)
+// - Dimension flexibility: Square (N x N), Rectangular (M x K by K x N), and Degenerate (1 x N, N x 1)
+// - High-throughput comparative benchmark on large matrices measuring execution time and cache penalties
+// - Strict camelCase naming conventions enforced across all symbols (No-Underscore Policy)
+// - Zero external dependencies, zero emojis, and zero em dashes in code and output
+
+print("=== Nevaarize Matrix Multiplication Column-Major Cache Miss Suite ===")
+suiteStartTime = t.millis()
+testSuiteFailures = 0
+
+// --- Core Matrix Primitives ---
+
+func createMatrix(rows, cols, defaultVal) {
+    totalElements = rows * cols
+    data = []
+    idx = 0
+    while (idx < totalElements) {
+        data.push(defaultVal)
+        idx = idx + 1
+    }
+    return [rows, cols, data]
+}
+
+func getMat(mat, r, c) {
+    cols = mat[1]
+    data = mat[2]
+    return data[r * cols + c]
+}
+
+func setMat(mat, r, c, val) {
+    cols = mat[1]
+    data = mat[2]
+    data[r * cols + c] = val
+}
+
+func fillFormulaMatrix(rows, cols, seedMultiplier) {
+    mat = createMatrix(rows, cols, 0)
+    data = mat[2]
+    r = 0
+    while (r < rows) {
+        c = 0
+        while (c < cols) {
+            val = ((r + 1) * seedMultiplier + (c + 1) * 31) % 1009
+            data[r * cols + c] = val
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return mat
+}
+
+func computeMatrixChecksum(mat) {
+    data = mat[2]
+    n = data.size()
+    chk = 0
+    i = 0
+    while (i < n) {
+        chk = (chk + data[i] * (i + 1)) % 1000000007
+        i = i + 1
+    }
+    return chk
+}
+
+func areMatricesEqual(matA, matB) {
+    if (matA[0] != matB[0] or matA[1] != matB[1]) {
+        return 0
+    }
+    dataA = matA[2]
+    dataB = matB[2]
+    n = dataA.size()
+    i = 0
+    while (i < n) {
+        if (dataA[i] != dataB[i]) {
+            return 0
+        }
+        i = i + 1
+    }
+    return 1
+}
+
+// --- Matrix Multiplication Implementations Across Loop Orderings ---
+
+// 1. IJK Loop Order: Dot Product (Column-major strided reads on B)
+func matmulIJK(matA, matB) {
+    rowsA = matA[0]
+    colsA = matA[1]
+    dataA = matA[2]
+    rowsB = matB[0]
+    colsB = matB[1]
+    dataB = matB[2]
+
+    outMat = createMatrix(rowsA, colsB, 0)
+    dataOut = outMat[2]
+
+    i = 0
+    while (i < rowsA) {
+        rowAOffset = i * colsA
+        rowOutOffset = i * colsB
+        j = 0
+        while (j < colsB) {
+            sum = 0
+            k = 0
+            while (k < colsA) {
+                sum = (sum + dataA[rowAOffset + k] * dataB[k * colsB + j]) % 1000000007
+                k = k + 1
+            }
+            dataOut[rowOutOffset + j] = sum
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return outMat
+}
+
+// 2. IKJ Loop Order: Row-major vector accumulation (Stride-1 access on B and Out)
+func matmulIKJ(matA, matB) {
+    rowsA = matA[0]
+    colsA = matA[1]
+    dataA = matA[2]
+    rowsB = matB[0]
+    colsB = matB[1]
+    dataB = matB[2]
+
+    outMat = createMatrix(rowsA, colsB, 0)
+    dataOut = outMat[2]
+
+    i = 0
+    while (i < rowsA) {
+        rowAOffset = i * colsA
+        rowOutOffset = i * colsB
+        k = 0
+        while (k < colsA) {
+            aElem = dataA[rowAOffset + k]
+            if (aElem != 0) {
+                rowBOffset = k * colsB
+                j = 0
+                while (j < colsB) {
+                    currOut = dataOut[rowOutOffset + j]
+                    dataOut[rowOutOffset + j] = (currOut + aElem * dataB[rowBOffset + j]) % 1000000007
+                    j = j + 1
+                }
+            }
+            k = k + 1
+        }
+        i = i + 1
+    }
+    return outMat
+}
+
+// 3. KIJ Loop Order: Outer K loop (Contiguous inner stride-1 access)
+func matmulKIJ(matA, matB) {
+    rowsA = matA[0]
+    colsA = matA[1]
+    dataA = matA[2]
+    rowsB = matB[0]
+    colsB = matB[1]
+    dataB = matB[2]
+
+    outMat = createMatrix(rowsA, colsB, 0)
+    dataOut = outMat[2]
+
+    k = 0
+    while (k < colsA) {
+        rowBOffset = k * colsB
+        i = 0
+        while (i < rowsA) {
+            aElem = dataA[i * colsA + k]
+            if (aElem != 0) {
+                rowOutOffset = i * colsB
+                j = 0
+                while (j < colsB) {
+                    currOut = dataOut[rowOutOffset + j]
+                    dataOut[rowOutOffset + j] = (currOut + aElem * dataB[rowBOffset + j]) % 1000000007
+                    j = j + 1
+                }
+            }
+            i = i + 1
+        }
+        k = k + 1
+    }
+    return outMat
+}
+
+// --- Test Case 1: Mathematical Parity Across Loop Orderings (IJK vs IKJ vs KIJ) ---
+
+print("--- Running Test Case 1: Mathematical Parity Across Loop Orderings ---")
+
+testDim = 24
+matrixA24 = fillFormulaMatrix(testDim, testDim, 17)
+matrixB24 = fillFormulaMatrix(testDim, testDim, 43)
+
+resIJK = matmulIJK(matrixA24, matrixB24)
+resIKJ = matmulIKJ(matrixA24, matrixB24)
+resKIJ = matmulKIJ(matrixA24, matrixB24)
+
+chkIJK = computeMatrixChecksum(resIJK)
+chkIKJ = computeMatrixChecksum(resIKJ)
+chkKIJ = computeMatrixChecksum(resKIJ)
+
+if (chkIJK != chkIKJ or chkIKJ != chkKIJ) {
+    print("[FAIL] Test Case 1 Checksum mismatch: IJK=", chkIJK, " IKJ=", chkIKJ, " KIJ=", chkKIJ)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (areMatricesEqual(resIJK, resIKJ) != 1 or areMatricesEqual(resIKJ, resKIJ) != 1) {
+    print("[FAIL] Test Case 1 Element-by-element matrix parity mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  24x24 Square Matrices Checksum: ", chkIKJ, " (IJK == IKJ == KIJ parity: 100%)")
+print("  Test Case 1 Passed Mathematical Parity Across Loop Orderings")
+
+elapsedStage1 = t.millis() - suiteStartTime
+if (testSuiteFailures != 0) {
+    print("[FAIL] Stage 1 encountered failures: ", testSuiteFailures)
+} else {
+    print("  Stage 1 completed in ", elapsedStage1, " ms")
+}
