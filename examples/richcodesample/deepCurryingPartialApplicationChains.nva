@@ -652,11 +652,143 @@ if (sumOfSquares != 55) {
 
 print("  Test Case 4 Passed Higher-Order Function Composition, Pipeline, and Collection Combinators")
 
+// --- Test Case 5: 16-Layer Deep Currying Chain and Higher-Arity Operators ---
+
+print("--- Running Test Case 5: 16-Layer Deep Currying Chain ---")
+
+// Binary Multiply verification
+mulRoot = createRootClosure(fnIdMultiply, 2)
+mulRes = partialApply(mulRoot, [13, 17])
+if (mulRes != 221) {
+    print("[FAIL] Test Case 5 Binary Multiply failed: expected 221, got ", mulRes)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 4D Dot Product verification
+dotRoot = createRootClosure(fnIdDotProduct4D, 4)
+dotRes = partialApply(dotRoot, [3, 4, 5, 6])
+if (dotRes != 42) {
+    print("[FAIL] Test Case 5 4D Dot Product failed: expected 42, got ", dotRes)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 8-Word Mixing verification
+mixRoot = createRootClosure(fnIdMix8Words, 8)
+words8 = [101, 202, 303, 404, 505, 606, 707, 808]
+mixRes = partialApply(mixRoot, words8)
+mixExpected = uncurryDirect(fnIdMix8Words, words8)
+if (mixRes != mixExpected) {
+    print("[FAIL] Test Case 5 8-Word Mixing failed: expected ", mixExpected, " got ", mixRes)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 16-Layer Currying Chain: apply 16 coefficients one-by-one
+polyRoot = createRootClosure(fnIdDeepPoly16, 16)
+currPoly = polyRoot
+pStep = 0
+while (pStep < 16) {
+    currPoly = applyCurriedArg(currPoly, 1)
+    pStep = pStep + 1
+    if (currPoly[4] != pStep) {
+        print("[FAIL] Test Case 5 Step ", pStep, " depth mismatch: expected ", pStep, " got ", currPoly[4])
+        testSuiteFailures = testSuiteFailures + 1
+    }
+}
+
+// Verify lexical parent chain length: walk exactly 16 hops to reach root
+polyWalker = currPoly
+polyHops = 0
+while (polyWalker[5] == 0) {
+    polyWalker = polyWalker[3]
+    polyHops = polyHops + 1
+}
+if (polyHops != 16 or polyWalker[5] != 1) {
+    print("[FAIL] Test Case 5 Lexical parent chain walk failed: hops=", polyHops, " isRoot=", polyWalker[5])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Invoke terminal closure: sum of 2^i for i=0..15 is 65535
+polyRes = invokeClosure(currPoly)
+if (polyRes != 65535) {
+    print("[FAIL] Test Case 5 16-Layer Polynomial failed: expected 65535, got ", polyRes)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 5 Passed 16-Layer Deep Currying Chain and Higher-Arity Operators")
+
+// --- Test Case 6: Extreme Deep Currying Stress (32, 64, and 100-Chain) ---
+
+print("--- Running Test Case 6: Extreme Deep Currying Chains (32, 64, 100) ---")
+
+// 32-Chain Alternating Sum: x0 - x1 + x2 - x3 + ... + x30 - x31
+// Using x_i = i: alternating sum is -16
+sum32Root = createRootClosure(fnIdDeepSum32, 32)
+currSum32 = sum32Root
+sStep = 0
+while (sStep < 32) {
+    currSum32 = applyCurriedArg(currSum32, sStep)
+    sStep = sStep + 1
+}
+sum32Res = invokeClosure(currSum32)
+if (sum32Res != -16) {
+    print("[FAIL] Test Case 6 32-Chain alternating sum failed: expected -16, got ", sum32Res)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 64-Chain Modular Fold: acc = 17, fold with (acc * 33 + val) % 1000000007
+fold64Root = createRootClosure(fnIdDeepFold64, 64)
+currFold64 = fold64Root
+fStep = 0
+while (fStep < 64) {
+    valF = (fStep * 3) + 1
+    currFold64 = applyCurriedArg(currFold64, valF)
+    fStep = fStep + 1
+}
+fold64Res = invokeClosure(currFold64)
+if (fold64Res != 594394094) {
+    print("[FAIL] Test Case 6 64-Chain modular fold failed: expected 594394094, got ", fold64Res)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// 100-Chain Extreme Stress: 100 chained single-argument closures
+stress100Root = createRootClosure(fnIdDeepStress100, 100)
+currStress100 = stress100Root
+stStep = 0
+while (stStep < 100) {
+    currStress100 = applyCurriedArg(currStress100, stStep + 1)
+    stStep = stStep + 1
+}
+stress100Res = invokeClosure(currStress100)
+if (stress100Res != 791704969) {
+    print("[FAIL] Test Case 6 100-Chain stress fold failed: expected 791704969, got ", stress100Res)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify 100-chain depth telemetry
+if (maxChainDepthObserved[0] < 100) {
+    print("[FAIL] Test Case 6 Max chain depth telemetry expected >= 100, got ", maxChainDepthObserved[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify 100-hop ancestor walk from leaf 100 to root
+stressWalker = currStress100
+stressHops = 0
+while (stressWalker[5] == 0) {
+    stressWalker = stressWalker[3]
+    stressHops = stressHops + 1
+}
+if (stressHops != 100 or stressWalker[5] != 1) {
+    print("[FAIL] Test Case 6 100-hop parent chain walk failed: hops=", stressHops, " isRoot=", stressWalker[5])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 6 Passed Extreme Deep Currying Chains (32, 64, and 100 Closures)")
+
 // --- Summary Telemetry ---
 
 elapsed = t.millis() - suiteStartTime
 if (testSuiteFailures == 0) {
-    print("[PASS] Stage 2 Passed in ", elapsed, " ms")
+    print("[PASS] Stage 3 Passed in ", elapsed, " ms")
 } else {
-    print("[FAIL] Stage 2 encountered ", testSuiteFailures, " failures")
+    print("[FAIL] Stage 3 encountered ", testSuiteFailures, " failures")
 }
