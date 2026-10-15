@@ -417,8 +417,6 @@ func executeSparseVm(vmProgram, vmRegisters, maxCycles, vmJumpTable, dispatchMod
         vmCycleCount = vmCycleCount + 1
         vmInstructionsExecuted[0] = vmInstructionsExecuted[0] + 1
 
-        // Dispatch opcode using the specified jump table mode:
-        // 1 = Binary Search Table, 2 = Hash Table, 3 = Clustered Table
         decodedHandler = 0
         if (dispatchMode == 1) {
             decodedHandler = dispatchBinarySearch(vmJumpTable, opcode, 0)
@@ -429,57 +427,40 @@ func executeSparseVm(vmProgram, vmRegisters, maxCycles, vmJumpTable, dispatchMod
         }
 
         if (decodedHandler == 1) {
-            // vmHandlerNoop: no operation
             noOpVar = 0
         } elif (decodedHandler == 2) {
-            // vmHandlerLoadImm: rDest = immediate rSrc2
             vmRegisters[rDest] = rSrc2
         } elif (decodedHandler == 3) {
-            // vmHandlerCopy: rDest = rSrc1
             vmRegisters[rDest] = vmRegisters[rSrc1]
         } elif (decodedHandler == 4) {
-            // vmHandlerAdd: rDest = rSrc1 + rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] + vmRegisters[rSrc2]
         } elif (decodedHandler == 5) {
-            // vmHandlerSub: rDest = rSrc1 - rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] - vmRegisters[rSrc2]
         } elif (decodedHandler == 6) {
-            // vmHandlerMul: rDest = rSrc1 * rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] * vmRegisters[rSrc2]
         } elif (decodedHandler == 7) {
-            // vmHandlerDiv: rDest = rSrc1 / rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] / vmRegisters[rSrc2]
         } elif (decodedHandler == 8) {
-            // vmHandlerMod: rDest = rSrc1 % rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] % vmRegisters[rSrc2]
         } elif (decodedHandler == 9) {
-            // vmHandlerBitAnd: rDest = rSrc1 & rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] & vmRegisters[rSrc2]
         } elif (decodedHandler == 10) {
-            // vmHandlerBitOr: rDest = rSrc1 | rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] | vmRegisters[rSrc2]
         } elif (decodedHandler == 11) {
-            // vmHandlerBitXor: rDest = rSrc1 ^ rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] ^ vmRegisters[rSrc2]
         } elif (decodedHandler == 12) {
-            // vmHandlerShiftLeft: rDest = rSrc1 << rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] << rSrc2
         } elif (decodedHandler == 13) {
-            // vmHandlerShiftRight: rDest = rSrc1 >> rSrc2
             vmRegisters[rDest] = vmRegisters[rSrc1] >> rSrc2
         } elif (decodedHandler == 14) {
-            // vmHandlerJumpIfZero: if rSrc1 == 0, vmPc = targetPc (rSrc2)
             if (vmRegisters[rSrc1] == 0) {
                 vmPc = rSrc2
             }
         } elif (decodedHandler == 15) {
-            // vmHandlerJump: vmPc = targetPc (rSrc2)
             vmPc = rSrc2
         } elif (decodedHandler == 16) {
-            // vmHandlerHalt: terminate execution
             vmIsRunning = 0
         } else {
-            // Unknown opcode fault
             vmIsRunning = 0
         }
     }
@@ -504,7 +485,6 @@ denseTable1 = createDenseJumpTable(caseKeys1, caseHandlers1, handlerIdDefault)
 bstTable1 = createBinarySearchJumpTable(caseKeys1, caseHandlers1)
 hashTable1 = createHashJumpTable(caseKeys1, caseHandlers1, handlerIdDefault)
 
-// Verify exact matches on dense, bst, and hash tables
 cIdx1 = 0
 while (cIdx1 < caseKeys1.size()) {
     targetK1 = caseKeys1[cIdx1]
@@ -520,7 +500,6 @@ while (cIdx1 < caseKeys1.size()) {
     cIdx1 = cIdx1 + 1
 }
 
-// Verify unmapped holes and boundary fallbacks
 outsideKeys1 = [99, 106, 0, 50, 200, -1]
 oIdx1 = 0
 while (oIdx1 < outsideKeys1.size()) {
@@ -592,7 +571,6 @@ outliersHandlers2 = [
 ]
 clusteredTable2 = createClusteredJumpTable(clusterSpecs2, outliersKeys2, outliersHandlers2, handlerIdDefault)
 
-// Verify exact match across all models for all 16 sparse cases
 sIdx2 = 0
 while (sIdx2 < sparseKeys2.size()) {
     targetKey2 = sparseKeys2[sIdx2]
@@ -608,7 +586,6 @@ while (sIdx2 < sparseKeys2.size()) {
     sIdx2 = sIdx2 + 1
 }
 
-// Verify off-by-one boundary holes & extreme out-of-range keys
 holeKeys2 = [
     -501, -499,
     -1, 1, 2, 4,
@@ -702,15 +679,11 @@ print("  Test Case 3 Passed Handler Mathematical Invariants")
 
 print("--- Running Test Case 4: Clustered Partitioning and Density Optimization ---")
 
-// Analyze span and memory footprint of naive dense table vs clustered partitioned table
 naiveMin = -500
 naiveMax = 1000000
 naiveSpan = naiveMax - naiveMin + 1
 sparseCount = sparseKeys2.size()
 
-// Clustered table footprint:
-// Cluster 1: [100..105] -> 6 entries
-// Outliers in BST: 10 entries
 clusteredFootprint = 6 + 10
 memorySavingsRatio = (naiveSpan - clusteredFootprint) * 100 / naiveSpan
 
@@ -733,7 +706,6 @@ print("  Test Case 4 Passed Clustered Partitioning and Density Optimization (", 
 
 print("--- Running Test Case 5: Sparse Opcode Virtual Machine Execution Engine ---")
 
-// Compile VM opcodes into BST, Hash, and Clustered Jump Tables
 vmOpcodes = [0, 16, 32, 42, 99, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 49152, 65535]
 vmHandlers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 
@@ -765,7 +737,6 @@ fibProgram = [
     65535, 0, 0, 0
 ]
 
-// Execute Fib(12) on BST, Hash, and Clustered VM dispatchers
 regsFibBst = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 cyclesFibBst = executeSparseVm(fibProgram, regsFibBst, 1000, vmBstTable, 1)
 
@@ -843,3 +814,117 @@ if (regsSumBst[1] != 100 or regsSumHash[1] != 100 or regsSumClus[1] != 100) {
 }
 
 print("  Test Case 5 Passed Sparse Opcode Virtual Machine Execution Engine")
+
+// --- Test Case 6: Cross-Model Equivalence on High-Diversity Dataset ---
+
+print("--- Running Test Case 6: Cross-Model Equivalence on High-Diversity Dataset ---")
+
+// Synthesize 100 non-contiguous sparse keys
+divKeys = []
+divHandlers = []
+kGen = 0
+valGen = -1000
+while (kGen < 100) {
+    valGen = valGen + (kGen % 7) * 137 + 19
+    divKeys.push(valGen)
+    divHandlers.push((kGen % 16) + 1)
+    kGen = kGen + 1
+}
+
+bstDiv = createBinarySearchJumpTable(divKeys, divHandlers)
+hashDiv = createHashJumpTable(divKeys, divHandlers, handlerIdDefault)
+
+// Extract dense cluster from divKeys if any, otherwise treat all as outliers
+divClusterSpecs = []
+divClusteredTable = createClusteredJumpTable(divClusterSpecs, divKeys, divHandlers, handlerIdDefault)
+
+divMismatches = 0
+qIdx6 = 0
+while (qIdx6 < 1000) {
+    queryKey6 = 0
+    if (qIdx6 % 2 == 0) {
+        queryKey6 = divKeys[qIdx6 % 100]
+    } else {
+        queryKey6 = valGen + qIdx6 * 17 + 1
+    }
+    hLin6 = dispatchLinear(divKeys, divHandlers, queryKey6, handlerIdDefault)
+    hBst6 = dispatchBinarySearch(bstDiv, queryKey6, handlerIdDefault)
+    hHash6 = dispatchHashJumpTable(hashDiv, queryKey6, handlerIdDefault)
+    hClus6 = dispatchClusteredJumpTable(divClusteredTable, queryKey6, handlerIdDefault)
+    if (hLin6 != hBst6 or hLin6 != hHash6 or hLin6 != hClus6) {
+        divMismatches = divMismatches + 1
+    }
+    qIdx6 = qIdx6 + 1
+}
+
+if (divMismatches > 0) {
+    print("[FAIL] Test Case 6 Cross-model equivalence encountered ", divMismatches, " mismatches")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 6 Passed Cross-Model Equivalence (1,000 queries verified across all models)")
+
+// --- Test Case 7: High-Throughput Stress Benchmark (30,000 Queries) ---
+
+print("--- Running Test Case 7: High-Throughput Stress Benchmark (30,000 Queries) ---")
+
+benchmarkStartTime = t.millis()
+
+benchSeed = 123456789
+benchQueryIdx = 0
+benchAcc = 100
+benchChecksum = 0
+benchQueryCount = 30000
+
+while (benchQueryIdx < benchQueryCount) {
+    benchSeed = (benchSeed * 1103515245 + 12345) & 2147483647
+    targetQueryKey = 0
+    // Every 3rd query picks a known sparse key to guarantee hits
+    if (benchQueryIdx % 3 == 0) {
+        sparseSlot = (benchSeed % sparseKeys2.size())
+        targetQueryKey = sparseKeys2[sparseSlot]
+    } else {
+        targetQueryKey = (benchSeed % 2000000) - 500000
+    }
+    resolvedH = dispatchHashJumpTable(hashTable2, targetQueryKey, handlerIdDefault)
+    actionVal = dispatchAction(resolvedH, benchAcc, targetQueryKey)
+    benchAcc = actionVal
+    benchChecksum = (benchChecksum * 31 + actionVal) % 1000000007
+    benchQueryIdx = benchQueryIdx + 1
+}
+
+benchmarkEndTime = t.millis()
+benchmarkDuration = benchmarkEndTime - benchmarkStartTime
+
+if (benchChecksum != 485415817) {
+    print("[FAIL] Test Case 7 Benchmark checksum mismatch: expected 485415817, got ", benchChecksum)
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (benchQueryIdx != 30000) {
+    print("[FAIL] Test Case 7 Query count expected 30000, got ", benchQueryIdx)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 7 Passed High-Throughput Benchmark (30,000 queries in ", benchmarkDuration, " ms, checksum= ", benchChecksum, ")")
+
+// --- Telemetry Report ---
+
+suiteEndTime = t.millis()
+suiteTotalDuration = suiteEndTime - suiteStartTime
+
+print("--- Telemetry Report ---")
+print("  Total Case Dispatches : ", totalDispatches[0])
+print("  Sparse Case Hits      : ", sparseCaseHits[0])
+print("  Default Case Hits     : ", defaultCaseHits[0])
+print("  Linear Scan Probes    : ", linearScanProbes[0])
+print("  Binary Search Probes  : ", binarySearchProbes[0])
+print("  Hash Table Probes     : ", hashTableProbes[0])
+print("  Clustered Probes      : ", clusteredTableProbes[0])
+print("  VM Instructions Exec  : ", vmInstructionsExecuted[0])
+print("  Suite Elapsed Time(ms): ", suiteTotalDuration)
+
+if (testSuiteFailures > 0) {
+    print("[FAIL] Simulated Large Switch Sparse Jump Table Suite encountered ", testSuiteFailures, " failures")
+} else {
+    print("[PASS] Simulated Large Switch Sparse Jump Table Suite executed successfully in ", suiteTotalDuration, " ms")
+}
