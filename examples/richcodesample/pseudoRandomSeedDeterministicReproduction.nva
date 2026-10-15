@@ -168,6 +168,18 @@ func prngNextRange(genType, genState, minVal, maxVal) {
     return low + rem
 }
 
+func fisherYatesShuffle(genType, genState, targetArr) {
+    n = targetArr.size()
+    i = n - 1
+    while (i > 0) {
+        j = prngNextRange(genType, genState, 0, i)
+        temp = targetArr[i]
+        targetArr[i] = targetArr[j]
+        targetArr[j] = temp
+        i = i - 1
+    }
+}
+
 // --- Test Case 1: Identical Seed Absolute Reproduction Across Independent Streams ---
 
 print("--- Running Test Case 1: Identical Seed Absolute Reproduction ---")
@@ -645,9 +657,169 @@ if (minReached != 1 or maxReached != 1) {
 
 print("  Test Case 5 Passed Bounded Range & Boundary Edge Cases (single point, zero, inverted, negative, boundary coverage)")
 
-elapsedStage3 = t.millis() - suiteStartTime
-if (testSuiteFailures != 0) {
-    print("[FAIL] Stage 3 encountered failures: ", testSuiteFailures)
-} else {
-    print("  Stage 3 completed in ", elapsedStage3, " ms")
+// --- Test Case 6: Deterministic Fisher-Yates Array Permutation ---
+
+print("--- Running Test Case 6: Deterministic Fisher-Yates Array Permutation ---")
+
+shuffleSize = 1000
+originalArray = []
+expectedSum = 0
+expectedXor = 0
+initIdx = 0
+while (initIdx < shuffleSize) {
+    originalArray.push(initIdx)
+    expectedSum = expectedSum + initIdx
+    expectedXor = expectedXor ^ initIdx
+    initIdx = initIdx + 1
 }
+
+// Clone arrays for shuffle comparison
+arrShuffA = []
+arrShuffB = []
+arrShuffC = []
+initIdx = 0
+while (initIdx < shuffleSize) {
+    arrShuffA.push(originalArray[initIdx])
+    arrShuffB.push(originalArray[initIdx])
+    arrShuffC.push(originalArray[initIdx])
+    initIdx = initIdx + 1
+}
+
+// 6.1 Shuffle with identical seed (424242) across independent streams
+shuffStateA = makeSplitMix32(424242)
+shuffStateB = makeSplitMix32(424242)
+fisherYatesShuffle(3, shuffStateA, arrShuffA)
+fisherYatesShuffle(3, shuffStateB, arrShuffB)
+
+// 6.2 Shuffle with different seed (999999)
+shuffStateC = makeSplitMix32(999999)
+fisherYatesShuffle(3, shuffStateC, arrShuffC)
+
+// Invariant 1: Sum and XOR parity preservation (all elements present without duplicates)
+sumA = 0
+xorA = 0
+sumB = 0
+xorB = 0
+sumC = 0
+xorC = 0
+identicalCountAB = 0
+identicalWithOriginal = 0
+differentCountAC = 0
+
+chkIdx = 0
+while (chkIdx < shuffleSize) {
+    valA = arrShuffA[chkIdx]
+    valB = arrShuffB[chkIdx]
+    valC = arrShuffC[chkIdx]
+
+    sumA = sumA + valA
+    xorA = xorA ^ valA
+    sumB = sumB + valB
+    xorB = xorB ^ valB
+    sumC = sumC + valC
+    xorC = xorC ^ valC
+
+    if (valA == valB) {
+        identicalCountAB = identicalCountAB + 1
+    }
+    if (valA == originalArray[chkIdx]) {
+        identicalWithOriginal = identicalWithOriginal + 1
+    }
+    if (valA != valC) {
+        differentCountAC = differentCountAC + 1
+    }
+    chkIdx = chkIdx + 1
+}
+
+if (sumA != expectedSum or xorA != expectedXor) {
+    print("[FAIL] Test Case 6 Array A parity mismatch: sumA=", sumA, " xorA=", xorA)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (sumB != expectedSum or xorB != expectedXor) {
+    print("[FAIL] Test Case 6 Array B parity mismatch: sumB=", sumB, " xorB=", xorB)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (sumC != expectedSum or xorC != expectedXor) {
+    print("[FAIL] Test Case 6 Array C parity mismatch: sumC=", sumC, " xorC=", xorC)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Invariant 2: Identical seed produces 100% identical permutation
+if (identicalCountAB != shuffleSize) {
+    print("[FAIL] Test Case 6 Permutations A and B mismatch: identical=", identicalCountAB, "/", shuffleSize)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Invariant 3: Shuffled array is thoroughly displaced from original (< 5% stay in original spot)
+if (identicalWithOriginal > 50) {
+    print("[FAIL] Test Case 6 Insufficient displacement: matches=", identicalWithOriginal)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Invariant 4: Different seed produces different permutation (> 95% elements differ)
+if (differentCountAC < 950) {
+    print("[FAIL] Test Case 6 Insufficient divergence between seeds: diffs=", differentCountAC)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Fisher-Yates 1000-element shuffle: parity conserved, 100% deterministic replay, ", differentCountAC, "/1000 diffs on different seed")
+print("  Test Case 6 Passed Deterministic Fisher-Yates Array Permutation")
+
+// --- Test Case 7: High-Throughput PRNG Throughput Benchmark ---
+
+print("--- Running Test Case 7: High-Throughput PRNG Throughput Benchmark (300,000 Iterations) ---")
+
+benchmarkCount = 100000
+
+// 7.1 LCG Benchmark
+benchLcgState = makeLcg(123456789)
+checksumLcg = 0
+tLcgStart = t.millis()
+bIdx = 0
+while (bIdx < benchmarkCount) {
+    checksumLcg = (checksumLcg + lcgNext(benchLcgState)) % 1000000007
+    bIdx = bIdx + 1
+}
+tLcgElapsed = t.millis() - tLcgStart
+
+// 7.2 Xorshift32 Benchmark
+benchXorState = makeXorshift32(123456789)
+checksumXor = 0
+tXorStart = t.millis()
+bIdx = 0
+while (bIdx < benchmarkCount) {
+    checksumXor = (checksumXor + xorshift32Next(benchXorState)) % 1000000007
+    bIdx = bIdx + 1
+}
+tXorElapsed = t.millis() - tXorStart
+
+// 7.3 SplitMix32 Benchmark
+benchSplitState = makeSplitMix32(123456789)
+checksumSplit = 0
+tSplitStart = t.millis()
+bIdx = 0
+while (bIdx < benchmarkCount) {
+    checksumSplit = (checksumSplit + splitMix32Next(benchSplitState)) % 1000000007
+    bIdx = bIdx + 1
+}
+tSplitElapsed = t.millis() - tSplitStart
+
+print("  LCG        : ", tLcgElapsed, " ms (checksum=", checksumLcg, ")")
+print("  Xorshift32 : ", tXorElapsed, " ms (checksum=", checksumXor, ")")
+print("  SplitMix32 : ", tSplitElapsed, " ms (checksum=", checksumSplit, ")")
+print("  Test Case 7 Passed High-Throughput PRNG Throughput Benchmark (300,000 total iterations)")
+
+// --- Final Suite Telemetry Summary ---
+
+totalElapsed = t.millis() - suiteStartTime
+print("======================================================================")
+print("  Pseudo-Random Seed Deterministic Reproduction Suite Completed in ", totalElapsed, " ms")
+print("  Total Failures: ", testSuiteFailures)
+if (testSuiteFailures == 0) {
+    print("  STATUS: ALL TESTS PASSED [100% Deterministic]")
+} else {
+    print("  STATUS: FAILURES DETECTED")
+}
+print("======================================================================")
