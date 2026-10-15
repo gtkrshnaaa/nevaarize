@@ -784,11 +784,75 @@ if (stressHops != 100 or stressWalker[5] != 1) {
 
 print("  Test Case 6 Passed Extreme Deep Currying Chains (32, 64, and 100 Closures)")
 
-// --- Summary Telemetry ---
+// --- Test Case 7: High-Throughput Partial Application and Currying Benchmark (10,000 Iterations) ---
 
-elapsed = t.millis() - suiteStartTime
+print("--- Running Test Case 7: High-Throughput Benchmark (10,000 Iterations) ---")
+
+benchStartTime = t.millis()
+benchIterCount = 10000
+benchChecksum = 0
+bIdx = 0
+
+benchAddRoot = createRootClosure(fnIdAdd, 2)
+benchClampRoot = createRootClosure(fnIdClamp, 3)
+
+// Pre-bind partial application on clamp with boundary [0, 5000] for optimal closure reuse
+benchClampPart = partialApply(benchClampRoot, [0, 5000])
+
+while (bIdx < benchIterCount) {
+    // Curried addition with first argument bound to loop index
+    addCurry = applyCurriedArg(benchAddRoot, bIdx)
+    
+    // Branching into two distinct sibling closures
+    sib1 = applyAndMaybeInvoke(addCurry, 7)
+    sib2 = applyAndMaybeInvoke(addCurry, 13)
+    
+    // Reusing pre-bound partial application closure across all iterations
+    cVal = applyAndMaybeInvoke(benchClampPart, sib1)
+    
+    // Deterministic checksum accumulation modulo 1000000007
+    benchChecksum = (benchChecksum + cVal + sib2) % 1000000007
+    bIdx = bIdx + 1
+}
+
+expectedBenchChecksum = 87657479
+if (benchChecksum != expectedBenchChecksum) {
+    print("[FAIL] Test Case 7 Benchmark checksum mismatch: expected 87657479, got ", benchChecksum)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+benchDuration = t.millis() - benchStartTime
+print("  Test Case 7 Passed High-Throughput Benchmark (10,000 iterations in ", benchDuration, " ms, checksum=", benchChecksum, ")")
+
+// --- Global Telemetry Invariant Verification ---
+
+if (closureAllocCount[0] < 40000) {
+    print("[FAIL] Telemetry total closure allocations expected >= 40000, got ", closureAllocCount[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (maxChainDepthObserved[0] < 100) {
+    print("[FAIL] Telemetry max chain depth expected >= 100, got ", maxChainDepthObserved[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (closureInvocationCount[0] < 30000) {
+    print("[FAIL] Telemetry closure invocations expected >= 30000, got ", closureInvocationCount[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// --- Benchmark Timings and Final Assertion ---
+
+suiteElapsedTime = t.millis() - suiteStartTime
+
+print("--- Telemetry Report ---")
+print("  Total Closures Allocated:", closureAllocCount[0])
+print("  Max Closure Chain Depth :", maxChainDepthObserved[0])
+print("  Function Invocations    :", closureInvocationCount[0])
+print("  Suite Elapsed Time (ms) :", suiteElapsedTime)
+
 if (testSuiteFailures == 0) {
-    print("[PASS] Stage 3 Passed in ", elapsed, " ms")
+    print("[PASS] Deep Currying and Partial Application Suite executed successfully in ", suiteElapsedTime, " ms")
 } else {
-    print("[FAIL] Stage 3 encountered ", testSuiteFailures, " failures")
+    print("[FAIL] Deep Currying Suite encountered ", testSuiteFailures, " failures")
 }
