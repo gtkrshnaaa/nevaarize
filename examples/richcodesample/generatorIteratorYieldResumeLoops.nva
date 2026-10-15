@@ -29,6 +29,7 @@ genTypeGrid2D = 3
 genTypeTensor3D = 4
 genTypeFibonacci = 5
 genTypeDelegator = 6
+genTypeCollatz = 7
 
 // --- Core Generator Construction and Access Primitives ---
 // Generator layout:
@@ -327,6 +328,40 @@ func stepDelegator(gen) {
     return 0
 }
 
+func stepCollatz(gen) {
+    currentN = gen[3]
+    stepLimit = gen[4]
+    stepCounter = gen[5]
+
+    if (stepCounter >= stepLimit) {
+        gen[0] = statusCompleted
+        gen[11] = 1
+        return 0
+    }
+
+    if (currentN <= 1) {
+        gen[0] = statusCompleted
+        gen[11] = 1
+        return 0
+    }
+
+    modTwo = currentN - ((currentN / 2) * 2)
+    nextN = 0
+    if (modTwo == 0) {
+        nextN = currentN / 2
+    } else {
+        nextN = (3 * currentN) + 1
+    }
+
+    gen[3] = nextN
+    gen[5] = stepCounter + 1
+    gen[0] = statusSuspendedYield
+    gen[1] = 1
+    gen[10] = currentN
+    gen[12] = gen[12] + 1
+    return 1
+}
+
 func stepGenerator(gen) {
     if (gen[11] == 1) {
         return 0
@@ -348,6 +383,8 @@ func stepGenerator(gen) {
         return stepFibonacci(gen)
     } elif (targetType == 6) {
         return stepDelegator(gen)
+    } elif (targetType == 7) {
+        return stepCollatz(gen)
     }
 
     gen[0] = statusCompleted
@@ -463,6 +500,48 @@ func mergeSortedGenerators(genA, genB, maxItems) {
     }
 
     return merged
+}
+
+func takeGenerator(gen, count) {
+    taken = []
+    takenCount = 0
+    keepTaking = 1
+
+    while (keepTaking == 1) {
+        if (takenCount >= count) {
+            keepTaking = 0
+        } else {
+            stepRes = stepGenerator(gen)
+            if (stepRes == 1) {
+                taken.push(getGeneratorValue(gen))
+                takenCount = takenCount + 1
+            } else {
+                keepTaking = 0
+            }
+        }
+    }
+
+    return taken
+}
+
+func skipGenerator(gen, count) {
+    skippedCount = 0
+    keepSkipping = 1
+
+    while (keepSkipping == 1) {
+        if (skippedCount >= count) {
+            keepSkipping = 0
+        } else {
+            stepRes = stepGenerator(gen)
+            if (stepRes == 1) {
+                skippedCount = skippedCount + 1
+            } else {
+                keepSkipping = 0
+            }
+        }
+    }
+
+    return skippedCount
 }
 
 // --- Test Case 1: Linear Bounded Range Generator with Step and Parity Filter ---
@@ -873,12 +952,124 @@ if (getGeneratorYieldCount(delegator) != 8) {
 
 print("  Test Case 5 Passed hierarchical sub-generator delegation (yield from) with stack frames")
 
+// --- Test Case 6: Infinite / Stateful Collatz Trajectory with Windowing (Take & Skip) ---
+
+print("--- Running Test Case 6: Infinite / Stateful Collatz Trajectory with Windowing (Take & Skip) ---")
+
+collatzGen = createGenerator(genTypeCollatz, 27, 200, 0, 0, 0, 0, 0)
+
+// Take first 10 steps of seed 27:
+// 27 is odd: 3*27 + 1 = 82
+// 82 / 2 = 41
+// 3*41 + 1 = 124
+// 124 / 2 = 62
+// 62 / 2 = 31
+// 3*31 + 1 = 94
+// 94 / 2 = 47
+// 3*47 + 1 = 142
+// 142 / 2 = 71
+// 3*71 + 1 = 214
+// Yielded sequence starts with: 27, 82, 41, 124, 62, 31, 94, 47, 142, 71
+takeTen = takeGenerator(collatzGen, 10)
+
+if (takeTen[0] != 27) {
+    print("[FAIL] Test Case 6 take 0 expected 27, got ", takeTen[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (takeTen[1] != 82) {
+    print("[FAIL] Test Case 6 take 1 expected 82, got ", takeTen[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (takeTen[2] != 41) {
+    print("[FAIL] Test Case 6 take 2 expected 41, got ", takeTen[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (takeTen[9] != 71) {
+    print("[FAIL] Test Case 6 take 9 expected 71, got ", takeTen[9])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Skip next 5 elements: 214, 107, 322, 161, 484
+skipped = skipGenerator(collatzGen, 5)
+if (skipped != 5) {
+    print("[FAIL] Test Case 6 skip expected 5, got ", skipped)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Next element should be 242 (from 484 / 2)
+nextStepRes = stepGenerator(collatzGen)
+if (nextStepRes != 1) {
+    print("[FAIL] Test Case 6 step after skip failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (getGeneratorValue(collatzGen) != 242) {
+    print("[FAIL] Test Case 6 value after skip expected 242, got ", getGeneratorValue(collatzGen))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 6 Passed Collatz trajectory state machine with take and skip windowing")
+
+// --- Test Case 7: Extreme VM Limit Stress Benchmark (100,000+ Steps) ---
+
+print("--- Running Test Case 7: Extreme VM Limit Stress Benchmark (100,000+ Steps) ---")
+
+stressBenchmarkStart = t.millis()
+
+stressStepLimit = 100000
+stressGen = createGenerator(genTypeRange, 0, stressStepLimit, 1, 0, 0, 0, 0)
+stressAccumulator = 0
+stressStepCount = 0
+stressHasMore = 1
+
+while (stressHasMore == 1) {
+    stepResult = stepGenerator(stressGen)
+    if (stepResult == 1) {
+        stressAccumulator = stressAccumulator + getGeneratorValue(stressGen)
+        stressStepCount = stressStepCount + 1
+    } else {
+        stressHasMore = 0
+    }
+}
+
+expectedStressSum = 4999950000
+if (stressAccumulator != expectedStressSum) {
+    print("[FAIL] Test Case 7 extreme stress sum expected 4999950000, got ", stressAccumulator)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (stressStepCount != stressStepLimit) {
+    print("[FAIL] Test Case 7 step count expected 100000, got ", stressStepCount)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (getGeneratorYieldCount(stressGen) != stressStepLimit) {
+    print("[FAIL] Test Case 7 yieldCount expected 100000, got ", getGeneratorYieldCount(stressGen))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (getGeneratorStepCount(stressGen) != (stressStepLimit + 1)) {
+    print("[FAIL] Test Case 7 stepCount expected 100001, got ", getGeneratorStepCount(stressGen))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (isGeneratorDone(stressGen) != true) {
+    print("[FAIL] Test Case 7 stressGen should be completed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+stressBenchmarkDuration = t.millis() - stressBenchmarkStart
+print("  Test Case 7 Passed extreme VM limit benchmark (100,000 steps in ", stressBenchmarkDuration, " ms with O(1) stack frames)")
+
 // --- Benchmark Timings and Final Assertion ---
 
 suiteElapsedTime = t.millis() - suiteStartTime
 
 if (testSuiteFailures == 0) {
-    print("[PASS] Generator Iterator State Machine Suite completed 5 test cases in ", suiteElapsedTime, " ms")
+    print("[PASS] Generator Iterator State Machine Suite executed successfully in ", suiteElapsedTime, " ms")
 } else {
     print("[FAIL] Suite encountered ", testSuiteFailures, " failures")
 }
