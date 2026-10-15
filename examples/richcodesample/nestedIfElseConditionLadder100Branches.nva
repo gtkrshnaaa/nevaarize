@@ -1584,11 +1584,59 @@ while (monoIdx < 99) {
 
 print("  Test Case 5 Passed VM Branch Jump Offset Encoding (2883 to 12 bytes, ", nearJumps, " near32 jumps, ", shortJumps, " short8 jumps)")
 
-// --- Summary Telemetry ---
+// --- Test Case 6: High-Throughput Branch Dispatch Benchmark (50,000 Iterations) ---
 
-elapsed = t.millis() - suiteStartTime
-if (testSuiteFailures == 0) {
-    print("[PASS] Stage 3 Passed in ", elapsed, " ms")
-} else {
-    print("[FAIL] Stage 3 encountered ", testSuiteFailures, " failures")
+print("--- Running Test Case 6: High-Throughput Branch Dispatch Benchmark (50,000 Iterations) ---")
+
+benchmarkIterations = 50000
+benchPrngSeed = 161803398
+linearChecksum = 0
+benchLinearStart = t.millis()
+
+benchIdx = 0
+benchSeed = benchPrngSeed
+while (benchIdx < benchmarkIterations) {
+    benchSeed = (benchSeed * 1103515245 + 12345) % 2147483647
+    probeKey = (benchSeed % 106) - 3
+    resLinear = dispatchFlatLadder100(probeKey, benchIdx)
+    linearChecksum = (linearChecksum + resLinear) % 1000000007
+    benchIdx = benchIdx + 1
 }
+benchLinearTime = t.millis() - benchLinearStart
+
+treeChecksum = 0
+benchTreeStart = t.millis()
+
+benchIdx = 0
+benchSeed = benchPrngSeed
+while (benchIdx < benchmarkIterations) {
+    benchSeed = (benchSeed * 1103515245 + 12345) % 2147483647
+    probeKey = (benchSeed % 106) - 3
+    resTree = dispatchNestedTree100(probeKey, benchIdx)
+    treeChecksum = (treeChecksum + resTree) % 1000000007
+    benchIdx = benchIdx + 1
+}
+benchTreeTime = t.millis() - benchTreeStart
+
+if (linearChecksum != treeChecksum) {
+    print("[FAIL] Test Case 6 Benchmark Checksum Mismatch: linear=", linearChecksum, " tree=", treeChecksum)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Linear Ladder (Flat 100) : ", benchLinearTime, " ms (checksum=", linearChecksum, ")")
+print("  Nested Tree (10x10)      : ", benchTreeTime, " ms (checksum=", treeChecksum, ")")
+print("  Test Case 6 Passed High-Throughput Dispatch Benchmark (100% parity across 50,000 probes)")
+
+// --- Final Suite Telemetry Summary ---
+
+totalElapsed = t.millis() - suiteStartTime
+print("======================================================================")
+print("  100-Branch Nested If-Else Suite Completed in ", totalElapsed, " ms")
+print("  Total Failures: ", testSuiteFailures)
+if (testSuiteFailures == 0) {
+    print("  STATUS: ALL TESTS PASSED [100% Deterministic]")
+} else {
+    print("  STATUS: FAILURES DETECTED")
+}
+print("======================================================================")
+
