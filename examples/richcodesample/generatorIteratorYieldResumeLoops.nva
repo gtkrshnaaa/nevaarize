@@ -24,6 +24,9 @@ statusSuspendedYield = 2
 statusCompleted = 3
 
 genTypeRange = 1
+genTypeMultiPhase = 2
+genTypeGrid2D = 3
+genTypeTensor3D = 4
 
 // --- Core Generator Construction and Access Primitives ---
 // Generator layout:
@@ -114,6 +117,125 @@ func stepRange(gen) {
     return 0
 }
 
+func stepMultiPhase(gen) {
+    // r0: current batch k
+    // r1: total batches maxK
+    // pc: 0 (start batch phase 1), 1 (phase 2), 2 (phase 3)
+    k = gen[3]
+    maxK = gen[4]
+    currentPc = gen[1]
+
+    if (k > maxK) {
+        gen[0] = statusCompleted
+        gen[10] = 1
+        return 0
+    }
+
+    if (currentPc == 0) {
+        // Phase 1: Batch Header
+        headerVal = (k * 1000) + 1
+        gen[0] = statusSuspendedYield
+        gen[1] = 1
+        gen[9] = headerVal
+        gen[11] = gen[11] + 1
+        return 1
+    } elif (currentPc == 1) {
+        // Phase 2: Batch Payload
+        payloadVal = (k * 1000) + 2
+        gen[0] = statusSuspendedYield
+        gen[1] = 2
+        gen[9] = payloadVal
+        gen[11] = gen[11] + 1
+        return 1
+    } elif (currentPc == 2) {
+        // Phase 3: Batch Checksum
+        payloadVal = (k * 1000) + 2
+        checksumVal = (payloadVal * 7) + 3
+        gen[0] = statusSuspendedYield
+        // Advance to next batch and reset PC
+        gen[3] = k + 1
+        gen[1] = 0
+        gen[9] = checksumVal
+        gen[11] = gen[11] + 1
+        return 1
+    }
+
+    gen[0] = statusCompleted
+    gen[10] = 1
+    return 0
+}
+
+func stepGrid2D(gen) {
+    // r0: currentRow, r1: maxRows, r2: currentCol, r3: maxCols
+    row = gen[3]
+    maxRows = gen[4]
+    col = gen[5]
+    maxCols = gen[6]
+
+    if (row >= maxRows) {
+        gen[0] = statusCompleted
+        gen[10] = 1
+        return 0
+    }
+
+    cellVal = (row * 100) + col
+
+    nextCol = col + 1
+    nextRow = row
+    if (nextCol >= maxCols) {
+        nextCol = 0
+        nextRow = row + 1
+    }
+
+    gen[3] = nextRow
+    gen[5] = nextCol
+    gen[0] = statusSuspendedYield
+    gen[1] = 1
+    gen[9] = cellVal
+    gen[11] = gen[11] + 1
+    return 1
+}
+
+func stepTensor3D(gen) {
+    // r0: curD, r1: maxD, r2: curR, r3: maxR, r4: curC, r5: maxC
+    curD = gen[3]
+    maxD = gen[4]
+    curR = gen[5]
+    maxR = gen[6]
+    curC = gen[7]
+    maxC = gen[8]
+
+    if (curD >= maxD) {
+        gen[0] = statusCompleted
+        gen[10] = 1
+        return 0
+    }
+
+    tensorVal = (curD * 10000) + (curR * 100) + curC
+
+    nextC = curC + 1
+    nextR = curR
+    nextD = curD
+
+    if (nextC >= maxC) {
+        nextC = 0
+        nextR = curR + 1
+        if (nextR >= maxR) {
+            nextR = 0
+            nextD = curD + 1
+        }
+    }
+
+    gen[3] = nextD
+    gen[5] = nextR
+    gen[7] = nextC
+    gen[0] = statusSuspendedYield
+    gen[1] = 1
+    gen[9] = tensorVal
+    gen[11] = gen[11] + 1
+    return 1
+}
+
 func stepGenerator(gen) {
     if (gen[10] == 1) {
         return 0
@@ -125,6 +247,12 @@ func stepGenerator(gen) {
     targetType = gen[2]
     if (targetType == 1) {
         return stepRange(gen)
+    } elif (targetType == 2) {
+        return stepMultiPhase(gen)
+    } elif (targetType == 3) {
+        return stepGrid2D(gen)
+    } elif (targetType == 4) {
+        return stepTensor3D(gen)
     }
 
     // Default: unknown generator terminates
@@ -239,12 +367,203 @@ if (isGeneratorDone(emptyGen) != true) {
 
 print("  Test Case 1 Passed linear bounded range generator and parity filter state machine")
 
+// --- Test Case 2: Multi-Yield Phase Loop State Machine ---
+
+print("--- Running Test Case 2: Multi-Yield Phase Loop State Machine ---")
+
+// 3 batches of 3 phases each: 9 yields in total
+phaseGen = createGenerator(genTypeMultiPhase, 1, 3, 0, 0, 0, 0)
+
+// Verify step by step with PC inspection
+stepRes1 = stepGenerator(phaseGen)
+if (stepRes1 != 1) {
+    print("[FAIL] Test Case 2 step 1 failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getGeneratorValue(phaseGen) != 1001) {
+    print("[FAIL] Test Case 2 header 1 mismatch: expected 1001, got ", getGeneratorValue(phaseGen))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (phaseGen[1] != 1) {
+    print("[FAIL] Test Case 2 pc after step 1 expected 1, got ", phaseGen[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+stepRes2 = stepGenerator(phaseGen)
+if (stepRes2 != 1) {
+    print("[FAIL] Test Case 2 step 2 failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (getGeneratorValue(phaseGen) != 1002) {
+    print("[FAIL] Test Case 2 payload 1 mismatch: expected 1002, got ", getGeneratorValue(phaseGen))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (phaseGen[1] != 2) {
+    print("[FAIL] Test Case 2 pc after step 2 expected 2, got ", phaseGen[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+stepRes3 = stepGenerator(phaseGen)
+if (stepRes3 != 1) {
+    print("[FAIL] Test Case 2 step 3 failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+expectedChecksum1 = (1002 * 7) + 3
+if (getGeneratorValue(phaseGen) != expectedChecksum1) {
+    print("[FAIL] Test Case 2 checksum 1 mismatch: expected ", expectedChecksum1, ", got ", getGeneratorValue(phaseGen))
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (phaseGen[1] != 0) {
+    print("[FAIL] Test Case 2 pc after step 3 expected 0, got ", phaseGen[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Drain remaining 2 batches (6 yields)
+remainingDrain = drainGenerator(phaseGen, 20)
+remainingValues = remainingDrain[0]
+remainingCount = remainingDrain[1]
+
+if (remainingCount != 6) {
+    print("[FAIL] Test Case 2 remaining count expected 6, got ", remainingCount)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Batch 2 expectations: 2001, 2002, (2002*7)+3 = 14017
+if (remainingValues[0] != 2001) {
+    print("[FAIL] Test Case 2 batch 2 header mismatch: expected 2001, got ", remainingValues[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (remainingValues[1] != 2002) {
+    print("[FAIL] Test Case 2 batch 2 payload mismatch: expected 2002, got ", remainingValues[1])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (remainingValues[2] != 14017) {
+    print("[FAIL] Test Case 2 batch 2 checksum mismatch: expected 14017, got ", remainingValues[2])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Batch 3 expectations: 3001, 3002, (3002*7)+3 = 21017
+if (remainingValues[3] != 3001) {
+    print("[FAIL] Test Case 2 batch 3 header mismatch: expected 3001, got ", remainingValues[3])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (remainingValues[4] != 3002) {
+    print("[FAIL] Test Case 2 batch 3 payload mismatch: expected 3002, got ", remainingValues[4])
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (remainingValues[5] != 21017) {
+    print("[FAIL] Test Case 2 batch 3 checksum mismatch: expected 21017, got ", remainingValues[5])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (isGeneratorDone(phaseGen) != true) {
+    print("[FAIL] Test Case 2 phaseGen should be completed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (getGeneratorYieldCount(phaseGen) != 9) {
+    print("[FAIL] Test Case 2 total yieldCount expected 9, got ", getGeneratorYieldCount(phaseGen))
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 2 Passed multi-yield phase loop state machine and PC verification")
+
+// --- Test Case 3: Nested Dual and Triple Loop State Machines (Grid & Tensor) ---
+
+print("--- Running Test Case 3: Nested Dual and Triple Loop State Machines (Grid & Tensor) ---")
+
+// Subtest 3.1: 2D Grid Generator (3 rows x 4 cols = 12 cells)
+gridGen = createGenerator(genTypeGrid2D, 0, 3, 0, 4, 0, 0)
+gridDrain = drainGenerator(gridGen, 50)
+gridValues = gridDrain[0]
+gridCount = gridDrain[1]
+
+if (gridCount != 12) {
+    print("[FAIL] Test Case 3.1 grid cell count expected 12, got ", gridCount)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (gridValues[0] != 0) {
+    print("[FAIL] Test Case 3.1 first cell expected 0, got ", gridValues[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Last cell is row 2, col 3 -> (2 * 100) + 3 = 203
+if (gridValues[11] != 203) {
+    print("[FAIL] Test Case 3.1 last cell expected 203, got ", gridValues[11])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Verify grid sum: rows 0,1,2 with cols 0,1,2,3
+// sum of (r*100 + c) for 3 rows x 4 cols
+// cols sum per row: 0+1+2+3 = 6
+// row 0: 6
+// row 1: 400 + 6 = 406
+// row 2: 800 + 6 = 806
+// total = 1218
+expectedGridSum = 1218
+actualGridSum = 0
+gridIdx = 0
+while (gridIdx < gridCount) {
+    actualGridSum = actualGridSum + gridValues[gridIdx]
+    gridIdx = gridIdx + 1
+}
+
+if (actualGridSum != expectedGridSum) {
+    print("[FAIL] Test Case 3.1 grid sum expected 1218, got ", actualGridSum)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Subtest 3.2: 3D Tensor Generator (2 depths x 3 rows x 4 cols = 24 elements)
+tensorGen = createGenerator(genTypeTensor3D, 0, 2, 0, 3, 0, 4)
+tensorDrain = drainGenerator(tensorGen, 100)
+tensorValues = tensorDrain[0]
+tensorCount = tensorDrain[1]
+
+if (tensorCount != 24) {
+    print("[FAIL] Test Case 3.2 tensor count expected 24, got ", tensorCount)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (tensorValues[0] != 0) {
+    print("[FAIL] Test Case 3.2 first tensor element expected 0, got ", tensorValues[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Last element is depth 1, row 2, col 3 -> (1 * 10000) + (2 * 100) + 3 = 10203
+if (tensorValues[23] != 10203) {
+    print("[FAIL] Test Case 3.2 last tensor element expected 10203, got ", tensorValues[23])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+// Tensor sum: depth 0 sum is 1218; depth 1 sum is (12 * 10000) + 1218 = 121218
+// Total = 1218 + 121218 = 122436
+expectedTensorSum = 122436
+actualTensorSum = 0
+tensorIdx = 0
+while (tensorIdx < tensorCount) {
+    actualTensorSum = actualTensorSum + tensorValues[tensorIdx]
+    tensorIdx = tensorIdx + 1
+}
+
+if (actualTensorSum != expectedTensorSum) {
+    print("[FAIL] Test Case 3.2 tensor sum expected 122436, got ", actualTensorSum)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+if (isGeneratorDone(tensorGen) != true) {
+    print("[FAIL] Test Case 3.2 tensorGen should be completed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 3 Passed nested dual and triple loop state machines (grid and tensor)")
+
 // --- Benchmark Timings and Final Assertion ---
 
 suiteElapsedTime = t.millis() - suiteStartTime
 
 if (testSuiteFailures == 0) {
-    print("[PASS] Generator Iterator State Machine Suite completed 1 test case in ", suiteElapsedTime, " ms")
+    print("[PASS] Generator Iterator State Machine Suite completed 3 test cases in ", suiteElapsedTime, " ms")
 } else {
     print("[FAIL] Suite encountered ", testSuiteFailures, " failures")
 }
