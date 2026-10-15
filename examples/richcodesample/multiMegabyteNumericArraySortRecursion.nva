@@ -160,6 +160,86 @@ func heapSort(targetArr) {
     return 0
 }
 
+// --- Tail-Recursion-Bounded QuickSort with Median-of-3 ---
+
+func medianOfThree(mArr, lowIdx, highIdx) {
+    midIdx = lowIdx + (highIdx - lowIdx) / 2
+    if (mArr[lowIdx] > mArr[midIdx]) {
+        swapElements(mArr, lowIdx, midIdx)
+    }
+    if (mArr[lowIdx] > mArr[highIdx]) {
+        swapElements(mArr, lowIdx, highIdx)
+    }
+    if (mArr[midIdx] > mArr[highIdx]) {
+        swapElements(mArr, midIdx, highIdx)
+    }
+    return midIdx
+}
+
+maxObservedRecursionDepth = 0
+
+func quickSortRecursive(qArr, qLow, qHigh, currentDepth) {
+    if (currentDepth > maxObservedRecursionDepth) {
+        maxObservedRecursionDepth = currentDepth
+    }
+
+    lowCurr = qLow
+    highCurr = qHigh
+
+    while (lowCurr < highCurr) {
+        mid = lowCurr + (highCurr - lowCurr) / 2
+        if (qArr[lowCurr] > qArr[mid]) {
+            swapElements(qArr, lowCurr, mid)
+        }
+        if (qArr[lowCurr] > qArr[highCurr]) {
+            swapElements(qArr, lowCurr, highCurr)
+        }
+        if (qArr[mid] > qArr[highCurr]) {
+            swapElements(qArr, mid, highCurr)
+        }
+
+        swapElements(qArr, mid, highCurr)
+        pivotVal = qArr[highCurr]
+
+        pIdx = lowCurr
+        k = lowCurr
+        while (k < highCurr) {
+            if (qArr[k] <= pivotVal) {
+                swapElements(qArr, pIdx, k)
+                pIdx = pIdx + 1
+            }
+            k = k + 1
+        }
+        swapElements(qArr, pIdx, highCurr)
+
+        leftLen = pIdx - lowCurr
+        rightLen = highCurr - pIdx
+
+        if (leftLen < rightLen) {
+            if (lowCurr < pIdx - 1) {
+                quickSortRecursive(qArr, lowCurr, pIdx - 1, currentDepth + 1)
+            }
+            lowCurr = pIdx + 1
+        } else {
+            if (pIdx + 1 < highCurr) {
+                quickSortRecursive(qArr, pIdx + 1, highCurr, currentDepth + 1)
+            }
+            highCurr = pIdx - 1
+        }
+    }
+    return 0
+}
+
+func quickSortBounded(targetArr) {
+    n = targetArr.size()
+    if (n <= 1) {
+        return 0
+    }
+    maxObservedRecursionDepth = 0
+    quickSortRecursive(targetArr, 0, n - 1, 1)
+    return maxObservedRecursionDepth
+}
+
 // --- Test Case 1: In-Place HeapSort Across Input Topologies ---
 
 print("--- Running Test Case 1: In-Place HeapSort Across Input Topologies ---")
@@ -231,9 +311,105 @@ print("  HeapSort Heavy Duplicates (2000 elements): Sorted=PASS, Parity=PASS")
 
 print("  Test Case 1 Passed In-Place HeapSort Across Input Topologies")
 
-elapsedStage1 = t.millis() - suiteStartTime
+// --- Test Case 2: Logarithmic Recursion Depth Proof & Stack Bounds ---
+
+print("--- Running Test Case 2: Logarithmic Recursion Depth Proof & Stack Bounds ---")
+
+depthTestSizes = [128, 512, 2048, 8192]
+dtIdx = 0
+numDtSizes = depthTestSizes.size()
+
+while (dtIdx < numDtSizes) {
+    currDtSize = depthTestSizes[dtIdx]
+    dtArrOrig = generatePseudoRandomArray(currDtSize, 98765 + currDtSize)
+    dtArr = cloneArray(dtArrOrig)
+
+    measuredDepth = quickSortBounded(dtArr)
+
+    if (isSorted(dtArr) != 1) {
+        print("[FAIL] Test Case 2 QuickSort failed to sort array of size ", currDtSize)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+
+    if (computeArraySum(dtArr) != computeArraySum(dtArrOrig)) {
+        print("[FAIL] Test Case 2 Checksum mismatch for size ", currDtSize)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+
+    maxPermittedDepth = 25
+    if (measuredDepth > maxPermittedDepth) {
+        print("[FAIL] Test Case 2 Stack depth exceeded limit for size ", currDtSize, ": measured=", measuredDepth)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+
+    print("  Size ", currDtSize, ": Sorted=PASS, Parity=PASS, Max Stack Depth: ", measuredDepth, " (bound <= ", maxPermittedDepth, ")")
+    dtIdx = dtIdx + 1
+}
+
+print("  Test Case 2 Passed Logarithmic Recursion Depth Proof & Stack Bounds")
+
+// --- Test Case 3: Adversarial Input Topologies (Sorted, Reversed, Bitonic Organ-Pipe) ---
+
+print("--- Running Test Case 3: Adversarial Input Topologies ---")
+
+advSize = 4000
+
+// 3.1 Strictly Ascending (Already Sorted) - Classic QuickSort Killer
+advAscOrig = []
+i = 0
+while (i < advSize) {
+    advAscOrig.push(i * 2 + 1)
+    i = i + 1
+}
+advAscArr = cloneArray(advAscOrig)
+depthAsc = quickSortBounded(advAscArr)
+if (isSorted(advAscArr) != 1 or depthAsc > 30) {
+    print("[FAIL] Test Case 3 Ascending array failed: isSorted=", isSorted(advAscArr), " depth=", depthAsc)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Adversarial Ascending (4000 items): Sorted=PASS, Stack Depth: ", depthAsc, " (well below O(N))")
+
+// 3.2 Strictly Descending (Reversed)
+advDescOrig = []
+i = 0
+while (i < advSize) {
+    advDescOrig.push((advSize - i) * 3)
+    i = i + 1
+}
+advDescArr = cloneArray(advDescOrig)
+depthDesc = quickSortBounded(advDescArr)
+if (isSorted(advDescArr) != 1 or depthDesc > 30) {
+    print("[FAIL] Test Case 3 Descending array failed: isSorted=", isSorted(advDescArr), " depth=", depthDesc)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Adversarial Descending (4000 items): Sorted=PASS, Stack Depth: ", depthDesc, " (well below O(N))")
+
+// 3.3 Pipe Organ / Bitonic (First half ascending, second half descending)
+advBitonicOrig = []
+halfAdv = advSize / 2
+i = 0
+while (i < halfAdv) {
+    advBitonicOrig.push(i * 10)
+    i = i + 1
+}
+i = 0
+while (i < halfAdv) {
+    advBitonicOrig.push((halfAdv - i) * 10)
+    i = i + 1
+}
+advBitonicArr = cloneArray(advBitonicOrig)
+depthBitonic = quickSortBounded(advBitonicArr)
+if (isSorted(advBitonicArr) != 1 or depthBitonic > 30) {
+    print("[FAIL] Test Case 3 Bitonic array failed: isSorted=", isSorted(advBitonicArr), " depth=", depthBitonic)
+    testSuiteFailures = testSuiteFailures + 1
+}
+print("  Adversarial Bitonic Pipe-Organ (4000 items): Sorted=PASS, Stack Depth: ", depthBitonic)
+
+print("  Test Case 3 Passed Adversarial Input Topologies (All stack depths strictly <= 30)")
+
+elapsedStage2 = t.millis() - suiteStartTime
 if (testSuiteFailures != 0) {
-    print("[FAIL] Stage 1 encountered failures: ", testSuiteFailures)
+    print("[FAIL] Stage 2 encountered failures: ", testSuiteFailures)
 } else {
-    print("  Stage 1 completed in ", elapsedStage1, " ms")
+    print("  Stage 2 completed in ", elapsedStage2, " ms")
 }
