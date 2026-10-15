@@ -196,7 +196,11 @@ func dispatchUnary(fnId, x, param1, param2) {
         return x * x * x
     } elif (fnId == 12) {
         // fnIdMultiplyByK
-        return x * param1
+        prod = x * param1
+        if (param2 > 0) {
+            return prod % param2
+        }
+        return prod
     } elif (fnId == 13) {
         // fnIdAddConst
         return x + param1
@@ -935,3 +939,121 @@ if (kinematicsEnergy != 1650) {
 }
 
 print("  Test Case 5 Passed Complex Composed Pipelines")
+
+// --- Test Case 6: Pipeline Fusion Equivalence ---
+
+print("--- Running Test Case 6: Pipeline Fusion Equivalence ---")
+
+fusionInput = []
+fIdx = 1
+while (fIdx <= 100) {
+    fusionInput.push(fIdx)
+    fIdx = fIdx + 1
+}
+
+// Staged multi-pass pipeline:
+// Stage 1: Map multiply by 7
+// Stage 2: Filter divisible by 5
+// Stage 3: Map add 3
+// Stage 4: Filter is even
+stagedPipeline = [
+    createStageMap(fnIdMultiplyByK, 7, 0),
+    createStageFilter(predIdIsDivisibleBy5, 0, 0),
+    createStageMap(fnIdAddConst, 3, 0),
+    createStageFilter(predIdIsEven, 0, 0)
+]
+stagedResult = executePipeline(stagedPipeline, fusionInput)
+
+// Fused single-pass execution:
+fusedResult = []
+for (elem in fusionInput) {
+    v1 = dispatchUnary(fnIdMultiplyByK, elem, 7, 0)
+    if (dispatchPredicate(predIdIsDivisibleBy5, v1, 0, 0)) {
+        v2 = dispatchUnary(fnIdAddConst, v1, 3, 0)
+        if (dispatchPredicate(predIdIsEven, v2, 0, 0)) {
+            fusedResult.push(v2)
+        }
+    }
+}
+
+if (compareArrays(stagedResult, fusedResult) == false) {
+    print("[FAIL] Test Case 6 Pipeline fusion equivalence failed")
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (stagedResult.size() != 10 or stagedResult[0] != 38 or stagedResult[9] != 668) {
+    print("[FAIL] Test Case 6 Staged result values mismatch")
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 6 Passed Pipeline Fusion Equivalence")
+
+// --- Test Case 7: High-Throughput Stress Benchmark (25,000 Items) ---
+
+print("--- Running Test Case 7: High-Throughput Benchmark (25,000 Items) ---")
+
+benchmarkStartTime = t.millis()
+
+benchRaw = []
+bIdx = 1
+while (bIdx <= 25000) {
+    benchRaw.push(bIdx)
+    bIdx = bIdx + 1
+}
+
+// Stage 1: Filter odd numbers only (25,000 -> 12,500)
+// Stage 2: Map multiply by 17 mod 1000007
+// Stage 3: Drop first 2,500 items (12,500 -> 10,000)
+// Stage 4: Take first 5,000 items (10,000 -> 5,000)
+// Stage 5: ZipWith linear index weights [1..5000] using binIdModMul
+// Stage 6: Fold using binIdModAdd
+
+benchWeights = []
+bwIdx = 1
+while (bwIdx <= 5000) {
+    benchWeights.push(bwIdx)
+    bwIdx = bwIdx + 1
+}
+
+benchPipeline = [
+    createStageFilter(predIdIsOdd, 0, 0),
+    createStageMap(fnIdMultiplyByK, 17, 1000007),
+    createStageDrop(2500),
+    createStageTake(5000),
+    createStageZipWith(binIdModMul, benchWeights, 0)
+]
+
+benchProcessed = executePipeline(benchPipeline, benchRaw)
+benchChecksum = foldList(binIdModAdd, 0, benchProcessed, 0)
+
+benchmarkEndTime = t.millis()
+benchmarkDuration = benchmarkEndTime - benchmarkStartTime
+
+if (benchProcessed.size() != 5000) {
+    print("[FAIL] Test Case 7 Processed stream size expected 5000, got ", benchProcessed.size())
+    testSuiteFailures = testSuiteFailures + 1
+}
+if (benchChecksum != 591635147) {
+    print("[FAIL] Test Case 7 Deterministic checksum mismatch: expected 591635147, got ", benchChecksum)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 7 Passed High-Throughput Benchmark (25,000 items in ", benchmarkDuration, " ms, checksum= ", benchChecksum, ")")
+
+// --- Telemetry Report ---
+
+suiteEndTime = t.millis()
+suiteTotalDuration = suiteEndTime - suiteStartTime
+
+print("--- Telemetry Report ---")
+print("  Total Items Processed : ", itemsProcessed[0])
+print("  Unary Transforms      : ", transformCount[0])
+print("  Predicate Evaluations : ", predicateCount[0])
+print("  Binary Folds / Reduces: ", foldCount[0])
+print("  Zip Pairs Formed      : ", zipCount[0])
+print("  Suite Elapsed Time(ms): ", suiteTotalDuration)
+
+if (testSuiteFailures > 0) {
+    print("[FAIL] Higher-Order Function Pipeline Suite encountered ", testSuiteFailures, " failures")
+} else {
+    print("[PASS] Higher-Order Function Pipeline Suite executed successfully in ", suiteTotalDuration, " ms")
+}
