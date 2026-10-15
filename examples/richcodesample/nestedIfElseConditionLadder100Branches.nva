@@ -7,6 +7,7 @@ import stdlib time as t
 // - Exhaustive sweep across all 100 distinct branch labels with deterministic assertions
 // - Boundary analysis covering out-of-bounds, negative, zero, and interval edge cases
 // - Multi-tier hierarchical decision trees vs linear condition ladders
+// - 100-Interval Range Classifier evaluating discrete intervals across domain [0, 10000)
 // - Simulated VM relative branch jump offset calculation engine (rel8 vs rel32 sizing)
 // - High-throughput runtime benchmark comparing branch evaluation topologies
 // - Strict camelCase naming conventions enforced across all symbols (No-Underscore Policy)
@@ -32,6 +33,10 @@ func makeIntArray(sz, defaultVal) {
 
 branchHitCount = makeIntArray(101, 0)
 totalDispatches = [0]
+treeBranchHitCount = makeIntArray(101, 0)
+totalTreeDispatches = [0]
+intervalHitCount = makeIntArray(101, 0)
+totalIntervalClassifications = [0]
 
 // --- Analytical Formula Baseline ---
 
@@ -452,6 +457,850 @@ func dispatchFlatLadder100(branchKey, accVal) {
     }
 }
 
+// --- Topology 2: Hierarchical Nested 10-Tier x 10-Branch Decision Tree ---
+
+func dispatchNestedTree100(branchKey, accVal) {
+    totalTreeDispatches[0] = totalTreeDispatches[0] + 1
+    if (branchKey >= 1 and branchKey <= 10) {
+        if (branchKey == 1) {
+            treeBranchHitCount[1] = treeBranchHitCount[1] + 1
+            return (accVal * 31 + 22) % 1000000007
+        }
+        elif (branchKey == 2) {
+            treeBranchHitCount[2] = treeBranchHitCount[2] + 1
+            return (accVal * 31 + 39) % 1000000007
+        }
+        elif (branchKey == 3) {
+            treeBranchHitCount[3] = treeBranchHitCount[3] + 1
+            return (accVal * 31 + 56) % 1000000007
+        }
+        elif (branchKey == 4) {
+            treeBranchHitCount[4] = treeBranchHitCount[4] + 1
+            return (accVal * 31 + 73) % 1000000007
+        }
+        elif (branchKey == 5) {
+            treeBranchHitCount[5] = treeBranchHitCount[5] + 1
+            return (accVal * 31 + 90) % 1000000007
+        }
+        elif (branchKey == 6) {
+            treeBranchHitCount[6] = treeBranchHitCount[6] + 1
+            return (accVal * 31 + 107) % 1000000007
+        }
+        elif (branchKey == 7) {
+            treeBranchHitCount[7] = treeBranchHitCount[7] + 1
+            return (accVal * 31 + 124) % 1000000007
+        }
+        elif (branchKey == 8) {
+            treeBranchHitCount[8] = treeBranchHitCount[8] + 1
+            return (accVal * 31 + 141) % 1000000007
+        }
+        elif (branchKey == 9) {
+            treeBranchHitCount[9] = treeBranchHitCount[9] + 1
+            return (accVal * 31 + 158) % 1000000007
+        }
+        elif (branchKey == 10) {
+            treeBranchHitCount[10] = treeBranchHitCount[10] + 1
+            return (accVal * 31 + 175) % 1000000007
+        }
+    }
+    elif (branchKey >= 11 and branchKey <= 20) {
+        if (branchKey == 11) {
+            treeBranchHitCount[11] = treeBranchHitCount[11] + 1
+            return (accVal * 31 + 192) % 1000000007
+        }
+        elif (branchKey == 12) {
+            treeBranchHitCount[12] = treeBranchHitCount[12] + 1
+            return (accVal * 31 + 209) % 1000000007
+        }
+        elif (branchKey == 13) {
+            treeBranchHitCount[13] = treeBranchHitCount[13] + 1
+            return (accVal * 31 + 226) % 1000000007
+        }
+        elif (branchKey == 14) {
+            treeBranchHitCount[14] = treeBranchHitCount[14] + 1
+            return (accVal * 31 + 243) % 1000000007
+        }
+        elif (branchKey == 15) {
+            treeBranchHitCount[15] = treeBranchHitCount[15] + 1
+            return (accVal * 31 + 260) % 1000000007
+        }
+        elif (branchKey == 16) {
+            treeBranchHitCount[16] = treeBranchHitCount[16] + 1
+            return (accVal * 31 + 277) % 1000000007
+        }
+        elif (branchKey == 17) {
+            treeBranchHitCount[17] = treeBranchHitCount[17] + 1
+            return (accVal * 31 + 294) % 1000000007
+        }
+        elif (branchKey == 18) {
+            treeBranchHitCount[18] = treeBranchHitCount[18] + 1
+            return (accVal * 31 + 311) % 1000000007
+        }
+        elif (branchKey == 19) {
+            treeBranchHitCount[19] = treeBranchHitCount[19] + 1
+            return (accVal * 31 + 328) % 1000000007
+        }
+        elif (branchKey == 20) {
+            treeBranchHitCount[20] = treeBranchHitCount[20] + 1
+            return (accVal * 31 + 345) % 1000000007
+        }
+    }
+    elif (branchKey >= 21 and branchKey <= 30) {
+        if (branchKey == 21) {
+            treeBranchHitCount[21] = treeBranchHitCount[21] + 1
+            return (accVal * 31 + 362) % 1000000007
+        }
+        elif (branchKey == 22) {
+            treeBranchHitCount[22] = treeBranchHitCount[22] + 1
+            return (accVal * 31 + 379) % 1000000007
+        }
+        elif (branchKey == 23) {
+            treeBranchHitCount[23] = treeBranchHitCount[23] + 1
+            return (accVal * 31 + 396) % 1000000007
+        }
+        elif (branchKey == 24) {
+            treeBranchHitCount[24] = treeBranchHitCount[24] + 1
+            return (accVal * 31 + 413) % 1000000007
+        }
+        elif (branchKey == 25) {
+            treeBranchHitCount[25] = treeBranchHitCount[25] + 1
+            return (accVal * 31 + 430) % 1000000007
+        }
+        elif (branchKey == 26) {
+            treeBranchHitCount[26] = treeBranchHitCount[26] + 1
+            return (accVal * 31 + 447) % 1000000007
+        }
+        elif (branchKey == 27) {
+            treeBranchHitCount[27] = treeBranchHitCount[27] + 1
+            return (accVal * 31 + 464) % 1000000007
+        }
+        elif (branchKey == 28) {
+            treeBranchHitCount[28] = treeBranchHitCount[28] + 1
+            return (accVal * 31 + 481) % 1000000007
+        }
+        elif (branchKey == 29) {
+            treeBranchHitCount[29] = treeBranchHitCount[29] + 1
+            return (accVal * 31 + 498) % 1000000007
+        }
+        elif (branchKey == 30) {
+            treeBranchHitCount[30] = treeBranchHitCount[30] + 1
+            return (accVal * 31 + 515) % 1000000007
+        }
+    }
+    elif (branchKey >= 31 and branchKey <= 40) {
+        if (branchKey == 31) {
+            treeBranchHitCount[31] = treeBranchHitCount[31] + 1
+            return (accVal * 31 + 532) % 1000000007
+        }
+        elif (branchKey == 32) {
+            treeBranchHitCount[32] = treeBranchHitCount[32] + 1
+            return (accVal * 31 + 549) % 1000000007
+        }
+        elif (branchKey == 33) {
+            treeBranchHitCount[33] = treeBranchHitCount[33] + 1
+            return (accVal * 31 + 566) % 1000000007
+        }
+        elif (branchKey == 34) {
+            treeBranchHitCount[34] = treeBranchHitCount[34] + 1
+            return (accVal * 31 + 583) % 1000000007
+        }
+        elif (branchKey == 35) {
+            treeBranchHitCount[35] = treeBranchHitCount[35] + 1
+            return (accVal * 31 + 600) % 1000000007
+        }
+        elif (branchKey == 36) {
+            treeBranchHitCount[36] = treeBranchHitCount[36] + 1
+            return (accVal * 31 + 617) % 1000000007
+        }
+        elif (branchKey == 37) {
+            treeBranchHitCount[37] = treeBranchHitCount[37] + 1
+            return (accVal * 31 + 634) % 1000000007
+        }
+        elif (branchKey == 38) {
+            treeBranchHitCount[38] = treeBranchHitCount[38] + 1
+            return (accVal * 31 + 651) % 1000000007
+        }
+        elif (branchKey == 39) {
+            treeBranchHitCount[39] = treeBranchHitCount[39] + 1
+            return (accVal * 31 + 668) % 1000000007
+        }
+        elif (branchKey == 40) {
+            treeBranchHitCount[40] = treeBranchHitCount[40] + 1
+            return (accVal * 31 + 685) % 1000000007
+        }
+    }
+    elif (branchKey >= 41 and branchKey <= 50) {
+        if (branchKey == 41) {
+            treeBranchHitCount[41] = treeBranchHitCount[41] + 1
+            return (accVal * 31 + 702) % 1000000007
+        }
+        elif (branchKey == 42) {
+            treeBranchHitCount[42] = treeBranchHitCount[42] + 1
+            return (accVal * 31 + 719) % 1000000007
+        }
+        elif (branchKey == 43) {
+            treeBranchHitCount[43] = treeBranchHitCount[43] + 1
+            return (accVal * 31 + 736) % 1000000007
+        }
+        elif (branchKey == 44) {
+            treeBranchHitCount[44] = treeBranchHitCount[44] + 1
+            return (accVal * 31 + 753) % 1000000007
+        }
+        elif (branchKey == 45) {
+            treeBranchHitCount[45] = treeBranchHitCount[45] + 1
+            return (accVal * 31 + 770) % 1000000007
+        }
+        elif (branchKey == 46) {
+            treeBranchHitCount[46] = treeBranchHitCount[46] + 1
+            return (accVal * 31 + 787) % 1000000007
+        }
+        elif (branchKey == 47) {
+            treeBranchHitCount[47] = treeBranchHitCount[47] + 1
+            return (accVal * 31 + 804) % 1000000007
+        }
+        elif (branchKey == 48) {
+            treeBranchHitCount[48] = treeBranchHitCount[48] + 1
+            return (accVal * 31 + 821) % 1000000007
+        }
+        elif (branchKey == 49) {
+            treeBranchHitCount[49] = treeBranchHitCount[49] + 1
+            return (accVal * 31 + 838) % 1000000007
+        }
+        elif (branchKey == 50) {
+            treeBranchHitCount[50] = treeBranchHitCount[50] + 1
+            return (accVal * 31 + 855) % 1000000007
+        }
+    }
+    elif (branchKey >= 51 and branchKey <= 60) {
+        if (branchKey == 51) {
+            treeBranchHitCount[51] = treeBranchHitCount[51] + 1
+            return (accVal * 31 + 872) % 1000000007
+        }
+        elif (branchKey == 52) {
+            treeBranchHitCount[52] = treeBranchHitCount[52] + 1
+            return (accVal * 31 + 889) % 1000000007
+        }
+        elif (branchKey == 53) {
+            treeBranchHitCount[53] = treeBranchHitCount[53] + 1
+            return (accVal * 31 + 906) % 1000000007
+        }
+        elif (branchKey == 54) {
+            treeBranchHitCount[54] = treeBranchHitCount[54] + 1
+            return (accVal * 31 + 923) % 1000000007
+        }
+        elif (branchKey == 55) {
+            treeBranchHitCount[55] = treeBranchHitCount[55] + 1
+            return (accVal * 31 + 940) % 1000000007
+        }
+        elif (branchKey == 56) {
+            treeBranchHitCount[56] = treeBranchHitCount[56] + 1
+            return (accVal * 31 + 957) % 1000000007
+        }
+        elif (branchKey == 57) {
+            treeBranchHitCount[57] = treeBranchHitCount[57] + 1
+            return (accVal * 31 + 974) % 1000000007
+        }
+        elif (branchKey == 58) {
+            treeBranchHitCount[58] = treeBranchHitCount[58] + 1
+            return (accVal * 31 + 991) % 1000000007
+        }
+        elif (branchKey == 59) {
+            treeBranchHitCount[59] = treeBranchHitCount[59] + 1
+            return (accVal * 31 + 1008) % 1000000007
+        }
+        elif (branchKey == 60) {
+            treeBranchHitCount[60] = treeBranchHitCount[60] + 1
+            return (accVal * 31 + 1025) % 1000000007
+        }
+    }
+    elif (branchKey >= 61 and branchKey <= 70) {
+        if (branchKey == 61) {
+            treeBranchHitCount[61] = treeBranchHitCount[61] + 1
+            return (accVal * 31 + 1042) % 1000000007
+        }
+        elif (branchKey == 62) {
+            treeBranchHitCount[62] = treeBranchHitCount[62] + 1
+            return (accVal * 31 + 1059) % 1000000007
+        }
+        elif (branchKey == 63) {
+            treeBranchHitCount[63] = treeBranchHitCount[63] + 1
+            return (accVal * 31 + 1076) % 1000000007
+        }
+        elif (branchKey == 64) {
+            treeBranchHitCount[64] = treeBranchHitCount[64] + 1
+            return (accVal * 31 + 1093) % 1000000007
+        }
+        elif (branchKey == 65) {
+            treeBranchHitCount[65] = treeBranchHitCount[65] + 1
+            return (accVal * 31 + 1110) % 1000000007
+        }
+        elif (branchKey == 66) {
+            treeBranchHitCount[66] = treeBranchHitCount[66] + 1
+            return (accVal * 31 + 1127) % 1000000007
+        }
+        elif (branchKey == 67) {
+            treeBranchHitCount[67] = treeBranchHitCount[67] + 1
+            return (accVal * 31 + 1144) % 1000000007
+        }
+        elif (branchKey == 68) {
+            treeBranchHitCount[68] = treeBranchHitCount[68] + 1
+            return (accVal * 31 + 1161) % 1000000007
+        }
+        elif (branchKey == 69) {
+            treeBranchHitCount[69] = treeBranchHitCount[69] + 1
+            return (accVal * 31 + 1178) % 1000000007
+        }
+        elif (branchKey == 70) {
+            treeBranchHitCount[70] = treeBranchHitCount[70] + 1
+            return (accVal * 31 + 1195) % 1000000007
+        }
+    }
+    elif (branchKey >= 71 and branchKey <= 80) {
+        if (branchKey == 71) {
+            treeBranchHitCount[71] = treeBranchHitCount[71] + 1
+            return (accVal * 31 + 1212) % 1000000007
+        }
+        elif (branchKey == 72) {
+            treeBranchHitCount[72] = treeBranchHitCount[72] + 1
+            return (accVal * 31 + 1229) % 1000000007
+        }
+        elif (branchKey == 73) {
+            treeBranchHitCount[73] = treeBranchHitCount[73] + 1
+            return (accVal * 31 + 1246) % 1000000007
+        }
+        elif (branchKey == 74) {
+            treeBranchHitCount[74] = treeBranchHitCount[74] + 1
+            return (accVal * 31 + 1263) % 1000000007
+        }
+        elif (branchKey == 75) {
+            treeBranchHitCount[75] = treeBranchHitCount[75] + 1
+            return (accVal * 31 + 1280) % 1000000007
+        }
+        elif (branchKey == 76) {
+            treeBranchHitCount[76] = treeBranchHitCount[76] + 1
+            return (accVal * 31 + 1297) % 1000000007
+        }
+        elif (branchKey == 77) {
+            treeBranchHitCount[77] = treeBranchHitCount[77] + 1
+            return (accVal * 31 + 1314) % 1000000007
+        }
+        elif (branchKey == 78) {
+            treeBranchHitCount[78] = treeBranchHitCount[78] + 1
+            return (accVal * 31 + 1331) % 1000000007
+        }
+        elif (branchKey == 79) {
+            treeBranchHitCount[79] = treeBranchHitCount[79] + 1
+            return (accVal * 31 + 1348) % 1000000007
+        }
+        elif (branchKey == 80) {
+            treeBranchHitCount[80] = treeBranchHitCount[80] + 1
+            return (accVal * 31 + 1365) % 1000000007
+        }
+    }
+    elif (branchKey >= 81 and branchKey <= 90) {
+        if (branchKey == 81) {
+            treeBranchHitCount[81] = treeBranchHitCount[81] + 1
+            return (accVal * 31 + 1382) % 1000000007
+        }
+        elif (branchKey == 82) {
+            treeBranchHitCount[82] = treeBranchHitCount[82] + 1
+            return (accVal * 31 + 1399) % 1000000007
+        }
+        elif (branchKey == 83) {
+            treeBranchHitCount[83] = treeBranchHitCount[83] + 1
+            return (accVal * 31 + 1416) % 1000000007
+        }
+        elif (branchKey == 84) {
+            treeBranchHitCount[84] = treeBranchHitCount[84] + 1
+            return (accVal * 31 + 1433) % 1000000007
+        }
+        elif (branchKey == 85) {
+            treeBranchHitCount[85] = treeBranchHitCount[85] + 1
+            return (accVal * 31 + 1450) % 1000000007
+        }
+        elif (branchKey == 86) {
+            treeBranchHitCount[86] = treeBranchHitCount[86] + 1
+            return (accVal * 31 + 1467) % 1000000007
+        }
+        elif (branchKey == 87) {
+            treeBranchHitCount[87] = treeBranchHitCount[87] + 1
+            return (accVal * 31 + 1484) % 1000000007
+        }
+        elif (branchKey == 88) {
+            treeBranchHitCount[88] = treeBranchHitCount[88] + 1
+            return (accVal * 31 + 1501) % 1000000007
+        }
+        elif (branchKey == 89) {
+            treeBranchHitCount[89] = treeBranchHitCount[89] + 1
+            return (accVal * 31 + 1518) % 1000000007
+        }
+        elif (branchKey == 90) {
+            treeBranchHitCount[90] = treeBranchHitCount[90] + 1
+            return (accVal * 31 + 1535) % 1000000007
+        }
+    }
+    elif (branchKey >= 91 and branchKey <= 100) {
+        if (branchKey == 91) {
+            treeBranchHitCount[91] = treeBranchHitCount[91] + 1
+            return (accVal * 31 + 1552) % 1000000007
+        }
+        elif (branchKey == 92) {
+            treeBranchHitCount[92] = treeBranchHitCount[92] + 1
+            return (accVal * 31 + 1569) % 1000000007
+        }
+        elif (branchKey == 93) {
+            treeBranchHitCount[93] = treeBranchHitCount[93] + 1
+            return (accVal * 31 + 1586) % 1000000007
+        }
+        elif (branchKey == 94) {
+            treeBranchHitCount[94] = treeBranchHitCount[94] + 1
+            return (accVal * 31 + 1603) % 1000000007
+        }
+        elif (branchKey == 95) {
+            treeBranchHitCount[95] = treeBranchHitCount[95] + 1
+            return (accVal * 31 + 1620) % 1000000007
+        }
+        elif (branchKey == 96) {
+            treeBranchHitCount[96] = treeBranchHitCount[96] + 1
+            return (accVal * 31 + 1637) % 1000000007
+        }
+        elif (branchKey == 97) {
+            treeBranchHitCount[97] = treeBranchHitCount[97] + 1
+            return (accVal * 31 + 1654) % 1000000007
+        }
+        elif (branchKey == 98) {
+            treeBranchHitCount[98] = treeBranchHitCount[98] + 1
+            return (accVal * 31 + 1671) % 1000000007
+        }
+        elif (branchKey == 99) {
+            treeBranchHitCount[99] = treeBranchHitCount[99] + 1
+            return (accVal * 31 + 1688) % 1000000007
+        }
+        elif (branchKey == 100) {
+            treeBranchHitCount[100] = treeBranchHitCount[100] + 1
+            return (accVal * 31 + 1705) % 1000000007
+        }
+    }
+    else {
+        treeBranchHitCount[0] = treeBranchHitCount[0] + 1
+        return (accVal + 999999) % 1000000007
+    }
+}
+
+// --- Topology 4: 100-Interval Range Classifier ---
+
+func classifyInterval100(val) {
+    totalIntervalClassifications[0] = totalIntervalClassifications[0] + 1
+    if (val < 0) {
+        intervalHitCount[100] = intervalHitCount[100] + 1
+        return -1
+    }
+    elif (val < 100) {
+        intervalHitCount[0] = intervalHitCount[0] + 1
+        return 0
+    }
+    elif (val < 200) {
+        intervalHitCount[1] = intervalHitCount[1] + 1
+        return 1
+    }
+    elif (val < 300) {
+        intervalHitCount[2] = intervalHitCount[2] + 1
+        return 2
+    }
+    elif (val < 400) {
+        intervalHitCount[3] = intervalHitCount[3] + 1
+        return 3
+    }
+    elif (val < 500) {
+        intervalHitCount[4] = intervalHitCount[4] + 1
+        return 4
+    }
+    elif (val < 600) {
+        intervalHitCount[5] = intervalHitCount[5] + 1
+        return 5
+    }
+    elif (val < 700) {
+        intervalHitCount[6] = intervalHitCount[6] + 1
+        return 6
+    }
+    elif (val < 800) {
+        intervalHitCount[7] = intervalHitCount[7] + 1
+        return 7
+    }
+    elif (val < 900) {
+        intervalHitCount[8] = intervalHitCount[8] + 1
+        return 8
+    }
+    elif (val < 1000) {
+        intervalHitCount[9] = intervalHitCount[9] + 1
+        return 9
+    }
+    elif (val < 1100) {
+        intervalHitCount[10] = intervalHitCount[10] + 1
+        return 10
+    }
+    elif (val < 1200) {
+        intervalHitCount[11] = intervalHitCount[11] + 1
+        return 11
+    }
+    elif (val < 1300) {
+        intervalHitCount[12] = intervalHitCount[12] + 1
+        return 12
+    }
+    elif (val < 1400) {
+        intervalHitCount[13] = intervalHitCount[13] + 1
+        return 13
+    }
+    elif (val < 1500) {
+        intervalHitCount[14] = intervalHitCount[14] + 1
+        return 14
+    }
+    elif (val < 1600) {
+        intervalHitCount[15] = intervalHitCount[15] + 1
+        return 15
+    }
+    elif (val < 1700) {
+        intervalHitCount[16] = intervalHitCount[16] + 1
+        return 16
+    }
+    elif (val < 1800) {
+        intervalHitCount[17] = intervalHitCount[17] + 1
+        return 17
+    }
+    elif (val < 1900) {
+        intervalHitCount[18] = intervalHitCount[18] + 1
+        return 18
+    }
+    elif (val < 2000) {
+        intervalHitCount[19] = intervalHitCount[19] + 1
+        return 19
+    }
+    elif (val < 2100) {
+        intervalHitCount[20] = intervalHitCount[20] + 1
+        return 20
+    }
+    elif (val < 2200) {
+        intervalHitCount[21] = intervalHitCount[21] + 1
+        return 21
+    }
+    elif (val < 2300) {
+        intervalHitCount[22] = intervalHitCount[22] + 1
+        return 22
+    }
+    elif (val < 2400) {
+        intervalHitCount[23] = intervalHitCount[23] + 1
+        return 23
+    }
+    elif (val < 2500) {
+        intervalHitCount[24] = intervalHitCount[24] + 1
+        return 24
+    }
+    elif (val < 2600) {
+        intervalHitCount[25] = intervalHitCount[25] + 1
+        return 25
+    }
+    elif (val < 2700) {
+        intervalHitCount[26] = intervalHitCount[26] + 1
+        return 26
+    }
+    elif (val < 2800) {
+        intervalHitCount[27] = intervalHitCount[27] + 1
+        return 27
+    }
+    elif (val < 2900) {
+        intervalHitCount[28] = intervalHitCount[28] + 1
+        return 28
+    }
+    elif (val < 3000) {
+        intervalHitCount[29] = intervalHitCount[29] + 1
+        return 29
+    }
+    elif (val < 3100) {
+        intervalHitCount[30] = intervalHitCount[30] + 1
+        return 30
+    }
+    elif (val < 3200) {
+        intervalHitCount[31] = intervalHitCount[31] + 1
+        return 31
+    }
+    elif (val < 3300) {
+        intervalHitCount[32] = intervalHitCount[32] + 1
+        return 32
+    }
+    elif (val < 3400) {
+        intervalHitCount[33] = intervalHitCount[33] + 1
+        return 33
+    }
+    elif (val < 3500) {
+        intervalHitCount[34] = intervalHitCount[34] + 1
+        return 34
+    }
+    elif (val < 3600) {
+        intervalHitCount[35] = intervalHitCount[35] + 1
+        return 35
+    }
+    elif (val < 3700) {
+        intervalHitCount[36] = intervalHitCount[36] + 1
+        return 36
+    }
+    elif (val < 3800) {
+        intervalHitCount[37] = intervalHitCount[37] + 1
+        return 37
+    }
+    elif (val < 3900) {
+        intervalHitCount[38] = intervalHitCount[38] + 1
+        return 38
+    }
+    elif (val < 4000) {
+        intervalHitCount[39] = intervalHitCount[39] + 1
+        return 39
+    }
+    elif (val < 4100) {
+        intervalHitCount[40] = intervalHitCount[40] + 1
+        return 40
+    }
+    elif (val < 4200) {
+        intervalHitCount[41] = intervalHitCount[41] + 1
+        return 41
+    }
+    elif (val < 4300) {
+        intervalHitCount[42] = intervalHitCount[42] + 1
+        return 42
+    }
+    elif (val < 4400) {
+        intervalHitCount[43] = intervalHitCount[43] + 1
+        return 43
+    }
+    elif (val < 4500) {
+        intervalHitCount[44] = intervalHitCount[44] + 1
+        return 44
+    }
+    elif (val < 4600) {
+        intervalHitCount[45] = intervalHitCount[45] + 1
+        return 45
+    }
+    elif (val < 4700) {
+        intervalHitCount[46] = intervalHitCount[46] + 1
+        return 46
+    }
+    elif (val < 4800) {
+        intervalHitCount[47] = intervalHitCount[47] + 1
+        return 47
+    }
+    elif (val < 4900) {
+        intervalHitCount[48] = intervalHitCount[48] + 1
+        return 48
+    }
+    elif (val < 5000) {
+        intervalHitCount[49] = intervalHitCount[49] + 1
+        return 49
+    }
+    elif (val < 5100) {
+        intervalHitCount[50] = intervalHitCount[50] + 1
+        return 50
+    }
+    elif (val < 5200) {
+        intervalHitCount[51] = intervalHitCount[51] + 1
+        return 51
+    }
+    elif (val < 5300) {
+        intervalHitCount[52] = intervalHitCount[52] + 1
+        return 52
+    }
+    elif (val < 5400) {
+        intervalHitCount[53] = intervalHitCount[53] + 1
+        return 53
+    }
+    elif (val < 5500) {
+        intervalHitCount[54] = intervalHitCount[54] + 1
+        return 54
+    }
+    elif (val < 5600) {
+        intervalHitCount[55] = intervalHitCount[55] + 1
+        return 55
+    }
+    elif (val < 5700) {
+        intervalHitCount[56] = intervalHitCount[56] + 1
+        return 56
+    }
+    elif (val < 5800) {
+        intervalHitCount[57] = intervalHitCount[57] + 1
+        return 57
+    }
+    elif (val < 5900) {
+        intervalHitCount[58] = intervalHitCount[58] + 1
+        return 58
+    }
+    elif (val < 6000) {
+        intervalHitCount[59] = intervalHitCount[59] + 1
+        return 59
+    }
+    elif (val < 6100) {
+        intervalHitCount[60] = intervalHitCount[60] + 1
+        return 60
+    }
+    elif (val < 6200) {
+        intervalHitCount[61] = intervalHitCount[61] + 1
+        return 61
+    }
+    elif (val < 6300) {
+        intervalHitCount[62] = intervalHitCount[62] + 1
+        return 62
+    }
+    elif (val < 6400) {
+        intervalHitCount[63] = intervalHitCount[63] + 1
+        return 63
+    }
+    elif (val < 6500) {
+        intervalHitCount[64] = intervalHitCount[64] + 1
+        return 64
+    }
+    elif (val < 6600) {
+        intervalHitCount[65] = intervalHitCount[65] + 1
+        return 65
+    }
+    elif (val < 6700) {
+        intervalHitCount[66] = intervalHitCount[66] + 1
+        return 66
+    }
+    elif (val < 6800) {
+        intervalHitCount[67] = intervalHitCount[67] + 1
+        return 67
+    }
+    elif (val < 6900) {
+        intervalHitCount[68] = intervalHitCount[68] + 1
+        return 68
+    }
+    elif (val < 7000) {
+        intervalHitCount[69] = intervalHitCount[69] + 1
+        return 69
+    }
+    elif (val < 7100) {
+        intervalHitCount[70] = intervalHitCount[70] + 1
+        return 70
+    }
+    elif (val < 7200) {
+        intervalHitCount[71] = intervalHitCount[71] + 1
+        return 71
+    }
+    elif (val < 7300) {
+        intervalHitCount[72] = intervalHitCount[72] + 1
+        return 72
+    }
+    elif (val < 7400) {
+        intervalHitCount[73] = intervalHitCount[73] + 1
+        return 73
+    }
+    elif (val < 7500) {
+        intervalHitCount[74] = intervalHitCount[74] + 1
+        return 74
+    }
+    elif (val < 7600) {
+        intervalHitCount[75] = intervalHitCount[75] + 1
+        return 75
+    }
+    elif (val < 7700) {
+        intervalHitCount[76] = intervalHitCount[76] + 1
+        return 76
+    }
+    elif (val < 7800) {
+        intervalHitCount[77] = intervalHitCount[77] + 1
+        return 77
+    }
+    elif (val < 7900) {
+        intervalHitCount[78] = intervalHitCount[78] + 1
+        return 78
+    }
+    elif (val < 8000) {
+        intervalHitCount[79] = intervalHitCount[79] + 1
+        return 79
+    }
+    elif (val < 8100) {
+        intervalHitCount[80] = intervalHitCount[80] + 1
+        return 80
+    }
+    elif (val < 8200) {
+        intervalHitCount[81] = intervalHitCount[81] + 1
+        return 81
+    }
+    elif (val < 8300) {
+        intervalHitCount[82] = intervalHitCount[82] + 1
+        return 82
+    }
+    elif (val < 8400) {
+        intervalHitCount[83] = intervalHitCount[83] + 1
+        return 83
+    }
+    elif (val < 8500) {
+        intervalHitCount[84] = intervalHitCount[84] + 1
+        return 84
+    }
+    elif (val < 8600) {
+        intervalHitCount[85] = intervalHitCount[85] + 1
+        return 85
+    }
+    elif (val < 8700) {
+        intervalHitCount[86] = intervalHitCount[86] + 1
+        return 86
+    }
+    elif (val < 8800) {
+        intervalHitCount[87] = intervalHitCount[87] + 1
+        return 87
+    }
+    elif (val < 8900) {
+        intervalHitCount[88] = intervalHitCount[88] + 1
+        return 88
+    }
+    elif (val < 9000) {
+        intervalHitCount[89] = intervalHitCount[89] + 1
+        return 89
+    }
+    elif (val < 9100) {
+        intervalHitCount[90] = intervalHitCount[90] + 1
+        return 90
+    }
+    elif (val < 9200) {
+        intervalHitCount[91] = intervalHitCount[91] + 1
+        return 91
+    }
+    elif (val < 9300) {
+        intervalHitCount[92] = intervalHitCount[92] + 1
+        return 92
+    }
+    elif (val < 9400) {
+        intervalHitCount[93] = intervalHitCount[93] + 1
+        return 93
+    }
+    elif (val < 9500) {
+        intervalHitCount[94] = intervalHitCount[94] + 1
+        return 94
+    }
+    elif (val < 9600) {
+        intervalHitCount[95] = intervalHitCount[95] + 1
+        return 95
+    }
+    elif (val < 9700) {
+        intervalHitCount[96] = intervalHitCount[96] + 1
+        return 96
+    }
+    elif (val < 9800) {
+        intervalHitCount[97] = intervalHitCount[97] + 1
+        return 97
+    }
+    elif (val < 9900) {
+        intervalHitCount[98] = intervalHitCount[98] + 1
+        return 98
+    }
+    elif (val < 10000) {
+        intervalHitCount[99] = intervalHitCount[99] + 1
+        return 99
+    }
+    else {
+        intervalHitCount[100] = intervalHitCount[100] + 1
+        return -1
+    }
+}
+
 // --- Test Case 1: Exhaustive 100-Branch Linear Sweep and Boundary Conditions ---
 
 print("--- Running Test Case 1: Exhaustive 100-Branch Linear Sweep ---")
@@ -501,11 +1350,92 @@ if (branchHitCount[0] != fCount) {
 
 print("  Test Case 1 Passed Exhaustive 100-Branch Linear Sweep and Boundary Conditions (100 branch hits, ", fCount, " fallthroughs)")
 
+// --- Test Case 2: Cross-Topological Equivalence (Flat Ladder vs Hierarchical Tree) ---
+
+print("--- Running Test Case 2: Cross-Topological Equivalence ---")
+
+treeEquivKey = 1
+treeEquivAcc = 77
+while (treeEquivKey <= 100) {
+    flatOutput = dispatchFlatLadder100(treeEquivKey, treeEquivAcc)
+    treeOutput = dispatchNestedTree100(treeEquivKey, treeEquivAcc)
+    if (flatOutput != treeOutput) {
+        print("[FAIL] Test Case 2 Topology mismatch at key ", treeEquivKey, ": flat=", flatOutput, " tree=", treeOutput)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    treeEquivAcc = (treeEquivAcc * 13 + treeOutput) % 1000000007
+    treeEquivKey = treeEquivKey + 1
+}
+
+// Verify fallthrough parity on hierarchical tree
+fTreeIdx = 0
+while (fTreeIdx < fCount) {
+    fKey = fallthroughKeys[fTreeIdx]
+    flatFall = dispatchFlatLadder100(fKey, 200)
+    treeFall = dispatchNestedTree100(fKey, 200)
+    if (flatFall != treeFall) {
+        print("[FAIL] Test Case 2 Tree fallthrough mismatch at key ", fKey, ": flat=", flatFall, " tree=", treeFall)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    fTreeIdx = fTreeIdx + 1
+}
+
+// Verify all tree branch hit counts equal 1 (for 1..100) and fCount (for 0)
+treeCheckIdx = 1
+while (treeCheckIdx <= 100) {
+    if (treeBranchHitCount[treeCheckIdx] != 1) {
+        print("[FAIL] Test Case 2 Tree hit count mismatch for key ", treeCheckIdx, ": expected 1, got ", treeBranchHitCount[treeCheckIdx])
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    treeCheckIdx = treeCheckIdx + 1
+}
+if (treeBranchHitCount[0] != fCount) {
+    print("[FAIL] Test Case 2 Tree default hit count mismatch: expected ", fCount, " got ", treeBranchHitCount[0])
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 2 Passed Cross-Topological Equivalence (100% parity across all 100 branches and fallthroughs)")
+
+// --- Test Case 3: 100-Interval Range Classifier Verification ---
+
+print("--- Running Test Case 3: 100-Interval Range Classifier ---")
+
+intervalIdx = 0
+while (intervalIdx < 100) {
+    lowVal = intervalIdx * 100
+    midVal = lowVal + 50
+    highVal = lowVal + 99
+
+    cLow = classifyInterval100(lowVal)
+    cMid = classifyInterval100(midVal)
+    cHigh = classifyInterval100(highVal)
+
+    if (cLow != intervalIdx or cMid != intervalIdx or cHigh != intervalIdx) {
+        print("[FAIL] Test Case 3 Interval ", intervalIdx, " mismatch: low=", cLow, " mid=", cMid, " high=", cHigh)
+        testSuiteFailures = testSuiteFailures + 1
+    }
+    intervalIdx = intervalIdx + 1
+}
+
+// Interval Out-of-bounds boundary checks
+outLow = classifyInterval100(-1)
+outLow2 = classifyInterval100(-99999)
+outHigh = classifyInterval100(10000)
+outHigh2 = classifyInterval100(10001)
+outHigh3 = classifyInterval100(5000000)
+
+if (outLow != -1 or outLow2 != -1 or outHigh != -1 or outHigh2 != -1 or outHigh3 != -1) {
+    print("[FAIL] Test Case 3 Interval boundary out-of-range failed: low=", outLow, " high=", outHigh)
+    testSuiteFailures = testSuiteFailures + 1
+}
+
+print("  Test Case 3 Passed 100-Interval Range Classifier (all 100 buckets, boundaries, and out-of-range)")
+
 // --- Summary Telemetry ---
 
 elapsed = t.millis() - suiteStartTime
 if (testSuiteFailures == 0) {
-    print("[PASS] Initial Stage 1 Passed in ", elapsed, " ms")
+    print("[PASS] Stage 2 Passed in ", elapsed, " ms")
 } else {
-    print("[FAIL] Initial Stage 1 encountered ", testSuiteFailures, " failures")
+    print("[FAIL] Stage 2 encountered ", testSuiteFailures, " failures")
 }
